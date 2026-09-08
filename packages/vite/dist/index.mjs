@@ -535,14 +535,11 @@ function resolveWabouConfig(options, environment) {
 				name: options.globalName ?? "WabouApp",
 				fileName: () => "bundle.js"
 			},
-			rollupOptions: { output: {
-				inlineDynamicImports: true,
-				assetFileNames: "bundle.[ext]"
-			} },
+			rolldownOptions: { output: { assetFileNames: "bundle.[ext]" } },
 			cssCodeSplit: false,
 			outDir,
 			emptyOutDir: true,
-			minify: debug ? false : "esbuild"
+			minify: debug ? false : "oxc"
 		}
 	};
 	const config = mergeConfig(defaults, options.vite ?? {});

@@ -133,7 +133,10 @@ describe("@wabou/vite", () => {
     expect(config.build?.outDir).toBe("/dist/demo/resources");
     expect(config.build?.cssCodeSplit).toBe(false);
     expect(config.build?.sourcemap).toBe(false);
-    expect(config.build?.minify).toBe("esbuild");
+    expect(config.build?.minify).toBe("oxc");
+    expect(config.build?.rolldownOptions?.output).toMatchObject({
+      assetFileNames: "bundle.[ext]",
+    });
     expect(config.build?.lib).toMatchObject({
       entry: "ui/index.tsx",
       formats: ["iife"],

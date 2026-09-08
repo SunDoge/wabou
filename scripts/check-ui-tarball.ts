@@ -64,7 +64,7 @@ await writeFile(
       devDependencies: {
         "@wabou/vite": `file:${viteTarball}`,
         typescript: "^5.9.0",
-        vite: "^6.0.0",
+        vite: "^8.2.2",
       },
       overrides: { "@wabou/core": `file:${coreTarball}` },
     },

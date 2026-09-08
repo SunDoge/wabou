@@ -104,7 +104,7 @@ the public JavaScript facades through `workspace:*`:
   "devDependencies": {
     "@wabou/test": "workspace:*",
     "@wabou/vite": "workspace:*",
-    "vite": "^6.0.0"
+    "vite": "^8.2.2"
   }
 }
 ```

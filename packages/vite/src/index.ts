@@ -269,17 +269,17 @@ function resolveWabouConfig(
         name: options.globalName ?? "WabouApp",
         fileName: () => "bundle.js",
       },
-      rollupOptions: {
-        output: { inlineDynamicImports: true, assetFileNames: "bundle.[ext]" },
+      rolldownOptions: {
+        output: { assetFileNames: "bundle.[ext]" },
       },
       cssCodeSplit: false,
       outDir,
       emptyOutDir: true,
       // Keep development output readable for mapped QuickJS diagnostics, but
       // do not ship the same multi-megabyte unminified dependency sources in
-      // release artifacts. Vite's esbuild minifier preserves the single IIFE
+      // release artifacts. Vite's Oxc minifier preserves the single IIFE
       // consumed by the native runtime.
-      minify: debug ? false : "esbuild",
+      minify: debug ? false : "oxc",
     },
   };
   const config = mergeConfig(defaults, options.vite ?? {});
