@@ -99,3 +99,29 @@ test("supports application-owned expansion and selection", () => {
   expect(source.selected).toBe(true);
   expect(screen.getByRole("treeitem", { name: "Components" })).not.toBeNull();
 });
+
+test("windows large trees and keeps End-key focus navigation intact", () => {
+  const largeItems = Array.from({ length: 200 }, (_, index) => ({
+    id: `entry-${index}`,
+    label: `Entry ${index}`,
+  }));
+  const screen = renderComponent(() => (
+    <TreeView
+      items={largeItems}
+      aria-label="Large tree"
+      virtual={{ itemHeight: 34, viewportHeight: 102, overscan: 1 }}
+    />
+  ));
+
+  expect(screen.getAllByRole("treeitem")).toHaveLength(4);
+  const first = screen.getByRole("treeitem", { name: "Entry 0" });
+  first.focus();
+  first.press("End");
+  screen.flush();
+
+  expect(screen.getByRole("treeitem", { name: "Entry 199" }).focused).toBe(
+    true,
+  );
+  expect(screen.queryByRole("treeitem", { name: "Entry 0" })).toBeNull();
+  expect(screen.getAllByRole("treeitem").length).toBeLessThanOrEqual(5);
+});

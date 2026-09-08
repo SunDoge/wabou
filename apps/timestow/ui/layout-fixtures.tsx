@@ -539,6 +539,48 @@ function SnapshotTreeErrorFixture() {
   );
 }
 
+function SnapshotTreeLargeFixture() {
+  const inheritedHost = useHost();
+  return (
+    <HostProvider
+      value={
+        {
+          ...inheritedHost,
+          rustic: {
+            ...fixtureRustic,
+            listFiles: ({
+              path,
+              offset = 0,
+              limit = FILE_PAGE_SIZE,
+            }: Parameters<RusticCapability["listFiles"]>[0]) => {
+              const all = path ? [] : manyRootFiles;
+              const entries = all.slice(offset, offset + limit);
+              return {
+                entries: [...entries],
+                total: all.length,
+                offset,
+                hasMore: offset + entries.length < all.length,
+              };
+            },
+          },
+        } as typeof inheritedHost
+      }
+    >
+      <ColorThemeProvider theme="light">
+        <ComponentsProvider theme="light">
+          <View class="w-full h-full min-w-0 min-h-0 bg-surface text-primary">
+            <SnapshotFileTree
+              profileId={profile.id}
+              snapshotId={newestSnapshot.id}
+              onSelect={() => {}}
+            />
+          </View>
+        </ComponentsProvider>
+      </ColorThemeProvider>
+    </HostProvider>
+  );
+}
+
 function BackupProgressFixture() {
   return (
     <ColorThemeProvider theme="light">
@@ -930,6 +972,12 @@ defineLayoutFixtures(
       height: 280,
       waitMs: 100,
       render: SnapshotTreeErrorFixture,
+    },
+    "timestow/snapshot-tree-large": {
+      width: 360,
+      height: 400,
+      waitMs: 100,
+      render: SnapshotTreeLargeFixture,
     },
     "timestow/backup-progress-narrow": {
       width: 420,

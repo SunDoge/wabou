@@ -179,7 +179,7 @@ export function SnapshotFileTree(props: {
   }
 
   return (
-    <View class="min-w-0 flex flex-col gap-2">
+    <View class="w-full h-full min-w-0 min-h-0 flex flex-col gap-2">
       <View class="flex-none px-2 py-1 flex flex-row items-center justify-between">
         <Text class="text-xs font-medium text-muted">Snapshot files</Text>
         <Show when={loadingPaths().length > 0}>
@@ -228,6 +228,8 @@ export function SnapshotFileTree(props: {
             id && id !== ROOT_ID ? entriesByPath().get(id) : undefined,
           );
         }}
+        virtual={{ itemHeight: 34 }}
+        class="min-h-0 flex-1 px-2 pb-2"
         renderItem={(node) => (
           <View class="min-w-0 flex-1 flex flex-row items-center gap-2">
             <Icon

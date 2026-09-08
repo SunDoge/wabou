@@ -19,7 +19,6 @@ import {
   InputGroupInput,
   PageHeader,
   ProjectionBoundary,
-  ScrollArea,
   Table,
   TableCell,
   TableHeader,
@@ -1099,17 +1098,12 @@ export function SnapshotsPage() {
                         <Show
                           when={browserMode() === "list" || searchActive()}
                           fallback={
-                            <ScrollArea
-                              class="min-w-0 min-h-0 flex-1"
-                              contentClass="min-w-full px-2 py-2"
-                            >
-                              <SnapshotFileTree
-                                profileId={session.activeProfile()?.id ?? ""}
-                                snapshotId={snapshot().id}
-                                selectedPath={selectedEntry()?.path}
-                                onSelect={setSelectedEntry}
-                              />
-                            </ScrollArea>
+                            <SnapshotFileTree
+                              profileId={session.activeProfile()?.id ?? ""}
+                              snapshotId={snapshot().id}
+                              selectedPath={selectedEntry()?.path}
+                              onSelect={setSelectedEntry}
+                            />
                           }
                         >
                           <Show

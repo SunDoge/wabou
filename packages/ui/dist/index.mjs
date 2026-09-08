@@ -12747,6 +12747,7 @@ function validateExpandedIds(model, ids) {
 /** A single-select tree with explicit data, expansion, and native focus routing. */
 function TreeView(props) {
 	const initialModel = createTreeModel(untrack(() => props.items));
+	const virtual = untrack(() => props.virtual);
 	const model = createMemo(() => createTreeModel(props.items));
 	const expandedState = createControllableState({
 		value: () => props.expandedIds === void 0 ? void 0 : validateExpandedIds(model(), props.expandedIds),
@@ -12760,6 +12761,8 @@ function TreeView(props) {
 	});
 	const [activeId, setActiveId] = createSignal(void 0, { ownedWrite: true });
 	const handles = /* @__PURE__ */ new Map();
+	let virtualController;
+	let pendingFocusId;
 	const expanded = () => expandedState.value();
 	const visible = createMemo(() => model().visible(expanded()));
 	const enabledVisible = () => visible().filter(({ node }) => !node.disabled);
@@ -12775,8 +12778,17 @@ function TreeView(props) {
 	};
 	const focus = (id) => {
 		if (!id || model().get(id)?.disabled) return false;
+		const handle = handles.get(id);
+		if (!handle && virtual) {
+			const index = visible().findIndex(({ node }) => node.id === id);
+			if (index < 0 || !virtualController) return false;
+			pendingFocusId = id;
+			setActiveId(id);
+			virtualController.scrollToIndex(index);
+			return true;
+		}
 		setActiveId(id);
-		handles.get(id)?.focus();
+		handle?.focus();
 		return true;
 	};
 	const setExpanded = (id, next) => {
@@ -12812,7 +12824,108 @@ function TreeView(props) {
 		else if (event.key === "ArrowLeft") handled = isExpanded(id) ? setExpanded(id, false) : focus(item.parentId ?? void 0);
 		if (handled) event.preventDefault();
 	};
-	return createComponent$1(View, {
+	const renderTreeItem = (item) => {
+		const id = untrack(() => item().node.id);
+		let ownHandle;
+		onCleanup(() => {
+			if (handles.get(id) === ownHandle) handles.delete(id);
+		});
+		const branch = () => model().isBranch(id);
+		return createComponent$1(Button$1, {
+			unstyled: true,
+			ref: (node) => {
+				ownHandle = node;
+				handles.set(id, node);
+				if (pendingFocusId === id) {
+					pendingFocusId = void 0;
+					node.focus();
+				}
+			},
+			role: "treeitem",
+			get ["aria-label"]() {
+				return item().node.label;
+			},
+			get ["aria-expanded"]() {
+				return memo(() => {
+					return !!branch();
+				})() ? isExpanded(id) : void 0;
+			},
+			get ["aria-selected"]() {
+				return isSelected(id);
+			},
+			get selected() {
+				return isSelected(id);
+			},
+			get disabled() {
+				return item().node.disabled;
+			},
+			get focusOrder() {
+				return tabStop() === id ? 0 : -1;
+			},
+			class: (state) => mergeClasses("w-full h-8 min-w-0 pr-2 items-center gap-2 rounded-md text-sm", state.selected ? "bg-selected text-primary" : state.hovered ? "bg-control-hover text-primary" : "bg-transparent text-secondary", props.itemClass),
+			get style() {
+				return { "padding-left": `${8 + (item().level - 1) * 20}px` };
+			},
+			onFocus: () => setActiveId(id),
+			onClick: () => activate(item().node),
+			onKeyDown: (event) => handleKey(item(), event),
+			get children() {
+				return [memo(() => {
+					return memo(() => {
+						return !!branch();
+					})() ? createComponent$1(Icon, {
+						"aria-hidden": "true",
+						get source() {
+							return isExpanded(id) ? chevronDown : chevronRight;
+						},
+						size: 14,
+						class: "flex-none text-muted"
+					}) : createComponent$1(View, {
+						"aria-hidden": "true",
+						class: "w-3.5 h-3.5 flex-none"
+					});
+				}), memo(() => {
+					return memo(() => {
+						return !!props.renderItem;
+					})() ? props.renderItem(item().node, {
+						expanded: isExpanded(id),
+						selected: isSelected(id),
+						level: item().level
+					}) : createComponent$1(Text, {
+						maxLines: 1,
+						class: "min-w-0 flex-1 text-sm",
+						get children() {
+							return item().node.label;
+						}
+					});
+				})];
+			}
+		});
+	};
+	return virtual ? createComponent$1(VirtualList, {
+		items: visible,
+		get itemHeight() {
+			return virtual.itemHeight;
+		},
+		get overscan() {
+			return virtual.overscan;
+		},
+		get viewportHeight() {
+			return virtual.viewportHeight;
+		},
+		getItemKey: (item) => item.node.id,
+		role: "tree",
+		get accessibilityLabel() {
+			return props["aria-label"];
+		},
+		controllerRef: (controller) => {
+			virtualController = controller;
+		},
+		get ["class"]() {
+			return props.class;
+		},
+		children: (item) => renderTreeItem(item)
+	}) : createComponent$1(View, {
 		role: "tree",
 		get ["aria-label"]() {
 			return props["aria-label"];
@@ -12825,72 +12938,7 @@ function TreeView(props) {
 				get each() {
 					return visible();
 				},
-				children: (item) => {
-					const branch = () => model().isBranch(item.node.id);
-					return createComponent$1(Button$1, {
-						unstyled: true,
-						ref: (node) => handles.set(item.node.id, node),
-						role: "treeitem",
-						get ["aria-label"]() {
-							return item.node.label;
-						},
-						get ["aria-expanded"]() {
-							return memo(() => {
-								return !!branch();
-							})() ? isExpanded(item.node.id) : void 0;
-						},
-						get ["aria-selected"]() {
-							return isSelected(item.node.id);
-						},
-						get selected() {
-							return isSelected(item.node.id);
-						},
-						get disabled() {
-							return item.node.disabled;
-						},
-						get focusOrder() {
-							return tabStop() === item.node.id ? 0 : -1;
-						},
-						class: (state) => mergeClasses("w-full h-8 min-w-0 pr-2 items-center gap-2 rounded-md text-sm", state.selected ? "bg-selected text-primary" : state.hovered ? "bg-control-hover text-primary" : "bg-transparent text-secondary", props.itemClass),
-						get style() {
-							return { "padding-left": `${8 + (item.level - 1) * 20}px` };
-						},
-						onFocus: () => setActiveId(item.node.id),
-						onClick: () => activate(item.node),
-						onKeyDown: (event) => handleKey(item, event),
-						get children() {
-							return [memo(() => {
-								return memo(() => {
-									return !!branch();
-								})() ? createComponent$1(Icon, {
-									"aria-hidden": "true",
-									get source() {
-										return isExpanded(item.node.id) ? chevronDown : chevronRight;
-									},
-									size: 14,
-									class: "flex-none text-muted"
-								}) : createComponent$1(View, {
-									"aria-hidden": "true",
-									class: "w-3.5 h-3.5 flex-none"
-								});
-							}), memo(() => {
-								return memo(() => {
-									return !!props.renderItem;
-								})() ? props.renderItem(item.node, {
-									expanded: isExpanded(item.node.id),
-									selected: isSelected(item.node.id),
-									level: item.level
-								}) : createComponent$1(Text, {
-									maxLines: 1,
-									class: "min-w-0 flex-1 text-sm",
-									get children() {
-										return item.node.label;
-									}
-								});
-							})];
-						}
-					});
-				}
+				children: (item) => renderTreeItem(() => item)
 			});
 		}
 	});

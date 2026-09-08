@@ -376,7 +376,8 @@ function VirtualList(props) {
 		class: props.class,
 		getItemKey: props.getItemKey,
 		role: props.role,
-		accessibilityLabel: props.accessibilityLabel
+		accessibilityLabel: props.accessibilityLabel,
+		controllerRef: props.controllerRef
 	}));
 	const source = createMemo(() => {
 		const items = config.items();
@@ -387,6 +388,7 @@ function VirtualList(props) {
 	});
 	const [scrollTop, setScrollTop] = createSignal(0);
 	const [measuredHeight, setMeasuredHeight] = createSignal(0);
+	let viewport;
 	let observer;
 	const viewportHeight = () => config.viewportHeight ?? measuredHeight();
 	const range = createMemo(() => calculateVirtualRange(source().items.length, config.itemHeight, viewportHeight(), scrollTop(), config.overscan), { equals: (previous, next) => previous.start === next.start && previous.end === next.end });
@@ -406,6 +408,7 @@ function VirtualList(props) {
 		return rows;
 	});
 	const observeViewport = (node) => {
+		viewport = node;
 		observer?.disconnect();
 		if (config.viewportHeight !== void 0) return;
 		observer = new ResizeObserver(([entry]) => {
@@ -416,6 +419,19 @@ function VirtualList(props) {
 	const handleScroll = (event) => {
 		if (event.scrollY !== void 0) setScrollTop(Math.max(0, event.scrollY));
 	};
+	config.controllerRef?.({ scrollToIndex(index, alignment = "nearest") {
+		const itemCount = source().items.length;
+		if (!Number.isSafeInteger(index) || index < 0 || index >= itemCount) throw new RangeError(`VirtualList index ${index} is outside 0..${Math.max(0, itemCount - 1)}`);
+		const height = viewportHeight();
+		const itemTop = index * config.itemHeight;
+		const itemBottom = itemTop + config.itemHeight;
+		const currentTop = scrollTop();
+		const currentBottom = currentTop + height;
+		const requested = alignment === "start" ? itemTop : alignment === "center" ? itemTop - (height - config.itemHeight) / 2 : alignment === "end" ? itemBottom - height : itemTop < currentTop ? itemTop : itemBottom > currentBottom ? itemBottom - height : currentTop;
+		const next = Math.min(Math.max(0, itemCount * config.itemHeight - height), Math.max(0, requested));
+		setScrollTop(next);
+		viewport?.scrollTo({ top: next });
+	} });
 	onCleanup(() => observer?.disconnect());
 	var _el$ = createElement("virtual-list", {
 		projectionBoundary: true,
@@ -1203,4 +1219,4 @@ function eventName(code) {
 //#endregion
 export { writer as A, releaseOverlayRoot as C, setProp as D, runSweep as E, defaultHost as F, useHost as I, PathBuilder as L, createFps as M, Portal as N, setTransform2D as O, HostProvider as P, isVectorPath as R, registerRoot as S, render as T, mergeProps as _, createElement as a, reconcileControlledInputValues as b, dispatchEvent as c, getRequestEvent as d, insert as f, memo as g, isServer as h, createComponent$1 as i, VirtualList as j, spread as k, effect as l, isDirectEvent as m, acquireOverlayRoot as n, createTextNode as o, insertNode as p, applyRef as r, delegateEvents as s, Dynamic as t, getMountRoot as u, mount as v, removeNode as w, ref as x, observeGlobalPointerEvent as y };
 
-//# sourceMappingURL=renderer-4jxE52_B.mjs.map
+//# sourceMappingURL=renderer-Bd-yL74r.mjs.map

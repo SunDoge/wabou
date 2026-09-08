@@ -2,7 +2,10 @@ import { renderComponent } from "@wabou/test/component";
 import { Text } from "@wabou/ui";
 import { createSignal } from "solid-js";
 import { expect, test } from "vitest";
-import { VirtualList } from "../../packages/core/src/renderer/virtual-list";
+import {
+  VirtualList,
+  type VirtualListController,
+} from "../../packages/core/src/renderer/virtual-list";
 
 test("owns the native scrolling and clipping viewport contract", () => {
   const screen = renderComponent(() => (
@@ -98,7 +101,35 @@ test("keeps item and index coherent while a filtered list shrinks", () => {
   screen.flush();
 
   expect(screen.getAllByRole("option")).toHaveLength(1);
-  expect(
-    screen.getByRole("option", { name: "Filtered result" }),
-  ).toBeDefined();
+  expect(screen.getByRole("option", { name: "Filtered result" })).toBeDefined();
+});
+
+test("scrolls an offscreen item into the mounted window for keyboard owners", () => {
+  const items = Array.from({ length: 100 }, (_, index) => `Item ${index}`);
+  let controller: VirtualListController | undefined;
+  const screen = renderComponent(() => (
+    <VirtualList
+      items={() => items}
+      itemHeight={20}
+      viewportHeight={100}
+      overscan={1}
+      getItemKey={(item) => item}
+      role="listbox"
+      accessibilityLabel="Controlled list"
+      controllerRef={(next) => {
+        controller = next;
+      }}
+    >
+      {(item) => <Text role="option">{item()}</Text>}
+    </VirtualList>
+  ));
+
+  controller?.scrollToIndex(99);
+  screen.flush();
+
+  expect(screen.getByRole("option", { name: "Item 99" })).toBeDefined();
+  expect(screen.queryByRole("option", { name: "Item 0" })).toBeNull();
+  expect(() => controller?.scrollToIndex(100)).toThrow(
+    "VirtualList index 100 is outside 0..99",
+  );
 });

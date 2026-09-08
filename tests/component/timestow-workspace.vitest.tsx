@@ -161,7 +161,6 @@ test("session surfaces profile metadata recovery without blocking startup", asyn
     ),
     { host: fixture.host },
   );
-
   await screen.waitFor(() => {
     expect(screen.getByRole("alert").text).toContain("old-photos");
   });
@@ -1152,7 +1151,6 @@ test("snapshot comparison failures can be retried in place", async () => {
     ),
     { host: fixture.host },
   );
-
   await screen.waitFor(() => {
     expect(
       screen.getByRole("alert", { name: "Could not compare snapshots" }).text,
@@ -1717,6 +1715,9 @@ test("snapshot file tree loads child directories only when expanded", async () =
     ),
     { host: fixture.host },
   );
+  screen
+    .getByRole("tree", { name: "Snapshot files" })
+    .resize({ width: 320, height: 240 });
 
   await screen.waitFor(() => {
     expect(screen.getByRole("treeitem", { name: "docs" })).toBeDefined();
@@ -1810,6 +1811,9 @@ test("snapshot file tree retries a failed directory without clearing loaded file
     ),
     { host: fixture.host },
   );
+  screen
+    .getByRole("tree", { name: "Snapshot files" })
+    .resize({ width: 320, height: 240 });
 
   await screen.waitFor(() => {
     expect(screen.getByRole("treeitem", { name: "docs" })).toBeDefined();

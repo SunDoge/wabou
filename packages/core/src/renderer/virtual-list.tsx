@@ -30,8 +30,16 @@ export interface VirtualListProps<T> {
   role?: WabouSemanticRole;
   /** Accessible name for the native scroll viewport. */
   accessibilityLabel?: string;
+  /** Receives the stable imperative controller for keyboard/focus integration. */
+  controllerRef?(controller: VirtualListController): void;
   /** Render a single row given its item and absolute index. */
   children: (item: Accessor<T>, index: Accessor<number>) => JSX.Element;
+}
+
+export type VirtualListScrollAlignment = "nearest" | "start" | "center" | "end";
+
+export interface VirtualListController {
+  scrollToIndex(index: number, alignment?: VirtualListScrollAlignment): void;
 }
 
 export function createVirtualRow<T>(
@@ -153,6 +161,7 @@ export function VirtualList<T>(props: VirtualListProps<T>): JSX.Element {
     getItemKey: props.getItemKey,
     role: props.role,
     accessibilityLabel: props.accessibilityLabel,
+    controllerRef: props.controllerRef,
   }));
   const source = createMemo(() => {
     const items = config.items();
@@ -163,6 +172,7 @@ export function VirtualList<T>(props: VirtualListProps<T>): JSX.Element {
   });
   const [scrollTop, setScrollTop] = createSignal(0);
   const [measuredHeight, setMeasuredHeight] = createSignal(0);
+  let viewport: Handle | undefined;
   let observer: ResizeObserver | undefined;
 
   const viewportHeight = () => config.viewportHeight ?? measuredHeight();
@@ -199,6 +209,7 @@ export function VirtualList<T>(props: VirtualListProps<T>): JSX.Element {
     return rows;
   });
   const observeViewport = (node: Handle) => {
+    viewport = node;
     observer?.disconnect();
     if (config.viewportHeight !== undefined) return;
     observer = new ResizeObserver(([entry]) => {
@@ -209,6 +220,41 @@ export function VirtualList<T>(props: VirtualListProps<T>): JSX.Element {
   const handleScroll = (event: WabouScrollEvent) => {
     if (event.scrollY !== undefined) setScrollTop(Math.max(0, event.scrollY));
   };
+
+  const controller: VirtualListController = {
+    scrollToIndex(index, alignment = "nearest") {
+      const itemCount = source().items.length;
+      if (!Number.isSafeInteger(index) || index < 0 || index >= itemCount) {
+        throw new RangeError(
+          `VirtualList index ${index} is outside 0..${Math.max(0, itemCount - 1)}`,
+        );
+      }
+      const height = viewportHeight();
+      const itemTop = index * config.itemHeight;
+      const itemBottom = itemTop + config.itemHeight;
+      const currentTop = scrollTop();
+      const currentBottom = currentTop + height;
+      const requested =
+        alignment === "start"
+          ? itemTop
+          : alignment === "center"
+            ? itemTop - (height - config.itemHeight) / 2
+            : alignment === "end"
+              ? itemBottom - height
+              : itemTop < currentTop
+                ? itemTop
+                : itemBottom > currentBottom
+                  ? itemBottom - height
+                  : currentTop;
+      const next = Math.min(
+        Math.max(0, itemCount * config.itemHeight - height),
+        Math.max(0, requested),
+      );
+      setScrollTop(next);
+      viewport?.scrollTo({ top: next });
+    },
+  };
+  config.controllerRef?.(controller);
 
   onCleanup(() => observer?.disconnect());
 

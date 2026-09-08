@@ -1489,6 +1489,11 @@ export {
 } from "./host";
 export { Portal, type PortalProps } from "./portal";
 export { createFps } from "./use-fps";
-export { VirtualList, type VirtualListProps } from "./virtual-list";
+export {
+  VirtualList,
+  type VirtualListController,
+  type VirtualListProps,
+  type VirtualListScrollAlignment,
+} from "./virtual-list";
 export type { JSX, Writer };
 export { EVENT_CODE, OP };

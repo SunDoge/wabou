@@ -370,6 +370,23 @@ await renderLayoutFixtures({
       },
     },
     {
+      id: "timestow/snapshot-tree-large",
+      width: 360,
+      height: 400,
+      checks: ["visible-overflow", "text-collision", "visual-quality"],
+      assert: (fixture) => {
+        getLayoutNode(fixture, { role: "tree", name: "Snapshot files" });
+        getLayoutNode(fixture, { role: "treeitem", name: "Snapshot root" });
+        getLayoutNode(fixture, { role: "treeitem", name: "archive-001.bin" });
+        const mountedItems = queryLayoutNodes(fixture, { role: "treeitem" });
+        if (mountedItems.length > 18) {
+          throw new Error(
+            `virtual snapshot tree mounted ${mountedItems.length} items for ${251} visible nodes`,
+          );
+        }
+      },
+    },
+    {
       id: "timestow/backup-progress-narrow",
       width: 420,
       height: 88,

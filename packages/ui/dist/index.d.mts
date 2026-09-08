@@ -2842,6 +2842,12 @@ interface TreeViewProps {
   defaultSelectedId?: string | null;
   onSelectedChange?(id: string | null): void;
   renderItem?(node: TreeNode, state: TreeItemRenderState): JSX.Element;
+  /** Window a large fixed-height tree while retaining native tree semantics. */
+  virtual?: {
+    itemHeight: number;
+    overscan?: number;
+    viewportHeight?: number;
+  };
   class?: string;
   itemClass?: string;
 }
