@@ -249,6 +249,7 @@ export interface SnapshotWorkspaceHeaderProps {
   repositoryPath: string;
   sources: readonly string[];
   backingUp: boolean;
+  refreshing?: boolean;
   showBackupAction?: boolean;
   scheduleControl?: JSX.Element;
   repositoryControl?: JSX.Element;
@@ -282,6 +283,9 @@ export function SnapshotWorkspaceHeader(props: SnapshotWorkspaceHeaderProps) {
             <Button
               aria-label="Refresh snapshots"
               variant="outline"
+              disabled={props.backingUp}
+              loading={props.refreshing}
+              loadingLabel="Refreshing…"
               onClick={props.onRefresh}
             >
               <Icon source={refreshCw} size={14} /> Refresh
@@ -801,6 +805,7 @@ export function SnapshotsPage() {
   }
 
   async function refreshSnapshots(profileId: string) {
+    if (loading()) return;
     const selectedId = selected()?.id;
     const path = currentPath();
     browserCache.clearListings();
@@ -956,6 +961,7 @@ export function SnapshotsPage() {
           repositoryPath={session.activeProfile()?.repositoryPath ?? ""}
           sources={session.activeProfile()?.sources ?? []}
           backingUp={backingUp()}
+          refreshing={loading()}
           showBackupAction={snapshots().length > 0}
           scheduleControl={
             <Show when={session.activeProfile()}>

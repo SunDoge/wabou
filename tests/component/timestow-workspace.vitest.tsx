@@ -320,6 +320,7 @@ test("backup workspace keeps configuration and primary actions distinct", () => 
   const refresh = vi.fn();
   const backup = vi.fn();
   const [showBackupAction, setShowBackupAction] = createSignal(true);
+  const [refreshing, setRefreshing] = createSignal(false);
   const screen = renderComponent(
     () => (
       <SnapshotWorkspaceHeader
@@ -327,6 +328,7 @@ test("backup workspace keeps configuration and primary actions distinct", () => 
         repositoryPath="/data/backups/home"
         sources={["/data/photos"]}
         backingUp={false}
+        refreshing={refreshing()}
         showBackupAction={showBackupAction()}
         scheduleControl={<Button aria-label="Schedule backup" />}
         onSourcesChange={() => {}}
@@ -345,6 +347,21 @@ test("backup workspace keeps configuration and primary actions distinct", () => 
   expect(refresh).toHaveBeenCalledTimes(1);
   expect(backup).toHaveBeenCalledTimes(1);
 
+  setRefreshing(true);
+  screen.flush();
+  const refreshingButton = screen.getByRole("button", {
+    name: "Refresh snapshots",
+    disabled: true,
+    busy: true,
+  });
+  expect(refreshingButton.disabled).toBe(true);
+  expect(refreshingButton.text).toContain("Refreshing…");
+  expect(() => refreshingButton.click()).toThrow(
+    "cannot click disabled component",
+  );
+  expect(refresh).toHaveBeenCalledTimes(1);
+
+  setRefreshing(false);
   setShowBackupAction(false);
   screen.flush();
   expect(screen.queryByRole("button", { name: "Back up now" })).toBeNull();
