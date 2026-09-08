@@ -29,6 +29,7 @@ import {
   Text,
   useNavigate,
   View,
+  VirtualList,
 } from "@wabou/ui";
 import chevronLeft from "lucide-static/icons/chevron-left.svg?raw";
 import file from "lucide-static/icons/file.svg?raw";
@@ -42,6 +43,7 @@ import shieldCheck from "lucide-static/icons/shield-check.svg?raw";
 import x from "lucide-static/icons/x.svg?raw";
 import {
   createEffect,
+  createMemo,
   createSignal,
   For as ForValue,
   type JSX,
@@ -57,16 +59,16 @@ import {
   useRusticApi,
 } from "./api";
 import { createAsyncRequestGate } from "./async-request";
-import {
-  createLocalOperationId,
-  OperationProgressStatus,
-} from "./operation-progress";
 import { FileDetails } from "./file-details";
 import {
   formatBytes,
   formatOptionalTimestamp,
   formatTimestamp,
 } from "./format";
+import {
+  createLocalOperationId,
+  OperationProgressStatus,
+} from "./operation-progress";
 import { RepositoryCheckDialog } from "./repository-check";
 import { BackupScheduleDialog } from "./schedule-dialog";
 import { useTimestowSession } from "./session";
@@ -81,7 +83,7 @@ const fileColumns: TanStackDataTableColumn<FileEntry>[] = [
   { accessorKey: "size", header: "Size" },
   { accessorKey: "modified", header: "Modified" },
 ];
-const SNAPSHOT_HISTORY_PAGE_SIZE = 50;
+const SNAPSHOT_HISTORY_ROW_HEIGHT = 60;
 
 function shortId(id: string): string {
   return id.slice(0, 8);
@@ -447,19 +449,13 @@ export function SnapshotHistory(props: {
   onQueryChange(query: string): void;
   onSelect(snapshot: SnapshotEntry): void;
 }) {
-  const [visibleLimit, setVisibleLimit] = createSignal(
-    SNAPSHOT_HISTORY_PAGE_SIZE,
-  );
-  const filtered = () =>
+  const filtered = createMemo(() =>
     props.snapshots.filter((snapshot) =>
       snapshotMatchesQuery(snapshot, props.query),
-    );
-  const visibleSnapshots = () => filtered().slice(0, visibleLimit());
-  const remainingSnapshots = () =>
-    Math.max(0, filtered().length - visibleSnapshots().length);
+    ),
+  );
   const searchable = () => props.snapshots.length >= 8;
   const updateQuery = (query: string) => {
-    setVisibleLimit(SNAPSHOT_HISTORY_PAGE_SIZE);
     props.onQueryChange(query);
   };
   return (
@@ -500,7 +496,7 @@ export function SnapshotHistory(props: {
           </InputGroup>
         </Show>
       </View>
-      <ScrollArea class="min-h-0 flex-1" contentClass="flex flex-col gap-1 p-2">
+      <View class="min-h-0 flex-1 flex flex-col">
         <Switch>
           <Match when={props.loading}>
             <ContentState
@@ -539,61 +535,60 @@ export function SnapshotHistory(props: {
             />
           </Match>
           <Match when>
-            <ForValue each={visibleSnapshots()}>
-              {(snapshot) => (
-                <Button
-                  aria-label={`Open snapshot ${snapshotDisplayTitle(snapshot)}`}
-                  variant="ghost"
-                  selected={props.selectedId === snapshot.id}
-                  class="min-h-14 justify-start px-3"
-                  onClick={() => props.onSelect(snapshot)}
-                >
-                  <View class="min-w-0 flex-1 flex flex-col items-start gap-0.5">
-                    <Text class="w-full truncate font-medium">
-                      {snapshotDisplayTitle(snapshot)}
-                    </Text>
-                    <View class="w-full min-w-0 flex flex-row items-center gap-1.5">
-                      <Show when={snapshot.deleteProtected}>
-                        <Icon
-                          source={shieldCheck}
-                          size={12}
-                          class="flex-none text-success-primary"
-                        />
-                      </Show>
-                      <Text
-                        class={
-                          props.selectedId === snapshot.id
-                            ? "min-w-0 flex-1 truncate text-xs text-secondary"
-                            : "min-w-0 flex-1 truncate text-xs text-muted"
-                        }
-                      >
-                        {snapshotHistoryMetadata(snapshot)}
-                      </Text>
+            <VirtualList
+              items={filtered}
+              itemHeight={SNAPSHOT_HISTORY_ROW_HEIGHT}
+              getItemKey={(snapshot) => snapshot.id}
+              role="listbox"
+              accessibilityLabel="Snapshots"
+              class="min-h-0 flex-1 p-2"
+            >
+              {(snapshot) => {
+                const title = createMemo(() =>
+                  snapshotDisplayTitle(snapshot()),
+                );
+                const metadata = createMemo(() =>
+                  snapshotHistoryMetadata(snapshot()),
+                );
+                const selected = createMemo(
+                  () => props.selectedId === snapshot().id,
+                );
+                return (
+                  <Button
+                    aria-label={`Open snapshot ${title()}`}
+                    variant="ghost"
+                    selected={selected()}
+                    class="w-full h-14 min-h-14 justify-start px-3"
+                    onClick={() => props.onSelect(snapshot())}
+                  >
+                    <View class="min-w-0 flex-1 flex flex-col items-start gap-0.5">
+                      <Text class="w-full truncate font-medium">{title()}</Text>
+                      <View class="w-full min-w-0 flex flex-row items-center gap-1.5">
+                        <Show when={snapshot().deleteProtected}>
+                          <Icon
+                            source={shieldCheck}
+                            size={12}
+                            class="flex-none text-success-primary"
+                          />
+                        </Show>
+                        <Text
+                          class={
+                            selected()
+                              ? "min-w-0 flex-1 truncate text-xs text-secondary"
+                              : "min-w-0 flex-1 truncate text-xs text-muted"
+                          }
+                        >
+                          {metadata()}
+                        </Text>
+                      </View>
                     </View>
-                  </View>
-                </Button>
-              )}
-            </ForValue>
-            <Show when={remainingSnapshots() > 0}>
-              <Button
-                variant="ghost"
-                class="min-h-10 justify-center text-sm text-secondary"
-                aria-label={`Show ${Math.min(
-                  remainingSnapshots(),
-                  SNAPSHOT_HISTORY_PAGE_SIZE,
-                )} older snapshots`}
-                onClick={() =>
-                  setVisibleLimit(
-                    (current) => current + SNAPSHOT_HISTORY_PAGE_SIZE,
-                  )
-                }
-              >
-                Show older snapshots
-              </Button>
-            </Show>
+                  </Button>
+                );
+              }}
+            </VirtualList>
           </Match>
         </Switch>
-      </ScrollArea>
+      </View>
     </ProjectionBoundary>
   );
 }

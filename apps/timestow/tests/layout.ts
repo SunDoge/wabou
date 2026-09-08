@@ -224,8 +224,12 @@ await renderLayoutFixtures({
           name: "Snapshot history",
         });
         getLayoutNode(fixture, {
+          role: "listbox",
+          name: "Snapshots",
+        });
+        getLayoutNode(fixture, {
           role: "button",
-          name: "Show 25 older snapshots",
+          name: "Open snapshot Before reorganizing the family photo archive",
         });
         getLayoutNode(fixture, { role: "table", name: "Snapshot files" });
       },

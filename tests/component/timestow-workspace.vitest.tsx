@@ -23,8 +23,8 @@ import {
   formatDetailedTimestamp,
   formatFileKind,
 } from "../../apps/timestow/ui/format";
-import type { ProfileStore } from "../../apps/timestow/ui/profile-store";
 import { OPERATION_PROGRESS_TOPIC } from "../../apps/timestow/ui/operation-progress";
+import type { ProfileStore } from "../../apps/timestow/ui/profile-store";
 import { RepositoryCheckDialog } from "../../apps/timestow/ui/repository-check";
 import { BackupScheduleDialog } from "../../apps/timestow/ui/schedule-dialog";
 import {
@@ -43,19 +43,19 @@ import {
   SnapshotDetails,
 } from "../../apps/timestow/ui/snapshot-details";
 import {
-  snapshotComparisonLabel,
   SnapshotDiffPanel,
+  snapshotComparisonLabel,
 } from "../../apps/timestow/ui/snapshot-diff";
 import { SnapshotFileTree } from "../../apps/timestow/ui/snapshot-tree";
 import {
   formatModified,
   SnapshotBrowserEmptyState,
+  SnapshotFileListEmptyState,
   SnapshotFileRow,
   SnapshotHistory,
-  SnapshotFileListEmptyState,
   SnapshotPathBreadcrumb,
-  SnapshotWorkspaceHeader,
   SnapshotsPage,
+  SnapshotWorkspaceHeader,
   snapshotAfterRefresh,
   snapshotDisplayTitle,
   snapshotHistoryMetadata,
@@ -732,7 +732,7 @@ test("long snapshot histories filter by user-facing metadata", () => {
   expect(select).toHaveBeenCalledWith(snapshots[0]);
 });
 
-test("snapshot history progressively reveals old entries without limiting search", () => {
+test("snapshot history windows old entries without limiting search", () => {
   const snapshots = Array.from({ length: 75 }, (_, index) => ({
     id: `snapshot-${index}`,
     time: "2026-09-08T04:18:00Z",
@@ -756,13 +756,12 @@ test("snapshot history progressively reveals old entries without limiting search
     />
   ));
 
+  const history = screen.getByRole("listbox", { name: "Snapshots" });
+  history.resize({ width: 240, height: 300 });
   expect(
-    screen.getByRole("button", { name: "Open snapshot Backup 49" }),
-  ).toBeDefined();
-  expect(
-    screen.queryByRole("button", { name: "Open snapshot Backup 50" }),
+    screen.queryByRole("button", { name: "Open snapshot Backup 20" }),
   ).toBeNull();
-  screen.getByRole("button", { name: "Show 25 older snapshots" }).click();
+  history.emit("scroll", { scrollY: 10_000 });
   expect(
     screen.getByRole("button", { name: "Open snapshot Backup 74" }),
   ).toBeDefined();
