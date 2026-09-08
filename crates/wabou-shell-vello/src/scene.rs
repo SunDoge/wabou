@@ -234,6 +234,13 @@ fn draw_node_box(scene: &mut Scene, node: &PlacedNode, transform: Affine) {
         return;
     }
     // Side-specific utility borders must not turn into a uniform rectangle.
+    // Clip their straight center lines to the outer rounded border box. Without
+    // this, a single `border-t`/`border-r` reaches the rectangular corner even
+    // though the node background and contents follow `border-radius`.
+    let clips_to_rounded_border = radii.max() > 0.0;
+    if clips_to_rounded_border {
+        scene.push_clip_layer(transform, &rect.to_rounded_rect(radii.as_f64_tuple()));
+    }
     let sides = [
         (top, (x0, y0 + top * 0.5), (x1, y0 + top * 0.5)),
         (right, (x1 - right * 0.5, y0), (x1 - right * 0.5, y1)),
@@ -254,6 +261,9 @@ fn draw_node_box(scene: &mut Scene, node: &PlacedNode, transform: Affine) {
                 &line,
             );
         }
+    }
+    if clips_to_rounded_border {
+        scene.pop_layer();
     }
 }
 
@@ -727,6 +737,26 @@ mod tests {
         assert_eq!(image.get_pixel(88, 11).0, [0, 0, 0, 255]);
         assert_eq!(image.get_pixel(88, 88).0, [255, 0, 0, 255]);
         assert_eq!(image.get_pixel(11, 88).0, [0, 0, 0, 255]);
+    }
+
+    #[test]
+    fn side_specific_border_respects_the_outer_corner_radius() {
+        let border = Color::from_rgba8(0, 160, 255, 255);
+        let mut node = placed_node(Paint {
+            border: Some((4.0, border)),
+            border_radii: CornerRadii::uniform(16.0),
+            ..Paint::default()
+        });
+        node.rect = [10.0, 10.0, 90.0, 90.0];
+        node.border_widths = [4.0, 0.0, 0.0, 0.0];
+
+        let image = render_nodes(&[node], "rounded-side-border");
+        assert_eq!(
+            image.get_pixel(10, 12).0,
+            [0, 0, 0, 255],
+            "the top border must not leave a square corner outside its radius"
+        );
+        assert_eq!(image.get_pixel(50, 12).0, [0, 160, 255, 255]);
     }
 
     #[test]
