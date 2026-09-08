@@ -15,7 +15,14 @@ import {
   onCleanup,
   untrack,
 } from "solid-js";
-import { Button as HeadlessButton, Icon, Text, View } from "../primitives";
+import {
+  type ButtonKeyEvent,
+  Button as HeadlessButton,
+  Icon,
+  Text,
+  View,
+} from "../primitives";
+import { createTypeahead } from "../primitives/interactions";
 import { createControllableState } from "./state";
 
 export interface TreeNode {
@@ -165,6 +172,8 @@ export function TreeView(props: TreeViewProps): JSX.Element {
   const [activeId, setActiveId] = createSignal<string | undefined>(undefined, {
     ownedWrite: true,
   });
+  const typeahead = createTypeahead();
+  onCleanup(typeahead.reset);
   const handles = new Map<string, Handle>();
   let virtualController: VirtualListController | undefined;
   let pendingFocusId: string | undefined;
@@ -231,10 +240,29 @@ export function TreeView(props: TreeViewProps): JSX.Element {
               : undefined;
     return focus(target?.node.id);
   };
-  const handleKey = (
-    item: VisibleTreeNode,
-    event: { key: string; preventDefault(): void },
-  ) => {
+  const moveTypeahead = (id: string, event: ButtonKeyEvent) => {
+    // Shift changes the printable key itself and remains searchable. Control,
+    // Alt, and Meta represent commands rather than typeahead input.
+    if (
+      event.key.trim().length === 0 ||
+      event.key.length !== 1 ||
+      event.primary ||
+      ((event.mods ?? 0) & 0b1110) !== 0
+    ) {
+      return false;
+    }
+    const target = typeahead.search(
+      visible().map(({ node }) => ({
+        id: node.id,
+        disabled: node.disabled,
+        textValue: node.label,
+      })),
+      event.key,
+      id,
+    );
+    return focus(target?.id);
+  };
+  const handleKey = (item: VisibleTreeNode, event: ButtonKeyEvent) => {
     const { id } = item.node;
     let handled = false;
     if (["ArrowUp", "ArrowDown", "Home", "End"].includes(event.key)) {
@@ -247,6 +275,8 @@ export function TreeView(props: TreeViewProps): JSX.Element {
       handled = isExpanded(id)
         ? setExpanded(id, false)
         : focus(item.parentId ?? undefined);
+    } else {
+      handled = moveTypeahead(id, event);
     }
     if (handled) event.preventDefault();
   };

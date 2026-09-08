@@ -12760,6 +12760,8 @@ function TreeView(props) {
 		onChange: props.onSelectedChange
 	});
 	const [activeId, setActiveId] = createSignal(void 0, { ownedWrite: true });
+	const typeahead = createTypeahead();
+	onCleanup(typeahead.reset);
 	const handles = /* @__PURE__ */ new Map();
 	let virtualController;
 	let pendingFocusId;
@@ -12811,6 +12813,15 @@ function TreeView(props) {
 		const target = key === "Home" ? candidates[0] : key === "End" ? candidates.at(-1) : key === "ArrowDown" ? candidates[index + 1] : key === "ArrowUp" ? candidates[index - 1] : void 0;
 		return focus(target?.node.id);
 	};
+	const moveTypeahead = (id, event) => {
+		if (event.key.trim().length === 0 || event.key.length !== 1 || event.primary || ((event.mods ?? 0) & 14) !== 0) return false;
+		const target = typeahead.search(visible().map(({ node }) => ({
+			id: node.id,
+			disabled: node.disabled,
+			textValue: node.label
+		})), event.key, id);
+		return focus(target?.id);
+	};
 	const handleKey = (item, event) => {
 		const { id } = item.node;
 		let handled = false;
@@ -12822,6 +12833,7 @@ function TreeView(props) {
 		].includes(event.key)) handled = moveLinear(id, event.key);
 		else if (event.key === "ArrowRight" && model().isBranch(id)) handled = isExpanded(id) ? focus(model().firstChild(id)) : setExpanded(id, true);
 		else if (event.key === "ArrowLeft") handled = isExpanded(id) ? setExpanded(id, false) : focus(item.parentId ?? void 0);
+		else handled = moveTypeahead(id, event);
 		if (handled) event.preventDefault();
 	};
 	const renderTreeItem = (item) => {

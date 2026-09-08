@@ -76,6 +76,18 @@ test("expands, selects, and skips disabled items through native focus routing", 
   expect(runtime.selected).toBe(true);
 });
 
+test("focuses the next matching visible node through typeahead", () => {
+  const screen = renderComponent(() => (
+    <TreeView items={items} aria-label="Searchable project files" />
+  ));
+  const source = screen.getByRole("treeitem", { name: "Source" });
+
+  source.focus();
+  source.press("t");
+
+  expect(screen.getByRole("treeitem", { name: "Tests" }).focused).toBe(true);
+});
+
 test("supports application-owned expansion and selection", () => {
   const Controlled = () => {
     const [expanded, setExpanded] = createSignal<readonly string[]>([]);
@@ -124,4 +136,28 @@ test("windows large trees and keeps End-key focus navigation intact", () => {
   );
   expect(screen.queryByRole("treeitem", { name: "Entry 0" })).toBeNull();
   expect(screen.getAllByRole("treeitem").length).toBeLessThanOrEqual(5);
+});
+
+test("typeahead scrolls a virtual tree before focusing an offscreen match", () => {
+  const largeItems = Array.from({ length: 200 }, (_, index) => ({
+    id: `entry-${index}`,
+    label: index === 173 ? "Quarterly reports" : `Entry ${index}`,
+  }));
+  const screen = renderComponent(() => (
+    <TreeView
+      items={largeItems}
+      aria-label="Virtual searchable tree"
+      virtual={{ itemHeight: 34, viewportHeight: 102, overscan: 1 }}
+    />
+  ));
+
+  const first = screen.getByRole("treeitem", { name: "Entry 0" });
+  first.focus();
+  first.press("q");
+  screen.flush();
+
+  expect(
+    screen.getByRole("treeitem", { name: "Quarterly reports" }).focused,
+  ).toBe(true);
+  expect(screen.queryByRole("treeitem", { name: "Entry 0" })).toBeNull();
 });
