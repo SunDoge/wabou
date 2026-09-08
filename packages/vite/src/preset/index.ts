@@ -1,7 +1,9 @@
 import type { Preset, Rule } from "@unocss/core";
 import { rejectUnsupportedProperty } from "../style-compiler/support-matrix.ts";
-import type { WabouColorThemeOptions } from "../style-compiler/vite.ts";
-import { defaultWabouSemanticColorTokens } from "../theme-contract.ts";
+import {
+  defaultWabouSemanticColorTokens,
+  type WabouColorThemeOptions,
+} from "../theme-contract.ts";
 import manifestJson from "./manifest.json" with { type: "json" };
 
 type Length = { unit: "px" | "percent"; value: number } | { unit: "auto" };

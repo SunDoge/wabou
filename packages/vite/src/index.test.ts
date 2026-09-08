@@ -31,14 +31,11 @@ describe("@wabou/vite", () => {
     }
   });
 
-  test("keeps editor semantic colors aligned with the built-in theme", () => {
-    const toolingTokens: string[] = [...defaultWabouSemanticColorTokens];
-    expect(toolingTokens.sort()).toEqual(
-      Object.keys(
-        defaultWabouColorThemes.themes[defaultWabouColorThemes.default]!
-          .colors,
-      ).sort(),
-    );
+  test("keeps every built-in palette aligned with the tooling contract", () => {
+    const toolingTokens = [...defaultWabouSemanticColorTokens].sort();
+    for (const theme of Object.values(defaultWabouColorThemes.themes)) {
+      expect(Object.keys(theme.colors).sort()).toEqual(toolingTokens);
+    }
   });
 
   async function resolveConfig(

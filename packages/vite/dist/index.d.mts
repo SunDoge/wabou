@@ -1,14 +1,13 @@
-import { i as defineWabouTheme, n as WabouThemeColor, r as color, t as WabouColorThemeOptions } from "./vite-Bt-_UhLO.mjs";
+import { a as defaultWabouSemanticColorTokens, i as defaultWabouColorThemes, n as WabouColorThemeOptions, r as WabouThemeColor, t as DefaultWabouSemanticColorToken } from "./theme-contract-BXj8mg9N.mjs";
 import { ConfigEnv, Plugin, UserConfig, UserConfigExport } from "vite";
-//#region src/theme-contract.d.ts
+//#region src/style-compiler/vite.d.ts
+/** Validate a generated or shared theme color at its declaration site. */
+declare function color(value: string): WabouThemeColor;
 /**
- * Semantic colors guaranteed by Wabou's built-in component theme.
- *
- * Keep this independent from the Vite plugin so editor tooling can load the
- * contract without initializing Vite or the style compiler.
+ * Define and eagerly validate a color theme while preserving its concrete
+ * theme names and semantic token keys for editor completion.
  */
-declare const defaultWabouSemanticColorTokens: readonly ["canvas", "surface", "surface-muted", "input", "control", "control-hover", "control-pressed", "selected", "primary", "secondary", "muted", "subtle", "strong", "accent", "accent-hover", "accent-pressed", "on-accent", "danger", "danger-hover", "danger-pressed", "danger-surface", "danger-primary", "success-surface", "success-primary", "focus"];
-type DefaultWabouSemanticColorToken = (typeof defaultWabouSemanticColorTokens)[number];
+declare function defineWabouTheme<const T extends WabouColorThemeOptions>(theme: T): T;
 //#endregion
 //#region src/index.d.ts
 interface WabouViteOptions {
@@ -39,13 +38,6 @@ interface WabouIntlOptions {
   /** Time-zone data set. `golden` is the compact recommended default. */
   timeZones?: "golden" | "all";
 }
-/**
- * Semantic colors used by `@wabou/ui` when an application does not provide a
- * theme. Keeping this at the Vite boundary means every official component is
- * usable in a minimal project while applications can still replace the whole
- * token contract explicitly.
- */
-declare const defaultWabouColorThemes: WabouColorThemeOptions;
 type WabouViteOptionsExport = WabouViteOptions | ((environment: ConfigEnv) => WabouViteOptions);
 /** Detect a Wabou source workspace while allowing applications to live below it. */
 declare function hasWabouWorkspaceSources(start: string): boolean;
