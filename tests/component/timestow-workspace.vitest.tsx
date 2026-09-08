@@ -1284,6 +1284,28 @@ test("snapshot browser cache preserves navigation while invalidating listings", 
   expect(cache.selectedSnapshot("profile-a")).toBeUndefined();
 });
 
+test("snapshot browser cache bounds listings and retains recently read paths", () => {
+  const cache = createSnapshotBrowserCache({ maxListings: 2 });
+  const listing = (name: string) => ({
+    entries: [{ name, path: name, kind: "file" as const }],
+    total: 1,
+  });
+
+  cache.remember("photos", "one", "first", listing("first.jpg"));
+  cache.remember("photos", "one", "second", listing("second.jpg"));
+  expect(cache.listing("photos", "one", "first")).toEqual(listing("first.jpg"));
+
+  cache.remember("documents", "two", "third", listing("third.txt"));
+
+  expect(cache.listing("photos", "one", "first")).toEqual(listing("first.jpg"));
+  expect(cache.listing("photos", "one", "second")).toBeUndefined();
+  expect(cache.listing("documents", "two", "third")).toEqual(
+    listing("third.txt"),
+  );
+  expect(cache.lastPath("photos", "one")).toBe("second");
+  expect(cache.lastPath("documents", "two")).toBe("third");
+});
+
 test("timestow session preserves snapshot navigation across workspace remounts", async () => {
   const fixture = createTestHost({
     rustic: {

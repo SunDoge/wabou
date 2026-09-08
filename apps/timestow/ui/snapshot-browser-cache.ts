@@ -2,6 +2,11 @@ import type { FileListing } from "./api";
 
 export type CachedDirectoryListing = Pick<FileListing, "entries" | "total">;
 
+export interface SnapshotBrowserCacheOptions {
+  /** Maximum number of directory listings retained across all profiles. */
+  maxListings?: number;
+}
+
 export interface SnapshotBrowserCache {
   listing(
     profileId: string,
@@ -35,14 +40,35 @@ function cacheKey(profileId: string, snapshotId: string, path: string): string {
   return `${snapshotKey(profileId, snapshotId)}\u0000${path}`;
 }
 
-export function createSnapshotBrowserCache(): SnapshotBrowserCache {
+export function createSnapshotBrowserCache(
+  options: SnapshotBrowserCacheOptions = {},
+): SnapshotBrowserCache {
+  const maxListings = options.maxListings ?? 64;
+  if (!Number.isInteger(maxListings) || maxListings < 1) {
+    throw new Error(
+      "snapshot browser cache maxListings must be a positive integer",
+    );
+  }
   const listingsByPath = new Map<string, CachedDirectoryListing>();
   const selectedSnapshotByProfile = new Map<string, string>();
   const lastPathBySnapshot = new Map<string, string>();
 
+  function retainListing(key: string, listing: CachedDirectoryListing): void {
+    listingsByPath.delete(key);
+    listingsByPath.set(key, listing);
+    while (listingsByPath.size > maxListings) {
+      const oldest = listingsByPath.keys().next().value;
+      if (oldest === undefined) break;
+      listingsByPath.delete(oldest);
+    }
+  }
+
   return {
     listing(profileId, snapshotId, path) {
-      return listingsByPath.get(cacheKey(profileId, snapshotId, path));
+      const key = cacheKey(profileId, snapshotId, path);
+      const listing = listingsByPath.get(key);
+      if (listing) retainListing(key, listing);
+      return listing;
     },
     selectedSnapshot(profileId) {
       return selectedSnapshotByProfile.get(profileId);
@@ -54,7 +80,7 @@ export function createSnapshotBrowserCache(): SnapshotBrowserCache {
       selectedSnapshotByProfile.set(profileId, snapshotId);
     },
     remember(profileId, snapshotId, path, listing) {
-      listingsByPath.set(cacheKey(profileId, snapshotId, path), {
+      retainListing(cacheKey(profileId, snapshotId, path), {
         entries: [...listing.entries],
         total: listing.total,
       });
@@ -75,7 +101,7 @@ export function createSnapshotBrowserCache(): SnapshotBrowserCache {
       const prefix = `${previousKey}\u0000`;
       for (const [key, listing] of listingsByPath) {
         if (!key.startsWith(prefix)) continue;
-        listingsByPath.set(
+        retainListing(
           cacheKey(profileId, nextSnapshotId, key.slice(prefix.length)),
           listing,
         );
