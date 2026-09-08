@@ -126,3 +126,8 @@ runtime.console.assert ??= (condition: unknown, ...values: unknown[]) => {
     runtime.console.error("Assertion failed", ...values);
   }
 };
+
+// `self` is the environment-neutral global alias shared by browsers and Web
+// Workers. DOM-independent libraries such as TanStack Router use it after an
+// explicit client-runtime check, without requiring `window` or `document`.
+runtime.self ??= runtime;

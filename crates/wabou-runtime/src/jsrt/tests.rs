@@ -25,27 +25,27 @@ fn core_prelude_keeps_application_frames_in_deep_error_stacks() {
 }
 
 #[test]
-fn core_prelude_does_not_claim_browser_dom_support() {
+fn core_prelude_exposes_the_neutral_global_without_claiming_dom_support() {
     let runtime = JsRuntime::new().expect("runtime");
-    let missing = runtime
+    let contract = runtime
         .with(|ctx| {
             ctx.eval::<Vec<bool>, _>(
                 r#"
                 [
+                  self === globalThis,
                   "window",
-                  "self",
                   "document",
                   "scrollX",
                   "scrollY",
                   "scrollTo",
                   "addEventListener",
                   "removeEventListener",
-                ].map(name => !(name in globalThis))
+                ].map((value, index) => index === 0 ? value : !(value in globalThis))
                 "#,
             )
         })
         .expect("inspect compatibility globals");
-    assert_eq!(missing, vec![true; 8]);
+    assert_eq!(contract, vec![true; 8]);
 }
 
 #[test]
