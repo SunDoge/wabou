@@ -3,11 +3,16 @@ import type { FileListing } from "./api";
 export type CachedDirectoryListing = Pick<FileListing, "entries" | "total">;
 
 export interface SnapshotBrowserCache {
-  listing(snapshotId: string, path: string): CachedDirectoryListing | undefined;
+  listing(
+    profileId: string,
+    snapshotId: string,
+    path: string,
+  ): CachedDirectoryListing | undefined;
   selectedSnapshot(profileId: string): string | undefined;
-  lastPath(snapshotId: string): string;
+  lastPath(profileId: string, snapshotId: string): string;
   rememberSelection(profileId: string, snapshotId: string): void;
   remember(
+    profileId: string,
     snapshotId: string,
     path: string,
     listing: CachedDirectoryListing,
@@ -22,8 +27,12 @@ export interface SnapshotBrowserCache {
   clear(): void;
 }
 
-function cacheKey(snapshotId: string, path: string): string {
-  return `${snapshotId}\u0000${path}`;
+function snapshotKey(profileId: string, snapshotId: string): string {
+  return `${profileId}\u0000${snapshotId}`;
+}
+
+function cacheKey(profileId: string, snapshotId: string, path: string): string {
+  return `${snapshotKey(profileId, snapshotId)}\u0000${path}`;
 }
 
 export function createSnapshotBrowserCache(): SnapshotBrowserCache {
@@ -32,40 +41,42 @@ export function createSnapshotBrowserCache(): SnapshotBrowserCache {
   const lastPathBySnapshot = new Map<string, string>();
 
   return {
-    listing(snapshotId, path) {
-      return listingsByPath.get(cacheKey(snapshotId, path));
+    listing(profileId, snapshotId, path) {
+      return listingsByPath.get(cacheKey(profileId, snapshotId, path));
     },
     selectedSnapshot(profileId) {
       return selectedSnapshotByProfile.get(profileId);
     },
-    lastPath(snapshotId) {
-      return lastPathBySnapshot.get(snapshotId) ?? "";
+    lastPath(profileId, snapshotId) {
+      return lastPathBySnapshot.get(snapshotKey(profileId, snapshotId)) ?? "";
     },
     rememberSelection(profileId, snapshotId) {
       selectedSnapshotByProfile.set(profileId, snapshotId);
     },
-    remember(snapshotId, path, listing) {
-      listingsByPath.set(cacheKey(snapshotId, path), {
+    remember(profileId, snapshotId, path, listing) {
+      listingsByPath.set(cacheKey(profileId, snapshotId, path), {
         entries: [...listing.entries],
         total: listing.total,
       });
-      lastPathBySnapshot.set(snapshotId, path);
+      lastPathBySnapshot.set(snapshotKey(profileId, snapshotId), path);
     },
     replaceSnapshot(profileId, previousSnapshotId, nextSnapshotId) {
       if (previousSnapshotId === nextSnapshotId) return;
       if (selectedSnapshotByProfile.get(profileId) === previousSnapshotId) {
         selectedSnapshotByProfile.set(profileId, nextSnapshotId);
       }
-      const lastPath = lastPathBySnapshot.get(previousSnapshotId);
+      const previousKey = snapshotKey(profileId, previousSnapshotId);
+      const nextKey = snapshotKey(profileId, nextSnapshotId);
+      const lastPath = lastPathBySnapshot.get(previousKey);
       if (lastPath !== undefined) {
-        lastPathBySnapshot.set(nextSnapshotId, lastPath);
-        lastPathBySnapshot.delete(previousSnapshotId);
+        lastPathBySnapshot.set(nextKey, lastPath);
+        lastPathBySnapshot.delete(previousKey);
       }
-      const prefix = `${previousSnapshotId}\u0000`;
+      const prefix = `${previousKey}\u0000`;
       for (const [key, listing] of listingsByPath) {
         if (!key.startsWith(prefix)) continue;
         listingsByPath.set(
-          cacheKey(nextSnapshotId, key.slice(prefix.length)),
+          cacheKey(profileId, nextSnapshotId, key.slice(prefix.length)),
           listing,
         );
         listingsByPath.delete(key);
@@ -75,8 +86,9 @@ export function createSnapshotBrowserCache(): SnapshotBrowserCache {
       if (selectedSnapshotByProfile.get(profileId) === snapshotId) {
         selectedSnapshotByProfile.delete(profileId);
       }
-      lastPathBySnapshot.delete(snapshotId);
-      const prefix = `${snapshotId}\u0000`;
+      const key = snapshotKey(profileId, snapshotId);
+      lastPathBySnapshot.delete(key);
+      const prefix = `${key}\u0000`;
       for (const key of listingsByPath.keys()) {
         if (key.startsWith(prefix)) listingsByPath.delete(key);
       }

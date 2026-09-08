@@ -1200,45 +1200,66 @@ test("snapshot browser cache preserves navigation while invalidating listings", 
     { name: "guide.md", path: "docs/guide.md", kind: "file" as const, size: 8 },
   ];
 
-  cache.remember("snapshot-a", "docs", { entries: docs, total: 1 });
-  cache.remember("snapshot-b", "photos", { entries: [], total: 0 });
-  cache.rememberSelection("profile-a", "snapshot-a");
-  cache.rememberSelection("profile-b", "snapshot-b");
-
-  expect(cache.lastPath("snapshot-a")).toBe("docs");
-  expect(cache.listing("snapshot-a", "docs")).toEqual({
+  cache.remember("profile-a", "snapshot-a", "docs", {
     entries: docs,
     total: 1,
   });
-  expect(cache.lastPath("snapshot-b")).toBe("photos");
-  expect(cache.lastPath("snapshot-c")).toBe("");
+  cache.remember("profile-b", "snapshot-b", "photos", {
+    entries: [],
+    total: 0,
+  });
+  cache.remember("profile-b", "snapshot-a", "private", {
+    entries: [],
+    total: 0,
+  });
+  cache.rememberSelection("profile-a", "snapshot-a");
+  cache.rememberSelection("profile-b", "snapshot-b");
+
+  expect(cache.lastPath("profile-a", "snapshot-a")).toBe("docs");
+  expect(cache.listing("profile-a", "snapshot-a", "docs")).toEqual({
+    entries: docs,
+    total: 1,
+  });
+  expect(cache.listing("profile-b", "snapshot-a", "docs")).toBeUndefined();
+  expect(cache.lastPath("profile-b", "snapshot-a")).toBe("private");
+  expect(cache.lastPath("profile-b", "snapshot-b")).toBe("photos");
+  expect(cache.lastPath("profile-c", "snapshot-c")).toBe("");
   expect(cache.selectedSnapshot("profile-a")).toBe("snapshot-a");
 
   cache.replaceSnapshot("profile-a", "snapshot-a", "snapshot-a-updated");
   expect(cache.selectedSnapshot("profile-a")).toBe("snapshot-a-updated");
-  expect(cache.lastPath("snapshot-a-updated")).toBe("docs");
-  expect(cache.listing("snapshot-a-updated", "docs")).toEqual({
+  expect(cache.lastPath("profile-a", "snapshot-a-updated")).toBe("docs");
+  expect(cache.listing("profile-a", "snapshot-a-updated", "docs")).toEqual({
     entries: docs,
     total: 1,
   });
-  expect(cache.lastPath("snapshot-a")).toBe("");
-  expect(cache.listing("snapshot-a", "docs")).toBeUndefined();
+  expect(cache.lastPath("profile-a", "snapshot-a")).toBe("");
+  expect(cache.listing("profile-a", "snapshot-a", "docs")).toBeUndefined();
+  expect(cache.lastPath("profile-b", "snapshot-a")).toBe("private");
+  expect(cache.listing("profile-b", "snapshot-a", "private")).toEqual({
+    entries: [],
+    total: 0,
+  });
   expect(cache.selectedSnapshot("profile-b")).toBe("snapshot-b");
 
   cache.removeSnapshot("profile-b", "snapshot-b");
   expect(cache.selectedSnapshot("profile-b")).toBeUndefined();
-  expect(cache.lastPath("snapshot-b")).toBe("");
-  expect(cache.listing("snapshot-b", "photos")).toBeUndefined();
+  expect(cache.lastPath("profile-b", "snapshot-b")).toBe("");
+  expect(cache.listing("profile-b", "snapshot-b", "photos")).toBeUndefined();
   expect(cache.selectedSnapshot("profile-a")).toBe("snapshot-a-updated");
 
   cache.clearListings();
-  expect(cache.listing("snapshot-a-updated", "docs")).toBeUndefined();
-  expect(cache.lastPath("snapshot-a-updated")).toBe("docs");
+  expect(
+    cache.listing("profile-a", "snapshot-a-updated", "docs"),
+  ).toBeUndefined();
+  expect(cache.lastPath("profile-a", "snapshot-a-updated")).toBe("docs");
   expect(cache.selectedSnapshot("profile-a")).toBe("snapshot-a-updated");
 
   cache.clear();
-  expect(cache.listing("snapshot-a-updated", "docs")).toBeUndefined();
-  expect(cache.lastPath("snapshot-a-updated")).toBe("");
+  expect(
+    cache.listing("profile-a", "snapshot-a-updated", "docs"),
+  ).toBeUndefined();
+  expect(cache.lastPath("profile-a", "snapshot-a-updated")).toBe("");
   expect(cache.selectedSnapshot("profile-a")).toBeUndefined();
 });
 
@@ -1267,15 +1288,20 @@ test("timestow session preserves snapshot navigation across workspace remounts",
               "profile-a",
               "snapshot-a",
             );
-            session.snapshotBrowser.remember("snapshot-a", "docs", {
-              entries: [],
-              total: 0,
-            });
+            session.snapshotBrowser.remember(
+              "profile-a",
+              "snapshot-a",
+              "docs",
+              {
+                entries: [],
+                total: 0,
+              },
+            );
           }}
         />
         <Text role="status">
           {session.snapshotBrowser.selectedSnapshot("profile-a") ?? "none"}:
-          {session.snapshotBrowser.lastPath("snapshot-a")}
+          {session.snapshotBrowser.lastPath("profile-a", "snapshot-a")}
         </Text>
       </>
     );

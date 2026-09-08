@@ -676,7 +676,7 @@ export function SnapshotsPage() {
     setSearching(false);
     setLoadingMoreFiles(false);
     setFileError(undefined);
-    const cached = browserCache.listing(snapshot.id, path);
+    const cached = browserCache.listing(profileId, snapshot.id, path);
     if (cached) {
       setFiles([...cached.entries]);
       setFileTotal(cached.total);
@@ -693,7 +693,7 @@ export function SnapshotsPage() {
         limit: FILE_PAGE_SIZE,
       });
       if (!fileRequests.isCurrent(request)) return;
-      browserCache.remember(snapshot.id, path, next);
+      browserCache.remember(profileId, snapshot.id, path, next);
       setFiles(next.entries);
       setFileTotal(next.total);
     } catch (cause) {
@@ -726,7 +726,7 @@ export function SnapshotsPage() {
       const combined = [...files(), ...next.entries];
       setFiles(combined);
       setFileTotal(next.total);
-      browserCache.remember(snapshot.id, path, {
+      browserCache.remember(profile.id, snapshot.id, path, {
         entries: combined,
         total: next.total,
       });
@@ -778,7 +778,11 @@ export function SnapshotsPage() {
   function selectSnapshot(profileId: string, snapshot: SnapshotEntry) {
     setSelected(snapshot);
     browserCache.rememberSelection(profileId, snapshot.id);
-    void loadFiles(profileId, snapshot, browserCache.lastPath(snapshot.id));
+    void loadFiles(
+      profileId,
+      snapshot,
+      browserCache.lastPath(profileId, snapshot.id),
+    );
   }
 
   function retryCurrentDirectory(): void {
