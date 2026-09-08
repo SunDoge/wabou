@@ -2,7 +2,7 @@
 
 Wabou presents one application model: Solid 2 runs inside QuickJS and emits a
 versioned mutation protocol into a retained native runtime. The current backend
-uses Winit for windows and input, Taffy for layout, Parley/Swash for text, and
+uses Winit for windows and input, Taffy for layout, Parley for text, and
 Vello Hybrid for painting.
 
 ```text
