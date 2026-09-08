@@ -7,7 +7,7 @@
 
 #![warn(missing_docs)]
 
-pub use wabou_accessibility_vello as accessibility;
+pub mod accessibility;
 pub mod app;
 pub mod app_dirs;
 pub mod effect;

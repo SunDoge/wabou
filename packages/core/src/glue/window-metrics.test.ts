@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, expect, test } from "bun:test";
-import { createEffect, createRoot, flush } from "solid-js";
+import { createEffect, createRoot, createSignal, flush } from "solid-js";
 import { dispatchHostMessage } from "./host-messages";
 import { createWindowMatch, useWindow } from "./window-metrics";
 
@@ -66,15 +66,16 @@ test("window metrics expose one reactive logical coordinate space", () => {
 });
 
 test("native window size queries are reactive and reject invalid ranges", () => {
-  let width = 1000;
+  const [width, setWidth] = createSignal(1000);
   const window = {
     ...useWindow(),
-    width: () => width,
+    width,
     height: () => 700,
   };
   const compact = createWindowMatch({ maxWidth: 1059 }, window);
   expect(compact()).toBe(true);
-  width = 1200;
+  setWidth(1200);
+  flush();
   expect(compact()).toBe(false);
   expect(() =>
     createWindowMatch({ minWidth: 900, maxWidth: 800 }, window),

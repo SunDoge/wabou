@@ -30,10 +30,8 @@ const SHARED_PACKAGES = new Set([
 ]);
 
 const HYBRID_BACKEND_PACKAGES = new Set([
-  "wabou-accessibility-vello",
   "wabou-backend-vello-hybrid",
   "wabou-shell-vello",
-  "wabou-svg-vello-hybrid",
   "wabou-terminal-vello",
   "wabou-tray",
   "wabou-widgets-vello",

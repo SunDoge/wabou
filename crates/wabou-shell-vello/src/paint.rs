@@ -30,7 +30,7 @@ pub struct Glyph {
 
 /// Parsed SVG content retained independently of the viewport-specific Hybrid scene.
 #[derive(Clone)]
-pub struct SvgDocument(pub Arc<wabou_svg_vello_hybrid::usvg::Tree>);
+pub struct SvgDocument(pub Arc<crate::svg::usvg::Tree>);
 
 impl std::fmt::Debug for SvgDocument {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {

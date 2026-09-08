@@ -12,13 +12,13 @@
     "@wabou/terminal": "workspace:*",
     "@wabou/ui": "workspace:*",
     "lucide-static": "1.31.0",
-    "solid-js": "2.0.0-rc.2",
+    "solid-js": "2.0.0-rc.6",
     "ts-pattern": "^5.9.0"
   },
   "devDependencies": {
     "@inlang/paraglide-js": "^2.24.1",
     "@wabou/test": "workspace:*",
     "@wabou/vite": "workspace:*",
-    "vite": "^6.0.0"
+    "vite": "^8.2.2"
   }
 }

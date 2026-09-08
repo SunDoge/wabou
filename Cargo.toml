@@ -20,7 +20,6 @@ default-members = [
   "apps/vlist",
   "crates/wabou",
   "crates/wabou-accessibility",
-  "crates/wabou-accessibility-vello",
   "crates/wabou-backend-vello-hybrid",
   "crates/wabou-bindgen",
   "crates/wabou-cli",
@@ -32,7 +31,6 @@ default-members = [
   "crates/wabou-shell-api",
   "crates/wabou-shell-vello",
   "crates/wabou-style",
-  "crates/wabou-svg-vello-hybrid",
   "crates/wabou-terminal-vello",
   "crates/wabou-tray",
   "crates/wabou-widgets-vello",
@@ -46,7 +44,6 @@ license = "Apache-2.0"
 anyhow = "1"
 wabou = { path = "crates/wabou", default-features = false }
 wabou-accessibility = { path = "crates/wabou-accessibility" }
-wabou-accessibility-vello = { path = "crates/wabou-accessibility-vello" }
 wabou-backend-vello-hybrid = { path = "crates/wabou-backend-vello-hybrid" }
 wabou-bindgen = { path = "crates/wabou-bindgen", default-features = false }
 wabou-database = { path = "crates/wabou-database" }
@@ -57,7 +54,6 @@ wabou-runtime = { path = "crates/wabou-runtime", default-features = false }
 wabou-shell-api = { path = "crates/wabou-shell-api" }
 wabou-shell-vello = { path = "crates/wabou-shell-vello" }
 wabou-style = { path = "crates/wabou-style" }
-wabou-svg-vello-hybrid = { path = "crates/wabou-svg-vello-hybrid" }
 wabou-terminal-vello = { path = "crates/wabou-terminal-vello" }
 wabou-tray = { path = "crates/wabou-tray" }
 wabou-widgets-vello = { path = "crates/wabou-widgets-vello" }

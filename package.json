@@ -14,7 +14,7 @@
     "verify:js": "bun run check && bun run test && bun run packages:check && bun run scripts/publish-packages.ts --dry-run && bun run gen:check",
     "verify:rust": "cargo fmt --all -- --check && cargo check --all-targets && cargo clippy --all-targets --all-features -- -D warnings && cargo test --all-targets",
     "verify:ci:rust": "cargo fmt --all -- --check && cargo clippy --lib --bins --tests --all-features -- -D warnings && cargo test --lib --all-features",
-    "verify:hybrid": "cargo check -p wabou-accessibility-vello -p wabou-backend-vello-hybrid -p wabou-shell-vello -p wabou-svg-vello-hybrid -p wabou-terminal-vello -p wabou-widgets-vello",
+    "verify:hybrid": "cargo check -p wabou-backend-vello-hybrid -p wabou-shell-vello -p wabou-terminal-vello -p wabou-widgets-vello",
     "verify:behavior": "bun run scripts/check-behavior.ts",
     "verify:layout": "bun run test:layout",
     "verify:captures": "bun run scripts/check-captures.ts",
@@ -65,7 +65,7 @@
     "@biomejs/biome": "2.5.3",
     "@changesets/cli": "^2.29.8",
     "@inlang/paraglide-js": "^2.24.1",
-    "@solidjs/web": "2.0.0-rc.2",
+    "@solidjs/web": "2.0.0-rc.6",
     "@tanstack/history": "1.162.1",
     "@tanstack/router-core": "1.171.24",
     "@types/bun": "^1.4.0",
@@ -74,13 +74,13 @@
     "@wabou/ui": "workspace:*",
     "@wabou/vite": "workspace:*",
     "abort-controller": "3.0.0",
-    "solid-js": "2.0.0-rc.2",
+    "solid-js": "2.0.0-rc.6",
     "tsdown": "0.22.14",
     "turbo": "^2.10.11",
     "typescript": "^5.9.0",
     "unocss": "^66.7.5",
     "valibot": "^1.4.2",
-    "@solidjs/vite-plugin": "3.0.0-next.28",
+    "@solidjs/vite-plugin": "3.0.0-next.39",
     "vitest": "2.1.9"
   }
 }

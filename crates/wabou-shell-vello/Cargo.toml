@@ -11,6 +11,8 @@ name = "wabou_shell_vello"
 path = "src/lib.rs"
 
 [dependencies]
+accesskit = "0.24.1"
+accesskit_xplat = "=0.1.1"
 arboard = { workspace = true }
 bitflags = { workspace = true }
 bytemuck.workspace = true
@@ -33,15 +35,14 @@ taffy = { workspace = true, features = ["content_size", "parse"] }
 tracing = { workspace = true }
 unicode-segmentation = "1.12"
 url = { workspace = true }
+usvg.workspace = true
 vello-common.workspace = true
 vello-hybrid = { workspace = true, features = ["wgpu", "wgpu_default", "text"] }
 wgpu.workspace = true
 wgpu-context.workspace = true
 winit = { workspace = true }
-wabou-accessibility-vello = { workspace = true }
 wabou-shell-api = { workspace = true }
 wabou-style = { workspace = true }
-wabou-svg-vello-hybrid.workspace = true
 
 [features]
 profiling = []

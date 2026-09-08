@@ -54,7 +54,7 @@ First developer preview.
 ### Preview constraints
 
 - The Rust and TypeScript APIs are unstable and may change between alpha tags.
-- The supported frontend line is SolidJS `2.0.0-rc.2`.
+- The supported frontend line is SolidJS `2.0.0-rc.6`.
 - Linux builds require the native dependencies installed by the CI workflow.
 - Distribution is currently through immutable Git tags; crates.io and npm
   publication are intentionally deferred.

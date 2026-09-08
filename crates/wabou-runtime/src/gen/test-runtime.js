@@ -3266,7 +3266,7 @@
   }
   installFetchPolyfill();
 
-  // node_modules/.bun/@solidjs+signals@2.0.0-rc.2/node_modules/@solidjs/signals/dist/dev.js
+  // node_modules/.bun/@solidjs+signals@2.0.0-rc.6/node_modules/@solidjs/signals/dist/dev.js
   class NotReadyError extends Error {
     source;
     constructor(source) {
@@ -3287,7 +3287,6 @@
   function unwrapStatusError(error) {
     return error instanceof StatusError ? error.cause : error;
   }
-
   class NoOwnerError extends Error {
     constructor() {
       super("Context can only be accessed under a reactive root.");
@@ -3326,6 +3325,11 @@
   var CONFIG_HAS_LANE = 1 << 10;
   var CONFIG_CHILD_COMPANIONS = 1 << 11;
   var CONFIG_FW_CHILDREN = 1 << 12;
+  var CONFIG_AUTHORITATIVE_READ = 1 << 13;
+  var CONFIG_AUTHORITATIVE_OBSERVED = 1 << 14;
+  var CONFIG_DIRECT_COMMIT = 1 << 15;
+  var CONFIG_FRESH_READ = 1 << 16;
+  var CONFIG_HELD_TRUTH = 1 << 17;
   var STATUS_PENDING = 1 << 0;
   var STATUS_ERROR = 1 << 1;
   var STATUS_UNINITIALIZED = 1 << 2;
@@ -3355,7 +3359,8 @@
     wideDeps: 30,
     hotTime: { budgetMs: 8, windowMs: 1000 },
     unstableMemos: 4,
-    wideWrites: 250
+    wideWrites: 250,
+    waterfalls: { minFlightMs: 50 }
   };
   var options = { ...defaultOptions };
   var listeners = new Set;
@@ -3429,7 +3434,7 @@
       return;
     const raw = new Error().stack?.split(`
 `) ?? [];
-    return raw.slice(1).filter((line) => !/solid-signals[/\\](src|dist)[/\\]/.test(line)).slice(0, 3).map((line) => line.trim());
+    return raw.slice(1).filter((line) => !/(?:^|[/\\])(?:packages[/\\])?signals[/\\](src|dist)[/\\]/.test(line)).slice(0, 3).map((line) => line.trim());
   }
   var NO_VALUES = Symbol("no-values");
   function checkWideWrite(node, kind) {
@@ -3520,6 +3525,8 @@
     });
     console.warn(message);
   }
+  var hotCauses = new Map;
+  var HOT_FANOUT_FIRST_MILESTONE = 5;
   function checkHotRuns(el, event) {
     const cfg = options.hotRuns;
     if (cfg === false)
@@ -3535,19 +3542,45 @@
     if (node._devHotWarned || node._devWinCount < cfg.count)
       return;
     node._devHotWarned = true;
-    const rootCause = event.causes.map((c2) => `"${c2.name}" (${c2.kind})`).join(", ");
-    const message = `[HOT_SCOPE_RERUNS] ${event.nodeKind} "${event.nodeName}" re-ran ${node._devWinCount} times ` + `in ${Math.max(1, now2 - node._devWinStart)}ms — a hot signal is likely leaking into this ` + `scope. Latest cause: ${rootCause || "(untracked pull)"}`;
+    const roots = new Set;
+    rootsOf(event.causes, roots);
+    const causeKey = roots.size > 0 ? [...roots].sort().join(", ") : "(untracked)";
+    let window2 = hotCauses.get(causeKey);
+    if (window2 === undefined || now2 - window2.winStart > cfg.windowMs) {
+      window2 = { winStart: now2, scopes: 0, runs: 0, nextMilestone: HOT_FANOUT_FIRST_MILESTONE };
+      hotCauses.set(causeKey, window2);
+    }
+    window2.scopes++;
+    window2.runs += node._devWinCount;
+    if (window2.scopes === 1) {
+      const rootCause = event.causes.map((c2) => `"${c2.name}" (${c2.kind})`).join(", ");
+      const message2 = `[HOT_SCOPE_RERUNS] ${event.nodeKind} "${event.nodeName}" re-ran ${node._devWinCount} times ` + `in ${Math.max(1, now2 - node._devWinStart)}ms — a hot signal is likely leaking into this ` + `scope. Latest cause: ${rootCause || "(untracked pull)"}`;
+      emitDiagnostic({
+        code: "HOT_SCOPE_RERUNS",
+        kind: "perf",
+        severity: "warn",
+        message: message2,
+        nodeName: event.nodeName,
+        data: {
+          runs: node._devWinCount,
+          windowMs: cfg.windowMs,
+          causes: event.causes.map((c2) => c2.name)
+        }
+      });
+      console.warn(message2);
+      return;
+    }
+    if (window2.scopes < window2.nextMilestone)
+      return;
+    window2.nextMilestone *= 10;
+    const message = `[HOT_SCOPE_FANOUT] ${window2.scopes} scopes have gone hot (${window2.runs} re-runs) within ` + `${cfg.windowMs}ms, all driven by ${causeKey} — one hot cause is re-running a large part ` + `of the graph. Per-scope warnings are suppressed; fix the cause. If consumers ask keyed ` + `questions of it, invert with createSelector or createProjection.`;
     emitDiagnostic({
-      code: "HOT_SCOPE_RERUNS",
+      code: "HOT_SCOPE_FANOUT",
       kind: "perf",
       severity: "warn",
       message,
-      nodeName: event.nodeName,
-      data: {
-        runs: node._devWinCount,
-        windowMs: cfg.windowMs,
-        causes: event.causes.map((c2) => c2.name)
-      }
+      nodeName: causeKey,
+      data: { cause: causeKey, scopes: window2.scopes, runs: window2.runs, windowMs: cfg.windowMs }
     });
     console.warn(message);
   }
@@ -3712,6 +3745,99 @@
     });
     console.warn(message);
   }
+  var liveFlights = new WeakMap;
+  var landedFlights = new WeakMap;
+  var flightOrigins = new WeakMap;
+  var waterfallLog = [];
+  function flightCauseIn(causes) {
+    let best = null;
+    for (const c2 of causes) {
+      let found = null;
+      if (c2.kind === "async")
+        found = landedFlights.get(c2) ?? null;
+      else if (c2.kind === "derived" && c2.causes)
+        found = flightCauseIn(c2.causes);
+      if (found !== null && (best === null || found.chain.length > best.chain.length))
+        best = found;
+    }
+    return best;
+  }
+  function trackFlightStart(el, flight) {
+    if (options.waterfalls === false)
+      return;
+    const at2 = now();
+    const origin = flightOrigins.get(flight) ?? at2;
+    if (origin === at2)
+      flightOrigins.set(flight, at2);
+    let parent = null;
+    for (let i2 = frames.length - 1;i2 >= 0; i2--) {
+      const causes = frames[i2].causes;
+      if (causes !== null) {
+        parent = flightCauseIn(causes);
+        break;
+      }
+    }
+    if (parent !== null && origin < parent.landedAt)
+      parent = null;
+    liveFlights.set(el, {
+      origin,
+      startSeq: changeSeq,
+      chain: parent === null ? [] : [...parent.chain, { name: parent.name, ms: parent.ms }]
+    });
+  }
+  function finalizeFlight(el) {
+    const flight = liveFlights.get(el);
+    if (flight === undefined)
+      return;
+    liveFlights.delete(el);
+    const landedAt = now();
+    const ms = landedAt - flight.origin;
+    const record = el._devChange;
+    if (record !== undefined && record.kind === "async" && record.seq > flight.startSeq)
+      landedFlights.set(record, { name: nodeName(el), ms, chain: flight.chain, landedAt });
+    checkWaterfall(el, flight.chain, ms);
+  }
+  function checkWaterfall(el, chain, ms) {
+    const cfg = options.waterfalls;
+    if (cfg === false)
+      return;
+    if (chain.length > 0) {
+      waterfallLog.push({
+        chain: [...chain, { name: nodeName(el), ms }],
+        sequentialMs: chain.reduce((sum, l2) => sum + l2.ms, ms)
+      });
+      if (waterfallLog.length > options.historyLimit)
+        waterfallLog.shift();
+    }
+    if (ms < cfg.minFlightMs)
+      return;
+    let seq = 1;
+    let totalMs = ms;
+    for (let i2 = chain.length - 1;i2 >= 0 && chain[i2].ms >= cfg.minFlightMs; i2--) {
+      seq++;
+      totalMs += chain[i2].ms;
+    }
+    if (seq < 2)
+      return;
+    const node = el;
+    if ((node._devWaterfallWarnedAt ?? 0) >= seq)
+      return;
+    node._devWaterfallWarnedAt = seq;
+    const links = [...chain.slice(chain.length - (seq - 1)), { name: nodeName(el), ms }];
+    const path = links.map((l2) => `"${l2.name}" (${l2.ms.toFixed(0)}ms)`).join(" → ");
+    const message = `[ASYNC_WATERFALL] ${seq} sequential async flights — ${path} — ` + `${totalMs.toFixed(0)}ms serialized: each began only after the previous resolved ` + `(as far as this graph can see). If a later request doesn't need the earlier ` + `response, derive both from the same inputs so they start together; if the ` + `dependency is intrinsic, preload the dependent data or join the requests ` + `server-side. If this work WAS already started elsewhere (a preloader or request ` + `cache), have that layer stamp its promises with DEV.attribution.markFlight().`;
+    const severity = seq > 2 ? "warn" : "info";
+    emitDiagnostic({
+      code: "ASYNC_WATERFALL",
+      kind: "perf",
+      severity,
+      message,
+      nodeName: nodeName(el),
+      data: { chain: links.map((l2) => ({ name: l2.name, ms: l2.ms })), sequentialMs: totalMs }
+    });
+    if (severity === "warn")
+      console.warn(message);
+  }
   var asyncStartSeq = 0;
   var asyncStartTime = 0;
   var asyncStartValue;
@@ -3737,6 +3863,11 @@
       if (frames.length > 0)
         frames[frames.length - 1].childMs += totalMs;
       const selfMs = Math.max(0, totalMs - frame.childMs);
+      if (changed && frame.causes !== null && el._type) {
+        const committed = el._pendingValue !== NOT_PENDING ? el._pendingValue : el._value;
+        if (committed !== undefined && committed === frame.prevValue)
+          changed = false;
+      }
       if (frame.causes !== null && changed && !optimistic && !transition && !el._type)
         checkUnstableOutput(el, frame.prevValue, el._pendingValue !== NOT_PENDING ? el._pendingValue : el._value);
       if (frame.causes !== null)
@@ -3751,6 +3882,9 @@
     refreshed(el) {
       stampWrite(el, "refresh");
     },
+    flightStart(el, flight) {
+      trackFlightStart(el, flight);
+    },
     asyncStart(el) {
       asyncStartSeq = el._devChange?.seq ?? 0;
       asyncStartTime = el._time;
@@ -3761,11 +3895,13 @@
         const committed = el._value !== asyncStartValue || el._time !== asyncStartTime || el._pendingValue === value;
         if (committed)
           stampWrite(el, "async", prev === undefined ? NO_VALUES : prev, value);
+        finalizeFlight(el);
         return;
       }
       const change = el._devChange;
       if (change !== undefined && change.seq > asyncStartSeq && change.kind === "write")
         stampWrite(el, "async", NO_VALUES, value);
+      finalizeFlight(el);
     }
   };
   var attribution = {
@@ -3774,6 +3910,8 @@
       frames.length = 0;
       scopeCosts.clear();
       writeCosts.clear();
+      waterfallLog = [];
+      hotCauses.clear();
       setAttributionHooks(engineHooks);
     },
     disable() {
@@ -3782,6 +3920,8 @@
       frames.length = 0;
       scopeCosts.clear();
       writeCosts.clear();
+      waterfallLog = [];
+      hotCauses.clear();
       setAttributionHooks(null);
     },
     subscribe(listener) {
@@ -3808,6 +3948,14 @@
         writes: [...writeCosts.values()].sort((a2, b2) => b2.downstreamMs - a2.downstreamMs)
       };
     },
+    waterfalls() {
+      return waterfallLog;
+    },
+    markFlight(flight, startedAt = now()) {
+      const existing = flightOrigins.get(flight);
+      if (existing === undefined || startedAt < existing)
+        flightOrigins.set(flight, startedAt);
+    },
     format: formatRerun
   };
   var GRAPH_SIZE_WARN_AT = 2000;
@@ -3816,10 +3964,16 @@
   var diagnosticListeners = new Set;
   var diagnosticCaptures = new Set;
   var diagnosticSequence = 0;
+  var consoleFooter;
+  var footeredCodes = new Set;
   var diagnostics = {
     subscribe(listener) {
       diagnosticListeners.add(listener);
       return () => diagnosticListeners.delete(listener);
+    },
+    setConsoleFooter(footer) {
+      consoleFooter = footer;
+      footeredCodes.clear();
     },
     capture() {
       const events = [];
@@ -3859,6 +4013,12 @@
       listener(entry);
     for (const capture of diagnosticCaptures)
       capture.push(entry);
+    if (consoleFooter && !footeredCodes.has(entry.code)) {
+      footeredCodes.add(entry.code);
+      const footer = consoleFooter(entry);
+      if (footer)
+        queueMicrotask(() => console.warn(footer));
+    }
     return entry;
   }
   function throwPendingUntrackedRead(strictReadLabel, fields) {
@@ -4119,7 +4279,7 @@
   }
   var clock = 0;
   var activeTransition = null;
-  var scheduled = false;
+  var scheduled$1 = false;
   var halted = false;
   var haltNotified = false;
   var syncDepth = 0;
@@ -4187,6 +4347,20 @@
     }
     for (const store of outgoing._optimisticStores)
       target._optimisticStores.add(store);
+    const heldPatches = outgoing._heldPatches;
+    if (heldPatches !== undefined) {
+      outgoing._heldPatches = undefined;
+      let dest = target._heldPatches;
+      if (dest !== undefined)
+        dest.push(...heldPatches);
+      else
+        dest = target._heldPatches = heldPatches;
+      for (let i2 = 0;i2 < heldPatches.length; i2++) {
+        const pc = heldPatches[i2].pc;
+        if (pc !== undefined && pc.qe === heldPatches[i2])
+          pc.qa = dest;
+      }
+    }
     for (const [source, reporters] of outgoing._asyncReporters) {
       let targetReporters = target._asyncReporters.get(source);
       if (!targetReporters)
@@ -4202,9 +4376,9 @@
       notifyHalted();
       return;
     }
-    if (scheduled)
+    if (scheduled$1)
       return;
-    scheduled = true;
+    scheduled$1 = true;
     if (!syncDepth && !globalQueue._running && !projectionWriteActive)
       queueMicrotask(flush);
   }
@@ -4341,11 +4515,13 @@
     static _transitionBlocked = null;
     static _cleanupLanes = null;
     static _runLaneEffects = null;
+    static _drainPatchOptimistic = null;
     static _gatedRead = null;
     static _laneSuspends = null;
     static _laneReadsCommitted = null;
     static _recomputeLane = null;
     static _laneAsyncPending = null;
+    static _notifyAuthoritativeObservers = null;
     static _laneAsyncSettled = null;
     static _trackOptimisticStore = null;
     flush() {
@@ -4355,6 +4531,7 @@
       try {
         if (true)
           devCheckFlushStart();
+        sweepDormant();
         runHeap(dirtyQueue, GlobalQueue._update);
         if (activeTransition) {
           const isComplete = transitionComplete(activeTransition);
@@ -4369,7 +4546,7 @@
             }
             this.stashQueues(stashedTransition._queueStash);
             clock++;
-            scheduled = dirtyQueue._max >= dirtyQueue._min || this._batch._pendingNodes.length > 0;
+            scheduled$1 = dirtyQueue._max >= dirtyQueue._min || this._batch._pendingNodes.length > 0;
             reassignPendingTransition(stashedTransition._pendingNodes);
             activeTransition = null;
             finalizePureQueue(null, true);
@@ -4405,7 +4582,7 @@
           }
         }
         clock++;
-        scheduled = dirtyQueue._max >= dirtyQueue._min;
+        scheduled$1 = dirtyQueue._max >= dirtyQueue._min;
         activeLanes.size && GlobalQueue._runLaneEffects(EFFECT_RENDER);
         this.run(EFFECT_RENDER);
         activeLanes.size && GlobalQueue._runLaneEffects(EFFECT_USER);
@@ -4423,7 +4600,7 @@
           });
           devCensusCompanions((n2) => this._batch._pendingNodes.includes(n2));
         }
-        if (!scheduled && !activeTransition && transitions.size === 0 && activeLanes.size === 0) {
+        if (!scheduled$1 && !activeTransition && transitions.size === 0 && activeLanes.size === 0) {
           devCheckQuiescent((n2) => this._batch._pendingNodes.includes(n2));
         }
         if (true)
@@ -4458,10 +4635,11 @@
       return false;
     }
     initTransition(transition) {
-      if (transition)
+      if (transition) {
         transition = currentTransition(transition);
-      if (transition && transition === activeTransition)
-        return;
+        if (transition._done === true || transition === activeTransition)
+          return;
+      }
       if (!transition && activeTransition && activeTransition._time === clock)
         return;
       if (!activeTransition) {
@@ -4501,11 +4679,14 @@
         if (!lane._transition)
           lane._transition = activeTransition;
       }
+      schedule();
     }
   }
   function queuePendingNode(node) {
+    lastStagedNodeName = node._name ?? null;
     currentBatch._pendingNodes.push(node);
   }
+  var lastStagedNodeName = null;
   var reaskArmed = false;
   var notifyEpoch = 0;
   function bumpNotifyEpoch() {
@@ -4554,6 +4735,8 @@
       n2._pendingValue = NOT_PENDING;
       if (n2._type && n2._type !== EFFECT_TRACKED)
         n2._modified = true;
+      if (n2._x)
+        n2._x._reask = false;
     }
     c2._loading = false;
     c2._flags &= ~REACTIVE_MANUAL_WRITE;
@@ -4565,13 +4748,22 @@
       GlobalQueue._snapCompanions(n2);
   }
   var storeCommitHook = null;
+  var patchCommitHook = null;
+  var heldRevealed = [];
   function commitPendingNodes() {
     const pendingNodes = currentBatch._pendingNodes;
     for (let i2 = 0;i2 < pendingNodes.length; i2++) {
-      commitPendingNode(pendingNodes[i2]);
+      const node = pendingNodes[i2];
+      commitPendingNode(node);
+      node._transition = null;
+      if (node._config & CONFIG_HELD_TRUTH) {
+        node._config &= ~CONFIG_HELD_TRUTH;
+        heldRevealed.push(node);
+      }
     }
     pendingNodes.length = 0;
     storeCommitHook?.();
+    patchCommitHook?.(currentBatch);
   }
   function finalizePureQueue(completingTransition = null, incomplete = false) {
     const resolvePending = !incomplete;
@@ -4604,6 +4796,14 @@
       }
       if (batch._optimisticStores.size)
         GlobalQueue._clearOptimisticStores(batch._optimisticStores, completingTransition);
+      if (heldRevealed.length !== 0) {
+        while (heldRevealed.length)
+          insertSubs(heldRevealed.pop());
+        if (dirtyQueue._max >= dirtyQueue._min) {
+          runHeap(dirtyQueue, GlobalQueue._update);
+          commitPendingNodes();
+        }
+      }
       sweepTransientStoreNodes();
       if (activeLanes.size)
         GlobalQueue._cleanupLanes(completingTransition);
@@ -4658,9 +4858,11 @@
     if (halted)
       return;
     let count = 0;
-    while (scheduled || activeTransition) {
-      if (++count === 1e5)
-        throw new Error("Potential Infinite Loop Detected.");
+    while (scheduled$1 || activeTransition) {
+      if (++count === 1e5) {
+        const t2 = activeTransition;
+        throw new Error(`Potential Infinite Loop Detected. Kept alive by ${scheduled$1 ? "scheduled work" : "an active transition"}${t2 ? `; transition: done=${t2._done === true}, pending=${t2._pendingNodes.length}, optimistic=${t2._optimisticNodes.length}, asyncReporters=${t2._asyncReporters.size}` : ""}${lastStagedNodeName ? `; last staged node: ${lastStagedNodeName}` : ""}`);
+      }
       globalQueue.flush();
     }
   }
@@ -5072,6 +5274,17 @@
     clearDeps(el);
     disposeChildren(el, true);
   }
+  var dormantNodes = new Set;
+  function sweepDormant() {
+    if (dormantNodes.size === 0)
+      return;
+    for (const el of dormantNodes) {
+      if (!el._subs && el._config & CONFIG_AUTO_DISPOSE && !(el._statusFlags & STATUS_PENDING) && !(el._flags & (REACTIVE_DISPOSED | REACTIVE_ZOMBIE))) {
+        unobserved(el);
+      }
+    }
+    dormantNodes.clear();
+  }
   function link(dep, sub, pendingObserver = false) {
     const prevDep = sub._depsTail;
     if (prevDep !== null && prevDep._dep === dep) {
@@ -5124,16 +5337,14 @@
     return true;
   }
   function removePendingSource(el, source) {
-    if (!el._x?._pendingSources?.delete(source))
+    const sources = el._x?._pendingSources;
+    if (!sources?.delete(source))
       return false;
-    if (el._x?._pendingSources.size === 0) {
-      if (el._x !== null)
-        el._x._pendingSources = undefined;
-    }
+    if (!sources.size)
+      el._x._pendingSources = undefined;
     return true;
   }
   function clearPendingSources(el) {
-    el._x?._pendingSources?.clear();
     if (el._x !== null)
       el._x._pendingSources = undefined;
   }
@@ -5195,7 +5406,7 @@
         releaseIfSettledUnobserved(node);
   }
   function settleErroredDependents(el, error) {
-    let scheduled2 = false;
+    let scheduled = false;
     const visited = new Set;
     const visit = (node) => {
       if (visited.has(node))
@@ -5203,16 +5414,30 @@
       visited.add(node);
       if (node._x?._error === error) {
         enqueueSub(node);
-        scheduled2 = true;
+        scheduled = true;
       }
       forEachDependent(node, visit);
     };
     forEachDependent(el, visit);
-    if (scheduled2)
+    if (scheduled)
       schedule();
   }
   function settlePendingSource(el) {
-    let scheduled2 = false;
+    {
+      const sources = el._x?._pendingSources;
+      if (el._statusFlags & STATUS_UNINITIALIZED && el._pendingValue === NOT_PENDING && !el._x?._error && !(sources?.size && (sources.size > 1 || !sources.has(el)))) {
+        emitDiagnostic({
+          code: "SETTLE_WALK_UNINITIALIZED_SOURCE",
+          kind: "lifecycle",
+          severity: "error",
+          message: "[SETTLE_WALK_UNINITIALIZED_SOURCE] settlePendingSource was called on a source that " + "never produced a value. Settling parked readers requires truth to reveal — an " + "uninitialized source waking its dependents serves them its initial face instead of " + "settled data.",
+          ownerId: el.id,
+          ownerName: el._name
+        });
+      }
+    }
+    removePendingSource(el, el);
+    let scheduled = false;
     let released;
     const visited = new Set;
     const updateCompanions = GlobalQueue._updatePendingSignal;
@@ -5226,15 +5451,15 @@
       if (remaining) {
         if (!errored)
           setPendingError(node, remaining);
-        updateCompanions !== null && updateCompanions(node);
+        updateCompanions?.(node);
       } else {
         node._statusFlags &= ~STATUS_PENDING;
         if (!errored)
           setPendingError(node);
-        updateCompanions !== null && updateCompanions(node);
+        updateCompanions?.(node);
         if (node._x?._blocked) {
           enqueueSub(node);
-          scheduled2 = true;
+          scheduled = true;
         }
         if (node._x !== null)
           node._x._blocked = false;
@@ -5247,11 +5472,18 @@
     if (released)
       for (const node of released)
         releaseIfSettledUnobserved(node);
-    if (scheduled2)
+    if (scheduled)
       schedule();
   }
   function isThenable(value) {
     return value != null && typeof value === "object" && typeof value.then === "function";
+  }
+  function releaseFlightTeardown(el) {
+    const teardown = el._x?._flightTeardown;
+    if (teardown != null) {
+      el._x._flightTeardown = null;
+      teardown();
+    }
   }
   function handleAsync(el, result, setter) {
     let iterator = false;
@@ -5281,6 +5513,8 @@
       throw new Error(message);
     }
     ext(el)._inFlight = result;
+    if (attrHooks !== null)
+      attrHooks.flightStart(el, result);
     let syncValue;
     const settleTransition = () => {
       const transition = resolveTransition(el);
@@ -5307,6 +5541,8 @@
       }
       settleTransition();
       notifyStatus(el, stillPending ? STATUS_PENDING : STATUS_ERROR, error);
+      if (stillPending)
+        settlePendingSource(el);
       el._time = clock;
       if (!stillPending)
         releaseSettledDependents(el);
@@ -5318,8 +5554,11 @@
         return;
       settleTransition();
       const wasUninitialized = !!(el._statusFlags & STATUS_UNINITIALIZED);
+      const wasReask = el._x?._reask;
       trimStaleDeps(el);
       clearStatus(el);
+      if (wasReask)
+        el._x._reask = true;
       const lane = resolveLane(el);
       if (lane)
         lane._pendingAsync.delete(el);
@@ -5333,11 +5572,13 @@
         if (el._pendingValue === NOT_PENDING)
           queuePendingNode(el);
         el._pendingValue = value;
-        GlobalQueue._syncCompanions !== null && GlobalQueue._syncCompanions(el, value);
+        GlobalQueue._syncCompanions?.(el, value);
         if (!hasActiveOverride$1(el)) {
           if (attrHooks !== null)
             attrHooks.asyncEnd(el, undefined, value, true);
           insertSubs(el);
+        } else if (el._config & CONFIG_AUTHORITATIVE_OBSERVED) {
+          GlobalQueue._notifyAuthoritativeObservers?.(el);
         }
         el._time = clock;
       } else if (lane) {
@@ -5348,7 +5589,7 @@
           if (!isEffect && wasUninitialized || !equals || !equals(value, prevValue)) {
             el._value = value;
             el._time = clock;
-            GlobalQueue._syncCompanions !== null && GlobalQueue._syncCompanions(el, value);
+            GlobalQueue._syncCompanions?.(el, value);
             insertSubs(el, true);
           }
         } catch (e2) {
@@ -5365,8 +5606,11 @@
         if (attrHooks !== null)
           attrHooks.asyncEnd(el, undefined, value, false);
       }
-      if (el._pendingValue === NOT_PENDING)
+      if (el._pendingValue === NOT_PENDING) {
         el._loading = false;
+        if (wasReask)
+          el._x._reask = false;
+      }
       settlePendingSource(el);
       schedule();
       flush();
@@ -5395,6 +5639,7 @@
         } catch {}
       };
       registerClose ? registerClose(close) : cleanup(close);
+      ext(el)._flightTeardown = close;
       const iterateOrRelease = () => {
         if (!settleAutodispose())
           iterate();
@@ -5539,8 +5784,9 @@
       GlobalQueue._updatePendingSignal(el);
     if (el._x?._child && el._config & CONFIG_CHILD_COMPANIONS && GlobalQueue._updateChildCompanions !== null)
       GlobalQueue._updateChildCompanions(el);
-    if (el._x?._notifyStatus)
-      el._x._notifyStatus.call(el);
+    const notify = statusNotifierOf(el);
+    if (notify)
+      notify.call(el);
   }
   function notifyStatus(el, status, error, blockStatus, lane) {
     if (status === STATUS_ERROR && !(error instanceof StatusError) && !(error instanceof NotReadyError))
@@ -5559,7 +5805,7 @@
         el._statusFlags = status | (status !== STATUS_ERROR ? el._statusFlags & STATUS_UNINITIALIZED : 0);
         ext(el)._error = error;
       }
-      GlobalQueue._updatePendingSignal !== null && GlobalQueue._updatePendingSignal(el);
+      GlobalQueue._updatePendingSignal?.(el);
       if (el._x?._child && el._config & CONFIG_CHILD_COMPANIONS && GlobalQueue._updateChildCompanions !== null)
         GlobalQueue._updateChildCompanions(el);
     }
@@ -5568,14 +5814,15 @@
     }
     const downstreamBlockStatus = blockStatus || startsBlocking;
     const downstreamLane = blockStatus || isOptimisticBoundary ? undefined : lane;
-    if (el._x?._notifyStatus) {
+    const elNotify = statusNotifierOf(el);
+    if (elNotify) {
       if (blockStatus && status === STATUS_PENDING) {
         return;
       }
       if (downstreamBlockStatus) {
-        el._x._notifyStatus.call(el, status, error);
+        elNotify.call(el, status, error);
       } else {
-        el._x._notifyStatus.call(el);
+        elNotify.call(el);
       }
       return;
     }
@@ -5633,8 +5880,10 @@
       if (el._transition && (!isEffect || activeTransition) && activeTransition !== el._transition)
         globalQueue.initTransition(el._transition);
       deleteFromHeap(el, queueFor(el));
-      if (el._x !== null)
+      if (el._x !== null) {
         el._x._inFlight = null;
+        releaseFlightTeardown(el);
+      }
       if (el._transition || isEffect === EFFECT_TRACKED)
         disposeChildren(el);
       else if (el._firstChild !== null || el._disposal !== null) {
@@ -5653,6 +5902,7 @@
     const hasOverride = (el._config & CONFIG_OPTIMISTIC) !== 0 && el._x?._overrideValue !== NOT_PENDING && el._x?._overrideValue !== undefined;
     const wasUninitialized = !!(el._statusFlags & STATUS_UNINITIALIZED);
     const outgoingError = el._statusFlags & STATUS_ERROR ? el._x?._error : undefined;
+    const wasPendingSource = el._x?._pendingSources?.has(el);
     const hadReask = (el._flags & REACTIVE_REASK) !== 0;
     const wasLoading = el._loading;
     const oldcontext = context;
@@ -5724,6 +5974,8 @@
             reaskChanged = GlobalQueue._applyReask(el, hadReask);
         }
         notifyStatus(el, notReady ? STATUS_PENDING : STATUS_ERROR, e2, undefined, notReady ? el._x?._optimisticLane : undefined);
+        if (notReady && wasPendingSource && !el._x?._inFlight)
+          settlePendingSource(el);
         if (reaskChanged)
           GlobalQueue._repollVerdicts(el);
       }
@@ -5760,7 +6012,7 @@
         ;
       else if (valueChanged) {
         const prevVisible = hasOverride ? el._x?._overrideValue : undefined;
-        if (create || isEffect && (activeTransition !== el._transition || activeTransition === null) || isOptimisticDirty) {
+        if (create || isEffect && (activeTransition !== el._transition || activeTransition === null || el._config & CONFIG_DIRECT_COMMIT) || isOptimisticDirty) {
           el._value = value;
           if (hasOverride && isOptimisticDirty) {
             ext(el)._overrideValue = value === undefined ? OVERRIDE_UNDEFINED : value;
@@ -5781,6 +6033,8 @@
         el._pendingValue = value;
         if (wasLoading)
           el._loading = true;
+        if (el._config & CONFIG_AUTHORITATIVE_OBSERVED)
+          GlobalQueue._notifyAuthoritativeObservers(el);
       } else if (el._height != oldHeight) {
         for (let s2 = el._subs;s2 !== null; s2 = s2._nextSub) {
           insertIntoHeapHeight(s2._sub, queueFor(s2._sub));
@@ -5788,6 +6042,8 @@
       }
       if (outgoingError !== undefined && !valueChanged && !el._x?._error)
         settleErroredDependents(el, outgoingError);
+      if (wasPendingSource && !(el._statusFlags & (STATUS_PENDING | STATUS_UNINITIALIZED)))
+        settlePendingSource(el);
     }
     if (attrHooks !== null)
       attrHooks.recomputeEnd(el, create, devChanged, isOptimisticDirty || currentOptimisticLane !== null, activeTransition !== null || el._transition !== null, el._pendingValue !== NOT_PENDING);
@@ -5801,7 +6057,7 @@
     }
   }
   function updateIfNecessary(el) {
-    if (el._flags & REACTIVE_RECOMPUTING_DEPS)
+    if (el._flags & (REACTIVE_RECOMPUTING_DEPS | REACTIVE_DISPOSED))
       return;
     if (el._flags & REACTIVE_CHECK) {
       for (let d2 = el._deps;d2; d2 = d2._nextDep) {
@@ -5826,7 +6082,7 @@
     const self2 = {
       id: inheritId(options2, transparent, context),
       _config: (transparent ? CONFIG_TRANSPARENT : 0) | (options2?.ownedWrite ? CONFIG_OWNED_WRITE : 0) | (!context || options2?.lazy ? CONFIG_AUTO_DISPOSE : 0) | (options2?.sync ? CONFIG_SYNC : 0) | (options2?._noSnapshot ? CONFIG_NO_SNAPSHOT : 0) | (snapshotCaptureActive && ownerInSnapshotScope(context) ? CONFIG_IN_SNAPSHOT_SCOPE : 0),
-      _equals: options2?.equals != null ? options2.equals : isEqual,
+      _equals: options2?.equals ?? isEqual,
       _disposal: null,
       _queue: context?._queue ?? globalQueue,
       _context: context?._context ?? defaultContext,
@@ -5870,6 +6126,7 @@
       _parentSource: undefined,
       _affectsCount: 0,
       _inFlight: null,
+      _flightTeardown: null,
       _error: undefined,
       _blocked: undefined,
       _pendingSources: undefined,
@@ -5883,11 +6140,11 @@
       _companionChildren: undefined
     };
   }
-  function createEffectNode(fn, effectFn, errorFn, type, notifyStatus2, options2) {
+  function createEffectNode(fn, effectFn, errorFn, type, options2) {
     const transparent = options2?.transparent ?? false;
     const self2 = {
       id: inheritId(options2, transparent, context),
-      _config: (transparent ? CONFIG_TRANSPARENT : 0) | (options2?.ownedWrite ? CONFIG_OWNED_WRITE : 0) | (options2?.sync ? CONFIG_SYNC : 0) | (snapshotCaptureActive && ownerInSnapshotScope(context) ? CONFIG_IN_SNAPSHOT_SCOPE : 0),
+      _config: (transparent ? CONFIG_TRANSPARENT : 0) | (options2?.ownedWrite ? CONFIG_OWNED_WRITE : 0) | (options2?.sync ? CONFIG_SYNC : 0) | (options2?._extraConfig ?? 0) | (snapshotCaptureActive && ownerInSnapshotScope(context) ? CONFIG_IN_SNAPSHOT_SCOPE : 0),
       _equals: false,
       _disposal: null,
       _queue: context?._queue ?? globalQueue,
@@ -5923,12 +6180,20 @@
       _x: null
     };
     self2._name = options2?.name ?? "effect";
-    if (notifyStatus2 !== undefined)
-      ext(self2)._notifyStatus = notifyStatus2;
     if (options2?.unobserved)
       ext(self2)._unobserved = options2.unobserved;
     setupComputedNode(self2, lazyOptions);
     return self2;
+  }
+  var effectStatusNotify = null;
+  function setEffectStatusNotify(fn) {
+    effectStatusNotify = fn;
+  }
+  function statusNotifierOf(el) {
+    const own = el._x?._notifyStatus;
+    if (own !== undefined)
+      return own;
+    return el._type ? effectStatusNotify ?? undefined : undefined;
   }
   var lazyOptions = { lazy: true };
   function setupComputedNode(self2, options2) {
@@ -5971,7 +6236,7 @@
   }
   function signal(v2, options2, firewall = null) {
     const s2 = {
-      _equals: options2?.equals != null ? options2.equals : isEqual,
+      _equals: options2?.equals ?? isEqual,
       _config: (options2?.ownedWrite ? CONFIG_OWNED_WRITE : 0) | (options2?._noSnapshot ? CONFIG_NO_SNAPSHOT : 0),
       _value: v2,
       _subs: null,
@@ -6077,7 +6342,8 @@
           markNode(c2);
           markHeap(elQueue);
           updateIfNecessary(owner);
-        }
+        } else if (c2._config & CONFIG_FRESH_READ)
+          updateIfNecessary(owner);
         const height = owner._height;
         if (height >= c2._height && el._parent !== c2) {
           c2._height = height + 1;
@@ -6136,18 +6402,25 @@
         nodeName: owner?._name
       });
     if (el._x?._overrideValue !== undefined && el._x?._overrideValue !== NOT_PENDING) {
-      return unwrapOverride(el._x?._overrideValue);
+      if (!(c2 && c2._config & CONFIG_AUTHORITATIVE_READ))
+        return unwrapOverride(el._x?._overrideValue);
+      el._config |= CONFIG_AUTHORITATIVE_OBSERVED;
     }
     if (currentOptimisticLane !== null && activeTransition !== null && c2 !== null && GlobalQueue._gatedRead(el, owner, c2)) {
       return el._value;
     }
-    const value = !c2 || currentOptimisticLane !== null && GlobalQueue._laneReadsCommitted(el, owner, c2) || el._pendingValue === NOT_PENDING || c2._config & CONFIG_CHILDREN_FORBIDDEN || stale && el._transition && activeTransition !== el._transition ? el._value : el._pendingValue;
+    const value = !c2 || currentOptimisticLane !== null && GlobalQueue._laneReadsCommitted(el, owner, c2) || el._pendingValue === NOT_PENDING || c2._config & CONFIG_CHILDREN_FORBIDDEN || stale && el._transition && activeTransition !== el._transition || el._config & CONFIG_HELD_TRUTH && !latestReadActive && !(c2._config & CONFIG_AUTHORITATIVE_READ) ? el._value : el._pendingValue;
     if (pendingCheckActive)
       GlobalQueue._recordFresh(el, value);
     if (!c2 && owner === el && typeof computed2._fn === "function" && el._config & CONFIG_AUTO_DISPOSE && !(owner._statusFlags & STATUS_PENDING) && !el._subs) {
-      unobserved(el);
+      dormantNodes.add(el);
+      schedule();
     }
     return value;
+  }
+  function ownedScopeWriteMessage(owner) {
+    const name = owner._name;
+    return name ? `${REACTIVE_WRITE_IN_OWNED_SCOPE_SIGNAL_MESSAGE} (in ${name})` : REACTIVE_WRITE_IN_OWNED_SCOPE_SIGNAL_MESSAGE;
   }
   function setSignal(el, v2) {
     if (!(el._config & CONFIG_OWNED_WRITE) && !(context && context._config & CONFIG_CHILDREN_FORBIDDEN) && context && el._firewall !== context) {
@@ -6161,7 +6434,7 @@
         nodeName: el._name,
         data: { operation: "setSignal" }
       });
-      throw new Error(REACTIVE_WRITE_IN_OWNED_SCOPE_SIGNAL_MESSAGE);
+      throw new Error(ownedScopeWriteMessage(context));
     }
     if (el._transition && activeTransition !== el._transition)
       globalQueue.initTransition(el._transition);
@@ -6256,7 +6529,7 @@
     const currentValue = hasOverride ? unwrapOverride(el._x?._overrideValue) : el._value;
     if (typeof v2 === "function")
       v2 = v2(currentValue);
-    const valueChanged = !!(el._statusFlags & STATUS_UNINITIALIZED) || !el._equals || !el._equals(currentValue, v2);
+    const valueChanged = !!(el._statusFlags & STATUS_UNINITIALIZED) || !!((el._flags ?? 0) & (REACTIVE_DIRTY | REACTIVE_CHECK)) || !el._equals || !el._equals(currentValue, v2);
     if (!valueChanged) {
       if (hasOverride) {
         const transition = resolveTransition(el);
@@ -6330,6 +6603,8 @@
         runQueue(effects, type);
       }
     }
+    if (type === EFFECT_RENDER)
+      GlobalQueue._drainPatchOptimistic?.();
   }
   function cleanupCompletedLanes(completingTransition) {
     for (const lane of activeLanes) {
@@ -6367,11 +6642,14 @@
     return true;
   }
   function laneReadsCommitted(el, owner, c2) {
-    if (el._x?._overrideValue !== undefined || !!el._x?._optimisticLane || !!(owner._statusFlags & STATUS_PENDING))
+    if (el._x?._overrideValue !== undefined || !!el._x?._optimisticLane || !!(owner._statusFlags & STATUS_PENDING)) {
+      if (el._pendingValue !== NOT_PENDING)
+        (activeTransition ?? globalQueue._batch)._gatedSubs.add(c2);
       return true;
+    }
     if (owner === el && stale && c2._x?._parentSource !== el) {
-      if (el._pendingValue !== NOT_PENDING && activeTransition === null)
-        globalQueue._batch._gatedSubs.add(c2);
+      if (el._pendingValue !== NOT_PENDING)
+        (activeTransition ?? globalQueue._batch)._gatedSubs.add(c2);
       return true;
     }
     return false;
@@ -6514,7 +6792,8 @@
     if (el._pendingValue !== NOT_PENDING && !(comp._statusFlags & STATUS_UNINITIALIZED) && !comp._loading) {
       if (hasActiveOverride$1(el))
         return !el._equals || !el._equals(el._pendingValue, unwrapOverride(el._x?._overrideValue));
-      return true;
+      if (!comp._x?._reask)
+        return true;
     }
     return newQuestionInFlight(comp);
   }
@@ -6610,6 +6889,8 @@
   }
   function getLatestValueComputed(el) {
     let lvc = el._x?._latestValueComputed;
+    if (lvc && lvc._flags & REACTIVE_DISPOSED)
+      lvc = undefined;
     if (!lvc) {
       const prevPending = latestReadActive;
       setLatestReadActive(false);
@@ -6640,7 +6921,13 @@
       const queue = queueFor(pendingComputed);
       if (pendingComputed._height >= queue._min && !(pendingComputed._flags & (REACTIVE_DISPOSED | REACTIVE_ZOMBIE))) {
         markHeap(queue);
-        prepareComputed(pendingComputed, true);
+        const prevCheck = pendingCheckActive;
+        setPendingCheckActive(false);
+        try {
+          prepareComputed(pendingComputed, true);
+        } finally {
+          setPendingCheckActive(prevCheck);
+        }
       }
       value = read(pendingComputed);
     } catch (e2) {
@@ -6663,12 +6950,21 @@
       return pendingComputed._pendingValue;
     return value;
   }
+  function latestShadowWithInitializedParent(owner) {
+    if (typeof owner._fn !== "function")
+      return false;
+    const parentNode = owner._x?._parentSource;
+    if (parentNode === undefined)
+      return false;
+    const parent = parentNode._firewall || parentNode;
+    return !(parent._statusFlags & STATUS_UNINITIALIZED);
+  }
   function pendingCheckRead(el, c2, owner, firewall) {
     setPendingCheckActive(false);
     if (typeof el._fn === "function")
       prepareComputed(el, true);
     const ownerStatus = owner._statusFlags;
-    if (c2 && ownerStatus & STATUS_PENDING && ownerStatus & STATUS_UNINITIALIZED) {
+    if (c2 && ownerStatus & STATUS_PENDING && ownerStatus & STATUS_UNINITIALIZED && !latestShadowWithInitializedParent(owner)) {
       if (tracking && el !== c2)
         link(el, c2);
       setPendingCheckActive(true);
@@ -6681,8 +6977,12 @@
   }
   function heldAwaitingAsync(el) {
     const et2 = el._transition;
-    const t2 = et2 ? currentTransition(et2) : null;
+    const t2 = et2 ? currentTransition(et2) : activeTransition;
     if (!t2 || t2._done)
+      return false;
+    if (t2._actions.length && !el._fn)
+      return true;
+    if (!et2)
       return false;
     for (const [source, reporters] of t2._asyncReporters) {
       if (reporters.size && source._statusFlags & STATUS_PENDING && source._x?._error?.source === source)
@@ -6720,7 +7020,7 @@
   GlobalQueue._wakeSuppressedProbes = wakeSuppressedProbes;
   function effect(compute, effect2, error, options2) {
     const isUser = !!options2?.user;
-    const node = createEffectNode(compute, effect2, error, isUser ? EFFECT_USER : EFFECT_RENDER, notifyEffectStatus, options2);
+    const node = createEffectNode(compute, effect2, error, isUser ? EFFECT_USER : EFFECT_RENDER, options2);
     recompute(node, true);
     !options2?.defer && (node._type === EFFECT_USER || options2?.schedule ? node._queue.enqueue(node._type, runEffect.bind(null, node)) : runEffect(node));
     if (!node._parent) {
@@ -6822,6 +7122,7 @@
     }
   }
   GlobalQueue._runEffect = runEffect;
+  setEffectStatusNotify(notifyEffectStatus);
   var ACTION_CALLED_IN_OWNED_SCOPE_MESSAGE = "[ACTION_CALLED_IN_OWNED_SCOPE] Calling an action inside an owned scope (component, computation) is not allowed. " + "Call it from an event handler or another imperative scope.";
   function accessor(node) {
     const fn = read.bind(null, node);
@@ -6846,6 +7147,13 @@
   }
   var ownedRaw = new WeakSet;
   var storeNextLookup = new WeakMap;
+  function markDescendants(target) {
+    let t2 = target;
+    while (t2 && !t2.d) {
+      t2.d = true;
+      t2 = t2.u;
+    }
+  }
   var $TRACK = Symbol("STORE_TRACK");
   var $TARGET = Symbol("STORE_TARGET");
   var $PROXY = Symbol("STORE_PROXY");
@@ -6912,7 +7220,9 @@
     this.s = undefined;
     this.ovl = undefined;
     this.del = undefined;
-    this.wk = undefined;
+    this.pc = undefined;
+    this.hv = undefined;
+    this.ht = undefined;
   }
   TargetShape.prototype = Object.prototype;
   function getNode(target, key, current) {
@@ -6954,15 +7264,12 @@
     const at2 = map.get(a2);
     return at2 !== undefined && at2 === map.get(b2);
   }
-  function markDescendants(target) {
-    let t2 = target;
-    while (t2 && !t2.d) {
-      t2.d = true;
-      t2 = t2.u;
-    }
-  }
   var foldOlds = new Map;
+  var PLAIN_HOLD = Symbol("plainHold");
   var WK_ALL = new Set;
+  var foldBatches = new WeakMap;
+  var stagedTruthPB = new WeakMap;
+  var tentativePBs = new WeakSet;
   var FORCE = Symbol();
   var pendingNotify = new Set;
   var UNSAFE_KEYS = new Set(["__proto__", "prototype", "constructor"]);
@@ -6973,6 +7280,7 @@
     return hasOwn.call(src, key) && (lookupGetter.call(src, key) !== undefined || lookupSetter.call(src, key) !== undefined);
   }
   setNextAffectsNodeResolver((t2, key) => key === $AFFECTS ? getNode(t2, $AFFECTS, undefined) : getNode(t2, key, (t2.pb ?? t2.v)[key]));
+  var UNSET = Symbol();
   var DELETE = Symbol("STORE_PATH_DELETE");
   function trueFn() {
     return true;
@@ -7133,7 +7441,7 @@
           } while (typeof child === "function" && !child.length);
         }
         if (Array.isArray(child)) {
-          needsUnwrap = flattenArray(child, results, options2);
+          needsUnwrap = flattenArray(child, results, options2) || needsUnwrap;
         } else if (options2?.skipNonRendered && (child == null || child === true || child === false || child === "")) {} else
           results.push(child);
       } catch (e2) {
@@ -7146,8 +7454,9 @@
       throw notReady;
     return needsUnwrap;
   }
+  var DEV = DEV$1;
 
-  // node_modules/.bun/solid-js@2.0.0-rc.2/node_modules/solid-js/dist/dev.js
+  // node_modules/.bun/solid-js@2.0.0-rc.6/node_modules/solid-js/dist/dev.js
   var $DEVCOMP = Symbol("COMPONENT_DEV");
   function createContext(defaultValue, options2) {
     const id = Symbol(options2 && options2.name || "");
@@ -7205,6 +7514,7 @@
   var _createMemo;
   var _createSignal;
   var _createRenderEffect;
+  var latchedOnce = new WeakSet;
   var LIVE_SOURCE = Symbol.for("solid.LiveSource");
   var createMemo2 = (...args) => {
     return (_createMemo || createMemo)(...args);
@@ -7225,6 +7535,13 @@
       globalThis.Solid$$ = true;
     else
       console.warn("You appear to have multiple instances of Solid. This can lead to unexpected behavior.");
+  }
+  if (DEV) {
+    DEV.diagnostics.setConsoleFooter((event) => {
+      const base = `[${event.code}] repair guide: node_modules/solid-js/skills/reactivity-diagnostics/SKILL.md`;
+      return event.kind === "perf" || event.kind === "graph" ? base + `
+[${event.code}] deeper evidence: DEV.attribution.enable() explains every re-run ` + `— why-chains, costs(), waterfalls() — agent loop: ` + `node_modules/@solidjs/diagnostics/skills/agent-loops/SKILL.md` : base;
+    });
   }
 
   // packages/core/src/protocol/resource-key.ts
@@ -9295,7 +9612,7 @@
     return typeof value === "object" && value !== null && value.kind === "wabou-vector-path" && typeof value.drawable === "boolean" && value.data instanceof Uint8Array;
   }
 
-  // node_modules/.bun/@solidjs+universal@2.0.0-rc.2+fb26118518832c67/node_modules/@solidjs/universal/dist/dev.js
+  // node_modules/.bun/@solidjs+universal@2.0.0-rc.6+7f7c04572bc85ca7/node_modules/@solidjs/universal/dist/dev.js
   var transparentOptions = {
     transparent: true,
     sync: true
@@ -9309,8 +9626,12 @@
     transparent: !options2.scope
   } : transparentOptions);
   var memo = (fn) => createMemo2(() => fn(), syncOptions);
+  var named = (options2, fallback) => !options2 || options2.name == null ? {
+    ...options2,
+    name: fallback
+  } : options2;
   var INNER_OWNED = {};
-  function createRenderer$1({
+  function createRenderer({
     createElement,
     createTextNode,
     createSentinel = () => createTextNode(""),
@@ -9334,6 +9655,7 @@
         } = options2;
         effectOptions = rest;
       }
+      effectOptions = named(effectOptions, "renderer insert");
       const multi = marker !== undefined;
       if (multi && !initial)
         initial = [];
@@ -9544,15 +9866,15 @@
           removeNode(parent, node);
       }
     }
-    function spread(node, props, skipChildren) {
+    function spread(node, props, skipChildren, options2) {
       const prevProps = {};
       props || (props = {});
       if (!skipChildren)
-        insert(node, () => props.children);
+        insert(node, () => props.children, undefined, undefined, named(options2, "renderer spread children"));
       effect2(() => {
         const r2 = props.ref;
         (typeof r2 === "function" || Array.isArray(r2)) && ref(() => r2, node);
-      }, () => {});
+      }, () => {}, named(options2, "renderer spread ref"));
       effect2(() => {
         const newProps = {};
         for (const prop in props) {
@@ -9575,7 +9897,7 @@
           setProperty(node, prop, value, prevProps[prop]);
           prevProps[prop] = value;
         }
-      });
+      }, named(options2, "renderer spread props"));
       return prevProps;
     }
     function applyRef(r2, element) {
@@ -9592,12 +9914,18 @@
         try {
           createRoot((dispose) => {
             disposer = dispose;
-            insert(element, code(), undefined, undefined, {
+            const tree = code();
+            const renderOptions = {
+              schedule: true,
               onUpdate(value) {
                 mounted = collectMounted(element, value);
               }
-            });
+            };
+            if (true)
+              renderOptions.name = "renderer render";
+            insert(element, () => tree, undefined, undefined, renderOptions);
           });
+          flush();
         } catch (err) {
           if (disposer)
             disposer();
@@ -9629,26 +9957,9 @@
       applyRef,
       ref,
       patchDriver(subject, body) {
-        effect2(() => body(subject, subject, false), () => body(subject, undefined, true));
-      }
-    };
-  }
-  function createRenderer(options2) {
-    const base = createRenderer$1(options2);
-    const baseInsert = base.insert;
-    return {
-      ...base,
-      render(code, element) {
-        let dispose;
-        createRoot((d2) => {
-          dispose = d2;
-          const tree = code();
-          baseInsert(element, () => tree, undefined, undefined, {
-            schedule: true
-          });
+        effect2(() => body(subject, subject, false), () => body(subject, undefined, true), {
+          name: "renderer patch"
         });
-        flush();
-        return dispose;
       }
     };
   }

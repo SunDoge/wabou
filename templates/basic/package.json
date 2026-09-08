@@ -15,16 +15,16 @@
     "test:behavior": "wabou test ."
   },
   "dependencies": {
-    "@solidjs/web": "2.0.0-rc.2",
+    "@solidjs/web": "2.0.0-rc.6",
     "@wabou/ui": "workspace:*",
-    "solid-js": "2.0.0-rc.2"
+    "solid-js": "2.0.0-rc.6"
   },
   "devDependencies": {
     "@types/bun": "^1.4.0",
     "@wabou/test": "workspace:*",
     "@wabou/vite": "workspace:*",
     "typescript": "^5.9.0",
-    "vite": "^6.0.0",
+    "vite": "^8.2.2",
     "vitest": "2.1.9"
   }
 }

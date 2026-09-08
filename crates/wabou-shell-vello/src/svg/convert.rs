@@ -11,7 +11,7 @@ use vello_common::peniko::{
     ImageQuality, ImageSampler,
 };
 
-use crate::{Error, RasterImageSnafu};
+use super::{Error, RasterImageSnafu};
 use snafu::ResultExt;
 
 pub(crate) fn affine(transform: &usvg::Transform) -> Affine {
