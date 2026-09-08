@@ -10,11 +10,9 @@ name = "wabou_runtime"
 path = "src/lib.rs"
 
 [dependencies]
-anyhow = { workspace = true }
 arc-swap = { workspace = true }
 dioxus-devtools = { workspace = true, optional = true }
 flume = { workspace = true }
-futures-channel = { workspace = true }
 futures-lite = "2"
 getrandom = { workspace = true }
 image = { workspace = true, features = ["jpeg", "png", "webp"] }
@@ -43,8 +41,6 @@ tempfile = "3"
 tokio = { workspace = true, features = ["fs", "macros", "rt-multi-thread", "sync", "time"] }
 tokio-util = { version = "0.7", features = ["rt"] }
 tracing = { workspace = true }
-tracing-chrome = { version = "0.7.2", optional = true }
-tracing-subscriber = { workspace = true, features = ["env-filter"] }
 url = { workspace = true }
 wabou-bindgen = { workspace = true }
 wabou-database = { workspace = true }
@@ -63,13 +59,10 @@ tungstenite = {
 # vite feature only
 ureq = { version = "3.3", optional = true }
 
-[target.'cfg(windows)'.dependencies]
-stacker = { workspace = true }
-
 [features]
 default = []
 devtools = ["dep:wabou-devtools"]
-profiling = ["dep:tracing-chrome"]
+profiling = []
 rust-hot-reload = ["dep:dioxus-devtools"]
 # Shared deterministic mode used by backend-owned headless harnesses.
 headless = []

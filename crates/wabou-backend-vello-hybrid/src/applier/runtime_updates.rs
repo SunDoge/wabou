@@ -4,7 +4,7 @@ use crate::reload::{HmrBatch, HmrDrainResult, ReloadHandle};
 impl Applier {
     pub(super) fn handle_modifiers_changed(
         &mut self,
-        modifiers: gpui_shell::Modifiers,
+        modifiers: shell_api::Modifiers,
     ) -> EventResponse {
         const PRIMARY: u8 = 1 << 4;
         let bits = modifiers.bits()
@@ -27,12 +27,12 @@ impl Applier {
 
     pub(super) fn handle_app_lifecycle(
         &mut self,
-        lifecycle: gpui_shell::AppLifecycleEvent,
+        lifecycle: shell_api::AppLifecycleEvent,
     ) -> EventResponse {
         let state = match lifecycle {
-            gpui_shell::AppLifecycleEvent::Resumed => "resumed",
-            gpui_shell::AppLifecycleEvent::Suspended => "suspended",
-            gpui_shell::AppLifecycleEvent::MemoryWarning => "memory-warning",
+            shell_api::AppLifecycleEvent::Resumed => "resumed",
+            shell_api::AppLifecycleEvent::Suspended => "suspended",
+            shell_api::AppLifecycleEvent::MemoryWarning => "memory-warning",
         };
         let event = HostEvent::Application(crate::host_message::HostMessage::str(
             "wabou:app-lifecycle",
@@ -46,35 +46,35 @@ impl Applier {
         }
     }
 
-    pub(super) fn handle_gesture(&mut self, gesture: gpui_shell::GestureEvent) -> EventResponse {
+    pub(super) fn handle_gesture(&mut self, gesture: shell_api::GestureEvent) -> EventResponse {
         let phase = |phase| match phase {
-            gpui_shell::GesturePhase::Started => "started",
-            gpui_shell::GesturePhase::Changed => "changed",
-            gpui_shell::GesturePhase::Ended => "ended",
-            gpui_shell::GesturePhase::Cancelled => "cancelled",
+            shell_api::GesturePhase::Started => "started",
+            shell_api::GesturePhase::Changed => "changed",
+            shell_api::GesturePhase::Ended => "ended",
+            shell_api::GesturePhase::Cancelled => "cancelled",
         };
         let payload = match gesture {
-            gpui_shell::GestureEvent::Pinch {
+            shell_api::GestureEvent::Pinch {
                 delta,
                 phase: value,
             } => serde_json::json!({ "type": "pinch", "delta": delta, "phase": phase(value) }),
-            gpui_shell::GestureEvent::Pan {
+            shell_api::GestureEvent::Pan {
                 delta_x,
                 delta_y,
                 phase: value,
             } => serde_json::json!({
                 "type": "pan", "deltaX": delta_x, "deltaY": delta_y, "phase": phase(value),
             }),
-            gpui_shell::GestureEvent::Rotation {
+            shell_api::GestureEvent::Rotation {
                 delta,
                 phase: value,
             } => serde_json::json!({
                 "type": "rotation", "delta": delta, "phase": phase(value),
             }),
-            gpui_shell::GestureEvent::DoubleTap => {
+            shell_api::GestureEvent::DoubleTap => {
                 serde_json::json!({ "type": "double-tap" })
             }
-            gpui_shell::GestureEvent::Pressure { pressure, stage } => serde_json::json!({
+            shell_api::GestureEvent::Pressure { pressure, stage } => serde_json::json!({
                 "type": "pressure", "pressure": pressure, "stage": stage,
             }),
         };
@@ -90,12 +90,12 @@ impl Applier {
         }
     }
 
-    pub(super) fn handle_file_drop(&mut self, event: gpui_shell::FileDropEvent) -> EventResponse {
+    pub(super) fn handle_file_drop(&mut self, event: shell_api::FileDropEvent) -> EventResponse {
         let phase = match event.phase {
-            gpui_shell::FileDropPhase::Entered => "entered",
-            gpui_shell::FileDropPhase::Moved => "moved",
-            gpui_shell::FileDropPhase::Left => "left",
-            gpui_shell::FileDropPhase::Dropped => "dropped",
+            shell_api::FileDropPhase::Entered => "entered",
+            shell_api::FileDropPhase::Moved => "moved",
+            shell_api::FileDropPhase::Left => "left",
+            shell_api::FileDropPhase::Dropped => "dropped",
         };
         let payload = serde_json::json!({
             "phase": phase,
@@ -122,7 +122,7 @@ impl Applier {
 
     pub(super) fn handle_window_metrics(
         &mut self,
-        metrics: gpui_shell::WindowMetrics,
+        metrics: shell_api::WindowMetrics,
     ) -> EventResponse {
         // WindowMetrics is the authoritative cross-backend scale transition.
         // Native shells also set it before each build, but deterministic and
@@ -142,8 +142,8 @@ impl Applier {
             "occluded": metrics.occluded,
             "reducedMotion": metrics.reduced_motion,
             "colorScheme": metrics.color_scheme.map(|scheme| match scheme {
-                gpui_shell::ColorScheme::Light => "light",
-                gpui_shell::ColorScheme::Dark => "dark",
+                shell_api::ColorScheme::Light => "light",
+                shell_api::ColorScheme::Dark => "dark",
             }),
         })
         .to_string();

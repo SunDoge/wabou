@@ -11040,9 +11040,10 @@ function SettingsGroup(props) {
 //#region src/components/shader-layer.tsx
 /** A layout-aware custom WGSL surface rendered and animated by the Vello host. */
 function ShaderLayer(props) {
-	const forwarded = omit(props, "source", "values", "time", "speed", "animated", "paused", "class");
+	const forwarded = omit(props, "source", "module", "values", "time", "speed", "animated", "paused", "class");
 	const config = () => ({
 		source: props.source,
+		module: props.module ?? false,
 		values: props.values ?? [],
 		time: props.time ?? 0,
 		speed: props.speed ?? 1,

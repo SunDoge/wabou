@@ -17,7 +17,7 @@ painted modal subtree; background scrollbars and pointer targets are blocked by
 the modal backdrop.
 
 `Popover` delegates anchor measurement and collision-aware placement to the
-native GPUI positioner. It also supplies outside click dismissal, Escape
+native floating-position service. It also supplies outside click dismissal, Escape
 dismissal, and trigger focus restoration. `Modal`
 supplies backdrop and Escape dismissal, initial focus, focus restoration, and
 host-enforced modal isolation. Keep open state in Solid; the host owns only the

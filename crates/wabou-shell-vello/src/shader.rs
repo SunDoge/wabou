@@ -18,7 +18,8 @@ use wgpu::{
 };
 
 const MAX_SOURCE_BYTES: usize = 64 * 1024;
-const PARAMETER_COUNT: usize = 16;
+const PARAMETER_COUNT: usize = 256;
+const UNIFORM_FLOAT_COUNT: usize = PARAMETER_COUNT + 4;
 const PIPELINE_CACHE_SIZE: usize = 16;
 const EFFECT_TEXTURE_FORMAT: TextureFormat = TextureFormat::Rgba8Unorm;
 
@@ -26,7 +27,7 @@ const SHADER_PREFIX: &str = r#"
 struct WabouShaderUniforms {
     // x/y: physical output size, z: elapsed seconds, w: device scale.
     resolution_time_scale: vec4<f32>,
-    values: array<vec4<f32>, 4>,
+    values: array<vec4<f32>, 64>,
 };
 
 @group(0) @binding(0)
@@ -84,11 +85,21 @@ impl Default for ShaderEffectId {
 /// A validated WGSL function compiled under Wabou's stable shader prelude.
 ///
 /// Source must define `fn wabou_effect(uv: vec2<f32>) -> vec4<f32>`. It can
-/// read `wabou.resolution_time_scale` and the sixteen scalar values packed in
+/// read `wabou.resolution_time_scale` and the 256 scalar values packed in
 /// `wabou.values`. Extra bind groups are deliberately rejected so renderer
 /// resource ownership remains explicit.
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+enum ShaderEffectInterface {
+    WabouEffect,
+    CompleteModule,
+}
+
+/// Validated WGSL source for a shader-layer effect.
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
-pub struct ShaderEffectSource(Arc<str>);
+pub struct ShaderEffectSource {
+    wgsl: Arc<str>,
+    interface: ShaderEffectInterface,
+}
 
 impl ShaderEffectSource {
     /// Validate and retain a custom WGSL effect function.
@@ -101,7 +112,32 @@ impl ShaderEffectSource {
                 "shader source exceeds the {MAX_SOURCE_BYTES}-byte limit"
             ));
         }
-        let complete = format!("{SHADER_PREFIX}\n{source}\n{SHADER_SUFFIX}");
+        Self::validated(
+            format!("{SHADER_PREFIX}\n{source}\n{SHADER_SUFFIX}"),
+            ShaderEffectInterface::WabouEffect,
+        )
+    }
+
+    /// Validate a complete single-pass WGSL module.
+    ///
+    /// The module must expose `vs_main` and `fs_main`. Binding zero may contain
+    /// an application-defined uniform struct backed by up to 256 scalar values.
+    /// Wabou overwrites floats 0, 1, and 2 with physical width, physical height,
+    /// and native animation time. Textures and additional bindings remain
+    /// unsupported so resource ownership stays inside the renderer.
+    pub fn new_module(source: &str) -> Result<Self, String> {
+        if source.trim().is_empty() {
+            return Err("shader source must not be empty".into());
+        }
+        if source.len() > MAX_SOURCE_BYTES {
+            return Err(format!(
+                "shader source exceeds the {MAX_SOURCE_BYTES}-byte limit"
+            ));
+        }
+        Self::validated(source.to_owned(), ShaderEffectInterface::CompleteModule)
+    }
+
+    fn validated(complete: String, interface: ShaderEffectInterface) -> Result<Self, String> {
         let module = naga::front::wgsl::parse_str(&complete)
             .map_err(|error| error.emit_to_string(&complete))?;
         Validator::new(ValidationFlags::all(), Capabilities::default())
@@ -116,12 +152,45 @@ impl ShaderEffectSource {
                     binding.group, binding.binding
                 ));
             }
+            if variable.binding.is_some() && variable.space != naga::AddressSpace::Uniform {
+                return Err("custom shader @group(0) @binding(0) must be a uniform buffer".into());
+            }
+            if variable.binding.is_some() {
+                let size = module.types[variable.ty].inner.size(module.to_ctx()) as usize;
+                let capacity = UNIFORM_FLOAT_COUNT * std::mem::size_of::<f32>();
+                if size > capacity {
+                    return Err(format!(
+                        "custom shader uniform buffer uses {size} bytes; Wabou provides {capacity}"
+                    ));
+                }
+            }
         }
-        Ok(Self(complete.into()))
+        if interface == ShaderEffectInterface::CompleteModule {
+            for (entry, stage) in [
+                ("vs_main", naga::ShaderStage::Vertex),
+                ("fs_main", naga::ShaderStage::Fragment),
+            ] {
+                if !module
+                    .entry_points
+                    .iter()
+                    .any(|point| point.name == entry && point.stage == stage)
+                {
+                    return Err(format!("complete shader module must define {entry}"));
+                }
+            }
+        }
+        Ok(Self {
+            wgsl: complete.into(),
+            interface,
+        })
     }
 
     pub(crate) fn wgsl(&self) -> &Arc<str> {
-        &self.0
+        &self.wgsl
+    }
+
+    fn interface(&self) -> ShaderEffectInterface {
+        self.interface
     }
 }
 
@@ -131,7 +200,7 @@ pub struct ShaderEffect {
     pub(crate) id: ShaderEffectId,
     pub(crate) source: ShaderEffectSource,
     pub(crate) time: f32,
-    pub(crate) values: [f32; PARAMETER_COUNT],
+    pub(crate) values: Arc<[f32]>,
     pub(crate) physical_size: [u16; 2],
     pub(crate) logical_size: [f32; 2],
     pub(crate) device_scale: f32,
@@ -177,7 +246,7 @@ impl EffectTarget {
         let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
         let uniforms = device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("Wabou custom shader uniforms"),
-            size: (20 * std::mem::size_of::<f32>()) as u64,
+            size: (UNIFORM_FLOAT_COUNT * std::mem::size_of::<f32>()) as u64,
             usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
             mapped_at_creation: false,
         });
@@ -213,7 +282,7 @@ impl ShaderRenderer {
             label: Some("Wabou custom shader layout"),
             entries: &[wgpu::BindGroupLayoutEntry {
                 binding: 0,
-                visibility: wgpu::ShaderStages::FRAGMENT,
+                visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
                 ty: wgpu::BindingType::Buffer {
                     ty: wgpu::BufferBindingType::Uniform,
                     has_dynamic_offset: false,
@@ -260,12 +329,7 @@ impl ShaderRenderer {
             .or_insert_with(|| EffectTarget::new(device, &self.layout, effect.physical_size));
         target.used_in_frame = self.frame;
 
-        let mut uniforms = [0.0_f32; 20];
-        uniforms[0] = f32::from(effect.physical_size[0]);
-        uniforms[1] = f32::from(effect.physical_size[1]);
-        uniforms[2] = effect.time;
-        uniforms[3] = effect.device_scale;
-        uniforms[4..].copy_from_slice(&effect.values);
+        let uniforms = effect_uniforms(effect);
         queue.write_buffer(&target.uniforms, 0, bytemuck::cast_slice(&uniforms));
 
         {
@@ -340,6 +404,25 @@ impl ShaderRenderer {
     }
 }
 
+fn effect_uniforms(effect: &ShaderEffect) -> [f32; UNIFORM_FLOAT_COUNT] {
+    let mut uniforms = [0.0; UNIFORM_FLOAT_COUNT];
+    match effect.source.interface() {
+        ShaderEffectInterface::WabouEffect => {
+            let count = effect.values.len().min(PARAMETER_COUNT);
+            uniforms[4..4 + count].copy_from_slice(&effect.values[..count]);
+            uniforms[3] = effect.device_scale;
+        }
+        ShaderEffectInterface::CompleteModule => {
+            let count = effect.values.len().min(PARAMETER_COUNT);
+            uniforms[..count].copy_from_slice(&effect.values[..count]);
+        }
+    }
+    uniforms[0] = f32::from(effect.physical_size[0]);
+    uniforms[1] = f32::from(effect.physical_size[1]);
+    uniforms[2] = effect.time;
+    uniforms
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -361,5 +444,59 @@ mod tests {
         )
         .unwrap_err();
         assert!(error.contains("@group(1) @binding(0)"), "{error}");
+        let error = ShaderEffectSource::new_module(
+            r#"
+@group(0) @binding(0) var image: texture_2d<f32>;
+@vertex fn vs_main() -> @builtin(position) vec4<f32> { return vec4(0.0); }
+@fragment fn fs_main() -> @location(0) vec4<f32> { return textureLoad(image, vec2<i32>(0), 0); }
+"#,
+        )
+        .unwrap_err();
+        assert!(error.contains("must be a uniform buffer"), "{error}");
+    }
+
+    #[test]
+    fn validates_complete_single_pass_modules() {
+        let source = r#"
+struct Uniforms { size: vec2<f32>, time: f32, speed: f32 };
+@group(0) @binding(0) var<uniform> u: Uniforms;
+@vertex fn vs_main(@builtin(vertex_index) i: u32) -> @builtin(position) vec4<f32> {
+    let points = array<vec2<f32>, 3>(vec2(-1.0, -1.0), vec2(3.0, -1.0), vec2(-1.0, 3.0));
+    return vec4(points[i], 0.0, 1.0);
+}
+@fragment fn fs_main(@builtin(position) p: vec4<f32>) -> @location(0) vec4<f32> {
+    return vec4(p.xy / u.size, u.time * u.speed, 1.0);
+}
+"#;
+        assert!(ShaderEffectSource::new_module(source).is_ok());
+        assert!(ShaderEffectSource::new_module("fn nope() {}").is_err());
+    }
+
+    #[test]
+    fn complete_modules_receive_geometry_time_and_authored_uniforms() {
+        let source = ShaderEffectSource::new_module(
+            r#"
+struct Uniforms { size: vec2<f32>, time: f32, speed: f32 };
+@group(0) @binding(0) var<uniform> u: Uniforms;
+@vertex fn vs_main(@builtin(vertex_index) i: u32) -> @builtin(position) vec4<f32> {
+    let points = array<vec2<f32>, 3>(vec2(-1.0, -1.0), vec2(3.0, -1.0), vec2(-1.0, 3.0));
+    return vec4(points[i], 0.0, 1.0);
+}
+@fragment fn fs_main() -> @location(0) vec4<f32> { return vec4(u.speed); }
+"#,
+        )
+        .unwrap();
+        let values: Arc<[f32]> = [0.0, 0.0, 0.0, 0.75].into();
+        let effect = ShaderEffect {
+            id: ShaderEffectId::new(),
+            source,
+            time: 2.5,
+            values,
+            physical_size: [640, 360],
+            logical_size: [320.0, 180.0],
+            device_scale: 2.0,
+        };
+        let uniforms = effect_uniforms(&effect);
+        assert_eq!(&uniforms[..4], &[640.0, 360.0, 2.5, 0.75]);
     }
 }

@@ -9,7 +9,7 @@ an authoring API.
 Wabou currently has a deliberately small event path:
 
 ```text
-GPUI input -> normalize -> hit test -> capture/target/bubble -> JS listener
+Winit input -> normalize -> hit test -> capture/target/bubble -> JS listener
 ```
 
 That path is sufficient for DOM-like `onClick` handlers, but the framework will

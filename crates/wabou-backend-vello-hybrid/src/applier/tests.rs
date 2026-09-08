@@ -467,30 +467,30 @@ fn protocol_keyed_moves_keep_logical_and_taffy_trees_unique() {
 
 #[test]
 fn app_directory_effect_uses_host_configuration_only() {
-    let directories = gpui_shell::AppDirectories::resolve(
-        &gpui_shell::AppDirectoryConfig::new("dev", "Wabou", "Effect Test"),
+    let directories = shell_api::AppDirectories::resolve(
+        &shell_api::AppDirectoryConfig::new("dev", "Wabou", "Effect Test"),
         "/app/resources",
     )
     .unwrap();
     let configured = decode_effect_payload(
-        gpui_shell::effect::builtin::APP_DIRS_RESOLVE,
-        gpui_shell::initial_window_resource_key(0),
+        shell_api::effect::builtin::APP_DIRS_RESOLVE,
+        shell_api::initial_window_resource_key(0),
         "null".into(),
         Some(&directories),
     );
     assert_eq!(
         configured,
-        gpui_shell::EffectPayload::AppDirsResolve(directories)
+        shell_api::EffectPayload::AppDirsResolve(directories)
     );
 
     assert!(matches!(
         decode_effect_payload(
-            gpui_shell::effect::builtin::APP_DIRS_RESOLVE,
-            gpui_shell::initial_window_resource_key(0),
+            shell_api::effect::builtin::APP_DIRS_RESOLVE,
+            shell_api::initial_window_resource_key(0),
             r#"{"application":"other"}"#.into(),
             None,
         ),
-        gpui_shell::EffectPayload::Invalid { .. }
+        shell_api::EffectPayload::Invalid { .. }
     ));
 }
 
@@ -498,14 +498,14 @@ fn app_directory_effect_uses_host_configuration_only() {
 fn window_show_effect_restores_a_logical_window() {
     assert_eq!(
         decode_effect_payload(
-            gpui_shell::effect::builtin::WINDOW_SHOW,
-            gpui_shell::initial_window_resource_key(0),
+            shell_api::effect::builtin::WINDOW_SHOW,
+            shell_api::initial_window_resource_key(0),
             "null".into(),
             None,
         ),
-        gpui_shell::EffectPayload::WindowControl {
-            window_id: gpui_shell::initial_window_resource_key(0),
-            command: gpui_shell::WindowCommand::Show,
+        shell_api::EffectPayload::WindowControl {
+            window_id: shell_api::initial_window_resource_key(0),
+            command: shell_api::WindowCommand::Show,
         }
     );
 }
@@ -514,21 +514,21 @@ fn window_show_effect_restores_a_logical_window() {
 fn application_exit_effect_is_process_scoped_and_payload_free() {
     assert_eq!(
         decode_effect_payload(
-            gpui_shell::effect::builtin::APPLICATION_EXIT,
-            gpui_shell::initial_window_resource_key(0),
+            shell_api::effect::builtin::APPLICATION_EXIT,
+            shell_api::initial_window_resource_key(0),
             "null".into(),
             None,
         ),
-        gpui_shell::EffectPayload::ApplicationExit
+        shell_api::EffectPayload::ApplicationExit
     );
     assert_eq!(
         decode_effect_payload(
-            gpui_shell::effect::builtin::APPLICATION_RELAUNCH,
-            gpui_shell::initial_window_resource_key(0),
+            shell_api::effect::builtin::APPLICATION_RELAUNCH,
+            shell_api::initial_window_resource_key(0),
             "null".into(),
             None,
         ),
-        gpui_shell::EffectPayload::ApplicationRelaunch
+        shell_api::EffectPayload::ApplicationRelaunch
     );
 }
 
@@ -539,7 +539,7 @@ fn key_payload_keeps_physical_modifiers_separate_from_primary() {
     } else {
         Modifiers::CONTROL
     };
-    let event = gpui_shell::KeyEvent {
+    let event = shell_api::KeyEvent {
         phase: KeyPhase::Down,
         key: "t".into(),
         key_without_modifiers: "t".into(),
@@ -569,11 +569,11 @@ fn key_payload_keeps_physical_modifiers_separate_from_primary() {
     assert_eq!(payload["primary"], false);
 }
 
-struct HostActionWidget(Option<gpui_shell::HostAction>);
+struct HostActionWidget(Option<shell_api::HostAction>);
 
-struct EventHostActionWidget(Option<gpui_shell::HostAction>);
+struct EventHostActionWidget(Option<shell_api::HostAction>);
 
-struct UnmountActionWidget(Option<gpui_shell::HostAction>);
+struct UnmountActionWidget(Option<shell_api::HostAction>);
 
 struct LifecycleWidget(Arc<std::sync::Mutex<Vec<&'static str>>>);
 
@@ -582,8 +582,8 @@ struct VisibilityLifecycleWidget(Arc<std::sync::Mutex<Vec<&'static str>>>);
 struct NodeEventWidget(Option<crate::widget::WidgetNodeEvent>);
 
 struct ClipboardReadWidget {
-    action: Option<gpui_shell::HostAction>,
-    completed: Arc<std::sync::Mutex<Vec<gpui_shell::HostActionResult>>>,
+    action: Option<shell_api::HostAction>,
+    completed: Arc<std::sync::Mutex<Vec<shell_api::HostActionResult>>>,
 }
 
 struct WheelCaptureWidget(Arc<std::sync::Mutex<Vec<Point>>>);
@@ -661,7 +661,7 @@ impl crate::widget::Widget for HostActionWidget {
         self.0.is_some()
     }
 
-    fn take_host_action(&mut self) -> Option<gpui_shell::HostAction> {
+    fn take_host_action(&mut self) -> Option<shell_api::HostAction> {
         self.0.take()
     }
 }
@@ -673,7 +673,7 @@ impl crate::widget::Widget for EventHostActionWidget {
         crate::widget::WidgetEventResult::HANDLED
     }
 
-    fn take_host_action(&mut self) -> Option<gpui_shell::HostAction> {
+    fn take_host_action(&mut self) -> Option<shell_api::HostAction> {
         self.0.take()
     }
 }
@@ -682,10 +682,10 @@ impl crate::widget::Widget for UnmountActionWidget {
     fn paint(&mut self, _cx: &mut vello_shell::PaintContext<'_>) {}
 
     fn unmount(&mut self) {
-        self.0 = Some(gpui_shell::HostAction::SetWindowTitle(None));
+        self.0 = Some(shell_api::HostAction::SetWindowTitle(None));
     }
 
-    fn take_host_action(&mut self) -> Option<gpui_shell::HostAction> {
+    fn take_host_action(&mut self) -> Option<shell_api::HostAction> {
         self.0.take()
     }
 }
@@ -761,11 +761,11 @@ impl crate::widget::Widget for ClipboardReadWidget {
         self.action.is_some()
     }
 
-    fn take_host_action(&mut self) -> Option<gpui_shell::HostAction> {
+    fn take_host_action(&mut self) -> Option<shell_api::HostAction> {
         self.action.take()
     }
 
-    fn complete_host_action(&mut self, result: gpui_shell::HostActionResult) {
+    fn complete_host_action(&mut self, result: shell_api::HostActionResult) {
         self.completed.lock().unwrap().push(result);
     }
 }
@@ -834,7 +834,7 @@ fn prevented_keydown_never_reaches_the_focused_widget() {
         .insert(node, Box::new(KeyCaptureWidget(received.clone())));
     applier.interaction.input.focused_target = Some(NodeKey::new(2, 1));
 
-    let response = applier.handle_event(UiEvent::Key(gpui_shell::KeyEvent {
+    let response = applier.handle_event(UiEvent::Key(shell_api::KeyEvent {
         phase: KeyPhase::Down,
         key: "t".into(),
         key_without_modifiers: "t".into(),
@@ -869,7 +869,7 @@ fn prevented_keydown_never_reaches_the_focused_widget() {
             )
         })
         .unwrap();
-    applier.handle_event(UiEvent::Key(gpui_shell::KeyEvent {
+    applier.handle_event(UiEvent::Key(shell_api::KeyEvent {
         phase: KeyPhase::Down,
         key: "x".into(),
         key_without_modifiers: "x".into(),
@@ -1055,12 +1055,12 @@ fn wheel_routing_preserves_pointer_position_for_widgets() {
     applier.interaction.input.hovered_target = Some(NodeKey::new(1, 1));
     applier.interaction.input.pointer_position = (42.0, 73.0);
 
-    let response = applier.handle_event(UiEvent::Wheel(gpui_shell::WheelEvent {
+    let response = applier.handle_event(UiEvent::Wheel(shell_api::WheelEvent {
         position: Point { x: 42.0, y: 73.0 },
         delta_x: 0.0,
         delta_y: -40.0,
-        delta_mode: gpui_shell::WheelDeltaMode::Pixel,
-        phase: gpui_shell::GesturePhase::Changed,
+        delta_mode: shell_api::WheelDeltaMode::Pixel,
+        phase: shell_api::GesturePhase::Changed,
         modifiers: Modifiers::default(),
     }));
 
@@ -1159,14 +1159,14 @@ fn widget_host_actions_reach_the_frame_source() {
     applier.document.widget_manager.widgets.insert(
         applier.document.node_store.root,
         Box::new(HostActionWidget(Some(
-            gpui_shell::HostAction::SetWindowTitle(Some("terminal".into())),
+            shell_api::HostAction::SetWindowTitle(Some("terminal".into())),
         ))),
     );
 
     assert!(FrameSource::poll_async(&mut applier));
     assert_eq!(
         FrameSource::take_host_action(&mut applier),
-        Some(gpui_shell::HostAction::SetWindowTitle(Some(
+        Some(shell_api::HostAction::SetWindowTitle(Some(
             "terminal".into()
         )))
     );
@@ -1211,9 +1211,9 @@ fn widget_event_host_actions_are_available_without_an_async_poll() {
     let mut applier = Applier::from_runtime(js, Color::BLACK);
     applier.document.widget_manager.widgets.insert(
         applier.document.node_store.root,
-        Box::new(EventHostActionWidget(Some(
-            gpui_shell::HostAction::OpenUrl("https://example.com".into()),
-        ))),
+        Box::new(EventHostActionWidget(Some(shell_api::HostAction::OpenUrl(
+            "https://example.com".into(),
+        )))),
     );
 
     let response = applier
@@ -1222,9 +1222,7 @@ fn widget_event_host_actions_are_available_without_an_async_poll() {
     assert!(response.handled);
     assert_eq!(
         FrameSource::take_host_action(&mut applier),
-        Some(gpui_shell::HostAction::OpenUrl(
-            "https://example.com".into()
-        ))
+        Some(shell_api::HostAction::OpenUrl("https://example.com".into()))
     );
 }
 
@@ -1250,7 +1248,7 @@ fn dropping_a_widget_drains_unmount_host_actions_before_routing_is_removed() {
 
     assert_eq!(
         FrameSource::take_host_action(&mut applier),
-        Some(gpui_shell::HostAction::SetWindowTitle(None))
+        Some(shell_api::HostAction::SetWindowTitle(None))
     );
     assert!(!applier.document.widget_manager.widgets.contains_key(&node));
 }
@@ -1364,21 +1362,21 @@ fn clipboard_read_completions_route_to_the_requesting_widget() {
     applier.document.widget_manager.widgets.insert(
         applier.document.node_store.root,
         Box::new(ClipboardReadWidget {
-            action: Some(gpui_shell::HostAction::ReadClipboard { request_id: 7 }),
+            action: Some(shell_api::HostAction::ReadClipboard { request_id: 7 }),
             completed: first_completed.clone(),
         }),
     );
     applier.document.widget_manager.widgets.insert(
         second_node,
         Box::new(ClipboardReadWidget {
-            action: Some(gpui_shell::HostAction::ReadClipboard { request_id: 7 }),
+            action: Some(shell_api::HostAction::ReadClipboard { request_id: 7 }),
             completed: second_completed.clone(),
         }),
     );
 
     assert!(FrameSource::poll_async(&mut applier));
     let mut requests = Vec::new();
-    while let Some(gpui_shell::HostAction::ReadClipboard { request_id }) =
+    while let Some(shell_api::HostAction::ReadClipboard { request_id }) =
         FrameSource::take_host_action(&mut applier)
     {
         requests.push(request_id);
@@ -1394,7 +1392,7 @@ fn clipboard_read_completions_route_to_the_requesting_widget() {
         };
         FrameSource::complete_host_action(
             &mut applier,
-            gpui_shell::HostActionResult::Clipboard {
+            shell_api::HostActionResult::Clipboard {
                 request_id,
                 text: Some(text.into()),
             },
@@ -1402,14 +1400,14 @@ fn clipboard_read_completions_route_to_the_requesting_widget() {
     }
     assert_eq!(
         *first_completed.lock().unwrap(),
-        vec![gpui_shell::HostActionResult::Clipboard {
+        vec![shell_api::HostActionResult::Clipboard {
             request_id: 7,
             text: Some("first".into()),
         }]
     );
     assert_eq!(
         *second_completed.lock().unwrap(),
-        vec![gpui_shell::HostActionResult::Clipboard {
+        vec![shell_api::HostActionResult::Clipboard {
             request_id: 7,
             text: Some("second".into()),
         }]
@@ -1434,7 +1432,7 @@ fn pointer_with_button(
         button: Some(button),
         buttons,
         modifiers: Modifiers::default(),
-        properties: gpui_shell::PointerProperties::default(),
+        properties: shell_api::PointerProperties::default(),
     })
 }
 
@@ -1891,7 +1889,7 @@ fn focused_widget_can_consume_tab_before_default_focus_traversal() {
     applier.interaction.input.focused_target = Some(NodeKey::new(2, 1));
     applier.interaction.input.focus_order = vec![nk(2), nk(3)];
 
-    let response = applier.handle_event(UiEvent::Key(gpui_shell::KeyEvent {
+    let response = applier.handle_event(UiEvent::Key(shell_api::KeyEvent {
         phase: KeyPhase::Down,
         key: "Tab".into(),
         key_without_modifiers: "Tab".into(),

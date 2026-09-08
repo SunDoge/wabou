@@ -5,7 +5,6 @@ import { pathToFileURL } from "node:url";
 const root = resolve(import.meta.dir, "..");
 
 interface CaptureViewport {
-  renderer: "vello-hybrid" | "gpui";
   width: number;
   height: number;
   scaleFactor: number;
@@ -28,6 +27,7 @@ interface CaptureConfig {
 }
 
 export interface CaptureCase extends CaptureViewport {
+  renderer: "vello-hybrid";
   application: string;
   scenario: string;
   output: string;
@@ -118,8 +118,6 @@ export function captureCommand(
     "--",
     "render",
     capture.application,
-    "--renderer",
-    capture.renderer,
     "--with-host",
     "--scenario",
     capture.scenario,
@@ -143,7 +141,6 @@ export function captureCommand(
 }
 
 const fallbackViewport: CaptureViewport = {
-  renderer: "vello-hybrid",
   width: 1440,
   height: 900,
   scaleFactor: 1,
@@ -159,7 +156,6 @@ const fallbackViewport: CaptureViewport = {
   requiredWidgets: [],
 };
 const viewportKeys = new Set([
-  "renderer",
   "width",
   "height",
   "scaleFactor",
@@ -208,12 +204,6 @@ function parseViewport(
       throw new Error(`${name}.${key} is unsupported`);
   }
   const viewport: Partial<CaptureViewport> = {};
-  if (record.renderer !== undefined) {
-    if (record.renderer !== "vello-hybrid" && record.renderer !== "gpui") {
-      throw new Error(`${name}.renderer must be vello-hybrid or gpui`);
-    }
-    viewport.renderer = record.renderer;
-  }
   if (record.width !== undefined)
     viewport.width = finiteNumber(
       record.width,
@@ -391,8 +381,9 @@ export async function discoverCaptureCases(
     cases.push({
       application,
       scenario,
-      output: `target/wabou-captures/${basename(application)}/${viewport.renderer}/${relativeScenario.replace(/\.ts$/u, ".png")}`,
-      snapshot: `target/wabou-captures/${basename(application)}/${viewport.renderer}/${relativeScenario.replace(/\.ts$/u, ".json")}`,
+      renderer: "vello-hybrid",
+      output: `target/wabou-captures/${basename(application)}/vello-hybrid/${relativeScenario.replace(/\.ts$/u, ".png")}`,
+      snapshot: `target/wabou-captures/${basename(application)}/vello-hybrid/${relativeScenario.replace(/\.ts$/u, ".json")}`,
       ...viewport,
     });
   }
@@ -1434,7 +1425,6 @@ function relativeScenarioPath(scenario: string): string {
 export interface CaptureArguments {
   list: boolean;
   checkExisting: boolean;
-  renderer: CaptureViewport["renderer"] | null;
   scenarios: string[];
 }
 
@@ -1442,20 +1432,13 @@ export function parseCaptureArguments(arguments_: string[]): CaptureArguments {
   const parsed: CaptureArguments = {
     list: false,
     checkExisting: false,
-    renderer: null,
     scenarios: [],
   };
   for (let index = 0; index < arguments_.length; index++) {
     const argument = arguments_[index];
     if (argument === "--list") parsed.list = true;
     else if (argument === "--check-existing") parsed.checkExisting = true;
-    else if (argument === "--renderer") {
-      const renderer = arguments_[++index];
-      if (renderer !== "vello-hybrid" && renderer !== "gpui") {
-        throw new Error("--renderer requires vello-hybrid or gpui");
-      }
-      parsed.renderer = renderer;
-    } else if (argument === "--scenario") {
+    else if (argument === "--scenario") {
       const scenario = arguments_[++index];
       if (!scenario || scenario.startsWith("--")) {
         throw new Error("--scenario requires an apps/*/captures/**/*.ts path");
@@ -1467,9 +1450,7 @@ export function parseCaptureArguments(arguments_: string[]): CaptureArguments {
   }
   if (
     parsed.list &&
-    (parsed.checkExisting ||
-      parsed.renderer !== null ||
-      parsed.scenarios.length > 0)
+    (parsed.checkExisting || parsed.scenarios.length > 0)
   ) {
     throw new Error(
       "--list cannot be combined with capture selection or checking",
@@ -1481,14 +1462,10 @@ export function parseCaptureArguments(arguments_: string[]): CaptureArguments {
 export function selectCaptureCases(
   discovered: CaptureCase[],
   scenarios: string[],
-  renderer: CaptureViewport["renderer"] | null = null,
 ): CaptureCase[] {
-  const matchingRenderer = renderer
-    ? discovered.filter((capture) => capture.renderer === renderer)
-    : discovered;
-  if (scenarios.length === 0) return matchingRenderer;
+  if (scenarios.length === 0) return discovered;
   const selected = new Set(scenarios);
-  const captures = matchingRenderer.filter((capture) =>
+  const captures = discovered.filter((capture) =>
     selected.has(capture.scenario),
   );
   if (captures.length !== selected.size) {
@@ -1512,17 +1489,9 @@ async function main(): Promise<void> {
     console.log(JSON.stringify(discovered, null, 2));
     return;
   }
-  const captures = selectCaptureCases(
-    discovered,
-    arguments_.scenarios,
-    arguments_.renderer,
-  );
+  const captures = selectCaptureCases(discovered, arguments_.scenarios);
   if (captures.length === 0) {
-    throw new Error(
-      arguments_.renderer
-        ? `no ${arguments_.renderer} capture scenarios were discovered`
-        : "no selected capture scenarios were discovered",
-    );
+    throw new Error("no selected capture scenarios were discovered");
   }
 
   const checkExisting = arguments_.checkExisting;

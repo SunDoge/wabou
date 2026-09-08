@@ -166,9 +166,10 @@ wabou render apps/gallery --out /tmp/gallery.png \
   --snapshot /tmp/gallery-tree.json
 ```
 
-Pass `--renderer gpui` for an explicitly labelled GPUI comparison. Use
-`--with-host` when the rendered state depends on registrations in the
-application's `HostBuilder`. Wabou starts the real application binary on its
+Captures carry an explicit `vello-hybrid` provenance label, so stale artifacts
+cannot satisfy the current renderer gate. Use `--with-host` when the rendered
+state depends on registrations in the application's `HostBuilder`. Wabou starts
+the real application binary on its
 deterministic headless backend, including services, capabilities, host-message
 producers, and custom widget factories, then shuts them down normally:
 

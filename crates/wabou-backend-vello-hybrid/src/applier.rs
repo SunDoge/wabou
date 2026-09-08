@@ -51,7 +51,7 @@ use vello_shell::{
     SemanticAction, SemanticCurrent, SemanticNode, SemanticPopup, SemanticRole, SemanticSnapshot,
     SemanticStates, SemanticToggleState, UiEvent, WakeCallback,
 };
-use wabou_shell_api as gpui_shell;
+use wabou_shell_api as shell_api;
 use wabou_style::IrValue;
 
 use crate::host_frame::{HostEvent, HostNodeEvent, NodeEventPayload, ResizeObservation};
@@ -188,7 +188,7 @@ struct CachedClassResolution {
     diagnostics: Vec<String>,
 }
 
-fn key_event_payload(key: &gpui_shell::KeyEvent) -> String {
+fn key_event_payload(key: &shell_api::KeyEvent) -> String {
     serde_json::json!({
         "key": key.key,
         "keyWithoutModifiers": key.key_without_modifiers,
@@ -348,7 +348,7 @@ bitflags::bitflags! {
 /// CSS properties that inherit to descendants. A SetStyle touching one of
 /// these (or the `font` shorthand) must take the slow path — re-derive + run
 /// the inherit pass — so children see the new value. Other inline properties
-/// take [`LegacyRuntimeController::apply_inline_ir_fast`].
+/// take [`Applier::apply_inline_ir_fast`].
 const INHERITED_PROPERTIES: &[&str] = &[
     "color",
     "font-size",
@@ -510,32 +510,28 @@ impl FrameState {
 }
 
 /// Coordinates one transactional JS protocol consumer and its retained native
-/// document. Subsystems own their state; `LegacyRuntimeController` owns frame ordering.
-pub struct LegacyRuntimeController {
+/// document. Subsystems own their state; `Applier` owns frame ordering.
+pub struct Applier {
     document: DocumentState,
     interaction: InteractionState,
     frame: FrameState,
     runtime: RuntimeSession,
 }
 
-/// Compatibility name used only by the legacy Winit projection modules.
-#[doc(hidden)]
-pub type Applier = LegacyRuntimeController;
-
-impl LegacyRuntimeController {
+impl Applier {
     #[cfg(test)]
-    pub(crate) fn text_input_state(&self) -> gpui_shell::ProjectedTextInputState {
+    pub(crate) fn text_input_state(&self) -> shell_api::ProjectedTextInputState {
         let Some(target) = self.interaction.input.focused_target else {
-            return gpui_shell::ProjectedTextInputState::default();
+            return shell_api::ProjectedTextInputState::default();
         };
         let Some(node) = self.document.node_store.solid_to_node.get(&target) else {
-            return gpui_shell::ProjectedTextInputState::default();
+            return shell_api::ProjectedTextInputState::default();
         };
         let Some(widget) = self.document.widget_manager.widgets.get(node) else {
-            return gpui_shell::ProjectedTextInputState::default();
+            return shell_api::ProjectedTextInputState::default();
         };
         let selection = widget.text_selection();
-        gpui_shell::ProjectedTextInputState {
+        shell_api::ProjectedTextInputState {
             accepts_text: widget.accepts_text_input(),
             text: widget.current_value().map(str::to_owned),
             selection: selection.as_ref().map(|selection| {
@@ -573,7 +569,7 @@ impl LegacyRuntimeController {
             js,
             widget_factories,
             base_color,
-            gpui_shell::initial_window_resource_key(0),
+            shell_api::initial_window_resource_key(0),
         )
     }
 
@@ -582,7 +578,7 @@ impl LegacyRuntimeController {
         js: JsRuntime,
         widget_factories: HashMap<String, vello_shell::WidgetFactory>,
         base_color: Color,
-        window_key: gpui_shell::WindowResourceKey,
+        window_key: shell_api::WindowResourceKey,
     ) -> Self {
         let layout_metrics = js.layout_metrics_handle();
         let atoms = js.atom_pool_handle();
@@ -614,13 +610,13 @@ impl LegacyRuntimeController {
         self.runtime.js.boot_with_source_map(source, source_map)
     }
 
-    pub(crate) fn set_app_directories(&mut self, directories: gpui_shell::AppDirectories) {
+    pub(crate) fn set_app_directories(&mut self, directories: shell_api::AppDirectories) {
         self.runtime.effect_bridge.set_app_directories(directories);
     }
 
     pub(crate) fn host_message_context(
         &self,
-        window_key: gpui_shell::WindowResourceKey,
+        window_key: shell_api::WindowResourceKey,
     ) -> crate::HostMessageContext {
         crate::HostMessageContext::new(
             window_key,
@@ -681,8 +677,8 @@ impl LegacyRuntimeController {
     }
 }
 
-impl LegacyRuntimeController {
-    fn cancel_pointer_gesture(&mut self, pointer: gpui_shell::PointerEvent) -> bool {
+impl Applier {
+    fn cancel_pointer_gesture(&mut self, pointer: shell_api::PointerEvent) -> bool {
         self.interaction.input.update_pointer(&pointer);
         self.interaction.text_selection.next_scroll = None;
         let pointer_id = pointer.properties.id;
@@ -754,9 +750,9 @@ impl LegacyRuntimeController {
         }
         let mut changed = false;
         for route in active {
-            changed |= self.cancel_pointer_gesture(gpui_shell::PointerEvent {
+            changed |= self.cancel_pointer_gesture(shell_api::PointerEvent {
                 phase: PointerPhase::Cancel,
-                position: gpui_shell::Point {
+                position: shell_api::Point {
                     x: route.position.0,
                     y: route.position.1,
                 },

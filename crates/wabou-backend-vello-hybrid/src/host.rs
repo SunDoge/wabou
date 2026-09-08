@@ -251,9 +251,8 @@ struct ImageResourceDescriptor {
 
 /// Builder for the independent Winit + Taffy + Vello Hybrid application path.
 ///
-/// It consumes the same JavaScript bundle and binary mutation protocol as the
-/// GPUI host. The distinct type keeps backend-specific native widgets explicit
-/// while the second backend is brought to feature parity.
+/// It consumes a JavaScript bundle and projects its binary mutation protocol
+/// into the native Vello Hybrid document.
 pub struct VelloHybridHostBuilder {
     window: WindowOptions,
     additional_windows: Vec<WindowOptions>,
@@ -389,8 +388,8 @@ impl VelloHybridHostBuilder {
 
     /// Mount one versioned application capability into every window runtime.
     ///
-    /// This is API-compatible with the default GPUI host: direct structured
-    /// methods and opt-in JSON methods use the same generated contracts.
+    /// Direct structured methods and opt-in JSON methods use the same generated
+    /// capability contracts.
     pub fn capability<F>(mut self, contract: CapabilityContract, mount: F) -> Self
     where
         F: for<'js> Fn(runtime_api::NativeCapability<'js>) -> rquickjs::Result<()>
@@ -423,7 +422,7 @@ impl VelloHybridHostBuilder {
         self
     }
 
-    /// Connect the same window-addressable router used by the default GPUI host.
+    /// Connect the window-addressable host-message router.
     pub fn host_message_router(mut self, router: runtime_api::HostMessageRouter) -> Self {
         self.host_message_producers
             .push(Arc::new(move |context| router.attach(context)));

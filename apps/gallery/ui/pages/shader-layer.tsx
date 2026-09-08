@@ -1,5 +1,11 @@
 import { Badge, Button, ShaderLayer, Text, View } from "@wabou/ui";
 import { createSignal } from "solid-js";
+import LIQUID_ORB_SHADER from "../shaders/liquid-orb.wgsl?raw";
+import { createLiquidOrbUniforms } from "../shaders/liquid-orb";
+
+const SIRI_UNIFORMS = createLiquidOrbUniforms("siri");
+const BLUE_DROP_UNIFORMS = createLiquidOrbUniforms("blueDrop");
+const REFRACTIVE_BLOB_UNIFORMS = createLiquidOrbUniforms("refractiveBlob");
 
 const AURORA_SHADER = /* wgsl */ `
 fn palette(t: f32) -> vec3<f32> {
@@ -27,46 +33,117 @@ fn wabou_effect(uv: vec2<f32>) -> vec4<f32> {
 
 export function ShaderLayerPage() {
   const [paused, setPaused] = createSignal(false);
-  const [speed, setSpeed] = createSignal(0.75);
+  const [speed, setSpeed] = createSignal(0.9);
 
   return (
     <View class="flex flex-col gap-5">
-      <View class="relative h-80 overflow-hidden rounded-xl border border-subtle shadow-lg">
-        <ShaderLayer
-          aria-label="Animated aurora shader"
-          source={AURORA_SHADER}
-          speed={speed()}
-          paused={paused()}
-          class="absolute inset-0 w-full h-full rounded-xl"
-        />
-        <View class="absolute left-0 right-0 bottom-0 p-5 flex items-end justify-between gap-4">
-          <View class="flex flex-col items-start gap-1">
-            <Badge variant="secondary">Native WGSL</Badge>
-            <Text class="text-lg font-semibold text-white">Aurora field</Text>
-            <Text class="text-sm text-slate-200">
-              One retained widget, animated without per-frame Solid updates.
-            </Text>
+      <View class="grid grid-cols-2 gap-4">
+        <View class="relative h-80 min-w-0 overflow-hidden rounded-xl border border-subtle shadow-lg">
+          <ShaderLayer
+            aria-label="Animated aurora shader"
+            source={AURORA_SHADER}
+            speed={speed()}
+            paused={paused()}
+            class="absolute inset-0 w-full h-full"
+          />
+          <View class="absolute left-0 right-0 bottom-0 p-5 flex items-end justify-between gap-4">
+            <View class="min-w-0 flex flex-col items-start gap-1">
+              <Badge variant="secondary">Effect function</Badge>
+              <Text class="text-xl font-semibold text-white">Aurora field</Text>
+              <Text class="text-sm text-slate-200">
+                A compact effect using Wabou's stable shader prelude.
+              </Text>
+            </View>
+          </View>
+        </View>
+
+        <View class="relative h-80 min-w-0 overflow-hidden rounded-xl border border-subtle bg-slate-950 shadow-lg">
+          <ShaderLayer
+            module
+            aria-label="Animated Siri thinking orb"
+            source={LIQUID_ORB_SHADER}
+            values={SIRI_UNIFORMS}
+            speed={speed()}
+            paused={paused()}
+            class="absolute inset-0 w-full h-full"
+          />
+          <View class="absolute left-0 right-0 bottom-0 p-5 flex items-end justify-between gap-4">
+            <View class="min-w-0 flex flex-col items-start gap-1">
+              <Badge variant="secondary">Complete module</Badge>
+              <Text class="text-xl font-semibold text-white">
+                Siri thinking
+              </Text>
+              <Text class="text-sm text-slate-200">
+                A colorful voice-state preset driven by native animation time.
+              </Text>
+            </View>
+          </View>
+        </View>
+
+        <View class="relative h-80 min-w-0 overflow-hidden rounded-xl border border-subtle bg-slate-950 shadow-lg">
+          <ShaderLayer
+            module
+            aria-label="Animated liquid blue orb"
+            source={LIQUID_ORB_SHADER}
+            values={BLUE_DROP_UNIFORMS}
+            speed={speed()}
+            paused={paused()}
+            class="absolute inset-0 w-full h-full"
+          />
+          <View class="absolute left-0 right-0 bottom-0 p-5">
+            <View class="min-w-0 flex flex-col items-start gap-1">
+              <Badge variant="secondary">Style preset</Badge>
+              <Text class="text-xl font-semibold text-white">
+                Liquid blue drop
+              </Text>
+              <Text class="text-sm text-slate-200">
+                Dense cyan flow inside a polished glass shell.
+              </Text>
+            </View>
+          </View>
+        </View>
+
+        <View class="relative h-80 min-w-0 overflow-hidden rounded-xl border border-subtle bg-slate-950 shadow-lg">
+          <ShaderLayer
+            module
+            aria-label="Animated refractive violet orb"
+            source={LIQUID_ORB_SHADER}
+            values={REFRACTIVE_BLOB_UNIFORMS}
+            speed={speed()}
+            paused={paused()}
+            class="absolute inset-0 w-full h-full"
+          />
+          <View class="absolute left-0 right-0 bottom-0 p-5">
+            <View class="min-w-0 flex flex-col items-start gap-1">
+              <Badge variant="secondary">Style preset</Badge>
+              <Text class="text-xl font-semibold text-white">
+                Refractive blob
+              </Text>
+              <Text class="text-sm text-slate-200">
+                Softer violet refraction with a deforming contour.
+              </Text>
+            </View>
           </View>
         </View>
       </View>
 
-      <View class="p-4 flex flex-wrap items-center justify-between gap-4 rounded-lg border border-subtle bg-surface">
-        <View class="flex flex-col gap-1">
+      <View class="p-4 flex flex-wrap items-center justify-between gap-4 rounded-lg border border-subtle bg-surface shadow-sm">
+        <View class="min-w-0 flex flex-col gap-1">
           <Text class="text-sm font-medium text-primary">
-            Native frame clock
+            One module, multiple visual programs
           </Text>
           <Text class="text-xs text-secondary">
-            WGSL is validated once; pipelines and textures are retained across
-            frames and resize.
+            The orb cards share one validated pipeline and vary only their
+            uniform snapshots.
           </Text>
         </View>
         <View class="flex items-center gap-2">
           <Button
             size="sm"
             variant="outline"
-            onClick={() => setSpeed((value) => (value === 0.75 ? 0.35 : 0.75))}
+            onClick={() => setSpeed((value) => (value === 0.9 ? 0.35 : 0.9))}
           >
-            {speed() === 0.75 ? "Slow down" : "Normal speed"}
+            {speed() === 0.9 ? "Slow down" : "Normal speed"}
           </Button>
           <Button size="sm" onClick={() => setPaused((value) => !value)}>
             {paused() ? "Resume" : "Pause"}

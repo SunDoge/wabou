@@ -1,4 +1,4 @@
-//! Backend-neutral floating-surface placement for the legacy/Hybrid tree.
+//! Backend-neutral floating-surface placement for the Vello Hybrid tree.
 
 use super::*;
 use wabou_shell_api::{FloatingAnchor, FloatingPosition, resolve_floating_position};
@@ -55,7 +55,7 @@ fn hide_subtree(placed: &mut [PlacedNode], root_index: usize) {
     placed[root_index].paint.opacity = 0.0;
 }
 
-impl LegacyRuntimeController {
+impl Applier {
     /// Resolve private floating attributes after Taffy has measured both the
     /// anchor and surface. Returns whether floating geometry participates in
     /// the current frame's retained projections.

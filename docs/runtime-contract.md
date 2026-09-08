@@ -135,8 +135,9 @@ resource invalidates stale handles through the registry generation.
 Tree nodes are governed by the retained-tree identity contract and do not gain
 a redundant Rust SlotMap layer. Their JavaScript allocator nevertheless uses a
 full-width generational `NodeKey`, transported as two `u32` fields just like a
-SlotMap key. That same identity becomes the stable GPUI element ID; Wabou does
-not translate it through a second layout-tree identity. Native widget instances
+SlotMap key. That same identity remains stable through layout, paint, hit
+testing, and event routing; Wabou does not translate it through a second public
+identity. Native widget instances
 are node-owned: one widget exists for one widget node and is unmounted and
 removed with that node. They therefore stay in a node-keyed map instead of
 receiving an independent `WidgetKey`. A SlotMap becomes appropriate only if a

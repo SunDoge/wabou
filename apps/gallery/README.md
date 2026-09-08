@@ -9,13 +9,12 @@ custom widgets. Use the header theme control to cycle through the compiled
 mise exec -- bun run wabou dev apps/gallery
 ```
 
-Enable the GPUI-native performance overlay without adding a reactive clock to
+Enable the renderer-native performance HUD without adding a reactive clock to
 the Gallery's Solid tree:
 
 ```bash
 WABOU_PERFORMANCE_HUD=1 mise exec -- bun run wabou dev apps/gallery
 ```
 
-The HUD is an independent GPUI view boundary. Its updates do not materialize
-the Gallery projection tree, so it is suitable for checking pages such as
-Colors without making the measurement itself rebuild the page.
+The shell paints the HUD after the application scene. Its updates do not mutate
+the Gallery's Solid tree, so measurement does not itself rebuild the page.

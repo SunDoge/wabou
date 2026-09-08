@@ -27,7 +27,6 @@ const SHARED_PACKAGES = new Set([
   "wabou-runtime",
   "wabou-shell-api",
   "wabou-style",
-  "wabou-terminal-core",
 ]);
 
 const HYBRID_BACKEND_PACKAGES = new Set([

@@ -172,7 +172,7 @@ test("Pi Agent composer reflects an externally cleared controlled draft", () => 
   expect(editor.value).toBe("");
 });
 
-test("Pi Agent composer preserves a native range selection", () => {
+test("Pi Agent composer observes native selection without controlling the caret", () => {
   const screen = renderComponent(() => <ConversationComposer {...baseProps} />);
   const editor = screen.getByRole("textbox", {
     name: "Ask this agent to work in its repository…",
@@ -185,9 +185,7 @@ test("Pi Agent composer preserves a native range selection", () => {
     kind: "simple",
   });
 
-  expect(editor.widgetConfig).toEqual({
-    selection: { anchor: 0, head: baseProps.draft.length },
-  });
+  expect(editor.widgetConfig).toBeNull();
 });
 
 test("Pi Agent composer swaps configuration for delivery mode while running", () => {

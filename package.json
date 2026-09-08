@@ -17,7 +17,7 @@
     "verify:hybrid": "cargo check -p wabou-accessibility-vello -p wabou-backend-vello-hybrid -p wabou-shell-vello -p wabou-svg-vello-hybrid -p wabou-terminal-vello -p wabou-widgets-vello",
     "verify:behavior": "bun run scripts/check-behavior.ts",
     "verify:layout": "bun run test:layout",
-    "verify:captures": "bun run scripts/check-captures.ts --renderer vello-hybrid",
+    "verify:captures": "bun run scripts/check-captures.ts",
     "verify:agent": "bun run scripts/test-pi-agent.ts",
     "test:app:pi-agent": "bun run scripts/test-pi-agent.ts deterministic",
     "test:app:pi-agent:capture": "bun run scripts/test-pi-agent.ts capture",

@@ -68,16 +68,14 @@ describe("authored capture discovery", () => {
     ).toEqual({
       list: false,
       checkExisting: true,
-      renderer: null,
       scenarios: [
         "apps/demo/captures/first.ts",
         "apps/demo/captures/second.ts",
       ],
     });
     expect(() => parseCaptureArguments(["--scenario"])).toThrow("requires");
-    expect(parseCaptureArguments(["--renderer", "gpui"]).renderer).toBe("gpui");
-    expect(() => parseCaptureArguments(["--renderer", "canvas"])).toThrow(
-      "vello-hybrid or gpui",
+    expect(() => parseCaptureArguments(["--renderer", "gpui"])).toThrow(
+      "unsupported",
     );
     expect(() => parseCaptureArguments(["--unknown"])).toThrow("unsupported");
     expect(() => parseCaptureArguments(["--list", "--check-existing"])).toThrow(
@@ -92,7 +90,6 @@ describe("authored capture discovery", () => {
     expect(
       selectCaptureCases(captures, ["apps/demo/captures/wide.behavior.ts"]),
     ).toEqual([captures[1]]);
-    expect(selectCaptureCases(captures, [], "gpui")).toEqual([]);
     expect(() =>
       selectCaptureCases(captures, ["apps/demo/captures/missing.ts"]),
     ).toThrow("missing.ts");
@@ -106,7 +103,6 @@ describe("authored capture discovery", () => {
         defaults: { width: 1200, height: 800, waitMs: 100 },
         overrides: {
           "nested/compact.behavior.ts": {
-            renderer: "gpui",
             width: 700,
             height: 500,
             scaleFactor: 2,
@@ -121,10 +117,11 @@ describe("authored capture discovery", () => {
       {
         application: "apps/demo",
         scenario: "apps/demo/captures/nested/compact.behavior.ts",
-        output: "target/wabou-captures/demo/gpui/nested/compact.behavior.png",
+        output:
+          "target/wabou-captures/demo/vello-hybrid/nested/compact.behavior.png",
         snapshot:
-          "target/wabou-captures/demo/gpui/nested/compact.behavior.json",
-        renderer: "gpui",
+          "target/wabou-captures/demo/vello-hybrid/nested/compact.behavior.json",
+        renderer: "vello-hybrid",
         width: 700,
         height: 500,
         scaleFactor: 2,
@@ -184,7 +181,7 @@ describe("authored capture discovery", () => {
     );
   });
 
-  test("rejects unknown render backends", async () => {
+  test("rejects obsolete renderer selection", async () => {
     const root = await fixture();
     await writeFile(
       join(root, "apps", "demo", "captures", "config.json"),
@@ -192,7 +189,7 @@ describe("authored capture discovery", () => {
     );
 
     await expect(discoverCaptureCases(root)).rejects.toThrow(
-      "defaults.renderer must be vello-hybrid or gpui",
+      "defaults.renderer is unsupported",
     );
   });
 
@@ -259,11 +256,7 @@ describe("authored capture discovery", () => {
     expect(command).not.toContain("--skip-build");
     expect(captureCommand(capture, true)).toContain("--skip-build");
     expect(command).toContain(capture.snapshot);
-    const rendererIndex = command.indexOf("--renderer");
-    expect(command.slice(rendererIndex, rendererIndex + 2)).toEqual([
-      "--renderer",
-      "vello-hybrid",
-    ]);
+    expect(command).not.toContain("--renderer");
     expect(command.slice(command.indexOf("--color-scheme"), -2)).toEqual([
       "--color-scheme",
       "light",
