@@ -12,6 +12,7 @@ import {
   currentWindow,
   Fps,
   type Handle,
+  mergeClasses,
   mount,
   ProjectionBoundary,
   RouterProvider,
@@ -31,10 +32,6 @@ import { OverlayPage } from "./pages/overlay";
 import { SystemPage } from "./pages/system";
 import { ShaderLayerPage } from "./pages/shader-layer";
 import { GallerySidebar } from "./sidebar";
-
-function classes(...values: Array<string | false | undefined>): string {
-  return values.filter(Boolean).join(" ");
-}
 
 type ComponentId =
   | "button"
@@ -485,7 +482,7 @@ function App() {
                   <PrimitiveButton
                     unstyled
                     class={(state) =>
-                      classes(
+                      mergeClasses(
                         "w-8 h-8 justify-center rounded-md text-secondary",
                         state.hovered && "bg-control-hover text-primary",
                       )
@@ -497,7 +494,7 @@ function App() {
                   <PrimitiveButton
                     unstyled
                     class={(state) =>
-                      classes(
+                      mergeClasses(
                         "w-8 h-8 justify-center rounded-md text-secondary",
                         state.hovered && "bg-control-hover text-primary",
                       )
@@ -530,7 +527,7 @@ function App() {
               class="flex-1 min-w-0 min-h-0 overflow-x-hidden overflow-y-auto"
             >
               <View
-                class={classes(
+                class={mergeClasses(
                   "w-full max-w-5xl mx-auto flex flex-col gap-6",
                   compact() ? "px-5 py-6" : "px-10 py-8",
                 )}
