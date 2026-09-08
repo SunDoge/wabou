@@ -1,21 +1,14 @@
+import { i as defineWabouTheme, n as WabouThemeColor, r as color, t as WabouColorThemeOptions } from "./vite-Bt-_UhLO.mjs";
 import { ConfigEnv, Plugin, UserConfig, UserConfigExport } from "vite";
-//#region src/style-compiler/vite.d.ts
-/** A build-time sRGB color accepted by the Wabou theme compiler. */
-type WabouThemeColor = `#${string}`;
-interface WabouColorThemeOptions {
-  default: string;
-  themes: Record<string, {
-    appearance: "light" | "dark";
-    colors: Record<string, WabouThemeColor>;
-  }>;
-}
-/** Validate a generated or shared theme color at its declaration site. */
-declare function color(value: string): WabouThemeColor;
+//#region src/theme-contract.d.ts
 /**
- * Define and eagerly validate a color theme while preserving its concrete
- * theme names and semantic token keys for editor completion.
+ * Semantic colors guaranteed by Wabou's built-in component theme.
+ *
+ * Keep this independent from the Vite plugin so editor tooling can load the
+ * contract without initializing Vite or the style compiler.
  */
-declare function defineWabouTheme<const T extends WabouColorThemeOptions>(theme: T): T;
+declare const defaultWabouSemanticColorTokens: readonly ["canvas", "surface", "surface-muted", "input", "control", "control-hover", "control-pressed", "selected", "primary", "secondary", "muted", "subtle", "strong", "accent", "accent-hover", "accent-pressed", "on-accent", "danger", "danger-hover", "danger-pressed", "danger-surface", "danger-primary", "success-surface", "success-primary", "focus"];
+type DefaultWabouSemanticColorToken = (typeof defaultWabouSemanticColorTokens)[number];
 //#endregion
 //#region src/index.d.ts
 interface WabouViteOptions {
@@ -61,5 +54,5 @@ declare function wabouPlugins(root?: string, theme?: WabouColorThemeOptions, ign
 /** Define the complete conventional Vite configuration for a Wabou app. */
 declare function defineWabouConfig(options: WabouViteOptionsExport): UserConfigExport;
 //#endregion
-export { type WabouColorThemeOptions, WabouIntlOptions, type WabouThemeColor, WabouViteOptions, WabouViteOptionsExport, color, defaultWabouColorThemes, defineWabouConfig, defineWabouTheme, hasWabouWorkspaceSources, wabouPlugins };
+export { type DefaultWabouSemanticColorToken, type WabouColorThemeOptions, WabouIntlOptions, type WabouThemeColor, WabouViteOptions, WabouViteOptionsExport, color, defaultWabouColorThemes, defaultWabouSemanticColorTokens, defineWabouConfig, defineWabouTheme, hasWabouWorkspaceSources, wabouPlugins };
 //# sourceMappingURL=index.d.mts.map

@@ -18,6 +18,11 @@ import {
 } from "./style-compiler";
 
 export {
+  defaultWabouSemanticColorTokens,
+  type DefaultWabouSemanticColorToken,
+} from "./theme-contract.ts";
+
+export {
   color,
   defineWabouTheme,
   type WabouColorThemeOptions,

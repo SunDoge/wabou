@@ -1,4 +1,4 @@
-import { i as wabouUtilityManifest, n as resolveWabouUtility, r as validateWabouUtility, t as presetWabou } from "./preset-vuc4FyI1.mjs";
+import { a as defaultWabouSemanticColorTokens, i as wabouUtilityManifest, n as resolveWabouUtility, r as validateWabouUtility, t as presetWabou } from "./preset-D_deyM6T.mjs";
 import { existsSync, readFileSync } from "node:fs";
 import { dirname, join, parse, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -635,6 +635,6 @@ function readManifest(root) {
 	}
 }
 //#endregion
-export { color, defaultWabouColorThemes, defineWabouConfig, defineWabouTheme, hasWabouWorkspaceSources, wabouPlugins };
+export { color, defaultWabouColorThemes, defaultWabouSemanticColorTokens, defineWabouConfig, defineWabouTheme, hasWabouWorkspaceSources, wabouPlugins };
 
 //# sourceMappingURL=index.mjs.map

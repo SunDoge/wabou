@@ -141,9 +141,19 @@ describe("presetWabou", () => {
 
   test("generates CSS for UnoCSS tooling and editor integrations", async () => {
     const uno = await createGenerator({ presets: [presetWabou()] });
-    const result = await uno.generate("flex px-3 bg-slate-900");
+    const result = await uno.generate(
+      "flex px-3 bg-slate-900 bg-control text-primary border-focus",
+    );
     expect(result.css).toContain("padding-left:12px");
     expect(result.css).toContain("background-color:#0f172aff");
+    expect(result.css).toContain("background-color:var(--wabou-control)");
+    expect(result.css).toContain("color:var(--wabou-primary)");
+    expect(result.css).toContain("border-color:var(--wabou-focus)");
+    const toolingTheme = uno.config.theme as {
+      colors: Record<string, string>;
+    };
+    expect(toolingTheme.colors.control).toBe("var(--wabou-control)");
+    expect(toolingTheme.colors["blue-500"]).toBe("#3b82f6ff");
     const transform = await uno.generate("translate-x-4 scale-150 rotate-45");
     expect(transform.css).toContain("transform:translateX(16px)");
     expect(transform.css).toContain("transform:scale(1.5, 1.5)");
@@ -151,6 +161,16 @@ describe("presetWabou", () => {
     const dimensions = await uno.generate("w-2/3 max-w-md");
     expect(dimensions.css).toContain("width:66.666");
     expect(dimensions.css).toContain("max-width:448px");
+  });
+
+  test("exposes application semantic colors to UnoCSS tooling", async () => {
+    const uno = await createGenerator({
+      presets: [presetWabou({ semanticColors: ["brand"] })],
+    });
+    const result = await uno.generate("bg-brand text-brand border-brand");
+    expect(result.css).toContain("background-color:var(--wabou-brand)");
+    expect(result.css).toContain("color:var(--wabou-brand)");
+    expect(result.css).toContain("border-color:var(--wabou-brand)");
   });
 
   test("matches Rust-generated conformance cases exactly", () => {

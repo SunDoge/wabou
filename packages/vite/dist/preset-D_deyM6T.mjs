@@ -163,6 +163,41 @@ function rejectUnsupportedProperty(property) {
 	return `unsupported CSS property ${property}: not in the wabou CSS support matrix (add it as supported or unsupported)`;
 }
 //#endregion
+//#region src/theme-contract.ts
+/**
+* Semantic colors guaranteed by Wabou's built-in component theme.
+*
+* Keep this independent from the Vite plugin so editor tooling can load the
+* contract without initializing Vite or the style compiler.
+*/
+const defaultWabouSemanticColorTokens = [
+	"canvas",
+	"surface",
+	"surface-muted",
+	"input",
+	"control",
+	"control-hover",
+	"control-pressed",
+	"selected",
+	"primary",
+	"secondary",
+	"muted",
+	"subtle",
+	"strong",
+	"accent",
+	"accent-hover",
+	"accent-pressed",
+	"on-accent",
+	"danger",
+	"danger-hover",
+	"danger-pressed",
+	"danger-surface",
+	"danger-primary",
+	"success-surface",
+	"success-primary",
+	"focus"
+];
+//#endregion
 //#region src/preset/index.ts
 const wabouUtilityManifest = manifest_default;
 function matchDynamic(utility, resolver) {
@@ -537,11 +572,30 @@ function unoRule() {
 		return Object.fromEntries(resolved.declarations.map(({ property, value }) => [property.startsWith("transform-") ? "transform" : property, cssValue(value)]));
 	}];
 }
+function presetSemanticColors(options) {
+	const configured = options.theme ? Object.keys(options.theme.themes[options.theme.default]?.colors ?? {}) : [];
+	return [.../* @__PURE__ */ new Set([
+		...defaultWabouSemanticColorTokens,
+		...configured,
+		...options.semanticColors ?? []
+	])].sort();
+}
+function semanticColorRule(tokens) {
+	return [/^(bg|text|border)-(.+)$/, ([, prefix, token]) => {
+		if (!token || !tokens.has(token)) return;
+		return { [prefix === "bg" ? "background-color" : prefix === "text" ? "color" : "border-color"]: `var(--wabou-${token})` };
+	}];
+}
 /** UnoCSS adapter for editor tooling over the native utility manifest. */
-function presetWabou() {
+function presetWabou(options = {}) {
+	const semanticColors = presetSemanticColors(options);
 	return {
 		name: "@wabou/vite/preset",
-		rules: [unoRule()],
+		rules: [semanticColorRule(new Set(semanticColors)), unoRule()],
+		theme: { colors: {
+			...Object.fromEntries(Object.entries(wabouUtilityManifest.colors).map(([token, rgba]) => [token, `#${rgba.toString(16).padStart(8, "0")}`])),
+			...Object.fromEntries(semanticColors.map((token) => [token, `var(--wabou-${token})`]))
+		} },
 		autocomplete: { templates: [
 			"p-$spacing",
 			"px-$spacing",
@@ -557,6 +611,6 @@ function presetWabou() {
 	};
 }
 //#endregion
-export { wabouUtilityManifest as i, resolveWabouUtility as n, validateWabouUtility as r, presetWabou as t };
+export { defaultWabouSemanticColorTokens as a, wabouUtilityManifest as i, resolveWabouUtility as n, validateWabouUtility as r, presetWabou as t };
 
-//# sourceMappingURL=preset-vuc4FyI1.mjs.map
+//# sourceMappingURL=preset-D_deyM6T.mjs.map

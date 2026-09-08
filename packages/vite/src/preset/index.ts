@@ -1,5 +1,7 @@
 import type { Preset, Rule } from "@unocss/core";
 import { rejectUnsupportedProperty } from "../style-compiler/support-matrix.ts";
+import type { WabouColorThemeOptions } from "../style-compiler/vite.ts";
+import { defaultWabouSemanticColorTokens } from "../theme-contract.ts";
 import manifestJson from "./manifest.json" with { type: "json" };
 
 type Length = { unit: "px" | "percent"; value: number } | { unit: "auto" };
@@ -488,11 +490,61 @@ function unoRule(): Rule {
   ];
 }
 
+export interface WabouPresetOptions {
+  /** Application theme whose semantic colors should appear in editor tooling. */
+  theme?: WabouColorThemeOptions;
+  /** Additional semantic colors supplied outside the application theme. */
+  semanticColors?: readonly string[];
+}
+
+function presetSemanticColors(options: WabouPresetOptions): string[] {
+  const configured = options.theme
+    ? Object.keys(options.theme.themes[options.theme.default]?.colors ?? {})
+    : [];
+  return [
+    ...new Set([
+      ...defaultWabouSemanticColorTokens,
+      ...configured,
+      ...(options.semanticColors ?? []),
+    ]),
+  ].sort();
+}
+
+function semanticColorRule(tokens: ReadonlySet<string>): Rule {
+  return [
+    /^(bg|text|border)-(.+)$/,
+    ([, prefix, token]) => {
+      if (!token || !tokens.has(token)) return;
+      const property =
+        prefix === "bg"
+          ? "background-color"
+          : prefix === "text"
+            ? "color"
+            : "border-color";
+      return { [property]: `var(--wabou-${token})` };
+    },
+  ];
+}
+
 /** UnoCSS adapter for editor tooling over the native utility manifest. */
-export function presetWabou(): Preset {
+export function presetWabou(options: WabouPresetOptions = {}): Preset {
+  const semanticColors = presetSemanticColors(options);
   return {
     name: "@wabou/vite/preset",
-    rules: [unoRule()],
+    rules: [semanticColorRule(new Set(semanticColors)), unoRule()],
+    theme: {
+      colors: {
+        ...Object.fromEntries(
+          Object.entries(wabouUtilityManifest.colors).map(([token, rgba]) => [
+            token,
+            `#${rgba.toString(16).padStart(8, "0")}`,
+          ]),
+        ),
+        ...Object.fromEntries(
+          semanticColors.map((token) => [token, `var(--wabou-${token})`]),
+        ),
+      },
+    },
     autocomplete: {
       templates: [
         "p-$spacing",
