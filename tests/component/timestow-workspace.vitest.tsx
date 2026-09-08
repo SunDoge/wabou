@@ -775,6 +775,53 @@ test("snapshot history windows old entries without limiting search", () => {
   ).toBeNull();
 });
 
+test("snapshot history navigates virtualized entries from one focused list", () => {
+  const snapshots = Array.from({ length: 75 }, (_, index) => ({
+    id: `snapshot-${index}`,
+    time: "2026-09-08T04:18:00Z",
+    hostname: "workstation",
+    paths: ["/data/photos"],
+    filesNew: index,
+    filesChanged: 0,
+    label: `Backup ${index}`,
+    tags: [],
+    deleteProtected: false,
+  }));
+  const [selectedId, setSelectedId] = createSignal(snapshots[0]!.id);
+  const screen = renderComponent(() => (
+    <SnapshotHistory
+      loading={false}
+      loadFailed={false}
+      snapshots={snapshots}
+      selectedId={selectedId()}
+      query=""
+      onQueryChange={() => {}}
+      onSelect={(snapshot) => setSelectedId(snapshot.id)}
+    />
+  ));
+  const history = screen.getByRole("listbox", { name: "Snapshots" });
+  history.resize({ width: 240, height: 300 });
+
+  history.press("ArrowDown");
+  screen.flush();
+  expect(selectedId()).toBe("snapshot-1");
+  expect(history.attribute("aria-activedescendant")).toBe("snapshot-1");
+
+  history.press("End");
+  screen.flush();
+  expect(selectedId()).toBe("snapshot-74");
+  expect(
+    screen.getByRole("button", { name: "Open snapshot Backup 74" }),
+  ).toBeDefined();
+
+  history.press("Home");
+  screen.flush();
+  expect(selectedId()).toBe("snapshot-0");
+  expect(
+    screen.getByRole("button", { name: "Open snapshot Backup 0" }),
+  ).toBeDefined();
+});
+
 test("snapshot history distinguishes repository failure from empty data", () => {
   const screen = renderComponent(() => (
     <SnapshotHistory

@@ -9,6 +9,7 @@ import {
   Text,
   View,
   VirtualList,
+  type VirtualListController,
 } from "@wabou/ui";
 import search from "lucide-static/icons/search.svg?raw";
 import shieldCheck from "lucide-static/icons/shield-check.svg?raw";
@@ -65,6 +66,41 @@ export function SnapshotHistory(props: {
   );
   const searchable = () => props.snapshots.length >= 8;
   const updateQuery = (query: string) => props.onQueryChange(query);
+  let listController: VirtualListController | undefined;
+  const selectedIndex = () =>
+    filtered().findIndex((snapshot) => snapshot.id === props.selectedId);
+  const activeDescendant = () =>
+    filtered().some((snapshot) => snapshot.id === props.selectedId)
+      ? props.selectedId
+      : undefined;
+  const selectAt = (index: number) => {
+    const snapshots = filtered();
+    const snapshot = snapshots[index];
+    if (!snapshot) return false;
+    props.onSelect(snapshot);
+    listController?.scrollToIndex(index);
+    return true;
+  };
+  const handleNavigationKey = (event: {
+    key: string;
+    preventDefault(): void;
+  }) => {
+    const snapshots = filtered();
+    if (snapshots.length === 0) return;
+    const current = selectedIndex();
+    const next =
+      event.key === "Home"
+        ? 0
+        : event.key === "End"
+          ? snapshots.length - 1
+          : event.key === "ArrowDown"
+            ? Math.min(snapshots.length - 1, Math.max(0, current + 1))
+            : event.key === "ArrowUp"
+              ? Math.max(0, current < 0 ? snapshots.length - 1 : current - 1)
+              : undefined;
+    if (next === undefined || !selectAt(next)) return;
+    event.preventDefault();
+  };
 
   return (
     <ProjectionBoundary
@@ -149,6 +185,12 @@ export function SnapshotHistory(props: {
               getItemKey={(snapshot) => snapshot.id}
               role="listbox"
               accessibilityLabel="Snapshots"
+              focusOrder={0}
+              aria-activedescendant={activeDescendant()}
+              onKeyDown={handleNavigationKey}
+              controllerRef={(controller) => {
+                listController = controller;
+              }}
               class="min-h-0 flex-1 p-2"
             >
               {(snapshot) => {
@@ -163,7 +205,9 @@ export function SnapshotHistory(props: {
                 );
                 return (
                   <Button
+                    id={snapshot().id}
                     aria-label={`Open snapshot ${title()}`}
+                    aria-selected={selected()}
                     variant="ghost"
                     selected={selected()}
                     class="w-full h-14 min-h-14 justify-start px-3"

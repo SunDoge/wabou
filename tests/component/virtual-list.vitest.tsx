@@ -197,3 +197,31 @@ test("keeps an end-pinned list attached when new items are appended", () => {
   expect(controller?.isAtEnd()).toBe(true);
   expect(screen.getByRole("listitem", { name: "Message 20" })).toBeDefined();
 });
+
+test("forwards composite focus and keyboard semantics to its viewport", () => {
+  let pressed = "";
+  const screen = renderComponent(() => (
+    <VirtualList
+      items={() => ["one"]}
+      itemHeight={20}
+      viewportHeight={20}
+      getItemKey={(item) => item}
+      role="listbox"
+      accessibilityLabel="Keyboard list"
+      focusOrder={0}
+      aria-activedescendant="one"
+      onKeyDown={(event) => {
+        pressed = event.key;
+      }}
+    >
+      {(item) => <Text>{item()}</Text>}
+    </VirtualList>
+  ));
+  const list = screen.getByRole("listbox", { name: "Keyboard list" });
+
+  list.press("ArrowDown");
+
+  expect(pressed).toBe("ArrowDown");
+  expect(list.focusOrder).toBe(0);
+  expect(list.attribute("aria-activedescendant")).toBe("one");
+});

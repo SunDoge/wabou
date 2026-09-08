@@ -366,6 +366,9 @@ function VirtualList(props) {
 		getItemKey: props.getItemKey,
 		role: props.role,
 		accessibilityLabel: props.accessibilityLabel,
+		focusOrder: props.focusOrder,
+		activeDescendant: () => props["aria-activedescendant"],
+		onKeyDown: props.onKeyDown,
 		controllerRef: props.controllerRef,
 		onVisibleRangeChange: props.onVisibleRangeChange
 	}));
@@ -484,19 +487,21 @@ function VirtualList(props) {
 	}, { equals: (previous, next) => previous.start === next.start && previous.end === next.end });
 	const visibleRows = createMemo(() => {
 		const window = virtualWindow();
-		const { items, keys } = sourceSnapshot;
-		return window.items.map((virtualItem) => {
+		const { items, keys } = source();
+		const rows = [];
+		for (const virtualItem of window.items) {
 			const index = virtualItem.index;
 			const item = items[index];
-			if (item === void 0) throw new Error("VirtualList item snapshot changed during projection");
-			return {
+			if (item === void 0) continue;
+			rows.push({
 				index,
 				key: encodedItemKey(keys[index] ?? index),
 				item,
 				start: virtualItem.start,
 				end: virtualItem.end
-			};
-		});
+			});
+		}
+		return rows;
 	});
 	const observeViewport = (node) => {
 		viewport = node;
@@ -518,9 +523,13 @@ function VirtualList(props) {
 			const itemCount = sourceSnapshot.items.length;
 			if (!Number.isSafeInteger(index) || index < 0 || index >= itemCount) throw new RangeError(`VirtualList index ${index} is outside 0..${Math.max(0, itemCount - 1)}`);
 			virtualizer.scrollToIndex(index, { align: alignment === "nearest" ? "auto" : alignment });
+			virtualizer._willUpdate();
+			setVirtualRevision((revision) => revision + 1);
 		},
 		scrollToEnd(behavior = "auto") {
 			virtualizer.scrollToEnd({ behavior });
+			virtualizer._willUpdate();
+			setVirtualRevision((revision) => revision + 1);
 		},
 		isAtEnd: (threshold) => virtualizer.isAtEnd(threshold),
 		getDistanceFromEnd: () => virtualizer.getDistanceFromEnd()
@@ -569,28 +578,34 @@ function VirtualList(props) {
 			e: mergeClasses("w-full min-w-0 min-h-0 overflow-x-hidden overflow-y-auto", config.class),
 			t: config.role,
 			a: config.accessibilityLabel,
-			o: {
+			o: config.activeDescendant(),
+			i: config.focusOrder,
+			n: config.onKeyDown,
+			s: {
 				...config.viewportHeight === void 0 ? {} : { height: `${config.viewportHeight}px` },
 				width: "100%"
 			},
-			i: {
+			h: {
 				height: `${visibleRows()[0]?.start ?? 0}px`,
 				"flex-shrink": 0,
 				width: "100%"
 			},
-			n: {
+			r: {
 				height: `${Math.max(0, virtualWindow().totalSize - (visibleRows().at(-1)?.end ?? 0))}px`,
 				"flex-shrink": 0,
 				width: "100%"
 			}
 		};
-	}, ({ e, t, a, o, i, n }, _p$) => {
+	}, ({ e, t, a, o, i, n, s, h, r }, _p$) => {
 		e !== _p$?.e && setProp(_el$, "class", e, _p$?.e);
 		t !== _p$?.t && setProp(_el$, "role", t, _p$?.t);
 		a !== _p$?.a && setProp(_el$, "aria-label", a, _p$?.a);
-		o !== _p$?.o && setProp(_el$, "style", o, _p$?.o);
-		i !== _p$?.i && setProp(_el$2, "style", i, _p$?.i);
-		n !== _p$?.n && setProp(_el$3, "style", n, _p$?.n);
+		o !== _p$?.o && setProp(_el$, "aria-activedescendant", o, _p$?.o);
+		i !== _p$?.i && setProp(_el$, "focusOrder", i, _p$?.i);
+		n !== _p$?.n && setProp(_el$, "onKeyDown", n, _p$?.n);
+		s !== _p$?.s && setProp(_el$, "style", s, _p$?.s);
+		h !== _p$?.h && setProp(_el$2, "style", h, _p$?.h);
+		r !== _p$?.r && setProp(_el$3, "style", r, _p$?.r);
 	});
 	return _el$;
 }
@@ -1318,4 +1333,4 @@ function eventName(code) {
 //#endregion
 export { writer as A, releaseOverlayRoot as C, setProp as D, runSweep as E, defaultHost as F, useHost as I, PathBuilder as L, createFps as M, Portal as N, setTransform2D as O, HostProvider as P, isVectorPath as R, registerRoot as S, render as T, mergeProps as _, createElement as a, reconcileControlledInputValues as b, dispatchEvent as c, getRequestEvent as d, insert as f, memo as g, isServer as h, createComponent$1 as i, VirtualList as j, spread as k, effect as l, isDirectEvent as m, acquireOverlayRoot as n, createTextNode as o, insertNode as p, applyRef as r, delegateEvents as s, Dynamic as t, getMountRoot as u, mount as v, removeNode as w, ref as x, observeGlobalPointerEvent as y };
 
-//# sourceMappingURL=renderer-BRRU1gjZ.mjs.map
+//# sourceMappingURL=renderer-b5f65qCm.mjs.map

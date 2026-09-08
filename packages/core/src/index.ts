@@ -274,6 +274,11 @@ export {
   type WabouVectorPathProps,
   type WabouWheelEvent,
 } from "./renderer";
-export { createFps, VirtualList, type VirtualListProps } from "./renderer";
+export {
+  createFps,
+  VirtualList,
+  type VirtualListController,
+  type VirtualListProps,
+} from "./renderer";
 export * from "./style";
 export * from "./vector-path";

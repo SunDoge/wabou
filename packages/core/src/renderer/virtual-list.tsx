@@ -14,7 +14,12 @@ import {
   untrack,
 } from "solid-js";
 import { mergeClasses } from "../style";
-import type { Handle, WabouScrollEvent, WabouSemanticRole } from "./index";
+import type {
+  Handle,
+  WabouKeyEvent,
+  WabouScrollEvent,
+  WabouSemanticRole,
+} from "./index";
 
 export interface VirtualListProps<T> {
   /** Accessor for the full backing array. Only the visible slice renders. */
@@ -42,6 +47,12 @@ export interface VirtualListProps<T> {
   role?: WabouSemanticRole;
   /** Accessible name for the native scroll viewport. */
   accessibilityLabel?: string;
+  /** Native tab order for list-owned keyboard navigation. */
+  focusOrder?: number;
+  /** Semantic descendant currently owned by a focused composite list. */
+  "aria-activedescendant"?: string;
+  /** Keyboard handler for listbox, tree, command, or application navigation. */
+  onKeyDown?(event: WabouKeyEvent): void;
   /** Receives the stable imperative controller for keyboard/focus integration. */
   controllerRef?(controller: VirtualListController): void;
   /** Called when the mounted, overscanned range changes. `end` is exclusive. */
@@ -147,6 +158,12 @@ export function VirtualList<T>(props: VirtualListProps<T>): JSX.Element {
     getItemKey: props.getItemKey,
     role: props.role,
     accessibilityLabel: props.accessibilityLabel,
+    focusOrder: props.focusOrder,
+    // Composite focus follows application selection, so keep this semantic
+    // reference reactive even though the structural list configuration is
+    // intentionally captured once.
+    activeDescendant: () => props["aria-activedescendant"],
+    onKeyDown: props.onKeyDown,
     controllerRef: props.controllerRef,
     onVisibleRangeChange: props.onVisibleRangeChange,
   }));
@@ -298,20 +315,27 @@ export function VirtualList<T>(props: VirtualListProps<T>): JSX.Element {
   );
   const visibleRows = createMemo<readonly VirtualRow<T>[]>(() => {
     const window = virtualWindow();
-    const { items, keys } = sourceSnapshot;
-    return window.items.map((virtualItem) => {
+    // A source replacement can keep the same virtual index window (for
+    // example filtering rows 0..2 down to one result). TanStack then has no
+    // reason to emit `onChange`, so depend on the Solid source as well as the
+    // imperative virtual window to replace row contents in this flush. During
+    // that source transition the old window can briefly contain indexes that
+    // no longer exist; omit those until TanStack publishes its next window.
+    const { items, keys } = source();
+    const rows: VirtualRow<T>[] = [];
+    for (const virtualItem of window.items) {
       const index = virtualItem.index;
       const item = items[index];
-      if (item === undefined)
-        throw new Error("VirtualList item snapshot changed during projection");
-      return {
+      if (item === undefined) continue;
+      rows.push({
         index,
         key: encodedItemKey(keys[index] ?? index),
         item,
         start: virtualItem.start,
         end: virtualItem.end,
-      };
-    });
+      });
+    }
+    return rows;
   });
   const observeViewport = (node: Handle) => {
     viewport = node;
@@ -340,9 +364,17 @@ export function VirtualList<T>(props: VirtualListProps<T>): JSX.Element {
       virtualizer.scrollToIndex(index, {
         align: alignment === "nearest" ? "auto" : alignment,
       });
+      // Programmatic navigation can run inside the same native key event that
+      // owns the current Solid flush. Materialize TanStack's new window now;
+      // waiting for a later native scroll echo leaves the active descendant
+      // selected while its row is still unmounted for one frame.
+      virtualizer._willUpdate();
+      setVirtualRevision((revision) => revision + 1);
     },
     scrollToEnd(behavior = "auto") {
       virtualizer.scrollToEnd({ behavior });
+      virtualizer._willUpdate();
+      setVirtualRevision((revision) => revision + 1);
     },
     isAtEnd: (threshold) => virtualizer.isAtEnd(threshold),
     getDistanceFromEnd: () => virtualizer.getDistanceFromEnd(),
@@ -366,8 +398,11 @@ export function VirtualList<T>(props: VirtualListProps<T>): JSX.Element {
       )}
       role={config.role}
       aria-label={config.accessibilityLabel}
+      aria-activedescendant={config.activeDescendant()}
+      focusOrder={config.focusOrder}
       ref={observeViewport}
       onScroll={handleScroll}
+      onKeyDown={config.onKeyDown}
       style={{
         ...(config.viewportHeight === undefined
           ? {}
