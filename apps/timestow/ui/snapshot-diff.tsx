@@ -5,16 +5,15 @@ import {
   createContainerMatch,
   createTanStackDataTable,
   Icon,
-  ScrollArea,
   Select,
   Table,
-  TableBody,
   TableCell,
   TableHeader,
   TableRow,
   type TanStackDataTableColumn,
   Text,
   View,
+  VirtualList,
 } from "@wabou/ui";
 import file from "lucide-static/icons/file.svg?raw";
 import folder from "lucide-static/icons/folder.svg?raw";
@@ -32,8 +31,8 @@ import type {
   SnapshotDiffEntry,
   SnapshotEntry,
 } from "./api";
-import { createAsyncRequestGate } from "./async-request";
 import { useRusticApi } from "./api";
+import { createAsyncRequestGate } from "./async-request";
 import {
   formatBytes,
   formatOptionalTimestamp,
@@ -200,7 +199,10 @@ export function SnapshotDiffPanel(props: {
     compactTable.matches() ? diffColumns.slice(0, 2) : diffColumns;
 
   return (
-    <View ref={compactTable.ref} class="min-w-0 min-h-0 flex-1 flex flex-col">
+    <View
+      ref={compactTable.ref}
+      class="w-full h-full min-w-0 min-h-0 flex flex-col"
+    >
       <View class="flex-none px-4 py-3 flex flex-row flex-wrap items-center gap-3 border-b border-subtle bg-surface-muted">
         <View class="min-w-40 flex-1 flex flex-col gap-0.5">
           <Text class="text-sm font-medium">Compare with</Text>
@@ -298,14 +300,14 @@ export function SnapshotDiffPanel(props: {
                 />
               }
             >
-              <ScrollArea
-                class="min-w-0 min-h-0 flex-1"
-                contentClass="min-w-full"
-              >
+              <View class="w-full h-full min-w-0 min-h-0 flex flex-col">
                 <Table
                   aria-label="Snapshot changes"
+                  class="min-h-0 flex-1"
                   contentClass={
-                    compactTable.matches() ? undefined : "min-w-[46rem]"
+                    compactTable.matches()
+                      ? "h-full min-h-0"
+                      : "h-full min-h-0 min-w-[46rem]"
                   }
                 >
                   <TableHeader>
@@ -327,64 +329,70 @@ export function SnapshotDiffPanel(props: {
                       </ForValue>
                     </TableRow>
                   </TableHeader>
-                  <TableBody>
-                    <ForValue each={diffTable.rows()}>
-                      {(row) => {
-                        const entry = row.original;
-                        const presentation = changePresentation[entry.change];
-                        return (
-                          <TableRow aria-label={entry.path}>
-                            <TableCell class="min-w-0 flex-1 gap-2">
-                              <Icon
-                                source={
-                                  entry.kind === "directory" ? folder : file
-                                }
-                                size={15}
-                                class="flex-none text-muted"
-                              />
-                              <View class="min-w-0 flex-1 flex flex-col gap-0.5">
-                                <Text class="w-full truncate">
-                                  {entry.name}
-                                </Text>
+                  <VirtualList
+                    items={diffTable.rows}
+                    itemHeight={64}
+                    getItemKey={(row) => row.id}
+                    role="group"
+                    accessibilityLabel="Snapshot change rows"
+                    class="min-h-0 flex-1"
+                  >
+                    {(row) => {
+                      const entry = () => row().original;
+                      const presentation = () =>
+                        changePresentation[entry().change];
+                      return (
+                        <TableRow aria-label={entry().path} class="h-16">
+                          <TableCell class="min-w-0 flex-1 gap-2">
+                            <Icon
+                              source={
+                                entry().kind === "directory" ? folder : file
+                              }
+                              size={15}
+                              class="flex-none text-muted"
+                            />
+                            <View class="min-w-0 flex-1 flex flex-col gap-0.5">
+                              <Text class="w-full truncate">
+                                {entry().name}
+                              </Text>
+                              <Text class="w-full truncate text-xs text-muted">
+                                {entry().path}
+                              </Text>
+                              <Show when={compactTable.matches()}>
                                 <Text class="w-full truncate text-xs text-muted">
-                                  {entry.path}
+                                  {compactEntryDetails(entry())}
                                 </Text>
-                                <Show when={compactTable.matches()}>
-                                  <Text class="w-full truncate text-xs text-muted">
-                                    {compactEntryDetails(entry)}
-                                  </Text>
-                                </Show>
-                              </View>
+                              </Show>
+                            </View>
+                          </TableCell>
+                          <TableCell class="min-w-0 w-28 flex-none">
+                            <Badge
+                              variant={presentation().variant}
+                              weight="normal"
+                            >
+                              {presentation().label}
+                            </Badge>
+                          </TableCell>
+                          <Show when={!compactTable.matches()}>
+                            <TableCell class="min-w-0 w-28 flex-none text-muted">
+                              {formatBytes(entry().previousSize)}
                             </TableCell>
-                            <TableCell class="min-w-0 w-28 flex-none">
-                              <Badge
-                                variant={presentation.variant}
-                                weight="normal"
-                              >
-                                {presentation.label}
-                              </Badge>
+                            <TableCell class="min-w-0 w-28 flex-none text-muted">
+                              {formatBytes(entry().currentSize)}
                             </TableCell>
-                            <Show when={!compactTable.matches()}>
-                              <TableCell class="min-w-0 w-28 flex-none text-muted">
-                                {formatBytes(entry.previousSize)}
-                              </TableCell>
-                              <TableCell class="min-w-0 w-28 flex-none text-muted">
-                                {formatBytes(entry.currentSize)}
-                              </TableCell>
-                              <TableCell class="min-w-0 w-36 flex-none text-muted">
-                                {formatOptionalTimestamp(
-                                  entry.currentModified ??
-                                    entry.previousModified,
-                                )}
-                              </TableCell>
-                            </Show>
-                          </TableRow>
-                        );
-                      }}
-                    </ForValue>
-                  </TableBody>
+                            <TableCell class="min-w-0 w-36 flex-none text-muted">
+                              {formatOptionalTimestamp(
+                                entry().currentModified ??
+                                  entry().previousModified,
+                              )}
+                            </TableCell>
+                          </Show>
+                        </TableRow>
+                      );
+                    }}
+                  </VirtualList>
                 </Table>
-              </ScrollArea>
+              </View>
             </Show>
           </Show>
         </Show>

@@ -489,6 +489,32 @@ await renderLayoutFixtures({
       },
     },
     {
+      id: "timestow/changes-many",
+      width: 960,
+      height: 620,
+      checks: ["visible-overflow", "text-collision", "visual-quality"],
+      assert: (fixture) => {
+        getLayoutNode(fixture, { role: "table", name: "Snapshot changes" });
+        getLayoutNode(fixture, {
+          role: "group",
+          name: "Snapshot change rows",
+        });
+        getLayoutNode(fixture, {
+          role: "row",
+          name: "Documents/changed-001.txt",
+        });
+        const mountedRows = queryLayoutNodes(fixture, { role: "row" });
+        if (mountedRows.length > 20) {
+          throw new Error(
+            `virtual change table mounted ${mountedRows.length} rows for ${250} changes`,
+          );
+        }
+        if (mountedRows.length < 2) {
+          throw new Error("virtual change table did not mount visible rows");
+        }
+      },
+    },
+    {
       id: "timestow/changes-error",
       width: 420,
       height: 480,

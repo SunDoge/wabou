@@ -26,6 +26,7 @@ import {
   type RepositoryCheckResult,
   type RestorePlanSummary,
   type RusticCapability,
+  type SnapshotDiffEntry,
   type SnapshotEntry,
 } from "./api";
 import { FileDetails, RestorePlanReview } from "./file-details";
@@ -137,6 +138,19 @@ const manyRootFiles: readonly FileEntry[] = Array.from(
     kind: "file" as const,
     size: (index + 1) * 4_096,
     modified: "2026-09-08T00:41:00Z",
+  }),
+);
+
+const manyDiffEntries: readonly SnapshotDiffEntry[] = Array.from(
+  { length: FILE_PAGE_SIZE },
+  (_, index) => ({
+    name: `changed-${String(index + 1).padStart(3, "0")}.txt`,
+    path: `Documents/changed-${String(index + 1).padStart(3, "0")}.txt`,
+    kind: "file" as const,
+    change: index % 3 === 0 ? "added" : "modified",
+    previousSize: index % 3 === 0 ? undefined : index * 1_024,
+    currentSize: (index + 1) * 1_024,
+    currentModified: "2026-09-08T00:41:00Z",
   }),
 );
 
@@ -644,6 +658,46 @@ function SnapshotDiffFixture() {
   );
 }
 
+function ManySnapshotDiffFixture() {
+  const inheritedHost = useHost();
+  return (
+    <HostProvider
+      value={
+        {
+          ...inheritedHost,
+          rustic: {
+            ...fixtureRustic,
+            diffSnapshots: () => ({
+              entries: [...manyDiffEntries],
+              summary: {
+                added: 84,
+                removed: 0,
+                modified: 166,
+                metadata: 0,
+                typeChanged: 0,
+              },
+              totalEntries: manyDiffEntries.length,
+              truncated: false,
+            }),
+          },
+        } as typeof inheritedHost
+      }
+    >
+      <ColorThemeProvider theme="light">
+        <ComponentsProvider theme="light">
+          <View class="w-full h-full min-w-0 min-h-0 bg-surface text-primary">
+            <SnapshotDiffPanel
+              profileId={profile.id}
+              snapshot={newestSnapshot}
+              snapshots={[newestSnapshot, previousSnapshot]}
+            />
+          </View>
+        </ComponentsProvider>
+      </ColorThemeProvider>
+    </HostProvider>
+  );
+}
+
 function SnapshotDiffErrorFixture() {
   const inheritedHost = useHost();
   return (
@@ -908,6 +962,12 @@ defineLayoutFixtures(
       height: 480,
       waitMs: 100,
       render: SnapshotDiffFixture,
+    },
+    "timestow/changes-many": {
+      width: 960,
+      height: 620,
+      waitMs: 100,
+      render: ManySnapshotDiffFixture,
     },
     "timestow/changes-error": {
       width: 420,
