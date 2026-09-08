@@ -332,9 +332,7 @@ test("backup workspace keeps configuration and primary actions distinct", () => 
     screen.getByRole("toolbar", { name: "Backup workspace actions" }),
   ).toBeDefined();
   screen.getByRole("button", { name: "Refresh snapshots" }).click();
-  const primaryAction = screen.getByRole("button", { name: "Back up now" });
-  expect(primaryAction.className).toContain("bg-accent");
-  primaryAction.click();
+  screen.getByRole("button", { name: "Back up now" }).click();
   expect(refresh).toHaveBeenCalledTimes(1);
   expect(backup).toHaveBeenCalledTimes(1);
 
@@ -504,7 +502,9 @@ test("empty snapshot workspace only offers actions the user can take", () => {
   expect(
     screen.getByRole("heading", { name: "Create your first snapshot" }),
   ).toBeDefined();
-  screen.getByRole("button", { name: "Back up now" }).click();
+  const primaryAction = screen.getByRole("button", { name: "Back up now" });
+  expect(primaryAction.className).toContain("bg-accent");
+  primaryAction.click();
   expect(backup).toHaveBeenCalledTimes(1);
 });
 
