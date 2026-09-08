@@ -29,8 +29,17 @@ use crate::progress::{
 pub const CAPABILITY: CapabilityContract = CapabilityContract::new("rustic", 14);
 const MAX_RETAINED_PREVIEW_ROOTS: usize = 8;
 const MAX_CACHED_INDEXED_REPOSITORIES: usize = 4;
+const MAX_CACHED_DIRECTORY_LISTINGS: usize = 16;
+const MAX_CACHED_DIRECTORY_LISTING_ENTRIES: usize = 10_000;
 
 type IndexedRepository = Repository<rustic_core::IndexedIdsStatus>;
+
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+struct DirectoryCacheKey {
+    repository: PathBuf,
+    snapshot_id: String,
+    path: String,
+}
 
 const STATUS: HostMethod<(), RuntimeStatus> = HostMethod::no_request("status");
 const CREATE_PROFILE: HostMethod<ProfileRequest, RuntimeStatus> = HostMethod::new("createProfile");
@@ -64,12 +73,14 @@ pub struct RusticService {
     preview_roots: Arc<Mutex<VecDeque<tempfile::TempDir>>>,
     repository_writes: Arc<Mutex<BTreeSet<PathBuf>>>,
     indexed_repositories: Arc<Mutex<LruCache<PathBuf, Arc<IndexedRepository>>>>,
+    directory_listings: Arc<Mutex<LruCache<DirectoryCacheKey, Arc<Vec<FileEntry>>>>>,
 }
 
 struct RepositoryWriteGuard {
     repository: PathBuf,
     active: Arc<Mutex<BTreeSet<PathBuf>>>,
     indexed_repositories: Arc<Mutex<LruCache<PathBuf, Arc<IndexedRepository>>>>,
+    directory_listings: Arc<Mutex<LruCache<DirectoryCacheKey, Arc<Vec<FileEntry>>>>>,
 }
 
 impl Drop for RepositoryWriteGuard {
@@ -84,6 +95,13 @@ impl Drop for RepositoryWriteGuard {
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner)
             .pop(&self.repository);
+        invalidate_directory_listings(
+            &mut self
+                .directory_listings
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner),
+            &self.repository,
+        );
     }
 }
 
@@ -98,6 +116,10 @@ impl Default for RusticService {
             indexed_repositories: Arc::new(Mutex::new(LruCache::new(
                 NonZeroUsize::new(MAX_CACHED_INDEXED_REPOSITORIES)
                     .expect("repository cache capacity is non-zero"),
+            ))),
+            directory_listings: Arc::new(Mutex::new(LruCache::new(
+                NonZeroUsize::new(MAX_CACHED_DIRECTORY_LISTINGS)
+                    .expect("directory cache capacity is non-zero"),
             ))),
         }
     }
@@ -374,6 +396,7 @@ impl RusticService {
             repository: repository.clone(),
             active: self.repository_writes.clone(),
             indexed_repositories: self.indexed_repositories.clone(),
+            directory_listings: self.directory_listings.clone(),
         };
         self.invalidate_indexed_repository(&repository)?;
         Ok(guard)
@@ -384,10 +407,18 @@ impl RusticService {
             .lock()
             .map_err(|_| "repository index cache is poisoned".to_string())?
             .pop(repository);
+        let mut listings = self
+            .directory_listings
+            .lock()
+            .map_err(|_| "directory listing cache is poisoned".to_string())?;
+        invalidate_directory_listings(&mut listings, repository);
         Ok(())
     }
 
-    fn indexed_repository(&self, profile_id: &str) -> Result<Arc<IndexedRepository>, String> {
+    fn indexed_repository_with_key(
+        &self,
+        profile_id: &str,
+    ) -> Result<(PathBuf, Arc<IndexedRepository>), String> {
         let (path, password, _) = self.profile_config(profile_id)?;
         let cache_key = repository_cache_key(&path);
         if let Some(repository) = self
@@ -397,7 +428,7 @@ impl RusticService {
             .get(&cache_key)
             .cloned()
         {
-            return Ok(repository);
+            return Ok((cache_key, repository));
         }
 
         let repository = Arc::new(
@@ -414,8 +445,13 @@ impl RusticService {
         self.indexed_repositories
             .lock()
             .map_err(|_| "repository index cache is poisoned".to_string())?
-            .put(cache_key, repository.clone());
-        Ok(repository)
+            .put(cache_key.clone(), repository.clone());
+        Ok((cache_key, repository))
+    }
+
+    fn indexed_repository(&self, profile_id: &str) -> Result<Arc<IndexedRepository>, String> {
+        self.indexed_repository_with_key(profile_id)
+            .map(|(_, repository)| repository)
     }
 
     #[cfg(test)]
@@ -423,6 +459,14 @@ impl RusticService {
         self.indexed_repositories
             .lock()
             .expect("repository index cache")
+            .len()
+    }
+
+    #[cfg(test)]
+    fn directory_listing_cache_len(&self) -> usize {
+        self.directory_listings
+            .lock()
+            .expect("directory listing cache")
             .len()
     }
 
@@ -680,7 +724,21 @@ impl RusticService {
     }
 
     fn list_files(&self, request: ListFilesRequest) -> Result<FileListing, String> {
-        let repo = self.indexed_repository(&request.profile_id)?;
+        let (repository, repo) = self.indexed_repository_with_key(&request.profile_id)?;
+        let cache_key = DirectoryCacheKey {
+            repository,
+            snapshot_id: request.snapshot_id.clone(),
+            path: request.path.clone(),
+        };
+        if let Some(files) = self
+            .directory_listings
+            .lock()
+            .map_err(|_| "directory listing cache is poisoned".to_string())?
+            .get(&cache_key)
+            .cloned()
+        {
+            return Ok(file_listing_page(&files, request.offset, request.limit));
+        }
         let snapshot = snapshot_by_id(&repo, &request.snapshot_id)?;
         let node = repo
             .node_from_snapshot_and_path(&snapshot, &request.path)
@@ -703,7 +761,14 @@ impl RusticService {
             (left.kind != "directory", left.name.to_lowercase())
                 .cmp(&(right.kind != "directory", right.name.to_lowercase()))
         });
-        Ok(file_listing_page(files, request.offset, request.limit))
+        let files = Arc::new(files);
+        if files.len() <= MAX_CACHED_DIRECTORY_LISTING_ENTRIES {
+            self.directory_listings
+                .lock()
+                .map_err(|_| "directory listing cache is poisoned".to_string())?
+                .put(cache_key, files.clone());
+        }
+        Ok(file_listing_page(&files, request.offset, request.limit))
     }
 
     fn search_files(&self, request: SearchFilesRequest) -> Result<Vec<FileEntry>, String> {
@@ -1044,7 +1109,7 @@ fn default_file_page_size() -> usize {
 }
 
 fn file_listing_page(
-    entries: Vec<FileEntry>,
+    entries: &[FileEntry],
     requested_offset: usize,
     requested_limit: usize,
 ) -> FileListing {
@@ -1052,9 +1117,10 @@ fn file_listing_page(
     let offset = requested_offset.min(total);
     let limit = requested_limit.clamp(1, 1_000);
     let page = entries
-        .into_iter()
+        .iter()
         .skip(offset)
         .take(limit)
+        .cloned()
         .collect::<Vec<_>>();
     let end = offset.saturating_add(page.len());
     FileListing {
@@ -1062,6 +1128,20 @@ fn file_listing_page(
         total,
         offset,
         has_more: end < total,
+    }
+}
+
+fn invalidate_directory_listings(
+    listings: &mut LruCache<DirectoryCacheKey, Arc<Vec<FileEntry>>>,
+    repository: &Path,
+) {
+    let stale = listings
+        .iter()
+        .filter(|(key, _)| key.repository == repository)
+        .map(|(key, _)| key.clone())
+        .collect::<Vec<_>>();
+    for key in stale {
+        listings.pop(&key);
     }
 }
 
@@ -1492,8 +1572,8 @@ mod tests {
                 size: index,
                 modified: None,
             })
-            .collect();
-        let page = file_listing_page(entries, 2, 2);
+            .collect::<Vec<_>>();
+        let page = file_listing_page(&entries, 2, 2);
         assert_eq!(page.total, 5);
         assert_eq!(page.offset, 2);
         assert!(page.has_more);
@@ -1735,6 +1815,26 @@ mod tests {
         assert_eq!(stats.snapshot_count, 1);
         assert!(stats.pack_count > 0);
 
+        let root_listing_request = ListFilesRequest {
+            profile_id: "photos".to_string(),
+            snapshot_id: backup.snapshot.id.clone(),
+            path: String::new(),
+            offset: 0,
+            limit: 1,
+        };
+        let first_root_page = service
+            .list_files(root_listing_request.clone())
+            .expect("list first root page");
+        assert_eq!(service.directory_listing_cache_len(), 1);
+        let second_root_page = service
+            .list_files(ListFilesRequest {
+                offset: 1,
+                ..root_listing_request
+            })
+            .expect("list second root page from cached directory");
+        assert_eq!(first_root_page.total, second_root_page.total);
+        assert_eq!(service.directory_listing_cache_len(), 1);
+
         let mut pending = vec![String::new()];
         let mut names = Vec::new();
         while let Some(path) = pending.pop() {
@@ -1834,6 +1934,7 @@ mod tests {
             })
             .expect("backup changed source");
         assert_eq!(service.indexed_repository_cache_len(), 0);
+        assert_eq!(service.directory_listing_cache_len(), 0);
         let updated_snapshot_id = next_backup.snapshot.id.clone();
         let base_snapshot_id = backup.snapshot.id.clone();
         let diff = service
