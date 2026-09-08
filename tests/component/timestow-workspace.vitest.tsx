@@ -47,12 +47,15 @@ import {
   SnapshotDiffPanel,
   snapshotComparisonLabel,
 } from "../../apps/timestow/ui/snapshot-diff";
+import {
+  SnapshotFileList,
+  SnapshotFileRow,
+} from "../../apps/timestow/ui/snapshot-file-list";
 import { SnapshotFileTree } from "../../apps/timestow/ui/snapshot-tree";
 import {
   formatModified,
   SnapshotBrowserEmptyState,
   SnapshotFileListEmptyState,
-  SnapshotFileRow,
   SnapshotHistory,
   SnapshotPathBreadcrumb,
   SnapshotsPage,
@@ -2476,6 +2479,57 @@ test("backup source dialog locks updates and keeps failures recoverable", async 
   expect(
     screen.getByRole("button", { name: "Remove /data/photos" }).disabled,
   ).toBe(false);
+});
+
+test("snapshot file list navigates virtual rows and opens folders from the keyboard", () => {
+  const entries: FileEntry[] = Array.from({ length: 75 }, (_, index) => ({
+    name: `entry-${String(index).padStart(2, "0")}`,
+    path: `entry-${String(index).padStart(2, "0")}`,
+    kind: index === 74 ? "directory" : "file",
+    size: index,
+  }));
+  const [selectedPath, setSelectedPath] = createSignal<string>();
+  const open = vi.fn();
+  const openParent = vi.fn();
+  const screen = renderComponent(() => (
+    <SnapshotFileList
+      entries={entries}
+      selectedPath={selectedPath()}
+      searchActive={false}
+      total={entries.length}
+      loadingMore={false}
+      canOpenParent
+      onSelect={(entry) => setSelectedPath(entry.path)}
+      onOpenDirectory={open}
+      onOpenParent={openParent}
+      onLoadMore={() => {}}
+    />
+  ));
+  const rows = screen.getByRole("group", { name: "Snapshot file rows" });
+  rows.resize({ width: 640, height: 240 });
+
+  rows.press("ArrowDown");
+  screen.flush();
+  expect(selectedPath()).toBe("entry-00");
+  expect(rows.attribute("aria-activedescendant")).toBe("entry-00");
+
+  rows.press("End");
+  screen.flush();
+  expect(selectedPath()).toBe("entry-74");
+  expect(screen.getByRole("row", { name: "entry-74" })).toBeDefined();
+
+  rows.press("Enter");
+  expect(open).toHaveBeenCalledWith(
+    expect.objectContaining({ path: "entry-74", kind: "directory" }),
+  );
+
+  rows.press("Backspace");
+  expect(openParent).toHaveBeenCalledOnce();
+
+  rows.press("Home");
+  screen.flush();
+  expect(selectedPath()).toBe("entry-00");
+  expect(screen.getByRole("row", { name: "entry-00" })).toBeDefined();
 });
 
 test("list rows give directory double click priority over single selection", async () => {

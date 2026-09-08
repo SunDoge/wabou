@@ -11,26 +11,17 @@ import {
   Button,
   ButtonGroup,
   ContentState,
-  ContextMenu,
-  createTanStackDataTable,
   Icon,
   InputGroup,
   InputGroupAddon,
   InputGroupInput,
   PageHeader,
   ProjectionBoundary,
-  Table,
-  TableCell,
-  TableHeader,
-  TableRow,
-  type TanStackDataTableColumn,
   Text,
   useNavigate,
   View,
-  VirtualList,
 } from "@wabou/ui";
 import chevronLeft from "lucide-static/icons/chevron-left.svg?raw";
-import file from "lucide-static/icons/file.svg?raw";
 import folder from "lucide-static/icons/folder.svg?raw";
 import folderTree from "lucide-static/icons/folder-tree.svg?raw";
 import gitCompare from "lucide-static/icons/git-compare-arrows.svg?raw";
@@ -56,7 +47,6 @@ import {
 } from "./api";
 import { createAsyncRequestGate } from "./async-request";
 import { FileDetails } from "./file-details";
-import { formatBytes, formatOptionalTimestamp } from "./format";
 import {
   createLocalOperationId,
   OperationProgressStatus,
@@ -66,16 +56,10 @@ import { BackupScheduleDialog } from "./schedule-dialog";
 import { useTimestowSession } from "./session";
 import { SnapshotDetails } from "./snapshot-details";
 import { SnapshotDiffPanel } from "./snapshot-diff";
+import { SnapshotFileList } from "./snapshot-file-list";
 import { SnapshotHistory, snapshotDisplayTitle } from "./snapshot-history";
 import { SnapshotFileTree } from "./snapshot-tree";
-import { SortableTableHead } from "./sortable-table-head";
 import { BackupSourcesDialog } from "./workspace-components";
-
-const fileColumns: TanStackDataTableColumn<FileEntry>[] = [
-  { accessorKey: "name", header: "Name" },
-  { accessorKey: "size", header: "Size" },
-  { accessorKey: "modified", header: "Modified" },
-];
 
 function shortId(id: string): string {
   return id.slice(0, 8);
@@ -148,95 +132,6 @@ export function snapshotAfterRefresh(
   return currentId
     ? snapshots.find((snapshot) => snapshot.id === currentId)
     : undefined;
-}
-
-export function SnapshotFileRow(props: {
-  entry: FileEntry;
-  selected: boolean;
-  searchActive: boolean;
-  onSelect: (entry: FileEntry) => void;
-  onOpenDirectory: (entry: FileEntry) => void;
-}) {
-  const entry = () => props.entry;
-  let pendingSingleClick: ReturnType<typeof setTimeout> | undefined;
-  const cancelPendingSingleClick = () => {
-    if (pendingSingleClick === undefined) return;
-    clearTimeout(pendingSingleClick);
-    pendingSingleClick = undefined;
-  };
-  const select = () => {
-    if (entry().kind !== "directory") {
-      props.onSelect(entry());
-      return;
-    }
-    cancelPendingSingleClick();
-    pendingSingleClick = setTimeout(() => {
-      pendingSingleClick = undefined;
-      props.onSelect(entry());
-    }, 410);
-  };
-  onCleanup(cancelPendingSingleClick);
-  return (
-    <ContextMenu
-      aria-label={`${entry().name} actions`}
-      items={
-        entry().kind === "directory"
-          ? [
-              { id: "open", label: "Open folder" },
-              { id: "details", label: "Show details" },
-            ]
-          : [{ id: "details", label: "Show details" }]
-      }
-      onAction={(action) => {
-        if (action === "open") props.onOpenDirectory(entry());
-        if (action === "details") props.onSelect(entry());
-      }}
-      trigger={(contextMenu) => (
-        <TableRow
-          ref={contextMenu.ref}
-          aria-label={entry().name}
-          aria-haspopup={contextMenu["aria-haspopup"]}
-          aria-expanded={contextMenu["aria-expanded"]}
-          selected={props.selected}
-          class="cursor-pointer"
-          onClick={select}
-          onContextMenu={(event) => {
-            cancelPendingSingleClick();
-            props.onSelect(entry());
-            contextMenu.onContextMenu(event);
-          }}
-          onKeyDown={contextMenu.onKeyDown}
-          onDblClick={() => {
-            if (entry().kind !== "directory") return;
-            cancelPendingSingleClick();
-            props.onOpenDirectory(entry());
-          }}
-        >
-          <TableCell class="min-w-0 flex-1 gap-2">
-            <Icon
-              source={entry().kind === "directory" ? folder : file}
-              size={15}
-              class="flex-none text-muted"
-            />
-            <View class="min-w-0 flex-1 flex flex-col gap-0.5">
-              <Text class="w-full truncate">{entry().name}</Text>
-              <Show when={props.searchActive}>
-                <Text class="w-full truncate text-xs text-muted">
-                  {entry().path}
-                </Text>
-              </Show>
-            </View>
-          </TableCell>
-          <TableCell class="min-w-0 w-24 flex-none text-muted">
-            {entry().kind === "directory" ? "—" : formatBytes(entry().size)}
-          </TableCell>
-          <TableCell class="min-w-0 w-36 flex-none text-muted">
-            {formatOptionalTimestamp(entry().modified)}
-          </TableCell>
-        </TableRow>
-      )}
-    />
-  );
 }
 
 export interface SnapshotWorkspaceHeaderProps {
@@ -801,18 +696,6 @@ export function SnapshotsPage() {
     }
     return `${files().length} items`;
   };
-  const fileTable = createTanStackDataTable<FileEntry>({
-    data: visibleFiles,
-    columns: fileColumns,
-    getRowId: (entry) => entry.path,
-    initialSorting: [{ id: "name", desc: false }],
-  });
-
-  const sortDirection = (columnId: string) => {
-    const sorting = fileTable.sorting().find(({ id }) => id === columnId);
-    return sorting ? (sorting.desc ? "desc" : "asc") : undefined;
-  };
-
   return (
     <View class="w-full h-full min-w-0 min-h-0 flex flex-col">
       <View class="flex-none px-6 py-4 flex flex-col gap-3 border-b border-subtle bg-surface">
@@ -1122,118 +1005,33 @@ export function SnapshotsPage() {
                               />
                             }
                           >
-                            <View class="w-full h-full min-w-0 min-h-0 flex flex-col">
-                              <Table
-                                aria-label="Snapshot files"
-                                class="min-h-0 flex-1"
-                                contentClass="h-full min-h-0"
-                              >
-                                <TableHeader>
-                                  <TableRow class="bg-surface-muted">
-                                    <SortableTableHead
-                                      label="Name"
-                                      class="min-w-0 flex-1"
-                                      direction={() => sortDirection("name")}
-                                      onToggle={() =>
-                                        fileTable.table
-                                          .getColumn("name")
-                                          ?.toggleSorting()
-                                      }
-                                    />
-                                    <SortableTableHead
-                                      label="Size"
-                                      class="min-w-0 w-24 flex-none"
-                                      direction={() => sortDirection("size")}
-                                      onToggle={() =>
-                                        fileTable.table
-                                          .getColumn("size")
-                                          ?.toggleSorting()
-                                      }
-                                    />
-                                    <SortableTableHead
-                                      label="Modified"
-                                      class="min-w-0 w-36 flex-none"
-                                      direction={() =>
-                                        sortDirection("modified")
-                                      }
-                                      onToggle={() =>
-                                        fileTable.table
-                                          .getColumn("modified")
-                                          ?.toggleSorting()
-                                      }
-                                    />
-                                  </TableRow>
-                                </TableHeader>
-                                <VirtualList
-                                  items={fileTable.rows}
-                                  itemHeight={44}
-                                  getItemKey={(row) => row.id}
-                                  role="group"
-                                  accessibilityLabel="Snapshot file rows"
-                                  class="min-h-0 flex-1"
-                                  onVisibleRangeChange={({ end }) => {
-                                    if (
-                                      !searchActive() &&
-                                      end >= files().length - 4 &&
-                                      files().length < fileTotal() &&
-                                      !loadMoreError()
-                                    ) {
-                                      void loadMoreFiles();
-                                    }
-                                  }}
-                                >
-                                  {(row) => (
-                                    <SnapshotFileRow
-                                      entry={row().original}
-                                      selected={
-                                        selectedEntry()?.path ===
-                                        row().original.path
-                                      }
-                                      searchActive={searchActive()}
-                                      onSelect={setSelectedEntry}
-                                      onOpenDirectory={(directory) =>
-                                        void loadFiles(
-                                          session.activeProfile()?.id ?? "",
-                                          snapshot(),
-                                          directory.path,
-                                        )
-                                      }
-                                    />
-                                  )}
-                                </VirtualList>
-                              </Table>
-                              <Show when={loadingMoreFiles()}>
-                                <View
-                                  role="status"
-                                  aria-label="Loading more files"
-                                  class="w-full flex-none flex justify-center px-4 py-2"
-                                >
-                                  <Text class="text-xs text-muted">
-                                    Loading more files…
-                                  </Text>
-                                </View>
-                              </Show>
-                              <Show when={loadMoreError()}>
-                                {(message) => (
-                                  <View class="w-full flex-none flex flex-row items-center justify-between gap-3 border-t border-subtle px-4 py-2">
-                                    <Text
-                                      role="alert"
-                                      class="min-w-0 flex-1 truncate text-xs text-danger-primary"
-                                    >
-                                      {message()}
-                                    </Text>
-                                    <Button
-                                      size="sm"
-                                      variant="outline"
-                                      aria-label="Retry loading more files"
-                                      onClick={() => void loadMoreFiles()}
-                                    >
-                                      Retry
-                                    </Button>
-                                  </View>
-                                )}
-                              </Show>
-                            </View>
+                            <SnapshotFileList
+                              entries={visibleFiles()}
+                              selectedPath={selectedEntry()?.path}
+                              searchActive={searchActive()}
+                              total={fileTotal()}
+                              loadingMore={loadingMoreFiles()}
+                              loadMoreError={loadMoreError()}
+                              canOpenParent={
+                                Boolean(currentPath()) && !searchActive()
+                              }
+                              onSelect={setSelectedEntry}
+                              onOpenDirectory={(directory) =>
+                                void loadFiles(
+                                  session.activeProfile()?.id ?? "",
+                                  snapshot(),
+                                  directory.path,
+                                )
+                              }
+                              onOpenParent={() =>
+                                void loadFiles(
+                                  session.activeProfile()?.id ?? "",
+                                  snapshot(),
+                                  parentPath(currentPath()),
+                                )
+                              }
+                              onLoadMore={() => void loadMoreFiles()}
+                            />
                           </Show>
                         </Show>
                       </AdaptiveSplitPaneMain>
