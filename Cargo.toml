@@ -80,6 +80,7 @@ ignore = "0.4.25"
 image = { version = "0.25", default-features = false }
 jiff = "0.2.35"
 lyon_tessellation = "1"
+lru = "0.18.1"
 naga = { version = "29.0.4", features = ["wgsl-in"] }
 notify-rust = "=4.11.7"
 oar-ocr = "0.9.2"

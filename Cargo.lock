@@ -9898,6 +9898,7 @@ dependencies = [
 name = "timestow"
 version = "0.1.0"
 dependencies = [
+ "lru 0.18.1",
  "open",
  "rustic_backend",
  "rustic_core",

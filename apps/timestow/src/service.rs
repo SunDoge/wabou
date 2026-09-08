@@ -1,10 +1,12 @@
 use std::{
     cmp::Ordering,
     collections::{BTreeSet, VecDeque},
-    path::PathBuf,
+    num::NonZeroUsize,
+    path::{Path, PathBuf},
     sync::{Arc, Mutex, RwLock},
 };
 
+use lru::LruCache;
 use rustic_backend::BackendOptions;
 use rustic_core::{
     BackupOptions, CheckOptions, ConfigOptions, Credentials, KeyOptions, LocalDestination,
@@ -26,6 +28,9 @@ use crate::progress::{
 
 pub const CAPABILITY: CapabilityContract = CapabilityContract::new("rustic", 14);
 const MAX_RETAINED_PREVIEW_ROOTS: usize = 8;
+const MAX_CACHED_INDEXED_REPOSITORIES: usize = 4;
+
+type IndexedRepository = Repository<rustic_core::IndexedIdsStatus>;
 
 const STATUS: HostMethod<(), RuntimeStatus> = HostMethod::no_request("status");
 const CREATE_PROFILE: HostMethod<ProfileRequest, RuntimeStatus> = HostMethod::new("createProfile");
@@ -51,18 +56,20 @@ const RESTORE_PATH: HostMethod<RestorePathRequest, RestoreResult> = HostMethod::
 const PREVIEW_PATH: HostMethod<PreviewPathRequest, RestoreResult> = HostMethod::new("previewPath");
 const OPEN_PATH: HostMethod<OpenPathRequest, ()> = HostMethod::new("openPath");
 
-#[derive(Clone, Default)]
+#[derive(Clone)]
 pub struct RusticService {
     state: Arc<RwLock<ServiceState>>,
     progress: ProgressEmitter,
     secrets: VelloHybridSecretStore,
     preview_roots: Arc<Mutex<VecDeque<tempfile::TempDir>>>,
     repository_writes: Arc<Mutex<BTreeSet<PathBuf>>>,
+    indexed_repositories: Arc<Mutex<LruCache<PathBuf, Arc<IndexedRepository>>>>,
 }
 
 struct RepositoryWriteGuard {
     repository: PathBuf,
     active: Arc<Mutex<BTreeSet<PathBuf>>>,
+    indexed_repositories: Arc<Mutex<LruCache<PathBuf, Arc<IndexedRepository>>>>,
 }
 
 impl Drop for RepositoryWriteGuard {
@@ -72,6 +79,27 @@ impl Drop for RepositoryWriteGuard {
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner);
         active.remove(&self.repository);
+        drop(active);
+        self.indexed_repositories
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .pop(&self.repository);
+    }
+}
+
+impl Default for RusticService {
+    fn default() -> Self {
+        Self {
+            state: Arc::default(),
+            progress: ProgressEmitter::default(),
+            secrets: VelloHybridSecretStore::default(),
+            preview_roots: Arc::default(),
+            repository_writes: Arc::default(),
+            indexed_repositories: Arc::new(Mutex::new(LruCache::new(
+                NonZeroUsize::new(MAX_CACHED_INDEXED_REPOSITORIES)
+                    .expect("repository cache capacity is non-zero"),
+            ))),
+        }
     }
 }
 
@@ -330,7 +358,7 @@ impl RusticService {
     }
 
     fn begin_repository_write(&self, path: &str) -> Result<RepositoryWriteGuard, String> {
-        let repository = std::fs::canonicalize(path).unwrap_or_else(|_| PathBuf::from(path));
+        let repository = repository_cache_key(path);
         let mut active = self
             .repository_writes
             .lock()
@@ -342,10 +370,60 @@ impl RusticService {
             );
         }
         drop(active);
-        Ok(RepositoryWriteGuard {
-            repository,
+        let guard = RepositoryWriteGuard {
+            repository: repository.clone(),
             active: self.repository_writes.clone(),
-        })
+            indexed_repositories: self.indexed_repositories.clone(),
+        };
+        self.invalidate_indexed_repository(&repository)?;
+        Ok(guard)
+    }
+
+    fn invalidate_indexed_repository(&self, repository: &Path) -> Result<(), String> {
+        self.indexed_repositories
+            .lock()
+            .map_err(|_| "repository index cache is poisoned".to_string())?
+            .pop(repository);
+        Ok(())
+    }
+
+    fn indexed_repository(&self, profile_id: &str) -> Result<Arc<IndexedRepository>, String> {
+        let (path, password, _) = self.profile_config(profile_id)?;
+        let cache_key = repository_cache_key(&path);
+        if let Some(repository) = self
+            .indexed_repositories
+            .lock()
+            .map_err(|_| "repository index cache is poisoned".to_string())?
+            .get(&cache_key)
+            .cloned()
+        {
+            return Ok(repository);
+        }
+
+        let repository = Arc::new(
+            open_repository(&path, &password)?
+                .to_indexed_ids()
+                .map_err(display_error)?,
+        );
+        let current_path = self.profile_config(profile_id)?.0;
+        if repository_cache_key(&current_path) != cache_key {
+            return Err(format!(
+                "backup profile {profile_id} changed while its repository was opening"
+            ));
+        }
+        self.indexed_repositories
+            .lock()
+            .map_err(|_| "repository index cache is poisoned".to_string())?
+            .put(cache_key, repository.clone());
+        Ok(repository)
+    }
+
+    #[cfg(test)]
+    fn indexed_repository_cache_len(&self) -> usize {
+        self.indexed_repositories
+            .lock()
+            .expect("repository index cache")
+            .len()
     }
 
     fn retain_preview_root(&self, preview_root: tempfile::TempDir) -> Result<(), String> {
@@ -381,11 +459,13 @@ impl RusticService {
         if request.id.trim().is_empty() {
             return Err("backup profile id is required".to_string());
         }
+        let mut repositories_to_invalidate = vec![repository_cache_key(&request.path)];
         if let Some(profile) = state
             .profiles
             .iter_mut()
             .find(|profile| profile.id == request.id)
         {
+            repositories_to_invalidate.push(repository_cache_key(&profile.repository_path));
             profile.name = name.to_string();
             profile.repository_path = request.path;
             profile.password = password;
@@ -399,7 +479,12 @@ impl RusticService {
                 sources: normalize_sources(request.sources),
             });
         }
-        Ok(status_from_state(&state))
+        let status = status_from_state(&state);
+        drop(state);
+        for repository in repositories_to_invalidate {
+            self.invalidate_indexed_repository(&repository)?;
+        }
+        Ok(status)
     }
 
     fn profile_config(
@@ -451,6 +536,7 @@ impl RusticService {
             let _ = self.secrets.restore(&request.password_slot, password);
             return Err(error);
         }
+        self.invalidate_indexed_repository(&repository_cache_key(&request.path))?;
         self.remember_profile(request, password)
     }
 
@@ -471,10 +557,20 @@ impl RusticService {
             .state
             .write()
             .map_err(|_| "service state is poisoned")?;
+        let repository = state
+            .profiles
+            .iter()
+            .find(|profile| profile.id == request.profile_id)
+            .map(|profile| repository_cache_key(&profile.repository_path));
         state
             .profiles
             .retain(|profile| profile.id != request.profile_id);
-        Ok(status_from_state(&state))
+        let status = status_from_state(&state);
+        drop(state);
+        if let Some(repository) = repository {
+            self.invalidate_indexed_repository(&repository)?;
+        }
+        Ok(status)
     }
 
     fn set_sources(&self, request: SetSourcesRequest) -> Result<RuntimeStatus, String> {
@@ -576,6 +672,7 @@ impl RusticService {
 
     fn list_snapshots(&self, request: ProfileIdRequest) -> Result<Vec<SnapshotEntry>, String> {
         let (path, password, _) = self.profile_config(&request.profile_id)?;
+        self.invalidate_indexed_repository(&repository_cache_key(&path))?;
         let repo = open_repository(&path, &password)?;
         let mut snapshots = repo.get_all_snapshots().map_err(display_error)?;
         snapshots.sort_unstable_by(|left, right| right.time.cmp(&left.time));
@@ -583,10 +680,7 @@ impl RusticService {
     }
 
     fn list_files(&self, request: ListFilesRequest) -> Result<FileListing, String> {
-        let (path, password, _) = self.profile_config(&request.profile_id)?;
-        let repo = open_repository(&path, &password)?
-            .to_indexed_ids()
-            .map_err(display_error)?;
+        let repo = self.indexed_repository(&request.profile_id)?;
         let snapshot = snapshot_by_id(&repo, &request.snapshot_id)?;
         let node = repo
             .node_from_snapshot_and_path(&snapshot, &request.path)
@@ -617,10 +711,7 @@ impl RusticService {
         if query.is_empty() {
             return Ok(Vec::new());
         }
-        let (path, password, _) = self.profile_config(&request.profile_id)?;
-        let repo = open_repository(&path, &password)?
-            .to_indexed_ids()
-            .map_err(display_error)?;
+        let repo = self.indexed_repository(&request.profile_id)?;
         let snapshot = snapshot_by_id(&repo, &request.snapshot_id)?;
         let root = repo
             .node_from_snapshot_and_path(&snapshot, "")
@@ -650,10 +741,7 @@ impl RusticService {
         if request.base_snapshot_id == request.snapshot_id {
             return Err("choose two different snapshots to compare".to_string());
         }
-        let (path, password, _) = self.profile_config(&request.profile_id)?;
-        let repo = open_repository(&path, &password)?
-            .to_indexed_ids()
-            .map_err(display_error)?;
+        let repo = self.indexed_repository(&request.profile_id)?;
         let base = snapshot_by_id(&repo, &request.base_snapshot_id)?;
         let current = snapshot_by_id(&repo, &request.snapshot_id)?;
         let base_node = repo
@@ -1098,6 +1186,10 @@ fn open_repository(
         .map_err(display_error)?
         .open(&Credentials::password(password))
         .map_err(display_error)
+}
+
+fn repository_cache_key(path: &str) -> PathBuf {
+    std::fs::canonicalize(path).unwrap_or_else(|_| PathBuf::from(path))
 }
 
 fn open_repository_with_progress(
@@ -1667,6 +1759,7 @@ mod tests {
         assert!(names.iter().any(|name| name == "chapter"));
         assert!(names.iter().any(|name| name == "notes.md"));
         assert!(names.iter().any(|name| name == "settings.toml"));
+        assert_eq!(service.indexed_repository_cache_len(), 1);
 
         let matches = service
             .search_files(SearchFilesRequest {
@@ -1680,6 +1773,7 @@ mod tests {
             .iter()
             .find(|entry| entry.name == "settings.toml")
             .expect("settings search result");
+        assert_eq!(service.indexed_repository_cache_len(), 1);
 
         let restore_root = root.path().join("restored");
         let restore_request = RestorePathRequest {
@@ -1739,6 +1833,7 @@ mod tests {
                 profile_id: "photos".to_string(),
             })
             .expect("backup changed source");
+        assert_eq!(service.indexed_repository_cache_len(), 0);
         let updated_snapshot_id = next_backup.snapshot.id.clone();
         let base_snapshot_id = backup.snapshot.id.clone();
         let diff = service
@@ -1751,6 +1846,7 @@ mod tests {
                 limit: 10,
             })
             .expect("compare snapshots");
+        assert_eq!(service.indexed_repository_cache_len(), 1);
         assert!(
             diff.entries
                 .iter()
@@ -1797,6 +1893,7 @@ mod tests {
                 delete_protected: true,
             })
             .expect("update snapshot metadata");
+        assert_eq!(service.indexed_repository_cache_len(), 0);
         assert_ne!(updated.id, updated_snapshot_id);
         assert_eq!(updated.label, "After cleanup");
         assert_eq!(updated.description.as_deref(), Some("Removed stale notes"));
