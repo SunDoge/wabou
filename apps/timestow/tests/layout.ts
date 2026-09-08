@@ -199,7 +199,18 @@ await renderLayoutFixtures({
       checks: ["visible-overflow", "text-collision", "visual-quality"],
       assert: (fixture) => {
         assertFullWorkspace(fixture, 900);
-        getLayoutNode(fixture, { role: "button", name: "Load more files" });
+        getLayoutNode(fixture, {
+          role: "group",
+          name: "Snapshot file rows",
+        });
+        if (
+          queryLayoutNodes(fixture, {
+            role: "button",
+            name: "Load more files",
+          }).length > 0
+        ) {
+          throw new Error("paged file browsing still requires a manual load");
+        }
         if (
           !fixture.nodes.some((node) => node.text?.includes("3 of 300 items"))
         ) {

@@ -436,6 +436,7 @@ export function SnapshotsPage() {
   const [loading, setLoading] = createSignal(true);
   const [loadingFiles, setLoadingFiles] = createSignal(false);
   const [loadingMoreFiles, setLoadingMoreFiles] = createSignal(false);
+  const [loadMoreError, setLoadMoreError] = createSignal<string>();
   const [historyError, setHistoryError] = createSignal<string>();
   const [fileError, setFileError] = createSignal<string>();
   const [error, setError] = createSignal<string>();
@@ -466,6 +467,7 @@ export function SnapshotsPage() {
     setCurrentPath("");
     setLoadingFiles(false);
     setLoadingMoreFiles(false);
+    setLoadMoreError(undefined);
     setFileError(undefined);
   }
 
@@ -569,6 +571,7 @@ export function SnapshotsPage() {
       return;
     const request = fileRequests.capture();
     setLoadingMoreFiles(true);
+    setLoadMoreError(undefined);
     setError(undefined);
     try {
       const next = await api.listFiles({
@@ -588,7 +591,9 @@ export function SnapshotsPage() {
       });
     } catch (cause) {
       if (fileRequests.isCurrent(request)) {
-        setError(cause instanceof Error ? cause.message : String(cause));
+        setLoadMoreError(
+          cause instanceof Error ? cause.message : String(cause),
+        );
       }
     } finally {
       if (fileRequests.isCurrent(request)) setLoadingMoreFiles(false);
@@ -1166,6 +1171,16 @@ export function SnapshotsPage() {
                                   role="group"
                                   accessibilityLabel="Snapshot file rows"
                                   class="min-h-0 flex-1"
+                                  onVisibleRangeChange={({ end }) => {
+                                    if (
+                                      !searchActive() &&
+                                      end >= files().length - 4 &&
+                                      files().length < fileTotal() &&
+                                      !loadMoreError()
+                                    ) {
+                                      void loadMoreFiles();
+                                    }
+                                  }}
                                 >
                                   {(row) => (
                                     <SnapshotFileRow
@@ -1187,23 +1202,36 @@ export function SnapshotsPage() {
                                   )}
                                 </VirtualList>
                               </Table>
-                              <Show
-                                when={
-                                  !searchActive() &&
-                                  files().length < fileTotal()
-                                }
-                              >
-                                <View class="w-full flex justify-center px-4 py-3">
-                                  <Button
-                                    aria-label="Load more files"
-                                    variant="outline"
-                                    loading={loadingMoreFiles()}
-                                    loadingLabel="Loading more…"
-                                    onClick={() => void loadMoreFiles()}
-                                  >
-                                    Load more files
-                                  </Button>
+                              <Show when={loadingMoreFiles()}>
+                                <View
+                                  role="status"
+                                  aria-label="Loading more files"
+                                  class="w-full flex-none flex justify-center px-4 py-2"
+                                >
+                                  <Text class="text-xs text-muted">
+                                    Loading more files…
+                                  </Text>
                                 </View>
+                              </Show>
+                              <Show when={loadMoreError()}>
+                                {(message) => (
+                                  <View class="w-full flex-none flex flex-row items-center justify-between gap-3 border-t border-subtle px-4 py-2">
+                                    <Text
+                                      role="alert"
+                                      class="min-w-0 flex-1 truncate text-xs text-danger-primary"
+                                    >
+                                      {message()}
+                                    </Text>
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      aria-label="Retry loading more files"
+                                      onClick={() => void loadMoreFiles()}
+                                    >
+                                      Retry
+                                    </Button>
+                                  </View>
+                                )}
                               </Show>
                             </View>
                           </Show>

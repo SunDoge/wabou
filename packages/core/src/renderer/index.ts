@@ -1493,6 +1493,7 @@ export {
   VirtualList,
   type VirtualListController,
   type VirtualListProps,
+  type VirtualListRange,
   type VirtualListScrollAlignment,
 } from "./virtual-list";
 export type { JSX, Writer };

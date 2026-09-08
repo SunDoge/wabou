@@ -18,6 +18,7 @@ import type {
   SnapshotDiff,
   SnapshotEntry,
 } from "../../apps/timestow/ui/api";
+import { FILE_PAGE_SIZE } from "../../apps/timestow/ui/api";
 import { FileDetails } from "../../apps/timestow/ui/file-details";
 import {
   formatDetailedTimestamp,
@@ -1513,6 +1514,103 @@ test("snapshot search ignores a superseded query and labels committed results", 
   screen.flush();
   expect(screen.queryByRole("row", { name: "stale.txt" })).toBeNull();
   expect(screen.getByRole("row", { name: "current.txt" })).toBeDefined();
+  screen.dispose();
+});
+
+test("snapshot file rows load the next page near the viewport end and recover in place", async () => {
+  const profile = {
+    id: "photos",
+    name: "Photos",
+    repositoryPath: "/data/photos-repository",
+    sources: ["/data/photos"],
+  };
+  const snapshot: SnapshotEntry = {
+    id: "snapshot",
+    time: "2026-09-08T00:42:00Z",
+    hostname: "workstation",
+    paths: ["/data/photos"],
+    filesNew: FILE_PAGE_SIZE + 1,
+    filesChanged: 0,
+    label: "Photos snapshot",
+    tags: [],
+    deleteProtected: false,
+  };
+  const entries = Array.from({ length: FILE_PAGE_SIZE + 1 }, (_, index) => ({
+    name: `file-${String(index).padStart(3, "0")}.txt`,
+    path: `file-${String(index).padStart(3, "0")}.txt`,
+    kind: "file",
+    size: index,
+  }));
+  let nextPageAttempts = 0;
+  const store: ProfileStore = {
+    load: async () => ({ profiles: [profile], activeProfileId: profile.id }),
+    save: async () => {},
+    setActive: async () => {},
+    remove: async () => {},
+  };
+  const fixture = createTestHost({
+    rustic: {
+      __wabouCapabilityVersion: 14,
+      status: async () => ({ unlockedProfileIds: [profile.id] }),
+      listSnapshots: async () => [snapshot],
+      listFiles: async ({ offset = 0, limit = FILE_PAGE_SIZE }) => {
+        if (offset === FILE_PAGE_SIZE && nextPageAttempts++ === 0) {
+          throw new Error("repository became temporarily unavailable");
+        }
+        const page = entries.slice(offset, offset + limit);
+        return {
+          entries: page,
+          total: entries.length,
+          offset,
+          hasMore: offset + page.length < entries.length,
+        };
+      },
+    },
+  });
+  const root = new BaseRootRoute({ component: (props) => props.children });
+  const setup = new BaseRoute({
+    getParentRoute: () => root,
+    path: "/",
+    component: () => <Text>Setup</Text>,
+  });
+  const snapshots = new BaseRoute({
+    getParentRoute: () => root,
+    path: "snapshots",
+    component: SnapshotsPage,
+  });
+  const router = createDataRouter({
+    routeTree: root.addChildren([setup, snapshots]),
+    history: createMemoryHistory({ initialEntries: ["/snapshots"] }),
+    context: {},
+    defaultPendingMs: 0,
+  });
+  const screen = renderComponent(
+    () => (
+      <TimestowSessionProvider store={store}>
+        <RouterProvider router={router} />
+      </TimestowSessionProvider>
+    ),
+    { host: fixture.host },
+  );
+
+  await screen.waitFor(() => {
+    expect(screen.getByRole("row", { name: "file-000.txt" })).toBeDefined();
+  });
+  const rows = screen.getByRole("group", { name: "Snapshot file rows" });
+  rows.resize({ width: 640, height: 220 });
+  rows.emit("scroll", { scrollY: FILE_PAGE_SIZE * 44 });
+  await screen.waitFor(() => {
+    expect(screen.getByRole("alert").text).toContain(
+      "repository became temporarily unavailable",
+    );
+  });
+  expect(fixture.callsTo("rustic.listFiles")).toHaveLength(2);
+
+  screen.getByRole("button", { name: "Retry loading more files" }).click();
+  await screen.waitFor(() => {
+    expect(screen.getByRole("row", { name: "file-250.txt" })).toBeDefined();
+  });
+  expect(fixture.callsTo("rustic.listFiles")).toHaveLength(3);
   screen.dispose();
 });
 

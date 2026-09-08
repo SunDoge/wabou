@@ -133,3 +133,32 @@ test("scrolls an offscreen item into the mounted window for keyboard owners", ()
     "VirtualList index 100 is outside 0..99",
   );
 });
+
+test("reports the mounted range only when its overscanned window changes", () => {
+  const ranges: Array<{ start: number; end: number }> = [];
+  const items = Array.from({ length: 100 }, (_, index) => `Item ${index}`);
+  const screen = renderComponent(() => (
+    <VirtualList
+      items={() => items}
+      itemHeight={20}
+      viewportHeight={100}
+      overscan={1}
+      getItemKey={(item) => item}
+      role="listbox"
+      accessibilityLabel="Range list"
+      onVisibleRangeChange={(range) => ranges.push({ ...range })}
+    >
+      {(item) => <Text role="option">{item()}</Text>}
+    </VirtualList>
+  ));
+
+  expect(ranges).toEqual([{ start: 0, end: 6 }]);
+  screen
+    .getByRole("listbox", { name: "Range list" })
+    .emit("scroll", { scrollY: 200 });
+  screen.flush();
+  expect(ranges).toEqual([
+    { start: 0, end: 6 },
+    { start: 9, end: 16 },
+  ]);
+});

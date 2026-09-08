@@ -1,5 +1,6 @@
 import {
   type Accessor,
+  createEffect,
   createMemo,
   createSignal,
   For as ForValue,
@@ -32,6 +33,8 @@ export interface VirtualListProps<T> {
   accessibilityLabel?: string;
   /** Receives the stable imperative controller for keyboard/focus integration. */
   controllerRef?(controller: VirtualListController): void;
+  /** Called when the mounted, overscanned range changes. `end` is exclusive. */
+  onVisibleRangeChange?(range: VirtualListRange): void;
   /** Render a single row given its item and absolute index. */
   children: (item: Accessor<T>, index: Accessor<number>) => JSX.Element;
 }
@@ -52,7 +55,7 @@ export function createVirtualRow<T>(
 const encodedItemKey = (key: string | number) =>
   typeof key === "number" ? `number:${key}` : `string:${key}`;
 
-interface VirtualRange {
+export interface VirtualListRange {
   readonly start: number;
   readonly end: number;
 }
@@ -69,7 +72,7 @@ export function calculateVirtualRange(
   viewportHeight: number,
   scrollTop: number,
   overscan: number,
-): VirtualRange {
+): VirtualListRange {
   if (!Number.isSafeInteger(itemCount) || itemCount < 0)
     throw new RangeError(
       "VirtualList item count must be a non-negative integer",
@@ -162,6 +165,7 @@ export function VirtualList<T>(props: VirtualListProps<T>): JSX.Element {
     role: props.role,
     accessibilityLabel: props.accessibilityLabel,
     controllerRef: props.controllerRef,
+    onVisibleRangeChange: props.onVisibleRangeChange,
   }));
   const source = createMemo(() => {
     const items = config.items();
@@ -255,6 +259,9 @@ export function VirtualList<T>(props: VirtualListProps<T>): JSX.Element {
     },
   };
   config.controllerRef?.(controller);
+  createEffect(range, (next) => {
+    untrack(() => config.onVisibleRangeChange?.(next));
+  });
 
   onCleanup(() => observer?.disconnect());
 
