@@ -635,7 +635,7 @@ export function SnapshotsPage() {
         ? browserCache.selectedSnapshot(profileId)
         : selected()?.id;
     if (selection !== "preserve") {
-      if (selection === "newest") browserCache.clearListings();
+      if (selection === "newest") browserCache.clearListings(profileId);
       clearSnapshotWorkspace();
       setSnapshots([]);
     }
@@ -808,7 +808,7 @@ export function SnapshotsPage() {
     if (loading()) return;
     const selectedId = selected()?.id;
     const path = currentPath();
-    browserCache.clearListings();
+    browserCache.clearListings(profileId);
     if (!(await loadSnapshots(profileId))) return;
     const refreshed = snapshots().find(
       (snapshot) => snapshot.id === selectedId,

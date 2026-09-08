@@ -1265,10 +1265,14 @@ test("snapshot browser cache preserves navigation while invalidating listings", 
   expect(cache.listing("profile-b", "snapshot-b", "photos")).toBeUndefined();
   expect(cache.selectedSnapshot("profile-a")).toBe("snapshot-a-updated");
 
-  cache.clearListings();
+  cache.clearListings("profile-a");
   expect(
     cache.listing("profile-a", "snapshot-a-updated", "docs"),
   ).toBeUndefined();
+  expect(cache.listing("profile-b", "snapshot-a", "private")).toEqual({
+    entries: [],
+    total: 0,
+  });
   expect(cache.lastPath("profile-a", "snapshot-a-updated")).toBe("docs");
   expect(cache.selectedSnapshot("profile-a")).toBe("snapshot-a-updated");
 

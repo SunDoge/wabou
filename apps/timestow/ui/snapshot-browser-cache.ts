@@ -23,7 +23,7 @@ export interface SnapshotBrowserCache {
     nextSnapshotId: string,
   ): void;
   removeSnapshot(profileId: string, snapshotId: string): void;
-  clearListings(): void;
+  clearListings(profileId: string): void;
   clear(): void;
 }
 
@@ -93,8 +93,11 @@ export function createSnapshotBrowserCache(): SnapshotBrowserCache {
         if (key.startsWith(prefix)) listingsByPath.delete(key);
       }
     },
-    clearListings() {
-      listingsByPath.clear();
+    clearListings(profileId) {
+      const prefix = `${profileId}\u0000`;
+      for (const key of listingsByPath.keys()) {
+        if (key.startsWith(prefix)) listingsByPath.delete(key);
+      }
     },
     clear() {
       listingsByPath.clear();
