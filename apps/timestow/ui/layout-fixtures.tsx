@@ -28,8 +28,8 @@ import {
   type RusticCapability,
   type SnapshotEntry,
 } from "./api";
-import { OperationProgressStatus } from "./operation-progress";
 import { FileDetails, RestorePlanReview } from "./file-details";
+import { OperationProgressStatus } from "./operation-progress";
 import type { ProfileStore } from "./profile-store";
 import {
   RepositoryCheckDialog,
@@ -128,6 +128,17 @@ const rootFiles: readonly FileEntry[] = [
     modified: "2026-09-08T00:41:00Z",
   },
 ];
+
+const manyRootFiles: readonly FileEntry[] = Array.from(
+  { length: FILE_PAGE_SIZE },
+  (_, index) => ({
+    name: `archive-${String(index + 1).padStart(3, "0")}.bin`,
+    path: `archive-${String(index + 1).padStart(3, "0")}.bin`,
+    kind: "file" as const,
+    size: (index + 1) * 4_096,
+    modified: "2026-09-08T00:41:00Z",
+  }),
+);
 
 const emptyPlan: RestorePlanSummary = {
   restoreSize: 0,
@@ -404,6 +415,26 @@ function ManySnapshotsWorkspaceFixture() {
       rustic={{
         ...fixtureRustic,
         listSnapshots: () => [...manySnapshots],
+      }}
+    />
+  );
+}
+
+function ManyFilesWorkspaceFixture() {
+  return (
+    <WorkspaceFixture
+      rustic={{
+        ...fixtureRustic,
+        listFiles: ({ path, offset = 0, limit = FILE_PAGE_SIZE }) => {
+          const all = path ? [] : manyRootFiles;
+          const entries = all.slice(offset, offset + limit);
+          return {
+            entries: [...entries],
+            total: all.length,
+            offset,
+            hasMore: offset + entries.length < all.length,
+          };
+        },
       }}
     />
   );
@@ -809,6 +840,12 @@ defineLayoutFixtures(
       height: 620,
       waitMs: 100,
       render: ManySnapshotsWorkspaceFixture,
+    },
+    "timestow/workspace-many-files": {
+      width: 900,
+      height: 620,
+      waitMs: 100,
+      render: ManyFilesWorkspaceFixture,
     },
     "timestow/workspace-empty": {
       width: 900,

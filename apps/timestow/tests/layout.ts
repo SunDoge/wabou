@@ -235,6 +235,30 @@ await renderLayoutFixtures({
       },
     },
     {
+      id: "timestow/workspace-many-files",
+      width: 900,
+      height: 620,
+      checks: ["visible-overflow", "text-collision", "visual-quality"],
+      assert: (fixture) => {
+        getLayoutNode(fixture, { role: "table", name: "Snapshot files" });
+        getLayoutNode(fixture, {
+          role: "group",
+          name: "Snapshot file rows",
+        });
+        getLayoutNode(fixture, { text: "archive-001.bin" });
+
+        const mountedRows = queryLayoutNodes(fixture, { role: "row" });
+        if (mountedRows.length > 24) {
+          throw new Error(
+            `virtual file table mounted ${mountedRows.length} rows for ${250} files`,
+          );
+        }
+        if (mountedRows.length < 2) {
+          throw new Error("virtual file table did not mount visible file rows");
+        }
+      },
+    },
+    {
       id: "timestow/workspace-empty",
       width: 900,
       height: 620,

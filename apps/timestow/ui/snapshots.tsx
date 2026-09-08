@@ -21,7 +21,6 @@ import {
   ProjectionBoundary,
   ScrollArea,
   Table,
-  TableBody,
   TableCell,
   TableHeader,
   TableRow,
@@ -29,6 +28,7 @@ import {
   Text,
   useNavigate,
   View,
+  VirtualList,
 } from "@wabou/ui";
 import chevronLeft from "lucide-static/icons/chevron-left.svg?raw";
 import file from "lucide-static/icons/file.svg?raw";
@@ -1123,11 +1123,12 @@ export function SnapshotsPage() {
                               />
                             }
                           >
-                            <ScrollArea
-                              class="min-w-0 min-h-0 flex-1"
-                              contentClass="min-w-full"
-                            >
-                              <Table aria-label="Snapshot files">
+                            <View class="w-full h-full min-w-0 min-h-0 flex flex-col">
+                              <Table
+                                aria-label="Snapshot files"
+                                class="min-h-0 flex-1"
+                                contentClass="h-full min-h-0"
+                              >
                                 <TableHeader>
                                   <TableRow class="bg-surface-muted">
                                     <SortableTableHead
@@ -1164,28 +1165,33 @@ export function SnapshotsPage() {
                                     />
                                   </TableRow>
                                 </TableHeader>
-                                <TableBody>
-                                  <ForValue each={fileTable.rows()}>
-                                    {(row) => (
-                                      <SnapshotFileRow
-                                        entry={row.original}
-                                        selected={
-                                          selectedEntry()?.path ===
-                                          row.original.path
-                                        }
-                                        searchActive={searchActive()}
-                                        onSelect={setSelectedEntry}
-                                        onOpenDirectory={(directory) =>
-                                          void loadFiles(
-                                            session.activeProfile()?.id ?? "",
-                                            snapshot(),
-                                            directory.path,
-                                          )
-                                        }
-                                      />
-                                    )}
-                                  </ForValue>
-                                </TableBody>
+                                <VirtualList
+                                  items={fileTable.rows}
+                                  itemHeight={44}
+                                  getItemKey={(row) => row.id}
+                                  role="group"
+                                  accessibilityLabel="Snapshot file rows"
+                                  class="min-h-0 flex-1"
+                                >
+                                  {(row) => (
+                                    <SnapshotFileRow
+                                      entry={row().original}
+                                      selected={
+                                        selectedEntry()?.path ===
+                                        row().original.path
+                                      }
+                                      searchActive={searchActive()}
+                                      onSelect={setSelectedEntry}
+                                      onOpenDirectory={(directory) =>
+                                        void loadFiles(
+                                          session.activeProfile()?.id ?? "",
+                                          snapshot(),
+                                          directory.path,
+                                        )
+                                      }
+                                    />
+                                  )}
+                                </VirtualList>
                               </Table>
                               <Show
                                 when={
@@ -1205,7 +1211,7 @@ export function SnapshotsPage() {
                                   </Button>
                                 </View>
                               </Show>
-                            </ScrollArea>
+                            </View>
                           </Show>
                         </Show>
                       </AdaptiveSplitPaneMain>
