@@ -474,6 +474,36 @@
     module.exports.defineEventAttribute = defineEventAttribute;
   });
 
+  // packages/core/src/polyfills/globals.ts
+  function installMissingGlobal(name, value) {
+    if (name in globalThis)
+      return false;
+    Object.defineProperty(globalThis, name, {
+      configurable: true,
+      writable: true,
+      value
+    });
+    return true;
+  }
+  function installMissingGlobals(values) {
+    for (const [name, value] of Object.entries(values)) {
+      installMissingGlobal(name, value);
+    }
+  }
+
+  // packages/core/src/polyfills/dom-exception.ts
+  class WabouDOMException extends Error {
+    code = 0;
+    constructor(message = "", name = "Error") {
+      super(message);
+      this.name = name;
+    }
+  }
+  function installDOMExceptionPolyfill() {
+    installMissingGlobal("DOMException", WabouDOMException);
+  }
+  installDOMExceptionPolyfill();
+
   // node_modules/.bun/abort-controller@3.0.0/node_modules/abort-controller/dist/abort-controller.mjs
   var import_event_target_shim = __toESM(require_event_target_shim(), 1);
 
@@ -548,41 +578,12 @@
 
   // packages/core/src/polyfills/abort-controller.ts
   function installAbortControllerPolyfill() {
-    if (!("AbortSignal" in globalThis)) {
-      Object.defineProperty(globalThis, "AbortSignal", {
-        configurable: true,
-        writable: true,
-        value: AbortSignal
-      });
-    }
-    if (!("AbortController" in globalThis)) {
-      Object.defineProperty(globalThis, "AbortController", {
-        configurable: true,
-        writable: true,
-        value: abort_controller_default
-      });
-    }
+    installMissingGlobals({
+      AbortController: abort_controller_default,
+      AbortSignal
+    });
   }
   installAbortControllerPolyfill();
-
-  // packages/core/src/polyfills/dom-exception.ts
-  class WabouDOMException extends Error {
-    code = 0;
-    constructor(message = "", name = "Error") {
-      super(message);
-      this.name = name;
-    }
-  }
-  function installDOMExceptionPolyfill() {
-    if (!("DOMException" in globalThis)) {
-      Object.defineProperty(globalThis, "DOMException", {
-        configurable: true,
-        writable: true,
-        value: WabouDOMException
-      });
-    }
-  }
-  installDOMExceptionPolyfill();
 
   // packages/core/src/polyfills/crypto.ts
   var DIGEST_IDS = {
@@ -636,13 +637,7 @@
   function installCryptoPolyfill() {
     if (!("__wabou_crypto_random" in globalThis))
       return;
-    if (!("crypto" in globalThis)) {
-      Object.defineProperty(globalThis, "crypto", {
-        configurable: true,
-        writable: true,
-        value: new WabouCrypto
-      });
-    }
+    installMissingGlobal("crypto", new WabouCrypto);
   }
   installCryptoPolyfill();
 
@@ -2938,15 +2933,7 @@
     WritableStreamDefaultWriter
   };
   function installStreamsPolyfill() {
-    for (const [name, constructor] of Object.entries(streamGlobals)) {
-      if (name in globalThis)
-        continue;
-      Object.defineProperty(globalThis, name, {
-        configurable: true,
-        writable: true,
-        value: constructor
-      });
-    }
+    installMissingGlobals(streamGlobals);
   }
   installStreamsPolyfill();
 
@@ -3048,15 +3035,7 @@
   // packages/core/src/polyfills/encoding-streams.ts
   var encodingStreamGlobals = { TextDecoderStream: TextDecoderStream2, TextEncoderStream };
   function installEncodingStreamsPolyfill() {
-    for (const [name, constructor] of Object.entries(encodingStreamGlobals)) {
-      if (name in globalThis)
-        continue;
-      Object.defineProperty(globalThis, name, {
-        configurable: true,
-        writable: true,
-        value: constructor
-      });
-    }
+    installMissingGlobals(encodingStreamGlobals);
   }
   installEncodingStreamsPolyfill();
 
@@ -3230,20 +3209,7 @@
     }
   }
   function installFetchPolyfill() {
-    if (!("Headers" in globalThis)) {
-      Object.defineProperty(globalThis, "Headers", {
-        configurable: true,
-        writable: true,
-        value: WabouHeaders
-      });
-    }
-    if (!("Response" in globalThis)) {
-      Object.defineProperty(globalThis, "Response", {
-        configurable: true,
-        writable: true,
-        value: WabouResponse
-      });
-    }
+    installMissingGlobals({ Headers: WabouHeaders, Response: WabouResponse });
     if (!("__wabou_fetch" in globalThis))
       return;
     globalThis.fetch = (input, init) => {
