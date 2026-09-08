@@ -5,7 +5,7 @@ use vello_common::kurbo::{Affine, BezPath, PathEl, Rect};
 use vello_common::peniko::{BlendMode, Compose, Fill, Mix};
 use vello_hybrid::Scene;
 
-use crate::{Error, RenderReport, UnsupportedFeature, convert};
+use super::{Error, RenderReport, UnsupportedFeature, convert};
 
 pub(crate) fn render_group(
     scene: &mut Scene,

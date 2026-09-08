@@ -10730,17 +10730,6 @@ name = "wabou-accessibility"
 version = "0.1.0-alpha.3"
 
 [[package]]
-name = "wabou-accessibility-vello"
-version = "0.1.0-alpha.3"
-dependencies = [
- "accesskit",
- "accesskit_xplat",
- "raw-window-handle",
- "wabou-accessibility",
- "winit",
-]
-
-[[package]]
 name = "wabou-backend-vello-hybrid"
 version = "0.1.0-alpha.3"
 dependencies = [
@@ -10916,6 +10905,8 @@ dependencies = [
 name = "wabou-shell-vello"
 version = "0.1.0-alpha.3"
 dependencies = [
+ "accesskit",
+ "accesskit_xplat",
  "arboard",
  "bitflags 2.13.1",
  "bytemuck",
@@ -10940,12 +10931,11 @@ dependencies = [
  "tracing",
  "unicode-segmentation",
  "url",
+ "usvg",
  "vello_common",
  "vello_hybrid",
- "wabou-accessibility-vello",
  "wabou-shell-api",
  "wabou-style",
- "wabou-svg-vello-hybrid",
  "wgpu",
  "wgpu_context",
  "winit",
@@ -10959,17 +10949,6 @@ dependencies = [
  "serde",
  "serde_json",
  "winnow 1.0.4",
-]
-
-[[package]]
-name = "wabou-svg-vello-hybrid"
-version = "0.1.0-alpha.3"
-dependencies = [
- "image",
- "snafu",
- "usvg",
- "vello_common",
- "vello_hybrid",
 ]
 
 [[package]]

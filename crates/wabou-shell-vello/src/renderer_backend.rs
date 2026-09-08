@@ -495,7 +495,7 @@ impl PaintScene for HybridPainter<'_> {
 
     fn draw_svg(&mut self, document: crate::SvgDocument, transform: Affine) {
         if let Err(error) =
-            wabou_svg_vello_hybrid::append_tree_with_transform(self.scene, &document.0, transform)
+            crate::svg::append_tree_with_transform(self.scene, &document.0, transform)
         {
             tracing::warn!(?error, "failed to project retained SVG into Vello Hybrid");
         }
