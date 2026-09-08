@@ -8,9 +8,9 @@ use std::{
 use rustic_backend::BackendOptions;
 use rustic_core::{
     BackupOptions, CheckOptions, ConfigOptions, Credentials, KeyOptions, LocalDestination,
-    LsOptions, PathList, ProgressBars, Repository, RepositoryOptions, RestoreOptions,
+    LsOptions, Open, PathList, ProgressBars, Repository, RepositoryOptions, RestoreOptions,
     SnapshotOptions,
-    repofile::{DeleteOption, StringList},
+    repofile::{DeleteOption, SnapshotFile, StringList},
 };
 use serde::{Deserialize, Serialize};
 use wabou::{
@@ -587,13 +587,9 @@ impl RusticService {
         let repo = open_repository(&path, &password)?
             .to_indexed_ids()
             .map_err(display_error)?;
-        let snapshots = repo.get_all_snapshots().map_err(display_error)?;
-        let snapshot = snapshots
-            .iter()
-            .find(|snapshot| snapshot.id.to_string() == request.snapshot_id)
-            .ok_or_else(|| format!("snapshot {} was not found", request.snapshot_id))?;
+        let snapshot = snapshot_by_id(&repo, &request.snapshot_id)?;
         let node = repo
-            .node_from_snapshot_and_path(snapshot, &request.path)
+            .node_from_snapshot_and_path(&snapshot, &request.path)
             .map_err(display_error)?;
         let options = LsOptions::default().recursive(false);
         let mut files = repo
@@ -625,13 +621,9 @@ impl RusticService {
         let repo = open_repository(&path, &password)?
             .to_indexed_ids()
             .map_err(display_error)?;
-        let snapshots = repo.get_all_snapshots().map_err(display_error)?;
-        let snapshot = snapshots
-            .iter()
-            .find(|snapshot| snapshot.id.to_string() == request.snapshot_id)
-            .ok_or_else(|| format!("snapshot {} was not found", request.snapshot_id))?;
+        let snapshot = snapshot_by_id(&repo, &request.snapshot_id)?;
         let root = repo
-            .node_from_snapshot_and_path(snapshot, "")
+            .node_from_snapshot_and_path(&snapshot, "")
             .map_err(display_error)?;
         let limit = request.limit.clamp(1, 500);
         let mut matches = Vec::new();
@@ -662,20 +654,13 @@ impl RusticService {
         let repo = open_repository(&path, &password)?
             .to_indexed_ids()
             .map_err(display_error)?;
-        let snapshots = repo.get_all_snapshots().map_err(display_error)?;
-        let base = snapshots
-            .iter()
-            .find(|snapshot| snapshot.id.to_string() == request.base_snapshot_id)
-            .ok_or_else(|| format!("snapshot {} was not found", request.base_snapshot_id))?;
-        let current = snapshots
-            .iter()
-            .find(|snapshot| snapshot.id.to_string() == request.snapshot_id)
-            .ok_or_else(|| format!("snapshot {} was not found", request.snapshot_id))?;
+        let base = snapshot_by_id(&repo, &request.base_snapshot_id)?;
+        let current = snapshot_by_id(&repo, &request.snapshot_id)?;
         let base_node = repo
-            .node_from_snapshot_and_path(base, &request.path)
+            .node_from_snapshot_and_path(&base, &request.path)
             .map_err(display_error)?;
         let current_node = repo
-            .node_from_snapshot_and_path(current, &request.path)
+            .node_from_snapshot_and_path(&current, &request.path)
             .map_err(display_error)?;
         let options = LsOptions::default().recursive(true);
         let mut base_entries = repo.ls(&base_node, &options).map_err(display_error)?;
@@ -805,12 +790,7 @@ impl RusticService {
         let (path, password, _) = self.profile_config(&request.profile_id)?;
         let _write = self.begin_repository_write(&path)?;
         let repo = open_repository(&path, &password)?;
-        let snapshot = repo
-            .get_all_snapshots()
-            .map_err(display_error)?
-            .into_iter()
-            .find(|snapshot| snapshot.id.to_string() == request.snapshot_id)
-            .ok_or_else(|| format!("snapshot {} was not found", request.snapshot_id))?;
+        let snapshot = snapshot_by_id(&repo, &request.snapshot_id)?;
         if !matches!(&snapshot.delete, DeleteOption::NotSet) {
             return Err("protected snapshots cannot be deleted".to_string());
         }
@@ -823,13 +803,9 @@ impl RusticService {
         let repo = open_repository(&path, &password)?
             .to_indexed()
             .map_err(display_error)?;
-        let snapshots = repo.get_all_snapshots().map_err(display_error)?;
-        let snapshot = snapshots
-            .iter()
-            .find(|snapshot| snapshot.id.to_string() == request.snapshot_id)
-            .ok_or_else(|| format!("snapshot {} was not found", request.snapshot_id))?;
+        let snapshot = snapshot_by_id(&repo, &request.snapshot_id)?;
         let node = repo
-            .node_from_snapshot_and_path(snapshot, &request.path)
+            .node_from_snapshot_and_path(&snapshot, &request.path)
             .map_err(display_error)?;
         let destination = restore_destination(PathBuf::from(&request.destination).as_path(), &node);
         let destination = LocalDestination::new(&destination.to_string_lossy(), false, false)
@@ -933,13 +909,9 @@ impl RusticService {
                 .to_indexed()
                 .map_err(display_error)?,
         };
-        let snapshots = repo.get_all_snapshots().map_err(display_error)?;
-        let snapshot = snapshots
-            .iter()
-            .find(|snapshot| snapshot.id.to_string() == snapshot_id)
-            .ok_or_else(|| format!("snapshot {snapshot_id} was not found"))?;
+        let snapshot = snapshot_by_id(&repo, snapshot_id)?;
         let node = repo
-            .node_from_snapshot_and_path(snapshot, path_in_snapshot)
+            .node_from_snapshot_and_path(&snapshot, path_in_snapshot)
             .map_err(display_error)?;
         let destination_path = restore_destination(&destination_root, &node);
         let destination = LocalDestination::new(&destination_path.to_string_lossy(), true, false)
@@ -1141,6 +1113,20 @@ fn open_repository_with_progress(
         .map_err(display_error)?
         .open(&Credentials::password(password))
         .map_err(display_error)
+}
+
+fn snapshot_by_id<S: Open>(
+    repository: &Repository<S>,
+    snapshot_id: &str,
+) -> Result<SnapshotFile, String> {
+    repository
+        .get_snapshot_from_str(snapshot_id, |_| true)
+        .map_err(|error| {
+            format!(
+                "snapshot {snapshot_id} could not be loaded: {}",
+                display_error(error)
+            )
+        })
 }
 
 fn repository_stats(
