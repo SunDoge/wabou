@@ -49,9 +49,10 @@ interface VirtualRange {
   readonly end: number;
 }
 
-interface VirtualRow {
+interface VirtualRow<T> {
   readonly index: number;
   readonly key: string;
+  readonly item: T;
 }
 
 export function calculateVirtualRange(
@@ -153,8 +154,12 @@ export function VirtualList<T>(props: VirtualListProps<T>): JSX.Element {
     role: props.role,
     accessibilityLabel: props.accessibilityLabel,
   }));
-  const itemKeys = createMemo(() => {
-    return validateVirtualItemKeys(config.items(), config.getItemKey);
+  const source = createMemo(() => {
+    const items = config.items();
+    return {
+      items,
+      keys: validateVirtualItemKeys(items, config.getItemKey),
+    };
   });
   const [scrollTop, setScrollTop] = createSignal(0);
   const [measuredHeight, setMeasuredHeight] = createSignal(0);
@@ -164,7 +169,7 @@ export function VirtualList<T>(props: VirtualListProps<T>): JSX.Element {
   const range = createMemo(
     () =>
       calculateVirtualRange(
-        itemKeys().length,
+        source().items.length,
         config.itemHeight,
         viewportHeight(),
         scrollTop(),
@@ -175,14 +180,20 @@ export function VirtualList<T>(props: VirtualListProps<T>): JSX.Element {
         previous.start === next.start && previous.end === next.end,
     },
   );
-  const visibleRows = createMemo<readonly VirtualRow[]>(() => {
+  const visibleRows = createMemo<readonly VirtualRow<T>[]>(() => {
     const currentRange = range();
-    const keys = itemKeys();
-    const rows = new Array<VirtualRow>(currentRange.end - currentRange.start);
+    const { items, keys } = source();
+    const rows = new Array<VirtualRow<T>>(
+      currentRange.end - currentRange.start,
+    );
     for (let index = currentRange.start; index < currentRange.end; index++) {
+      const item = items[index];
+      if (item === undefined)
+        throw new Error("VirtualList item snapshot changed during projection");
       rows[index - currentRange.start] = {
         index,
         key: encodedItemKey(keys[index] ?? index),
+        item,
       };
     }
     return rows;
@@ -230,7 +241,6 @@ export function VirtualList<T>(props: VirtualListProps<T>): JSX.Element {
       <ForValue each={visibleRows()} keyed={(row) => row.key}>
         {(row) => {
           const rowIndex = () => row().index;
-          const item = createVirtualRow(config.items, rowIndex);
           return (
             <view
               style={{
@@ -239,14 +249,7 @@ export function VirtualList<T>(props: VirtualListProps<T>): JSX.Element {
                 width: "100%",
               }}
             >
-              {config.children(() => {
-                const current = item();
-                if (current === undefined)
-                  throw new Error(
-                    "VirtualList item disappeared while its row was mounted",
-                  );
-                return current;
-              }, rowIndex)}
+              {config.children(() => row().item, rowIndex)}
             </view>
           );
         }}
@@ -254,7 +257,7 @@ export function VirtualList<T>(props: VirtualListProps<T>): JSX.Element {
       <view
         aria-hidden
         style={{
-          height: `${(itemKeys().length - range().end) * config.itemHeight}px`,
+          height: `${(source().items.length - range().end) * config.itemHeight}px`,
           "flex-shrink": 0,
           width: "100%",
         }}

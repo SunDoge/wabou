@@ -330,9 +330,6 @@ function createFps() {
 }
 //#endregion
 //#region src/renderer/virtual-list.tsx
-function createVirtualRow(items, index) {
-	return createMemo(() => items()[index()]);
-}
 const encodedItemKey = (key) => typeof key === "number" ? `number:${key}` : `string:${key}`;
 function calculateVirtualRange(itemCount, itemHeight, viewportHeight, scrollTop, overscan) {
 	if (!Number.isSafeInteger(itemCount) || itemCount < 0) throw new RangeError("VirtualList item count must be a non-negative integer");
@@ -381,22 +378,31 @@ function VirtualList(props) {
 		role: props.role,
 		accessibilityLabel: props.accessibilityLabel
 	}));
-	const itemKeys = createMemo(() => {
-		return validateVirtualItemKeys(config.items(), config.getItemKey);
+	const source = createMemo(() => {
+		const items = config.items();
+		return {
+			items,
+			keys: validateVirtualItemKeys(items, config.getItemKey)
+		};
 	});
 	const [scrollTop, setScrollTop] = createSignal(0);
 	const [measuredHeight, setMeasuredHeight] = createSignal(0);
 	let observer;
 	const viewportHeight = () => config.viewportHeight ?? measuredHeight();
-	const range = createMemo(() => calculateVirtualRange(itemKeys().length, config.itemHeight, viewportHeight(), scrollTop(), config.overscan), { equals: (previous, next) => previous.start === next.start && previous.end === next.end });
+	const range = createMemo(() => calculateVirtualRange(source().items.length, config.itemHeight, viewportHeight(), scrollTop(), config.overscan), { equals: (previous, next) => previous.start === next.start && previous.end === next.end });
 	const visibleRows = createMemo(() => {
 		const currentRange = range();
-		const keys = itemKeys();
+		const { items, keys } = source();
 		const rows = new Array(currentRange.end - currentRange.start);
-		for (let index = currentRange.start; index < currentRange.end; index++) rows[index - currentRange.start] = {
-			index,
-			key: encodedItemKey(keys[index] ?? index)
-		};
+		for (let index = currentRange.start; index < currentRange.end; index++) {
+			const item = items[index];
+			if (item === void 0) throw new Error("VirtualList item snapshot changed during projection");
+			rows[index - currentRange.start] = {
+				index,
+				key: encodedItemKey(keys[index] ?? index),
+				item
+			};
+		}
 		return rows;
 	});
 	const observeViewport = (node) => {
@@ -429,14 +435,9 @@ function VirtualList(props) {
 		keyed: (row) => row.key,
 		children: (row) => {
 			const rowIndex = () => row().index;
-			const item = createVirtualRow(config.items, rowIndex);
 			var _el$4 = createElement("view");
 			insert(_el$4, () => {
-				return config.children(() => {
-					const current = item();
-					if (current === void 0) throw new Error("VirtualList item disappeared while its row was mounted");
-					return current;
-				}, rowIndex);
+				return config.children(() => row().item, rowIndex);
 			});
 			effect(() => ({
 				height: `${config.itemHeight}px`,
@@ -463,7 +464,7 @@ function VirtualList(props) {
 				width: "100%"
 			},
 			n: {
-				height: `${(itemKeys().length - range().end) * config.itemHeight}px`,
+				height: `${(source().items.length - range().end) * config.itemHeight}px`,
 				"flex-shrink": 0,
 				width: "100%"
 			}
@@ -1202,4 +1203,4 @@ function eventName(code) {
 //#endregion
 export { writer as A, releaseOverlayRoot as C, setProp as D, runSweep as E, defaultHost as F, useHost as I, PathBuilder as L, createFps as M, Portal as N, setTransform2D as O, HostProvider as P, isVectorPath as R, registerRoot as S, render as T, mergeProps as _, createElement as a, reconcileControlledInputValues as b, dispatchEvent as c, getRequestEvent as d, insert as f, memo as g, isServer as h, createComponent$1 as i, VirtualList as j, spread as k, effect as l, isDirectEvent as m, acquireOverlayRoot as n, createTextNode as o, insertNode as p, applyRef as r, delegateEvents as s, Dynamic as t, getMountRoot as u, mount as v, removeNode as w, ref as x, observeGlobalPointerEvent as y };
 
-//# sourceMappingURL=renderer-DKX8JQEL.mjs.map
+//# sourceMappingURL=renderer-4jxE52_B.mjs.map
