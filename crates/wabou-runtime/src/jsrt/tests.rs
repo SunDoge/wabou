@@ -25,6 +25,30 @@ fn core_prelude_keeps_application_frames_in_deep_error_stacks() {
 }
 
 #[test]
+fn core_prelude_does_not_claim_browser_dom_support() {
+    let runtime = JsRuntime::new().expect("runtime");
+    let missing = runtime
+        .with(|ctx| {
+            ctx.eval::<Vec<bool>, _>(
+                r#"
+                [
+                  "window",
+                  "self",
+                  "document",
+                  "scrollX",
+                  "scrollY",
+                  "scrollTo",
+                  "addEventListener",
+                  "removeEventListener",
+                ].map(name => !(name in globalThis))
+                "#,
+            )
+        })
+        .expect("inspect compatibility globals");
+    assert_eq!(missing, vec![true; 8]);
+}
+
+#[test]
 fn runtime_options_expose_the_quickjs_stack_limit() {
     assert_eq!(
         JsRuntimeOptions::default().stack_size(),

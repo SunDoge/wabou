@@ -126,21 +126,3 @@ runtime.console.assert ??= (condition: unknown, ...values: unknown[]) => {
     runtime.console.error("Assertion failed", ...values);
   }
 };
-
-// `window` is the global object in browsers. Keeping identity here avoids
-// libraries observing two diverging sets of globals.
-runtime.window ??= runtime;
-runtime.self ??= runtime;
-runtime.scrollX ??= 0;
-runtime.scrollY ??= 0;
-runtime.scrollTo ??= () => {};
-runtime.addEventListener ??= () => {};
-runtime.removeEventListener ??= () => {};
-runtime.document ??= {
-  addEventListener() {},
-  removeEventListener() {},
-  getElementById() {
-    return null;
-  },
-  baseURI: "http://localhost/",
-};
