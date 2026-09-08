@@ -49,6 +49,7 @@ describe("@wabou/vite", () => {
       "wabou-style-compiler",
       "solid:boundary-modules",
       "solid",
+      "solid:diagnostics",
       "wabou-configure-deps-optimizer",
     ]);
   });
