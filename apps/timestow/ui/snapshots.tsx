@@ -838,15 +838,17 @@ export function SnapshotsPage() {
   ) {
     const profile = session.activeProfile();
     if (!profile) return;
+    const profileId = profile.id;
     const updated = await api.updateSnapshot({
-      profileId: profile.id,
+      profileId,
       snapshotId: snapshot.id,
       label: changes.label,
       description: changes.description ?? "",
       tags: changes.tags,
       deleteProtected: changes.deleteProtected,
     });
-    browserCache.replaceSnapshot(profile.id, snapshot.id, updated.id);
+    browserCache.replaceSnapshot(profileId, snapshot.id, updated.id);
+    if (session.activeProfile()?.id !== profileId) return;
     setSnapshots((items) =>
       items.map((item) => (item.id === snapshot.id ? updated : item)),
     );
@@ -856,12 +858,14 @@ export function SnapshotsPage() {
   async function deleteSnapshot(snapshot: SnapshotEntry) {
     const profile = session.activeProfile();
     if (!profile) return;
+    const profileId = profile.id;
     await api.deleteSnapshot({
-      profileId: profile.id,
+      profileId,
       snapshotId: snapshot.id,
     });
-    browserCache.removeSnapshot(profile.id, snapshot.id);
-    await loadSnapshots(profile.id, "newest");
+    browserCache.removeSnapshot(profileId, snapshot.id);
+    if (session.activeProfile()?.id !== profileId) return;
+    await loadSnapshots(profileId, "newest");
   }
 
   function parentPath(path: string): string {
@@ -888,10 +892,12 @@ export function SnapshotsPage() {
   );
 
   createEffect(
-    () => session.lastBackup(),
-    (completed) => {
-      const profile = session.activeProfile();
-      if (!completed || completed.profileId !== profile?.id) return;
+    () => ({
+      completed: session.lastBackup(),
+      activeProfileId: session.activeProfile()?.id,
+    }),
+    ({ completed, activeProfileId }) => {
+      if (!completed || completed.profileId !== activeProfileId) return;
       void loadSnapshots(completed.profileId, "newest");
     },
   );

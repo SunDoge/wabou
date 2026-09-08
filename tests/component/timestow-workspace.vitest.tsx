@@ -1,8 +1,16 @@
 import type { Dialog } from "@wabou/core";
 import { dispatchHostMessageForTest } from "@wabou/core/testing";
 import { createTestHost, renderComponent } from "@wabou/test/component";
-import { Button, Text } from "@wabou/ui";
-import { createSignal, Show } from "solid-js";
+import {
+  BaseRootRoute,
+  BaseRoute,
+  Button,
+  createDataRouter,
+  createMemoryHistory,
+  RouterProvider,
+  Text,
+} from "@wabou/ui";
+import { createSignal, type JSX, Show } from "solid-js";
 import { expect, test, vi } from "vitest";
 import type {
   FileEntry,
@@ -47,6 +55,7 @@ import {
   SnapshotFileListEmptyState,
   SnapshotPathBreadcrumb,
   SnapshotWorkspaceHeader,
+  SnapshotsPage,
   snapshotAfterRefresh,
   snapshotDisplayTitle,
   snapshotHistoryMetadata,
@@ -1294,6 +1303,135 @@ test("timestow session preserves snapshot navigation across workspace remounts",
   screen.getByRole("button", { name: "Toggle workspace" }).click();
   screen.flush();
   expect(screen.getByRole("status").text).toBe("snapshot-a:docs");
+});
+
+test("a completed snapshot deletion cannot reload a profile that is no longer active", async () => {
+  const profiles = [
+    {
+      id: "photos",
+      name: "Photos",
+      repositoryPath: "/data/photos-repository",
+      sources: ["/data/photos"],
+    },
+    {
+      id: "documents",
+      name: "Documents",
+      repositoryPath: "/data/documents-repository",
+      sources: ["/data/documents"],
+    },
+  ];
+  const snapshotFor = (profileId: string): SnapshotEntry => ({
+    id: `${profileId}-snapshot`,
+    time: "2026-09-08T00:42:00Z",
+    hostname: "workstation",
+    paths: [`/data/${profileId}`],
+    filesNew: 1,
+    filesChanged: 0,
+    label: `${profileId === "photos" ? "Photos" : "Documents"} snapshot`,
+    tags: [],
+    deleteProtected: false,
+  });
+  let finishDeletion!: () => void;
+  const deletion = new Promise<void>((resolve) => {
+    finishDeletion = resolve;
+  });
+  const store: ProfileStore = {
+    load: async () => ({
+      profiles,
+      activeProfileId: "photos",
+    }),
+    save: async () => {},
+    setActive: async () => {},
+    remove: async () => {},
+  };
+  const fixture = createTestHost({
+    rustic: {
+      __wabouCapabilityVersion: 14,
+      status: async () => ({
+        unlockedProfileIds: profiles.map(({ id }) => id),
+      }),
+      listSnapshots: async ({ profileId }: { profileId: string }) => [
+        snapshotFor(profileId),
+      ],
+      listFiles: async ({ offset = 0 }: { offset?: number }) => ({
+        entries: [],
+        total: 0,
+        offset,
+        hasMore: false,
+      }),
+      deleteSnapshot: async () => deletion,
+    },
+  });
+  const TestShell = (props: { children?: JSX.Element }) => {
+    const session = useTimestowSession();
+    return (
+      <>
+        <Button
+          aria-label="Switch to Documents"
+          onClick={() => void session.activateProfile("documents")}
+        />
+        {props.children}
+      </>
+    );
+  };
+  const root = new BaseRootRoute({ component: TestShell });
+  const setup = new BaseRoute({
+    getParentRoute: () => root,
+    path: "/",
+    component: () => <Text>Setup</Text>,
+  });
+  const snapshots = new BaseRoute({
+    getParentRoute: () => root,
+    path: "snapshots",
+    component: SnapshotsPage,
+  });
+  const router = createDataRouter({
+    routeTree: root.addChildren([setup, snapshots]),
+    history: createMemoryHistory({ initialEntries: ["/snapshots"] }),
+    context: {},
+    defaultPendingMs: 0,
+  });
+  const screen = renderComponent(
+    () => (
+      <TimestowSessionProvider store={store}>
+        <RouterProvider router={router} />
+      </TimestowSessionProvider>
+    ),
+    { host: fixture.host, platform: { dialog } },
+  );
+
+  await screen.waitFor(() => {
+    expect(
+      screen.getByRole("button", { name: "Open snapshot Photos snapshot" }),
+    ).toBeDefined();
+  });
+  screen.getByRole("button", { name: "Details" }).click();
+  screen.getByRole("button", { name: "Delete snapshot" }).click();
+  screen.getByRole("button", { name: "Delete snapshot" }).click();
+  await screen.waitFor(() => {
+    expect(fixture.callsTo("rustic.deleteSnapshot")).toHaveLength(1);
+  });
+
+  screen.getByRole("button", { name: "Switch to Documents" }).click();
+  await screen.waitFor(() => {
+    expect(
+      screen.getByRole("button", {
+        name: "Open snapshot Documents snapshot",
+      }),
+    ).toBeDefined();
+  });
+  finishDeletion();
+  await screen.waitFor(() => {
+    expect(
+      screen.getByRole("button", {
+        name: "Open snapshot Documents snapshot",
+      }),
+    ).toBeDefined();
+    expect(fixture.callsTo("rustic.listSnapshots").at(-1)?.args[0]).toEqual({
+      profileId: "documents",
+    });
+  });
+  screen.dispose();
 });
 
 test("snapshot file tree loads child directories only when expanded", async () => {
