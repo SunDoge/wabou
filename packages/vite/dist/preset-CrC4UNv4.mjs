@@ -163,6 +163,80 @@ function rejectUnsupportedProperty(property) {
 	return `unsupported CSS property ${property}: not in the wabou CSS support matrix (add it as supported or unsupported)`;
 }
 //#endregion
+//#region src/theme-contract.ts
+/**
+* Semantic colors used by `@wabou/ui` when an application does not provide a
+* theme. This module deliberately has no Vite or compiler dependencies so it
+* is also safe to load from editor tooling.
+*/
+const defaultWabouColorThemes = {
+	default: "light",
+	themes: {
+		dark: {
+			appearance: "dark",
+			colors: {
+				canvas: "#121418",
+				surface: "#1a1d22",
+				"surface-muted": "#16191e",
+				input: "#20242a",
+				control: "#24282f",
+				"control-hover": "#2d323a",
+				"control-pressed": "#363c45",
+				selected: "#233754",
+				primary: "#f2f4f7",
+				secondary: "#bac0c9",
+				muted: "#8e97a4",
+				subtle: "#30353d",
+				strong: "#464d58",
+				accent: "#4c8dff",
+				"accent-hover": "#6aa1ff",
+				"accent-pressed": "#397ce8",
+				"on-accent": "#121418",
+				danger: "#ef4444",
+				"danger-hover": "#dc2626",
+				"danger-pressed": "#b91c1c",
+				"danger-surface": "#450a0a",
+				"danger-primary": "#fecaca",
+				"success-surface": "#064e3b",
+				"success-primary": "#a7f3d0",
+				focus: "#74a8ff"
+			}
+		},
+		light: {
+			appearance: "light",
+			colors: {
+				canvas: "#ffffff",
+				surface: "#ffffff",
+				"surface-muted": "#f0f2f5",
+				input: "#ffffff",
+				control: "#f1f3f6",
+				"control-hover": "#e8ebef",
+				"control-pressed": "#dde2e8",
+				selected: "#e6efff",
+				primary: "#171a1f",
+				secondary: "#535b66",
+				muted: "#606a77",
+				subtle: "#dfe3e8",
+				strong: "#c5cbd3",
+				accent: "#2563eb",
+				"accent-hover": "#1d4ed8",
+				"accent-pressed": "#1e40af",
+				"on-accent": "#ffffff",
+				danger: "#dc2626",
+				"danger-hover": "#b91c1c",
+				"danger-pressed": "#991b1b",
+				"danger-surface": "#fef2f2",
+				"danger-primary": "#991b1b",
+				"success-surface": "#ecfdf5",
+				"success-primary": "#047857",
+				focus: "#3b82f6"
+			}
+		}
+	}
+};
+/** Semantic colors guaranteed by Wabou's built-in component theme. */
+const defaultWabouSemanticColorTokens = Object.freeze(Object.keys(defaultWabouColorThemes.themes[defaultWabouColorThemes.default].colors));
+//#endregion
 //#region src/preset/index.ts
 const wabouUtilityManifest = manifest_default;
 function matchDynamic(utility, resolver) {
@@ -537,11 +611,30 @@ function unoRule() {
 		return Object.fromEntries(resolved.declarations.map(({ property, value }) => [property.startsWith("transform-") ? "transform" : property, cssValue(value)]));
 	}];
 }
+function presetSemanticColors(options) {
+	const configured = options.theme ? Object.keys(options.theme.themes[options.theme.default]?.colors ?? {}) : [];
+	return [.../* @__PURE__ */ new Set([
+		...defaultWabouSemanticColorTokens,
+		...configured,
+		...options.semanticColors ?? []
+	])].sort();
+}
+function semanticColorRule(tokens) {
+	return [/^(bg|text|border)-(.+)$/, ([, prefix, token]) => {
+		if (!token || !tokens.has(token)) return;
+		return { [prefix === "bg" ? "background-color" : prefix === "text" ? "color" : "border-color"]: `var(--wabou-${token})` };
+	}];
+}
 /** UnoCSS adapter for editor tooling over the native utility manifest. */
-function presetWabou() {
+function presetWabou(options = {}) {
+	const semanticColors = presetSemanticColors(options);
 	return {
 		name: "@wabou/vite/preset",
-		rules: [unoRule()],
+		rules: [semanticColorRule(new Set(semanticColors)), unoRule()],
+		theme: { colors: {
+			...Object.fromEntries(Object.entries(wabouUtilityManifest.colors).map(([token, rgba]) => [token, `#${rgba.toString(16).padStart(8, "0")}`])),
+			...Object.fromEntries(semanticColors.map((token) => [token, `var(--wabou-${token})`]))
+		} },
 		autocomplete: { templates: [
 			"p-$spacing",
 			"px-$spacing",
@@ -557,6 +650,6 @@ function presetWabou() {
 	};
 }
 //#endregion
-export { wabouUtilityManifest as i, resolveWabouUtility as n, validateWabouUtility as r, presetWabou as t };
+export { defaultWabouColorThemes as a, wabouUtilityManifest as i, resolveWabouUtility as n, defaultWabouSemanticColorTokens as o, validateWabouUtility as r, presetWabou as t };
 
-//# sourceMappingURL=preset-vuc4FyI1.mjs.map
+//# sourceMappingURL=preset-CrC4UNv4.mjs.map

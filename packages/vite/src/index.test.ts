@@ -5,6 +5,7 @@ import type { ConfigEnv, Plugin, UserConfig, UserConfigExport } from "vite";
 import {
   color,
   defaultWabouColorThemes,
+  defaultWabouSemanticColorTokens,
   defineWabouConfig,
   defineWabouTheme,
   hasWabouWorkspaceSources,
@@ -27,6 +28,13 @@ describe("@wabou/vite", () => {
       const value = originalEnvironment[name];
       if (value === undefined) delete process.env[name];
       else process.env[name] = value;
+    }
+  });
+
+  test("keeps every built-in palette aligned with the tooling contract", () => {
+    const toolingTokens = [...defaultWabouSemanticColorTokens].sort();
+    for (const theme of Object.values(defaultWabouColorThemes.themes)) {
+      expect(Object.keys(theme.colors).sort()).toEqual(toolingTokens);
     }
   });
 

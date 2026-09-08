@@ -83,18 +83,21 @@ export function Spinner(props: {
 export type KbdProps = TextProps;
 
 export function Kbd(props: KbdProps): JSX.Element {
-  const forwarded = omit(props, "class", "style", "children");
+  const forwarded = omit(props, "class", "style", "children", "maxLines");
   return (
-    <Text
+    <View
       {...forwarded}
+      role={props.role ?? "label"}
       class={mergeClasses(
-        "h-5 min-w-5 px-1 py-0.5 flex-none text-center rounded bg-control text-xs font-medium text-muted",
+        "h-5 min-w-5 px-1 inline-flex items-center justify-center flex-none rounded bg-control text-xs font-medium text-muted",
         props.class,
       )}
       style={{ "line-height": 1, ...props.style }}
     >
-      {props.children}
-    </Text>
+      <Text aria-hidden="true" maxLines={1} class="flex-none whitespace-nowrap">
+        {props.children}
+      </Text>
+    </View>
   );
 }
 

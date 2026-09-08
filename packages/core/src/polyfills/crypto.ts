@@ -90,13 +90,9 @@ class WabouCrypto {
 /** Install the native random and digest subset when Wabou's ABI is present. */
 export function installCryptoPolyfill(): void {
   if (!("__wabou_crypto_random" in globalThis)) return;
-  if (!("crypto" in globalThis)) {
-    Object.defineProperty(globalThis, "crypto", {
-      configurable: true,
-      writable: true,
-      value: new WabouCrypto(),
-    });
-  }
+  installMissingGlobal("crypto", new WabouCrypto());
 }
 
 installCryptoPolyfill();
+
+import { installMissingGlobal } from "./globals";

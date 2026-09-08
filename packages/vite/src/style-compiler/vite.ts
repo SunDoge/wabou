@@ -9,6 +9,10 @@ import {
   validateWabouUtility,
   wabouUtilityManifest,
 } from "../preset";
+import type {
+  WabouColorThemeOptions,
+  WabouThemeColor,
+} from "../theme-contract.ts";
 import {
   STYLE_IR_VERSION,
   type StyleRule,
@@ -44,19 +48,10 @@ export function filterIgnoredClasses(
   );
 }
 
-/** A build-time sRGB color accepted by the Wabou theme compiler. */
-export type WabouThemeColor = `#${string}`;
-
-export interface WabouColorThemeOptions {
-  default: string;
-  themes: Record<
-    string,
-    {
-      appearance: "light" | "dark";
-      colors: Record<string, WabouThemeColor>;
-    }
-  >;
-}
+export type {
+  WabouColorThemeOptions,
+  WabouThemeColor,
+} from "../theme-contract.ts";
 
 type CompiledColorThemes = NonNullable<WabouStyleSheet["colorThemes"]>;
 

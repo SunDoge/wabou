@@ -156,7 +156,8 @@ class WabouResponse {
   }
 
   private async consumeBody(): Promise<Uint8Array> {
-    if (this.bodyUsed) throw new TypeError("Response body has already been consumed");
+    if (this.bodyUsed)
+      throw new TypeError("Response body has already been consumed");
     if (this.body === null) {
       this.consumed = true;
       return new Uint8Array();
@@ -200,7 +201,8 @@ class WabouResponse {
   }
 
   clone(): WabouResponse {
-    if (this.bodyUsed) throw new TypeError("Cannot clone a consumed Response body");
+    if (this.bodyUsed)
+      throw new TypeError("Cannot clone a consumed Response body");
     return new WabouResponse(
       this.bodyBytes,
       {
@@ -240,20 +242,7 @@ type FetchRuntime = typeof globalThis & {
 
 /** Install the host-backed Fetch API surface. Safe to call again in tests. */
 export function installFetchPolyfill(): void {
-  if (!("Headers" in globalThis)) {
-    Object.defineProperty(globalThis, "Headers", {
-      configurable: true,
-      writable: true,
-      value: WabouHeaders,
-    });
-  }
-  if (!("Response" in globalThis)) {
-    Object.defineProperty(globalThis, "Response", {
-      configurable: true,
-      writable: true,
-      value: WabouResponse,
-    });
-  }
+  installMissingGlobals({ Headers: WabouHeaders, Response: WabouResponse });
 
   // A browser, Bun, or Node runtime may already provide its own fetch. Only
   // install Wabou's implementation when the native host bridge is present.
@@ -290,3 +279,5 @@ export function installFetchPolyfill(): void {
 }
 
 installFetchPolyfill();
+
+import { installMissingGlobals } from "./globals";

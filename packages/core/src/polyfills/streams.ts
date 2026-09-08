@@ -13,6 +13,7 @@ import {
   WritableStreamDefaultController,
   WritableStreamDefaultWriter,
 } from "web-streams-polyfill";
+import { installMissingGlobals } from "./globals";
 
 const streamGlobals = {
   ByteLengthQueuingStrategy,
@@ -32,14 +33,7 @@ const streamGlobals = {
 
 /** Install the WHATWG Streams constructors missing from the current runtime. */
 export function installStreamsPolyfill(): void {
-  for (const [name, constructor] of Object.entries(streamGlobals)) {
-    if (name in globalThis) continue;
-    Object.defineProperty(globalThis, name, {
-      configurable: true,
-      writable: true,
-      value: constructor,
-    });
-  }
+  installMissingGlobals(streamGlobals);
 }
 
 installStreamsPolyfill();

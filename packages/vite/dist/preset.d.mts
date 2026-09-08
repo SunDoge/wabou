@@ -1,3 +1,4 @@
+import { n as WabouColorThemeOptions } from "./theme-contract-BXj8mg9N.mjs";
 import { Preset } from "@unocss/core";
 //#region src/preset/index.d.ts
 type Length = {
@@ -65,8 +66,14 @@ type ResolvedUtility = {
 };
 declare function resolveWabouUtility(candidate: string): ResolvedUtility | undefined;
 declare function validateWabouUtility(candidate: string): UtilityDiagnostic | undefined;
+interface WabouPresetOptions {
+  /** Application theme whose semantic colors should appear in editor tooling. */
+  theme?: WabouColorThemeOptions;
+  /** Additional semantic colors supplied outside the application theme. */
+  semanticColors?: readonly string[];
+}
 /** UnoCSS adapter for editor tooling over the native utility manifest. */
-declare function presetWabou(): Preset;
+declare function presetWabou(options?: WabouPresetOptions): Preset;
 //#endregion
-export { ResolvedUtility, UtilityDiagnostic, WabouStyleDeclaration, WabouStyleValue, WabouUtilityManifest, presetWabou, resolveWabouUtility, validateWabouUtility, wabouUtilityManifest };
+export { ResolvedUtility, UtilityDiagnostic, WabouPresetOptions, WabouStyleDeclaration, WabouStyleValue, WabouUtilityManifest, presetWabou, resolveWabouUtility, validateWabouUtility, wabouUtilityManifest };
 //# sourceMappingURL=preset.d.mts.map

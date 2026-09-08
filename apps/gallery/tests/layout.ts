@@ -460,7 +460,23 @@ const assertControlBaselineLayout = (snapshot: LayoutSnapshot) => {
   assertClose(keycap.rect.height, 20, "keyboard key height");
   if (keycap.rect.width < 20)
     throw new Error(`keyboard key width was only ${keycap.rect.width}px`);
-  assertLayoutTextStyle(keycap, { fontSize: 12, fontWeight: 500 });
+  const keycapText = queryLayoutNodes(snapshot, { tag: "text" }).find(
+    (node) =>
+      node.parentId?.lo === keycap.id.lo && node.parentId.hi === keycap.id.hi,
+  );
+  if (!keycapText?.textMetrics)
+    throw new Error("keyboard key did not project its centered text child");
+  assertLayoutTextStyle(keycapText, { fontSize: 12, fontWeight: 500 });
+  assertClose(
+    keycapText.rect.x + keycapText.rect.width / 2,
+    keycap.contentRect.x + keycap.contentRect.width / 2,
+    "keyboard key text horizontal center",
+  );
+  assertClose(
+    keycapText.rect.y + keycapText.rect.height / 2,
+    keycap.contentRect.y + keycap.contentRect.height / 2,
+    "keyboard key text vertical center",
+  );
   assertClose(avatar.rect.width, 32, "small avatar width");
   assertClose(avatar.rect.height, 32, "small avatar height");
   if (!avatar.classes.includes("overflow-hidden"))

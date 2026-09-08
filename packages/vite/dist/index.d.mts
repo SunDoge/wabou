@@ -1,14 +1,6 @@
+import { a as defaultWabouSemanticColorTokens, i as defaultWabouColorThemes, n as WabouColorThemeOptions, r as WabouThemeColor, t as DefaultWabouSemanticColorToken } from "./theme-contract-BXj8mg9N.mjs";
 import { ConfigEnv, Plugin, UserConfig, UserConfigExport } from "vite";
 //#region src/style-compiler/vite.d.ts
-/** A build-time sRGB color accepted by the Wabou theme compiler. */
-type WabouThemeColor = `#${string}`;
-interface WabouColorThemeOptions {
-  default: string;
-  themes: Record<string, {
-    appearance: "light" | "dark";
-    colors: Record<string, WabouThemeColor>;
-  }>;
-}
 /** Validate a generated or shared theme color at its declaration site. */
 declare function color(value: string): WabouThemeColor;
 /**
@@ -46,13 +38,6 @@ interface WabouIntlOptions {
   /** Time-zone data set. `golden` is the compact recommended default. */
   timeZones?: "golden" | "all";
 }
-/**
- * Semantic colors used by `@wabou/ui` when an application does not provide a
- * theme. Keeping this at the Vite boundary means every official component is
- * usable in a minimal project while applications can still replace the whole
- * token contract explicitly.
- */
-declare const defaultWabouColorThemes: WabouColorThemeOptions;
 type WabouViteOptionsExport = WabouViteOptions | ((environment: ConfigEnv) => WabouViteOptions);
 /** Detect a Wabou source workspace while allowing applications to live below it. */
 declare function hasWabouWorkspaceSources(start: string): boolean;
@@ -61,5 +46,5 @@ declare function wabouPlugins(root?: string, theme?: WabouColorThemeOptions, ign
 /** Define the complete conventional Vite configuration for a Wabou app. */
 declare function defineWabouConfig(options: WabouViteOptionsExport): UserConfigExport;
 //#endregion
-export { type WabouColorThemeOptions, WabouIntlOptions, type WabouThemeColor, WabouViteOptions, WabouViteOptionsExport, color, defaultWabouColorThemes, defineWabouConfig, defineWabouTheme, hasWabouWorkspaceSources, wabouPlugins };
+export { type DefaultWabouSemanticColorToken, type WabouColorThemeOptions, WabouIntlOptions, type WabouThemeColor, WabouViteOptions, WabouViteOptionsExport, color, defaultWabouColorThemes, defaultWabouSemanticColorTokens, defineWabouConfig, defineWabouTheme, hasWabouWorkspaceSources, wabouPlugins };
 //# sourceMappingURL=index.d.mts.map

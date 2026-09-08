@@ -233,10 +233,13 @@ function Spinner(props) {
 	});
 }
 function Kbd(props) {
-	const forwarded = omit(props, "class", "style", "children");
-	return createComponent$1(Text, mergeProps(forwarded, {
+	const forwarded = omit(props, "class", "style", "children", "maxLines");
+	return createComponent$1(View, mergeProps(forwarded, {
+		get role() {
+			return props.role ?? "label";
+		},
 		get ["class"]() {
-			return mergeClasses("h-5 min-w-5 px-1 py-0.5 flex-none text-center rounded bg-control text-xs font-medium text-muted", props.class);
+			return mergeClasses("h-5 min-w-5 px-1 inline-flex items-center justify-center flex-none rounded bg-control text-xs font-medium text-muted", props.class);
 		},
 		get style() {
 			return {
@@ -245,7 +248,14 @@ function Kbd(props) {
 			};
 		},
 		get children() {
-			return props.children;
+			return createComponent$1(Text, {
+				"aria-hidden": "true",
+				maxLines: 1,
+				class: "flex-none whitespace-nowrap",
+				get children() {
+					return props.children;
+				}
+			});
 		}
 	}));
 }

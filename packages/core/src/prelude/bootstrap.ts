@@ -127,20 +127,7 @@ runtime.console.assert ??= (condition: unknown, ...values: unknown[]) => {
   }
 };
 
-// `window` is the global object in browsers. Keeping identity here avoids
-// libraries observing two diverging sets of globals.
-runtime.window ??= runtime;
+// `self` is the environment-neutral global alias shared by browsers and Web
+// Workers. DOM-independent libraries such as TanStack Router use it after an
+// explicit client-runtime check, without requiring `window` or `document`.
 runtime.self ??= runtime;
-runtime.scrollX ??= 0;
-runtime.scrollY ??= 0;
-runtime.scrollTo ??= () => {};
-runtime.addEventListener ??= () => {};
-runtime.removeEventListener ??= () => {};
-runtime.document ??= {
-  addEventListener() {},
-  removeEventListener() {},
-  getElementById() {
-    return null;
-  },
-  baseURI: "http://localhost/",
-};
