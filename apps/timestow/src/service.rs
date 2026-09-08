@@ -1,6 +1,6 @@
 use std::{
     cmp::Ordering,
-    collections::BTreeSet,
+    collections::{BTreeSet, VecDeque},
     path::PathBuf,
     sync::{Arc, Mutex, RwLock},
 };
@@ -25,6 +25,7 @@ use crate::progress::{
 };
 
 pub const CAPABILITY: CapabilityContract = CapabilityContract::new("rustic", 14);
+const MAX_RETAINED_PREVIEW_ROOTS: usize = 8;
 
 const STATUS: HostMethod<(), RuntimeStatus> = HostMethod::no_request("status");
 const CREATE_PROFILE: HostMethod<ProfileRequest, RuntimeStatus> = HostMethod::new("createProfile");
@@ -55,7 +56,7 @@ pub struct RusticService {
     state: Arc<RwLock<ServiceState>>,
     progress: ProgressEmitter,
     secrets: VelloHybridSecretStore,
-    preview_roots: Arc<Mutex<Vec<tempfile::TempDir>>>,
+    preview_roots: Arc<Mutex<VecDeque<tempfile::TempDir>>>,
     repository_writes: Arc<Mutex<BTreeSet<PathBuf>>>,
 }
 
@@ -345,6 +346,18 @@ impl RusticService {
             repository,
             active: self.repository_writes.clone(),
         })
+    }
+
+    fn retain_preview_root(&self, preview_root: tempfile::TempDir) -> Result<(), String> {
+        let mut roots = self
+            .preview_roots
+            .lock()
+            .map_err(|_| "preview state is poisoned".to_string())?;
+        roots.push_back(preview_root);
+        while roots.len() > MAX_RETAINED_PREVIEW_ROOTS {
+            roots.pop_front();
+        }
+        Ok(())
     }
 
     fn status(&self) -> Result<RuntimeStatus, String> {
@@ -890,10 +903,7 @@ impl RusticService {
             preview_root.path().to_path_buf(),
             None,
         )?;
-        self.preview_roots
-            .lock()
-            .map_err(|_| "preview state is poisoned".to_string())?
-            .push(preview_root);
+        self.retain_preview_root(preview_root)?;
         Ok(result)
     }
 
@@ -1443,6 +1453,26 @@ mod tests {
             .begin_repository_write(&alias.to_string_lossy())
             .expect("repository write slot is released on drop");
         drop(other_write);
+    }
+
+    #[test]
+    fn preview_roots_are_bounded_and_release_the_oldest_workspace() {
+        let service = RusticService::default();
+        let mut paths = Vec::new();
+        for _ in 0..=MAX_RETAINED_PREVIEW_ROOTS {
+            let root = tempfile::tempdir().expect("preview root");
+            paths.push(root.path().to_path_buf());
+            service
+                .retain_preview_root(root)
+                .expect("retain preview root");
+        }
+
+        assert!(!paths[0].exists());
+        assert!(paths[1..].iter().all(|path| path.exists()));
+        assert_eq!(
+            service.preview_roots.lock().expect("preview roots").len(),
+            MAX_RETAINED_PREVIEW_ROOTS
+        );
     }
 
     #[test]
