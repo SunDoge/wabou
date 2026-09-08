@@ -1,10 +1,11 @@
 //! Native password input whose secret never crosses the QuickJS bridge.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, VecDeque};
 use std::sync::{Arc, Mutex};
 
 use vello_common::kurbo::{Affine, Rect};
 use vello_common::peniko::{Color, Fill};
+use wabou_protocol::event;
 use wabou_shell::style::TextAlign;
 use wabou_shell::text::{
     SingleLineTextMetrics, brush_for_color, layout_text_styled, single_line_text_metrics,
@@ -14,7 +15,8 @@ use wabou_shell_vello::{PaintScene, Scene};
 use zeroize::{Zeroize, Zeroizing};
 
 use wabou_shell::{
-    PaintContext, Widget, WidgetEventResult, WidgetImePurpose, WidgetImeState, WidgetStyle,
+    PaintContext, Widget, WidgetEventResult, WidgetImePurpose, WidgetImeState, WidgetNodeEvent,
+    WidgetStyle,
 };
 
 const PLACEHOLDER: Color = Color::from_rgb8(0x64, 0x74, 0x8b);
@@ -39,6 +41,18 @@ impl SecretStore {
             .unwrap_or_default()
     }
 
+    /// Put a previously taken secret back into an isolated slot after an
+    /// operation failed. The value is moved without creating another copy and
+    /// any displaced value remains protected by `Zeroizing`.
+    #[must_use]
+    pub fn restore(&self, slot: &str, secret: Zeroizing<String>) -> bool {
+        let Ok(mut secrets) = self.0.lock() else {
+            return false;
+        };
+        secrets.insert(slot.to_owned(), secret);
+        true
+    }
+
     /// Remove and explicitly zeroize a slot if it exists.
     pub fn clear(&self, slot: &str) {
         if let Ok(mut secrets) = self.0.lock()
@@ -48,12 +62,14 @@ impl SecretStore {
         }
     }
 
-    fn edit(&self, slot: &str, edit: impl FnOnce(&mut String)) -> bool {
+    fn edit(&self, slot: &str, edit: impl FnOnce(&mut String)) -> Option<(bool, bool)> {
         let Ok(mut secrets) = self.0.lock() else {
-            return false;
+            return None;
         };
-        edit(secrets.entry(slot.to_owned()).or_default());
-        true
+        let secret = secrets.entry(slot.to_owned()).or_default();
+        let had_value = !secret.is_empty();
+        edit(secret);
+        Some((had_value, !secret.is_empty()))
     }
 
     fn character_count(&self, slot: &str) -> usize {
@@ -79,6 +95,7 @@ pub struct PasswordInput {
     font_family: Option<Arc<str>>,
     color: Color,
     text_metrics: Option<SingleLineTextMetrics>,
+    events: VecDeque<WidgetNodeEvent>,
 }
 
 impl PasswordInput {
@@ -97,10 +114,25 @@ impl PasswordInput {
             font_family: None,
             color: Color::WHITE,
             text_metrics: None,
+            events: VecDeque::new(),
         }
     }
 
-    fn insert(&self, text: &str) -> WidgetEventResult {
+    fn report_presence_change(&mut self, previous: bool, current: bool) {
+        if previous == current {
+            return;
+        }
+        self.events.push_back(WidgetNodeEvent::json(
+            event::SECRETSTATECHANGE,
+            if current {
+                r#"{"hasValue":true}"#
+            } else {
+                r#"{"hasValue":false}"#
+            },
+        ));
+    }
+
+    fn insert(&mut self, text: &str) -> WidgetEventResult {
         let filtered: String = text
             .chars()
             .filter(|character| !character.is_control())
@@ -108,14 +140,14 @@ impl PasswordInput {
         if filtered.is_empty() {
             return WidgetEventResult::IGNORED;
         }
-        if self
+        let Some((previous, current)) = self
             .secrets
             .edit(&self.slot, |secret| secret.push_str(&filtered))
-        {
-            WidgetEventResult::HANDLED
-        } else {
-            WidgetEventResult::IGNORED
-        }
+        else {
+            return WidgetEventResult::IGNORED;
+        };
+        self.report_presence_change(previous, current);
+        WidgetEventResult::HANDLED
     }
 }
 
@@ -185,13 +217,16 @@ impl Widget for PasswordInput {
                 WidgetEventResult::paste()
             }
             UiEvent::Key(key) if key.phase == KeyPhase::Down && key.key == "Backspace" => {
-                if self.secrets.edit(&self.slot, |secret| {
+                let Some((previous, current)) = self.secrets.edit(&self.slot, |secret| {
                     secret.pop();
-                }) {
-                    WidgetEventResult::HANDLED
-                } else {
-                    WidgetEventResult::IGNORED
+                }) else {
+                    return WidgetEventResult::IGNORED;
+                };
+                if !previous {
+                    return WidgetEventResult::IGNORED;
                 }
+                self.report_presence_change(previous, current);
+                WidgetEventResult::HANDLED
             }
             _ => WidgetEventResult::IGNORED,
         }
@@ -200,7 +235,12 @@ impl Widget for PasswordInput {
     fn attribute_changed(&mut self, name: &str, value: &str) -> wabou_shell::WidgetChanges {
         match name {
             "placeholder" => self.placeholder = value.to_owned(),
-            "secret" => self.slot = value.to_owned(),
+            "secret" => {
+                if self.slot != value {
+                    self.secrets.clear(&self.slot);
+                    self.slot = value.to_owned();
+                }
+            }
             "disabled" => self.disabled = value != "false",
             _ => return wabou_shell::WidgetChanges::empty(),
         }
@@ -284,6 +324,10 @@ impl Widget for PasswordInput {
         })
     }
 
+    fn take_node_event(&mut self) -> Option<WidgetNodeEvent> {
+        self.events.pop_front()
+    }
+
     fn unmount(&mut self) {
         self.secrets.clear(&self.slot);
     }
@@ -292,6 +336,22 @@ impl Widget for PasswordInput {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use wabou_shell::{KeyEvent, KeyLocation, Modifiers};
+
+    fn backspace() -> UiEvent {
+        UiEvent::Key(KeyEvent {
+            phase: KeyPhase::Down,
+            key: "Backspace".into(),
+            key_without_modifiers: "Backspace".into(),
+            code: "Backspace".into(),
+            text: None,
+            text_with_all_modifiers: None,
+            location: KeyLocation::Standard,
+            modifiers: Modifiers::empty(),
+            repeat: false,
+            synthetic: false,
+        })
+    }
 
     #[test]
     fn secret_is_taken_once_without_becoming_a_widget_value() {
@@ -310,6 +370,35 @@ mod tests {
     }
 
     #[test]
+    fn reports_only_secret_presence_transitions() {
+        let mut input = PasswordInput::new(SecretStore::default());
+
+        input.handle_event(&UiEvent::TextInput("a".into()));
+        assert_eq!(
+            input.take_node_event(),
+            Some(WidgetNodeEvent::json(
+                event::SECRETSTATECHANGE,
+                r#"{"hasValue":true}"#,
+            ))
+        );
+        input.handle_event(&UiEvent::TextInput("sensitive".into()));
+        assert!(input.take_node_event().is_none());
+
+        for _ in 0..9 {
+            input.handle_event(&backspace());
+        }
+        assert!(input.take_node_event().is_none());
+        input.handle_event(&backspace());
+        assert_eq!(
+            input.take_node_event(),
+            Some(WidgetNodeEvent::json(
+                event::SECRETSTATECHANGE,
+                r#"{"hasValue":false}"#,
+            ))
+        );
+    }
+
+    #[test]
     fn password_input_accepts_only_the_secret_attribute() {
         let mut input = PasswordInput::new(SecretStore::default());
 
@@ -317,6 +406,17 @@ mod tests {
         assert_eq!(input.slot, DEFAULT_SLOT);
         assert!(!input.attribute_changed("secret", "current").is_empty());
         assert_eq!(input.slot, "current");
+    }
+
+    #[test]
+    fn changing_slots_clears_the_previous_secret() {
+        let secrets = SecretStore::default();
+        let mut input = PasswordInput::new(secrets.clone());
+        input.handle_event(&UiEvent::TextInput("temporary".into()));
+
+        input.attribute_changed("secret", "next");
+
+        assert!(secrets.take(DEFAULT_SLOT).is_empty());
     }
 
     #[test]

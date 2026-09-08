@@ -1,57 +1,160 @@
 use std::{
     cmp::Ordering,
-    collections::BTreeSet,
-    path::PathBuf,
-    sync::{Arc, RwLock},
-    time::{SystemTime, UNIX_EPOCH},
+    collections::{BTreeSet, VecDeque},
+    hash::Hash,
+    num::NonZeroUsize,
+    path::{Path, PathBuf},
+    sync::{Arc, Mutex, RwLock},
 };
 
+use lru::LruCache;
 use rustic_backend::BackendOptions;
 use rustic_core::{
-    BackupOptions, ConfigOptions, Credentials, KeyOptions, LocalDestination, LsOptions, PathList,
-    ProgressBars, Repository, RepositoryOptions, RestoreOptions, SnapshotOptions,
-    repofile::{DeleteOption, StringList},
+    BackupOptions, CheckOptions, ConfigOptions, Credentials, KeyOptions, LocalDestination,
+    LsOptions, Open, PathList, ProgressBars, Repository, RepositoryOptions, RestoreOptions,
+    SnapshotOptions,
+    repofile::{DeleteOption, SnapshotFile, StringList},
 };
 use serde::{Deserialize, Serialize};
-use wabou::{CapabilityContract, HostMessageHandle, HostMethod, NativeCapability, rquickjs};
+use wabou::{
+    CapabilityContract, HostMessageHandle, HostMethod, NativeCapability, VelloHybridSecretStore,
+    rquickjs,
+};
+use zeroize::Zeroizing;
 
 use crate::progress::{
-    BACKUP_PROGRESS_TOPIC, BackupProgressBars, BackupProgressPhase, ProgressEmitter,
+    OPERATION_PROGRESS_TOPIC, OperationKind, OperationProgressBars, OperationProgressPhase,
+    ProgressEmitter,
 };
 
-pub const CAPABILITY: CapabilityContract = CapabilityContract::new("rustic", 5);
+pub const CAPABILITY: CapabilityContract = CapabilityContract::new("rustic", 14);
+const MAX_RETAINED_PREVIEW_ROOTS: usize = 8;
+const MAX_CACHED_INDEXED_REPOSITORIES: usize = 4;
+const MAX_CACHED_DIRECTORY_LISTINGS: usize = 16;
+const MAX_CACHED_DIRECTORY_LISTING_ENTRIES: usize = 10_000;
+const MAX_CACHED_SNAPSHOT_DIFFS: usize = 8;
+
+type IndexedRepository = Repository<rustic_core::IndexedIdsStatus>;
+
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+struct DirectoryCacheKey {
+    repository: PathBuf,
+    snapshot_id: String,
+    path: String,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+struct SnapshotDiffCacheKey {
+    repository: PathBuf,
+    base_snapshot_id: String,
+    snapshot_id: String,
+    path: String,
+    include_metadata: bool,
+    limit: usize,
+}
+
+struct RepositoryCaches {
+    indexed: LruCache<PathBuf, Arc<IndexedRepository>>,
+    directories: LruCache<DirectoryCacheKey, Arc<Vec<FileEntry>>>,
+    diffs: LruCache<SnapshotDiffCacheKey, Arc<SnapshotDiff>>,
+}
+
+impl RepositoryCaches {
+    fn new() -> Self {
+        Self {
+            indexed: LruCache::new(
+                NonZeroUsize::new(MAX_CACHED_INDEXED_REPOSITORIES)
+                    .expect("repository cache capacity is non-zero"),
+            ),
+            directories: LruCache::new(
+                NonZeroUsize::new(MAX_CACHED_DIRECTORY_LISTINGS)
+                    .expect("directory cache capacity is non-zero"),
+            ),
+            diffs: LruCache::new(
+                NonZeroUsize::new(MAX_CACHED_SNAPSHOT_DIFFS)
+                    .expect("snapshot diff cache capacity is non-zero"),
+            ),
+        }
+    }
+
+    fn invalidate(&mut self, repository: &Path) {
+        self.indexed.pop(repository);
+        remove_cache_entries(&mut self.directories, |key| key.repository == repository);
+        remove_cache_entries(&mut self.diffs, |key| key.repository == repository);
+    }
+}
 
 const STATUS: HostMethod<(), RuntimeStatus> = HostMethod::no_request("status");
 const CREATE_PROFILE: HostMethod<ProfileRequest, RuntimeStatus> = HostMethod::new("createProfile");
 const OPEN_PROFILE: HostMethod<ProfileRequest, RuntimeStatus> = HostMethod::new("openProfile");
-const SELECT_PROFILE: HostMethod<SelectProfileRequest, RuntimeStatus> =
-    HostMethod::new("selectProfile");
+const FORGET_PROFILE: HostMethod<ProfileIdRequest, RuntimeStatus> =
+    HostMethod::new("forgetProfile");
 const SET_SOURCES: HostMethod<SetSourcesRequest, RuntimeStatus> = HostMethod::new("setSources");
 const RUN_BACKUP: HostMethod<ProfileIdRequest, BackupResult> = HostMethod::new("runBackup");
+const CHECK_REPOSITORY: HostMethod<ProfileIdRequest, RepositoryCheckResult> =
+    HostMethod::new("checkRepository");
 const LIST_SNAPSHOTS: HostMethod<ProfileIdRequest, Vec<SnapshotEntry>> =
     HostMethod::new("listSnapshots");
-const LIST_FILES: HostMethod<ListFilesRequest, Vec<FileEntry>> = HostMethod::new("listFiles");
+const LIST_FILES: HostMethod<ListFilesRequest, FileListing> = HostMethod::new("listFiles");
 const SEARCH_FILES: HostMethod<SearchFilesRequest, Vec<FileEntry>> = HostMethod::new("searchFiles");
 const DIFF_SNAPSHOTS: HostMethod<DiffSnapshotsRequest, SnapshotDiff> =
     HostMethod::new("diffSnapshots");
 const UPDATE_SNAPSHOT: HostMethod<UpdateSnapshotRequest, SnapshotEntry> =
     HostMethod::new("updateSnapshot");
+const DELETE_SNAPSHOT: HostMethod<DeleteSnapshotRequest, ()> = HostMethod::new("deleteSnapshot");
 const PREVIEW_RESTORE: HostMethod<RestorePathRequest, RestorePlanSummary> =
     HostMethod::new("previewRestore");
 const RESTORE_PATH: HostMethod<RestorePathRequest, RestoreResult> = HostMethod::new("restorePath");
 const PREVIEW_PATH: HostMethod<PreviewPathRequest, RestoreResult> = HostMethod::new("previewPath");
 const OPEN_PATH: HostMethod<OpenPathRequest, ()> = HostMethod::new("openPath");
 
-#[derive(Clone, Default)]
+#[derive(Clone)]
 pub struct RusticService {
     state: Arc<RwLock<ServiceState>>,
     progress: ProgressEmitter,
+    secrets: VelloHybridSecretStore,
+    preview_roots: Arc<Mutex<VecDeque<tempfile::TempDir>>>,
+    repository_writes: Arc<Mutex<BTreeSet<PathBuf>>>,
+    repository_caches: Arc<Mutex<RepositoryCaches>>,
+}
+
+struct RepositoryWriteGuard {
+    repository: PathBuf,
+    active: Arc<Mutex<BTreeSet<PathBuf>>>,
+    repository_caches: Arc<Mutex<RepositoryCaches>>,
+}
+
+impl Drop for RepositoryWriteGuard {
+    fn drop(&mut self) {
+        let mut active = self
+            .active
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        active.remove(&self.repository);
+        drop(active);
+        self.repository_caches
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .invalidate(&self.repository);
+    }
+}
+
+impl Default for RusticService {
+    fn default() -> Self {
+        Self {
+            state: Arc::default(),
+            progress: ProgressEmitter::default(),
+            secrets: VelloHybridSecretStore::default(),
+            preview_roots: Arc::default(),
+            repository_writes: Arc::default(),
+            repository_caches: Arc::new(Mutex::new(RepositoryCaches::new())),
+        }
+    }
 }
 
 #[derive(Clone, Default)]
 struct ServiceState {
     profiles: Vec<ProfileState>,
-    active_profile_id: Option<String>,
 }
 
 #[derive(Clone)]
@@ -59,7 +162,7 @@ struct ProfileState {
     id: String,
     name: String,
     repository_path: String,
-    password: String,
+    password: Zeroizing<String>,
     sources: Vec<String>,
 }
 
@@ -69,8 +172,9 @@ pub struct ProfileRequest {
     pub id: String,
     pub name: String,
     pub path: String,
-    #[serde(default)]
-    pub password: String,
+    pub password_slot: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub confirmation_slot: Option<String>,
     #[serde(default)]
     pub sources: Vec<String>,
 }
@@ -88,7 +192,12 @@ pub struct ProfileIdRequest {
     pub profile_id: String,
 }
 
-pub type SelectProfileRequest = ProfileIdRequest;
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DeleteSnapshotRequest {
+    pub profile_id: String,
+    pub snapshot_id: String,
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -97,6 +206,10 @@ pub struct ListFilesRequest {
     pub snapshot_id: String,
     #[serde(default)]
     pub path: String,
+    #[serde(default)]
+    pub offset: usize,
+    #[serde(default = "default_file_page_size")]
+    pub limit: usize,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -145,6 +258,8 @@ pub struct RestorePathRequest {
     pub snapshot_id: String,
     pub path: String,
     pub destination: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub operation_id: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -165,7 +280,24 @@ pub struct OpenPathRequest {
 #[serde(rename_all = "camelCase")]
 pub struct RuntimeStatus {
     pub unlocked_profile_ids: Vec<String>,
-    pub active_profile_id: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct RepositoryCheckResult {
+    pub healthy: bool,
+    pub findings: Vec<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub stats: Option<RepositoryStats>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct RepositoryStats {
+    pub repository_size: u64,
+    pub unique_data_size: u64,
+    pub snapshot_count: u64,
+    pub pack_count: u64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -192,6 +324,15 @@ pub struct FileEntry {
     pub kind: String,
     pub size: u64,
     pub modified: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FileListing {
+    pub entries: Vec<FileEntry>,
+    pub total: usize,
+    pub offset: usize,
+    pub has_more: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -252,10 +393,127 @@ pub struct RestoreResult {
 }
 
 impl RusticService {
+    pub fn new(secrets: VelloHybridSecretStore) -> Self {
+        Self {
+            secrets,
+            ..Self::default()
+        }
+    }
+
     pub fn attach_progress_messages(&self, messages: HostMessageHandle) {
         self.progress.replace(move |event| {
-            let _ = messages.emit_json(BACKUP_PROGRESS_TOPIC, event);
+            let _ = messages.emit_json(OPERATION_PROGRESS_TOPIC, event);
         });
+    }
+
+    fn begin_repository_write(&self, path: &str) -> Result<RepositoryWriteGuard, String> {
+        let repository = repository_cache_key(path);
+        let mut active = self
+            .repository_writes
+            .lock()
+            .map_err(|_| "repository write coordinator is poisoned".to_string())?;
+        if !active.insert(repository.clone()) {
+            return Err(
+                "another write is already running for this repository; wait for it to finish"
+                    .to_string(),
+            );
+        }
+        drop(active);
+        let guard = RepositoryWriteGuard {
+            repository: repository.clone(),
+            active: self.repository_writes.clone(),
+            repository_caches: self.repository_caches.clone(),
+        };
+        self.invalidate_indexed_repository(&repository)?;
+        Ok(guard)
+    }
+
+    fn invalidate_indexed_repository(&self, repository: &Path) -> Result<(), String> {
+        self.repository_caches
+            .lock()
+            .map_err(|_| "repository cache is poisoned".to_string())?
+            .invalidate(repository);
+        Ok(())
+    }
+
+    fn indexed_repository_with_key(
+        &self,
+        profile_id: &str,
+    ) -> Result<(PathBuf, Arc<IndexedRepository>), String> {
+        let (path, password, _) = self.profile_config(profile_id)?;
+        let cache_key = repository_cache_key(&path);
+        if let Some(repository) = self
+            .repository_caches
+            .lock()
+            .map_err(|_| "repository cache is poisoned".to_string())?
+            .indexed
+            .get(&cache_key)
+            .cloned()
+        {
+            return Ok((cache_key, repository));
+        }
+
+        let repository = Arc::new(
+            open_repository(&path, &password)?
+                .to_indexed_ids()
+                .map_err(display_error)?,
+        );
+        let current_path = self.profile_config(profile_id)?.0;
+        if repository_cache_key(&current_path) != cache_key {
+            return Err(format!(
+                "backup profile {profile_id} changed while its repository was opening"
+            ));
+        }
+        self.repository_caches
+            .lock()
+            .map_err(|_| "repository cache is poisoned".to_string())?
+            .indexed
+            .put(cache_key.clone(), repository.clone());
+        Ok((cache_key, repository))
+    }
+
+    fn indexed_repository(&self, profile_id: &str) -> Result<Arc<IndexedRepository>, String> {
+        self.indexed_repository_with_key(profile_id)
+            .map(|(_, repository)| repository)
+    }
+
+    #[cfg(test)]
+    fn indexed_repository_cache_len(&self) -> usize {
+        self.repository_caches
+            .lock()
+            .expect("repository index cache")
+            .indexed
+            .len()
+    }
+
+    #[cfg(test)]
+    fn directory_listing_cache_len(&self) -> usize {
+        self.repository_caches
+            .lock()
+            .expect("directory listing cache")
+            .directories
+            .len()
+    }
+
+    #[cfg(test)]
+    fn snapshot_diff_cache_len(&self) -> usize {
+        self.repository_caches
+            .lock()
+            .expect("snapshot diff cache")
+            .diffs
+            .len()
+    }
+
+    fn retain_preview_root(&self, preview_root: tempfile::TempDir) -> Result<(), String> {
+        let mut roots = self
+            .preview_roots
+            .lock()
+            .map_err(|_| "preview state is poisoned".to_string())?;
+        roots.push_back(preview_root);
+        while roots.len() > MAX_RETAINED_PREVIEW_ROOTS {
+            roots.pop_front();
+        }
+        Ok(())
     }
 
     fn status(&self) -> Result<RuntimeStatus, String> {
@@ -263,7 +521,11 @@ impl RusticService {
         Ok(status_from_state(&state))
     }
 
-    fn remember_profile(&self, request: ProfileRequest) -> Result<RuntimeStatus, String> {
+    fn remember_profile(
+        &self,
+        request: ProfileRequest,
+        password: Zeroizing<String>,
+    ) -> Result<RuntimeStatus, String> {
         let name = request.name.trim();
         if name.is_empty() {
             return Err("backup name is required".to_string());
@@ -275,29 +537,38 @@ impl RusticService {
         if request.id.trim().is_empty() {
             return Err("backup profile id is required".to_string());
         }
+        let mut repositories_to_invalidate = vec![repository_cache_key(&request.path)];
         if let Some(profile) = state
             .profiles
             .iter_mut()
             .find(|profile| profile.id == request.id)
         {
+            repositories_to_invalidate.push(repository_cache_key(&profile.repository_path));
             profile.name = name.to_string();
             profile.repository_path = request.path;
-            profile.password = request.password;
+            profile.password = password;
             profile.sources = normalize_sources(request.sources);
         } else {
             state.profiles.push(ProfileState {
                 id: request.id.clone(),
                 name: name.to_string(),
                 repository_path: request.path,
-                password: request.password,
+                password,
                 sources: normalize_sources(request.sources),
             });
         }
-        state.active_profile_id = Some(request.id);
-        Ok(status_from_state(&state))
+        let status = status_from_state(&state);
+        drop(state);
+        for repository in repositories_to_invalidate {
+            self.invalidate_indexed_repository(&repository)?;
+        }
+        Ok(status)
     }
 
-    fn profile_config(&self, profile_id: &str) -> Result<(String, String, Vec<String>), String> {
+    fn profile_config(
+        &self,
+        profile_id: &str,
+    ) -> Result<(String, Zeroizing<String>, Vec<String>), String> {
         let state = self.state.read().map_err(|_| "service state is poisoned")?;
         let profile = state
             .profiles
@@ -313,33 +584,71 @@ impl RusticService {
 
     fn create_profile(&self, request: ProfileRequest) -> Result<RuntimeStatus, String> {
         validate_profile_request(&request)?;
-        create_repository(&request.path, &request.password)?;
-        self.remember_profile(request)
+        let confirmation_slot = request
+            .confirmation_slot
+            .as_deref()
+            .filter(|slot| !slot.trim().is_empty())
+            .ok_or_else(|| "repository password confirmation is required".to_string())?;
+        let password = self.secrets.take(&request.password_slot);
+        let confirmation = self.secrets.take(confirmation_slot);
+        let create_result = (|| {
+            validate_new_repository_password(password.as_str(), confirmation.as_str())?;
+            let _write = self.begin_repository_write(&request.path)?;
+            create_repository(&request.path, password.as_str())
+        })();
+        if let Err(error) = create_result {
+            let _ = self.secrets.restore(&request.password_slot, password);
+            let _ = self.secrets.restore(confirmation_slot, confirmation);
+            return Err(error);
+        }
+        self.remember_profile(request, password)
     }
 
     fn open_profile(&self, request: ProfileRequest) -> Result<RuntimeStatus, String> {
         validate_profile_request(&request)?;
-        open_repository(&request.path, &request.password).map(|_| ())?;
-        self.remember_profile(request)
+        let password = self.secrets.take(&request.password_slot);
+        if password.is_empty() {
+            return Err("repository password is required".to_string());
+        }
+        if let Err(error) = open_repository(&request.path, password.as_str()).map(|_| ()) {
+            let _ = self.secrets.restore(&request.password_slot, password);
+            return Err(error);
+        }
+        self.invalidate_indexed_repository(&repository_cache_key(&request.path))?;
+        self.remember_profile(request, password)
     }
 
-    fn select_profile(&self, request: SelectProfileRequest) -> Result<RuntimeStatus, String> {
+    #[cfg(test)]
+    fn create_profile_with_password(
+        &self,
+        request: ProfileRequest,
+        password: &str,
+    ) -> Result<RuntimeStatus, String> {
+        validate_profile_request(&request)?;
+        validate_new_repository_password(password, password)?;
+        create_repository(&request.path, password)?;
+        self.remember_profile(request, Zeroizing::new(password.to_string()))
+    }
+
+    fn forget_profile(&self, request: ProfileIdRequest) -> Result<RuntimeStatus, String> {
         let mut state = self
             .state
             .write()
             .map_err(|_| "service state is poisoned")?;
-        if !state
+        let repository = state
             .profiles
             .iter()
-            .any(|profile| profile.id == request.profile_id)
-        {
-            return Err(format!(
-                "backup profile {} was not found",
-                request.profile_id
-            ));
+            .find(|profile| profile.id == request.profile_id)
+            .map(|profile| repository_cache_key(&profile.repository_path));
+        state
+            .profiles
+            .retain(|profile| profile.id != request.profile_id);
+        let status = status_from_state(&state);
+        drop(state);
+        if let Some(repository) = repository {
+            self.invalidate_indexed_repository(&repository)?;
         }
-        state.active_profile_id = Some(request.profile_id);
-        Ok(status_from_state(&state))
+        Ok(status)
     }
 
     fn set_sources(&self, request: SetSourcesRequest) -> Result<RuntimeStatus, String> {
@@ -359,17 +668,26 @@ impl RusticService {
 
     fn run_backup(&self, request: ProfileIdRequest) -> Result<BackupResult, String> {
         let profile_id = request.profile_id;
+        let operation_id = format!("backup:{profile_id}");
         self.progress.emit_state(
             &profile_id,
-            BackupProgressPhase::Running,
+            OperationKind::Backup,
+            &operation_id,
+            OperationProgressPhase::Running,
             "Preparing backup",
         );
         let result = (|| {
             let (path, password, sources) = self.profile_config(&profile_id)?;
+            let _write = self.begin_repository_write(&path)?;
             if sources.is_empty() {
                 return Err("add at least one backup folder first".to_string());
             }
-            let progress = BackupProgressBars::new(profile_id.clone(), self.progress.clone());
+            let progress = OperationProgressBars::new(
+                profile_id.clone(),
+                OperationKind::Backup,
+                operation_id.clone(),
+                self.progress.clone(),
+            );
             let repo = open_repository_with_progress(&path, &password, progress)?
                 .to_indexed_ids()
                 .map_err(display_error)?;
@@ -389,37 +707,76 @@ impl RusticService {
         match &result {
             Ok(_) => self.progress.emit_state(
                 &profile_id,
-                BackupProgressPhase::Completed,
+                OperationKind::Backup,
+                &operation_id,
+                OperationProgressPhase::Completed,
                 "Backup complete",
             ),
             Err(_) => {
-                self.progress
-                    .emit_state(&profile_id, BackupProgressPhase::Failed, "Backup failed");
+                self.progress.emit_state(
+                    &profile_id,
+                    OperationKind::Backup,
+                    &operation_id,
+                    OperationProgressPhase::Failed,
+                    "Backup failed",
+                );
             }
         }
         result
     }
 
-    fn list_snapshots(&self, request: ProfileIdRequest) -> Result<Vec<SnapshotEntry>, String> {
+    fn check_repository(&self, request: ProfileIdRequest) -> Result<RepositoryCheckResult, String> {
         let (path, password, _) = self.profile_config(&request.profile_id)?;
-        let repo = open_repository(&path, &password)?;
+        let repository = open_repository(&path, &password)?;
+        let findings = repository
+            .check(CheckOptions::default())
+            .map_err(display_error)?;
+        let healthy = findings.is_ok().is_ok();
+        let stats = if healthy {
+            repository_stats(&repository).ok()
+        } else {
+            None
+        };
+        Ok(RepositoryCheckResult {
+            healthy,
+            findings: findings
+                .0
+                .into_iter()
+                .map(|(_, finding)| finding.to_string())
+                .collect(),
+            stats,
+        })
+    }
+
+    fn list_snapshots(&self, request: ProfileIdRequest) -> Result<Vec<SnapshotEntry>, String> {
+        let (path, _, _) = self.profile_config(&request.profile_id)?;
+        self.invalidate_indexed_repository(&repository_cache_key(&path))?;
+        let repo = self.indexed_repository(&request.profile_id)?;
         let mut snapshots = repo.get_all_snapshots().map_err(display_error)?;
         snapshots.sort_unstable_by(|left, right| right.time.cmp(&left.time));
         Ok(snapshots.iter().map(snapshot_entry).collect())
     }
 
-    fn list_files(&self, request: ListFilesRequest) -> Result<Vec<FileEntry>, String> {
-        let (path, password, _) = self.profile_config(&request.profile_id)?;
-        let repo = open_repository(&path, &password)?
-            .to_indexed_ids()
-            .map_err(display_error)?;
-        let snapshots = repo.get_all_snapshots().map_err(display_error)?;
-        let snapshot = snapshots
-            .iter()
-            .find(|snapshot| snapshot.id.to_string() == request.snapshot_id)
-            .ok_or_else(|| format!("snapshot {} was not found", request.snapshot_id))?;
+    fn list_files(&self, request: ListFilesRequest) -> Result<FileListing, String> {
+        let (repository, repo) = self.indexed_repository_with_key(&request.profile_id)?;
+        let cache_key = DirectoryCacheKey {
+            repository,
+            snapshot_id: request.snapshot_id.clone(),
+            path: request.path.clone(),
+        };
+        if let Some(files) = self
+            .repository_caches
+            .lock()
+            .map_err(|_| "repository cache is poisoned".to_string())?
+            .directories
+            .get(&cache_key)
+            .cloned()
+        {
+            return Ok(file_listing_page(&files, request.offset, request.limit));
+        }
+        let snapshot = snapshot_by_id(&repo, &request.snapshot_id)?;
         let node = repo
-            .node_from_snapshot_and_path(snapshot, &request.path)
+            .node_from_snapshot_and_path(&snapshot, &request.path)
             .map_err(display_error)?;
         let options = LsOptions::default().recursive(false);
         let mut files = repo
@@ -439,7 +796,15 @@ impl RusticService {
             (left.kind != "directory", left.name.to_lowercase())
                 .cmp(&(right.kind != "directory", right.name.to_lowercase()))
         });
-        Ok(files)
+        let files = Arc::new(files);
+        if files.len() <= MAX_CACHED_DIRECTORY_LISTING_ENTRIES {
+            self.repository_caches
+                .lock()
+                .map_err(|_| "repository cache is poisoned".to_string())?
+                .directories
+                .put(cache_key, files.clone());
+        }
+        Ok(file_listing_page(&files, request.offset, request.limit))
     }
 
     fn search_files(&self, request: SearchFilesRequest) -> Result<Vec<FileEntry>, String> {
@@ -447,17 +812,10 @@ impl RusticService {
         if query.is_empty() {
             return Ok(Vec::new());
         }
-        let (path, password, _) = self.profile_config(&request.profile_id)?;
-        let repo = open_repository(&path, &password)?
-            .to_indexed_ids()
-            .map_err(display_error)?;
-        let snapshots = repo.get_all_snapshots().map_err(display_error)?;
-        let snapshot = snapshots
-            .iter()
-            .find(|snapshot| snapshot.id.to_string() == request.snapshot_id)
-            .ok_or_else(|| format!("snapshot {} was not found", request.snapshot_id))?;
+        let repo = self.indexed_repository(&request.profile_id)?;
+        let snapshot = snapshot_by_id(&repo, &request.snapshot_id)?;
         let root = repo
-            .node_from_snapshot_and_path(snapshot, "")
+            .node_from_snapshot_and_path(&snapshot, "")
             .map_err(display_error)?;
         let limit = request.limit.clamp(1, 500);
         let mut matches = Vec::new();
@@ -484,31 +842,39 @@ impl RusticService {
         if request.base_snapshot_id == request.snapshot_id {
             return Err("choose two different snapshots to compare".to_string());
         }
-        let (path, password, _) = self.profile_config(&request.profile_id)?;
-        let repo = open_repository(&path, &password)?
-            .to_indexed_ids()
-            .map_err(display_error)?;
-        let snapshots = repo.get_all_snapshots().map_err(display_error)?;
-        let base = snapshots
-            .iter()
-            .find(|snapshot| snapshot.id.to_string() == request.base_snapshot_id)
-            .ok_or_else(|| format!("snapshot {} was not found", request.base_snapshot_id))?;
-        let current = snapshots
-            .iter()
-            .find(|snapshot| snapshot.id.to_string() == request.snapshot_id)
-            .ok_or_else(|| format!("snapshot {} was not found", request.snapshot_id))?;
+        let limit = request.limit.clamp(1, MAX_DIFF_ENTRIES);
+        let (repository, repo) = self.indexed_repository_with_key(&request.profile_id)?;
+        let cache_key = SnapshotDiffCacheKey {
+            repository,
+            base_snapshot_id: request.base_snapshot_id.clone(),
+            snapshot_id: request.snapshot_id.clone(),
+            path: request.path.clone(),
+            include_metadata: request.include_metadata,
+            limit,
+        };
+        if let Some(result) = self
+            .repository_caches
+            .lock()
+            .map_err(|_| "repository cache is poisoned".to_string())?
+            .diffs
+            .get(&cache_key)
+            .cloned()
+        {
+            return Ok((*result).clone());
+        }
+        let base = snapshot_by_id(&repo, &request.base_snapshot_id)?;
+        let current = snapshot_by_id(&repo, &request.snapshot_id)?;
         let base_node = repo
-            .node_from_snapshot_and_path(base, &request.path)
+            .node_from_snapshot_and_path(&base, &request.path)
             .map_err(display_error)?;
         let current_node = repo
-            .node_from_snapshot_and_path(current, &request.path)
+            .node_from_snapshot_and_path(&current, &request.path)
             .map_err(display_error)?;
         let options = LsOptions::default().recursive(true);
         let mut base_entries = repo.ls(&base_node, &options).map_err(display_error)?;
         let mut current_entries = repo.ls(&current_node, &options).map_err(display_error)?;
         let mut previous = base_entries.next().transpose().map_err(display_error)?;
         let mut current = current_entries.next().transpose().map_err(display_error)?;
-        let limit = request.limit.clamp(1, MAX_DIFF_ENTRIES);
         let mut result = SnapshotDiff::default();
         while previous.is_some() || current.is_some() {
             let (relative_path, previous_node, current_node, advance_previous, advance_current) =
@@ -540,6 +906,14 @@ impl RusticService {
                 };
             let change = diff_change(previous_node, current_node, request.include_metadata);
             if let Some(change) = change {
+                if result.entries.len() == limit {
+                    // The UI only needs to know that more changes exist. Avoid
+                    // traversing the rest of two potentially very large trees
+                    // just to compute an exact count that is not displayed.
+                    result.total_entries = limit as u64 + 1;
+                    result.truncated = true;
+                    break;
+                }
                 result.total_entries += 1;
                 match change {
                     "added" => result.summary.added += 1,
@@ -549,28 +923,26 @@ impl RusticService {
                     "typeChanged" => result.summary.type_changed += 1,
                     _ => {}
                 }
-                if result.entries.len() < limit {
-                    let node = current_node
-                        .or(previous_node)
-                        .expect("a diff entry has one side");
-                    let full_path = if request.path.is_empty() {
-                        relative_path.clone()
-                    } else {
-                        PathBuf::from(&request.path).join(relative_path)
-                    };
-                    result.entries.push(SnapshotDiffEntry {
-                        name: node.name().to_string_lossy().into_owned(),
-                        path: full_path.to_string_lossy().into_owned(),
-                        kind: node_kind(node),
-                        change: change.to_string(),
-                        previous_size: previous_node.map(|node| node.meta.size),
-                        current_size: current_node.map(|node| node.meta.size),
-                        previous_modified: previous_node
-                            .and_then(|node| node.meta.mtime.map(|time| time.to_string())),
-                        current_modified: current_node
-                            .and_then(|node| node.meta.mtime.map(|time| time.to_string())),
-                    });
-                }
+                let node = current_node
+                    .or(previous_node)
+                    .expect("a diff entry has one side");
+                let full_path = if request.path.is_empty() {
+                    relative_path.clone()
+                } else {
+                    PathBuf::from(&request.path).join(relative_path)
+                };
+                result.entries.push(SnapshotDiffEntry {
+                    name: node.name().to_string_lossy().into_owned(),
+                    path: full_path.to_string_lossy().into_owned(),
+                    kind: node_kind(node),
+                    change: change.to_string(),
+                    previous_size: previous_node.map(|node| node.meta.size),
+                    current_size: current_node.map(|node| node.meta.size),
+                    previous_modified: previous_node
+                        .and_then(|node| node.meta.mtime.map(|time| time.to_string())),
+                    current_modified: current_node
+                        .and_then(|node| node.meta.mtime.map(|time| time.to_string())),
+                });
             }
             if advance_previous {
                 previous = base_entries.next().transpose().map_err(display_error)?;
@@ -579,12 +951,17 @@ impl RusticService {
                 current = current_entries.next().transpose().map_err(display_error)?;
             }
         }
-        result.truncated = result.total_entries > result.entries.len() as u64;
+        self.repository_caches
+            .lock()
+            .map_err(|_| "repository cache is poisoned".to_string())?
+            .diffs
+            .put(cache_key, Arc::new(result.clone()));
         Ok(result)
     }
 
     fn update_snapshot(&self, request: UpdateSnapshotRequest) -> Result<SnapshotEntry, String> {
         let (path, password, _) = self.profile_config(&request.profile_id)?;
+        let _write = self.begin_repository_write(&path)?;
         let repo = open_repository(&path, &password)?;
         let snapshots = repo.get_all_snapshots().map_err(display_error)?;
         let previous_ids: BTreeSet<_> = snapshots.iter().map(|snapshot| snapshot.id).collect();
@@ -621,19 +998,26 @@ impl RusticService {
             .ok_or_else(|| "updated snapshot could not be reloaded".to_string())
     }
 
+    fn delete_snapshot(&self, request: DeleteSnapshotRequest) -> Result<(), String> {
+        let (path, password, _) = self.profile_config(&request.profile_id)?;
+        let _write = self.begin_repository_write(&path)?;
+        let repo = open_repository(&path, &password)?;
+        let snapshot = snapshot_by_id(&repo, &request.snapshot_id)?;
+        if !matches!(&snapshot.delete, DeleteOption::NotSet) {
+            return Err("protected snapshots cannot be deleted".to_string());
+        }
+        repo.delete_snapshots(&[snapshot.id]).map_err(display_error)
+    }
+
     fn preview_restore(&self, request: RestorePathRequest) -> Result<RestorePlanSummary, String> {
         let (path, password, _) = self.profile_config(&request.profile_id)?;
         validate_restore_request(&request)?;
         let repo = open_repository(&path, &password)?
             .to_indexed()
             .map_err(display_error)?;
-        let snapshots = repo.get_all_snapshots().map_err(display_error)?;
-        let snapshot = snapshots
-            .iter()
-            .find(|snapshot| snapshot.id.to_string() == request.snapshot_id)
-            .ok_or_else(|| format!("snapshot {} was not found", request.snapshot_id))?;
+        let snapshot = snapshot_by_id(&repo, &request.snapshot_id)?;
         let node = repo
-            .node_from_snapshot_and_path(snapshot, &request.path)
+            .node_from_snapshot_and_path(&snapshot, &request.path)
             .map_err(display_error)?;
         let destination = restore_destination(PathBuf::from(&request.destination).as_path(), &node);
         let destination = LocalDestination::new(&destination.to_string_lossy(), false, false)
@@ -653,31 +1037,62 @@ impl RusticService {
 
     fn restore_path(&self, request: RestorePathRequest) -> Result<RestoreResult, String> {
         validate_restore_request(&request)?;
-        self.restore_to(
+        let operation_id = request
+            .operation_id
+            .as_deref()
+            .filter(|id| !id.trim().is_empty())
+            .ok_or_else(|| "restore operation id is required".to_string())?;
+        self.progress.emit_state(
+            &request.profile_id,
+            OperationKind::Restore,
+            operation_id,
+            OperationProgressPhase::Running,
+            "Preparing extraction",
+        );
+        let result = self.restore_to(
             &request.profile_id,
             &request.snapshot_id,
             &request.path,
             PathBuf::from(request.destination.trim()),
-        )
+            Some(operation_id),
+        );
+        self.progress.emit_state(
+            &request.profile_id,
+            OperationKind::Restore,
+            operation_id,
+            if result.is_ok() {
+                OperationProgressPhase::Completed
+            } else {
+                OperationProgressPhase::Failed
+            },
+            if result.is_ok() {
+                "Extraction complete"
+            } else {
+                "Extraction failed"
+            },
+        );
+        result
     }
 
     fn preview_path(&self, request: PreviewPathRequest) -> Result<RestoreResult, String> {
         if request.path.trim().is_empty() {
             return Err("select a file or folder to preview".to_string());
         }
-        let sequence = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .map_err(display_error)?
-            .as_nanos();
-        let destination = std::env::temp_dir()
-            .join("wabou-rustic-preview")
-            .join(format!("{}-{sequence}", std::process::id()));
-        self.restore_to(
+        let preview_parent = std::env::temp_dir().join("wabou-rustic-preview");
+        std::fs::create_dir_all(&preview_parent).map_err(display_error)?;
+        let preview_root = tempfile::Builder::new()
+            .prefix(&format!("{}-", std::process::id()))
+            .tempdir_in(preview_parent)
+            .map_err(display_error)?;
+        let result = self.restore_to(
             &request.profile_id,
             &request.snapshot_id,
             &request.path,
-            destination,
-        )
+            preview_root.path().to_path_buf(),
+            None,
+        )?;
+        self.retain_preview_root(preview_root)?;
+        Ok(result)
     }
 
     fn restore_to(
@@ -686,18 +1101,29 @@ impl RusticService {
         snapshot_id: &str,
         path_in_snapshot: &str,
         destination_root: PathBuf,
+        operation_id: Option<&str>,
     ) -> Result<RestoreResult, String> {
         let (path, password, _) = self.profile_config(profile_id)?;
-        let repo = open_repository(&path, &password)?
+        let repo = match operation_id {
+            Some(operation_id) => open_repository_with_progress(
+                &path,
+                &password,
+                OperationProgressBars::new(
+                    profile_id.to_string(),
+                    OperationKind::Restore,
+                    operation_id.to_string(),
+                    self.progress.clone(),
+                ),
+            )?
             .to_indexed()
-            .map_err(display_error)?;
-        let snapshots = repo.get_all_snapshots().map_err(display_error)?;
-        let snapshot = snapshots
-            .iter()
-            .find(|snapshot| snapshot.id.to_string() == snapshot_id)
-            .ok_or_else(|| format!("snapshot {snapshot_id} was not found"))?;
+            .map_err(display_error)?,
+            None => open_repository(&path, &password)?
+                .to_indexed()
+                .map_err(display_error)?,
+        };
+        let snapshot = snapshot_by_id(&repo, snapshot_id)?;
         let node = repo
-            .node_from_snapshot_and_path(snapshot, path_in_snapshot)
+            .node_from_snapshot_and_path(&snapshot, path_in_snapshot)
             .map_err(display_error)?;
         let destination_path = restore_destination(&destination_root, &node);
         let destination = LocalDestination::new(&destination_path.to_string_lossy(), true, false)
@@ -735,6 +1161,47 @@ impl RusticService {
 
 fn default_search_limit() -> usize {
     200
+}
+
+fn default_file_page_size() -> usize {
+    250
+}
+
+fn file_listing_page(
+    entries: &[FileEntry],
+    requested_offset: usize,
+    requested_limit: usize,
+) -> FileListing {
+    let total = entries.len();
+    let offset = requested_offset.min(total);
+    let limit = requested_limit.clamp(1, 1_000);
+    let page = entries
+        .iter()
+        .skip(offset)
+        .take(limit)
+        .cloned()
+        .collect::<Vec<_>>();
+    let end = offset.saturating_add(page.len());
+    FileListing {
+        entries: page,
+        total,
+        offset,
+        has_more: end < total,
+    }
+}
+
+fn remove_cache_entries<K, V>(cache: &mut LruCache<K, V>, matches: impl Fn(&K) -> bool)
+where
+    K: Clone + Eq + Hash,
+{
+    let stale = cache
+        .iter()
+        .filter(|(key, _)| matches(key))
+        .map(|(key, _)| key.clone())
+        .collect::<Vec<_>>();
+    for key in stale {
+        cache.pop(&key);
+    }
 }
 
 const DEFAULT_DIFF_ENTRIES: usize = 250;
@@ -860,6 +1327,10 @@ fn open_repository(
         .map_err(display_error)
 }
 
+fn repository_cache_key(path: &str) -> PathBuf {
+    std::fs::canonicalize(path).unwrap_or_else(|_| PathBuf::from(path))
+}
+
 fn open_repository_with_progress(
     path: &str,
     password: &str,
@@ -873,6 +1344,42 @@ fn open_repository_with_progress(
         .map_err(display_error)?
         .open(&Credentials::password(password))
         .map_err(display_error)
+}
+
+fn snapshot_by_id<S: Open>(
+    repository: &Repository<S>,
+    snapshot_id: &str,
+) -> Result<SnapshotFile, String> {
+    repository
+        .get_snapshot_from_str(snapshot_id, |_| true)
+        .map_err(|error| {
+            format!(
+                "snapshot {snapshot_id} could not be loaded: {}",
+                display_error(error)
+            )
+        })
+}
+
+fn repository_stats(
+    repository: &rustic_core::Repository<rustic_core::OpenStatus>,
+) -> Result<RepositoryStats, String> {
+    let files = repository.infos_files().map_err(display_error)?;
+    let index = repository.infos_index().map_err(display_error)?;
+    let snapshots = repository.get_all_snapshots().map_err(display_error)?;
+    let repository_size = files.repo.iter().map(|file| file.size).sum::<u64>()
+        + files
+            .repo_hot
+            .as_deref()
+            .unwrap_or_default()
+            .iter()
+            .map(|file| file.size)
+            .sum::<u64>();
+    Ok(RepositoryStats {
+        repository_size,
+        unique_data_size: index.blobs.iter().map(|blob| blob.data_size).sum(),
+        snapshot_count: snapshots.len() as u64,
+        pack_count: index.packs.iter().map(|pack| pack.count).sum(),
+    })
 }
 
 fn snapshot_entry(snapshot: &rustic_core::repofile::SnapshotFile) -> SnapshotEntry {
@@ -917,8 +1424,21 @@ fn validate_profile_request(request: &ProfileRequest) -> Result<(), String> {
     if request.path.trim().is_empty() {
         return Err("repository path is required".to_string());
     }
-    if request.password.is_empty() {
+    if request.password_slot.trim().is_empty() {
+        return Err("repository password slot is required".to_string());
+    }
+    Ok(())
+}
+
+fn validate_new_repository_password(password: &str, confirmation: &str) -> Result<(), String> {
+    if password.is_empty() {
         return Err("repository password is required".to_string());
+    }
+    if confirmation.is_empty() {
+        return Err("repository password confirmation is required".to_string());
+    }
+    if password != confirmation {
+        return Err("repository passwords do not match".to_string());
     }
     Ok(())
 }
@@ -930,7 +1450,6 @@ fn status_from_state(state: &ServiceState) -> RuntimeStatus {
             .iter()
             .map(|profile| profile.id.clone())
             .collect(),
-        active_profile_id: state.active_profile_id.clone(),
     }
 }
 
@@ -961,10 +1480,10 @@ pub fn mount(capability: NativeCapability<'_>, service: RusticService) -> rquick
         }
     })?;
 
-    let select = service.clone();
-    capability.method(SELECT_PROFILE, move |request| {
-        let service = select.clone();
-        async move { service.select_profile(request) }
+    let forget = service.clone();
+    capability.method(FORGET_PROFILE, move |request| {
+        let service = forget.clone();
+        async move { service.forget_profile(request) }
     })?;
 
     let set_sources = service.clone();
@@ -980,6 +1499,16 @@ pub fn mount(capability: NativeCapability<'_>, service: RusticService) -> rquick
             tokio::task::spawn_blocking(move || service.run_backup(request))
                 .await
                 .map_err(|error| format!("backup task failed: {error}"))?
+        }
+    })?;
+
+    let check_repository = service.clone();
+    capability.method(CHECK_REPOSITORY, move |request| {
+        let service = check_repository.clone();
+        async move {
+            tokio::task::spawn_blocking(move || service.check_repository(request))
+                .await
+                .map_err(|error| format!("repository check task failed: {error}"))?
         }
     })?;
 
@@ -1033,6 +1562,16 @@ pub fn mount(capability: NativeCapability<'_>, service: RusticService) -> rquick
         }
     })?;
 
+    let delete_snapshot = service.clone();
+    capability.method(DELETE_SNAPSHOT, move |request| {
+        let service = delete_snapshot.clone();
+        async move {
+            tokio::task::spawn_blocking(move || service.delete_snapshot(request))
+                .await
+                .map_err(|error| format!("snapshot deletion task failed: {error}"))?
+        }
+    })?;
+
     let preview_restore = service.clone();
     capability.method(PREVIEW_RESTORE, move |request| {
         let service = preview_restore.clone();
@@ -1063,11 +1602,15 @@ pub fn mount(capability: NativeCapability<'_>, service: RusticService) -> rquick
     })?;
 
     capability.method(OPEN_PATH, move |request: OpenPathRequest| async move {
-        let path = PathBuf::from(request.path);
-        if !path.exists() {
-            return Err("path does not exist".to_string());
-        }
-        open::that_detached(path).map_err(display_error)
+        tokio::task::spawn_blocking(move || {
+            let path = PathBuf::from(request.path);
+            if !path.exists() {
+                return Err("path does not exist".to_string());
+            }
+            open::that_detached(path).map_err(display_error)
+        })
+        .await
+        .map_err(|error| format!("open path task failed: {error}"))?
     })
 }
 
@@ -1079,17 +1622,169 @@ mod tests {
     use super::*;
 
     #[test]
+    fn file_listing_pages_are_bounded_without_hiding_the_total() {
+        let entries = (0..5)
+            .map(|index| FileEntry {
+                name: format!("file-{index}"),
+                path: format!("file-{index}"),
+                kind: "file".to_string(),
+                size: index,
+                modified: None,
+            })
+            .collect::<Vec<_>>();
+        let page = file_listing_page(&entries, 2, 2);
+        assert_eq!(page.total, 5);
+        assert_eq!(page.offset, 2);
+        assert!(page.has_more);
+        assert_eq!(
+            page.entries
+                .iter()
+                .map(|entry| entry.name.as_str())
+                .collect::<Vec<_>>(),
+            ["file-2", "file-3"]
+        );
+    }
+
+    #[test]
+    fn repository_writes_are_single_flight_per_canonical_path() {
+        let service = RusticService::default();
+        let repository = tempfile::tempdir().expect("repository directory");
+        let other_repository = tempfile::tempdir().expect("other repository directory");
+        let repository_path = repository.path().to_string_lossy();
+        let alias = repository.path().join(".");
+
+        let write = service
+            .begin_repository_write(&repository_path)
+            .expect("first repository write");
+        let error = service
+            .begin_repository_write(&alias.to_string_lossy())
+            .err()
+            .expect("canonical aliases share one writer");
+        assert!(error.contains("another write is already running"));
+        let other_write = service
+            .begin_repository_write(&other_repository.path().to_string_lossy())
+            .expect("different repositories can write concurrently");
+
+        drop(write);
+        service
+            .begin_repository_write(&alias.to_string_lossy())
+            .expect("repository write slot is released on drop");
+        drop(other_write);
+    }
+
+    #[test]
+    fn preview_roots_are_bounded_and_release_the_oldest_workspace() {
+        let service = RusticService::default();
+        let mut paths = Vec::new();
+        for _ in 0..=MAX_RETAINED_PREVIEW_ROOTS {
+            let root = tempfile::tempdir().expect("preview root");
+            paths.push(root.path().to_path_buf());
+            service
+                .retain_preview_root(root)
+                .expect("retain preview root");
+        }
+
+        assert!(!paths[0].exists());
+        assert!(paths[1..].iter().all(|path| path.exists()));
+        assert_eq!(
+            service.preview_roots.lock().expect("preview roots").len(),
+            MAX_RETAINED_PREVIEW_ROOTS
+        );
+    }
+
+    #[test]
     fn profile_rejects_an_empty_repository_password() {
+        let error = RusticService::default()
+            .create_profile_with_password(
+                ProfileRequest {
+                    id: "test".to_string(),
+                    name: "Test".to_string(),
+                    path: "/unused".to_string(),
+                    password_slot: "test".to_string(),
+                    confirmation_slot: None,
+                    sources: Vec::new(),
+                },
+                "",
+            )
+            .expect_err("empty passwords must not create repositories");
+        assert_eq!(error, "repository password is required");
+    }
+
+    #[test]
+    fn profile_rejects_a_mismatched_repository_password_confirmation() {
+        assert_eq!(
+            validate_new_repository_password("correct horse", "correct house"),
+            Err("repository passwords do not match".to_string())
+        );
+    }
+
+    #[test]
+    fn failed_native_profile_creation_restores_secret_slots_for_retry() {
+        let secrets = VelloHybridSecretStore::default();
+        assert!(secrets.restore("password", Zeroizing::new("correct horse".to_string()),));
+        assert!(secrets.restore("confirmation", Zeroizing::new("correct house".to_string()),));
+        let service = RusticService::new(secrets.clone());
+
+        let error = service
+            .create_profile(ProfileRequest {
+                id: "test".to_string(),
+                name: "Test".to_string(),
+                path: "/unused".to_string(),
+                password_slot: "password".to_string(),
+                confirmation_slot: Some("confirmation".to_string()),
+                sources: Vec::new(),
+            })
+            .expect_err("mismatched confirmation must fail");
+
+        assert_eq!(error, "repository passwords do not match");
+        assert_eq!(secrets.take("password").as_str(), "correct horse");
+        assert_eq!(secrets.take("confirmation").as_str(), "correct house");
+    }
+
+    #[test]
+    fn native_profile_request_requires_a_secret_slot() {
         let error = RusticService::default()
             .create_profile(ProfileRequest {
                 id: "test".to_string(),
                 name: "Test".to_string(),
                 path: "/unused".to_string(),
-                password: String::new(),
+                password_slot: String::new(),
+                confirmation_slot: None,
                 sources: Vec::new(),
             })
-            .expect_err("empty passwords must not create repositories");
-        assert_eq!(error, "repository password is required");
+            .expect_err("native requests must identify a Rust secret slot");
+        assert_eq!(error, "repository password slot is required");
+    }
+
+    #[test]
+    fn forgetting_a_profile_drops_its_runtime_credential_and_is_idempotent() {
+        let service = RusticService::default();
+        service
+            .remember_profile(
+                ProfileRequest {
+                    id: "photos".to_string(),
+                    name: "Photos".to_string(),
+                    path: "/backups/photos".to_string(),
+                    password_slot: "test".to_string(),
+                    confirmation_slot: None,
+                    sources: vec!["/photos".to_string()],
+                },
+                Zeroizing::new("repository-secret".to_string()),
+            )
+            .expect("remember test profile");
+
+        let request = ProfileIdRequest {
+            profile_id: "photos".to_string(),
+        };
+        let status = service
+            .forget_profile(request.clone())
+            .expect("forget profile");
+        assert!(status.unlocked_profile_ids.is_empty());
+
+        let repeated = service
+            .forget_profile(request)
+            .expect("forgetting missing runtime state stays safe");
+        assert!(repeated.unlocked_profile_ids.is_empty());
     }
 
     #[test]
@@ -1125,13 +1820,17 @@ mod tests {
                 .push(event.clone());
         });
         service
-            .create_profile(ProfileRequest {
-                id: "photos".to_string(),
-                name: "Photos".to_string(),
-                path: repository.to_string_lossy().into_owned(),
-                password: "wabou-rustic-test".to_string(),
-                sources: Vec::new(),
-            })
+            .create_profile_with_password(
+                ProfileRequest {
+                    id: "photos".to_string(),
+                    name: "Photos".to_string(),
+                    path: repository.to_string_lossy().into_owned(),
+                    password_slot: "test".to_string(),
+                    confirmation_slot: None,
+                    sources: Vec::new(),
+                },
+                "wabou-rustic-test",
+            )
             .expect("create repository");
         service
             .set_sources(SetSourcesRequest {
@@ -1147,19 +1846,54 @@ mod tests {
             profile_id: "photos".to_string(),
         };
         let backup = service.run_backup(profile.clone()).expect("backup source");
-        let progress_events = progress_events.lock().expect("backup progress events");
-        assert!(
-            progress_events.iter().any(|event| {
-                event.state == BackupProgressPhase::Completed && event.current == 1
-            })
-        );
-        assert!(progress_events.iter().any(|event| {
-            event.state == BackupProgressPhase::PhaseComplete && event.total.is_some()
+        let backup_progress_events = progress_events.lock().expect("backup progress events");
+        assert!(backup_progress_events.iter().any(|event| {
+            event.operation == OperationKind::Backup
+                && event.state == OperationProgressPhase::Completed
+                && event.current == 1
         }));
-        drop(progress_events);
-        let snapshots = service.list_snapshots(profile).expect("list snapshots");
+        assert!(backup_progress_events.iter().any(|event| {
+            event.operation == OperationKind::Backup
+                && event.state == OperationProgressPhase::PhaseComplete
+                && event.total.is_some()
+        }));
+        drop(backup_progress_events);
+        let snapshots = service
+            .list_snapshots(profile.clone())
+            .expect("list snapshots");
         assert_eq!(snapshots.len(), 1);
         assert_eq!(snapshots[0].id, backup.snapshot.id);
+        assert_eq!(service.indexed_repository_cache_len(), 1);
+        let check = service
+            .check_repository(profile)
+            .expect("check repository structure");
+        assert!(check.healthy, "repository check: {check:?}");
+        assert!(check.findings.is_empty());
+        let stats = check.stats.expect("repository statistics");
+        assert!(stats.repository_size > 0);
+        assert!(stats.unique_data_size > 0);
+        assert_eq!(stats.snapshot_count, 1);
+        assert!(stats.pack_count > 0);
+
+        let root_listing_request = ListFilesRequest {
+            profile_id: "photos".to_string(),
+            snapshot_id: backup.snapshot.id.clone(),
+            path: String::new(),
+            offset: 0,
+            limit: 1,
+        };
+        let first_root_page = service
+            .list_files(root_listing_request.clone())
+            .expect("list first root page");
+        assert_eq!(service.directory_listing_cache_len(), 1);
+        let second_root_page = service
+            .list_files(ListFilesRequest {
+                offset: 1,
+                ..root_listing_request
+            })
+            .expect("list second root page from cached directory");
+        assert_eq!(first_root_page.total, second_root_page.total);
+        assert_eq!(service.directory_listing_cache_len(), 1);
 
         let mut pending = vec![String::new()];
         let mut names = Vec::new();
@@ -1169,8 +1903,11 @@ mod tests {
                     profile_id: "photos".to_string(),
                     snapshot_id: backup.snapshot.id.clone(),
                     path,
+                    offset: 0,
+                    limit: default_file_page_size(),
                 })
                 .expect("list files")
+                .entries
             {
                 names.push(entry.name.clone());
                 if entry.kind == "directory" {
@@ -1182,6 +1919,7 @@ mod tests {
         assert!(names.iter().any(|name| name == "chapter"));
         assert!(names.iter().any(|name| name == "notes.md"));
         assert!(names.iter().any(|name| name == "settings.toml"));
+        assert_eq!(service.indexed_repository_cache_len(), 1);
 
         let matches = service
             .search_files(SearchFilesRequest {
@@ -1195,6 +1933,7 @@ mod tests {
             .iter()
             .find(|entry| entry.name == "settings.toml")
             .expect("settings search result");
+        assert_eq!(service.indexed_repository_cache_len(), 1);
 
         let restore_root = root.path().join("restored");
         let restore_request = RestorePathRequest {
@@ -1202,6 +1941,7 @@ mod tests {
             snapshot_id: backup.snapshot.id.clone(),
             path: settings.path.clone(),
             destination: restore_root.to_string_lossy().into_owned(),
+            operation_id: Some("restore-settings".to_string()),
         };
         let plan = service
             .preview_restore(restore_request.clone())
@@ -1216,6 +1956,19 @@ mod tests {
             fs::read_to_string(restore_root.join("settings.toml")).expect("restored settings"),
             "theme = 'light'"
         );
+        let progress_events = progress_events.lock().expect("restore progress events");
+        assert!(progress_events.iter().any(|event| {
+            event.operation == OperationKind::Restore
+                && event.operation_id == "restore-settings"
+                && event.state == OperationProgressPhase::PhaseComplete
+                && event.total.is_some()
+        }));
+        assert!(progress_events.iter().any(|event| {
+            event.operation == OperationKind::Restore
+                && event.operation_id == "restore-settings"
+                && event.state == OperationProgressPhase::Completed
+        }));
+        drop(progress_events);
 
         let preview = service
             .preview_path(PreviewPathRequest {
@@ -1225,6 +1978,7 @@ mod tests {
             })
             .expect("restore temporary preview");
         let preview_path = PathBuf::from(&preview.destination);
+        let preview_root = preview_path.parent().expect("preview root").to_path_buf();
         assert!(preview_path.starts_with(std::env::temp_dir().join("wabou-rustic-preview")));
         assert_eq!(
             fs::read_to_string(&preview_path).expect("preview settings"),
@@ -1239,18 +1993,23 @@ mod tests {
                 profile_id: "photos".to_string(),
             })
             .expect("backup changed source");
+        assert_eq!(service.indexed_repository_cache_len(), 0);
+        assert_eq!(service.directory_listing_cache_len(), 0);
         let updated_snapshot_id = next_backup.snapshot.id.clone();
         let base_snapshot_id = backup.snapshot.id.clone();
+        let diff_request = DiffSnapshotsRequest {
+            profile_id: "photos".to_string(),
+            base_snapshot_id: base_snapshot_id.clone(),
+            snapshot_id: updated_snapshot_id.clone(),
+            path: String::new(),
+            include_metadata: false,
+            limit: 10,
+        };
         let diff = service
-            .diff_snapshots(DiffSnapshotsRequest {
-                profile_id: "photos".to_string(),
-                base_snapshot_id: base_snapshot_id.clone(),
-                snapshot_id: updated_snapshot_id.clone(),
-                path: String::new(),
-                include_metadata: false,
-                limit: 10,
-            })
+            .diff_snapshots(diff_request.clone())
             .expect("compare snapshots");
+        assert_eq!(service.indexed_repository_cache_len(), 1);
+        assert_eq!(service.snapshot_diff_cache_len(), 1);
         assert!(
             diff.entries
                 .iter()
@@ -1272,6 +2031,13 @@ mod tests {
         assert_eq!(diff.total_entries, 3);
         assert_eq!(diff.entries.len(), 3);
         assert!(!diff.truncated);
+        assert_eq!(
+            service
+                .diff_snapshots(diff_request)
+                .expect("reuse snapshot comparison"),
+            diff
+        );
+        assert_eq!(service.snapshot_diff_cache_len(), 1);
 
         let bounded_diff = service
             .diff_snapshots(DiffSnapshotsRequest {
@@ -1283,6 +2049,7 @@ mod tests {
                 limit: 2,
             })
             .expect("bound snapshot comparison payload");
+        assert_eq!(service.snapshot_diff_cache_len(), 2);
         assert_eq!(bounded_diff.total_entries, 3);
         assert_eq!(bounded_diff.entries.len(), 2);
         assert!(bounded_diff.truncated);
@@ -1297,11 +2064,20 @@ mod tests {
                 delete_protected: true,
             })
             .expect("update snapshot metadata");
+        assert_eq!(service.indexed_repository_cache_len(), 0);
+        assert_eq!(service.snapshot_diff_cache_len(), 0);
         assert_ne!(updated.id, updated_snapshot_id);
         assert_eq!(updated.label, "After cleanup");
         assert_eq!(updated.description.as_deref(), Some("Removed stale notes"));
         assert_eq!(updated.tags, ["docs", "release"]);
         assert!(updated.delete_protected);
+        let protected_error = service
+            .delete_snapshot(DeleteSnapshotRequest {
+                profile_id: "photos".to_string(),
+                snapshot_id: updated.id.to_string(),
+            })
+            .expect_err("protected snapshots must not be deleted");
+        assert_eq!(protected_error, "protected snapshots cannot be deleted");
         let updated_again = service
             .update_snapshot(UpdateSnapshotRequest {
                 profile_id: "photos".to_string(),
@@ -1334,6 +2110,29 @@ mod tests {
                 .iter()
                 .any(|snapshot| snapshot.id == updated_snapshot_id)
         );
+
+        service
+            .delete_snapshot(DeleteSnapshotRequest {
+                profile_id: "photos".to_string(),
+                snapshot_id: updated_again.id.clone(),
+            })
+            .expect("delete unprotected snapshot");
+        let remaining = service
+            .list_snapshots(ProfileIdRequest {
+                profile_id: "photos".to_string(),
+            })
+            .expect("reload snapshots after deletion");
+        assert_eq!(remaining.len(), 1);
+        assert!(
+            !remaining
+                .iter()
+                .any(|snapshot| snapshot.id == updated_again.id)
+        );
+        drop(service);
+        assert!(
+            !preview_root.exists(),
+            "preview root must be session-scoped"
+        );
     }
 
     #[test]
@@ -1344,6 +2143,7 @@ mod tests {
                 snapshot_id: "missing".to_string(),
                 path: "file.txt".to_string(),
                 destination: "relative".to_string(),
+                operation_id: Some("restore-invalid".to_string()),
             })
             .expect_err("relative restore path");
         assert_eq!(error, "restore destination must be an absolute path");

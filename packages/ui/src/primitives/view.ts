@@ -140,6 +140,8 @@ export interface PasswordInputProps extends Omit<PrimitiveProps, "children"> {
   placeholder?: string;
   disabled?: boolean;
   "aria-label"?: string;
+  /** Reports only whether the native secret slot is empty. */
+  onSecretStateChange?: (event: { hasValue: boolean }) => void;
   onKeyDown?: (event: { key: string; preventDefault(): void }) => void;
 }
 

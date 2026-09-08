@@ -127,9 +127,10 @@ test("renders a reusable TanStack-backed DataTable and selection state", () => {
   alpha.click();
   expect(screen.getByRole("row", { name: "Select row a" }).selected).toBe(true);
   screen.getByRole("columnheader", { name: "Sort by Score" }).click();
-  expect(
-    screen.getByRole("columnheader", { name: "Sort by Score" }).text,
-  ).toContain("Desc");
+  const sortedScore = screen.getByRole("columnheader", {
+    name: "Score, sorted descending",
+  });
+  expect(sortedScore.text).toBe("Score");
   screen.dispose();
 
   const readOnly = renderComponent(() => {

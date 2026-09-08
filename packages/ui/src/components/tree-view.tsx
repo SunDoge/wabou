@@ -1,15 +1,28 @@
-import type { Handle } from "@wabou/core/renderer";
+import {
+  type Handle,
+  VirtualList,
+  type VirtualListController,
+} from "@wabou/core/renderer";
+import { mergeClasses } from "@wabou/core/style";
 import chevronDown from "lucide-static/icons/chevron-down.svg?raw";
 import chevronRight from "lucide-static/icons/chevron-right.svg?raw";
 import {
+  type Accessor,
   createMemo,
   createSignal,
   For as ForValue,
   type JSX,
+  onCleanup,
   untrack,
 } from "solid-js";
-import { Button as HeadlessButton, Icon, Text, View } from "../primitives";
-import { mergeClasses } from "@wabou/core/style";
+import {
+  type ButtonKeyEvent,
+  Button as HeadlessButton,
+  Icon,
+  Text,
+  View,
+} from "../primitives";
+import { createTypeahead } from "../primitives/interactions";
 import { createControllableState } from "./state";
 
 export interface TreeNode {
@@ -110,6 +123,12 @@ export interface TreeViewProps {
   defaultSelectedId?: string | null;
   onSelectedChange?(id: string | null): void;
   renderItem?(node: TreeNode, state: TreeItemRenderState): JSX.Element;
+  /** Window a large fixed-height tree while retaining native tree semantics. */
+  virtual?: {
+    itemHeight: number;
+    overscan?: number;
+    viewportHeight?: number;
+  };
   class?: string;
   itemClass?: string;
 }
@@ -131,6 +150,7 @@ function validateExpandedIds(
 /** A single-select tree with explicit data, expansion, and native focus routing. */
 export function TreeView(props: TreeViewProps): JSX.Element {
   const initialModel = createTreeModel(untrack(() => props.items));
+  const virtual = untrack(() => props.virtual);
   const model = createMemo(() => createTreeModel(props.items));
   const defaultExpanded = validateExpandedIds(
     initialModel,
@@ -152,7 +172,11 @@ export function TreeView(props: TreeViewProps): JSX.Element {
   const [activeId, setActiveId] = createSignal<string | undefined>(undefined, {
     ownedWrite: true,
   });
+  const typeahead = createTypeahead();
+  onCleanup(typeahead.reset);
   const handles = new Map<string, Handle>();
+  let virtualController: VirtualListController | undefined;
+  let pendingFocusId: string | undefined;
   const expanded = () => expandedState.value();
   const visible = createMemo(() => model().visible(expanded()));
   const enabledVisible = () => visible().filter(({ node }) => !node.disabled);
@@ -171,8 +195,17 @@ export function TreeView(props: TreeViewProps): JSX.Element {
   };
   const focus = (id: string | undefined) => {
     if (!id || model().get(id)?.disabled) return false;
+    const handle = handles.get(id);
+    if (!handle && virtual) {
+      const index = visible().findIndex(({ node }) => node.id === id);
+      if (index < 0 || !virtualController) return false;
+      pendingFocusId = id;
+      setActiveId(id);
+      virtualController.scrollToIndex(index);
+      return true;
+    }
     setActiveId(id);
-    handles.get(id)?.focus();
+    handle?.focus();
     return true;
   };
   const setExpanded = (id: string, next: boolean) => {
@@ -207,10 +240,29 @@ export function TreeView(props: TreeViewProps): JSX.Element {
               : undefined;
     return focus(target?.node.id);
   };
-  const handleKey = (
-    item: VisibleTreeNode,
-    event: { key: string; preventDefault(): void },
-  ) => {
+  const moveTypeahead = (id: string, event: ButtonKeyEvent) => {
+    // Shift changes the printable key itself and remains searchable. Control,
+    // Alt, and Meta represent commands rather than typeahead input.
+    if (
+      event.key.trim().length === 0 ||
+      event.key.length !== 1 ||
+      event.primary ||
+      ((event.mods ?? 0) & 0b1110) !== 0
+    ) {
+      return false;
+    }
+    const target = typeahead.search(
+      visible().map(({ node }) => ({
+        id: node.id,
+        disabled: node.disabled,
+        textValue: node.label,
+      })),
+      event.key,
+      id,
+    );
+    return focus(target?.id);
+  };
+  const handleKey = (item: VisibleTreeNode, event: ButtonKeyEvent) => {
     const { id } = item.node;
     let handled = false;
     if (["ArrowUp", "ArrowDown", "Home", "End"].includes(event.key)) {
@@ -223,72 +275,104 @@ export function TreeView(props: TreeViewProps): JSX.Element {
       handled = isExpanded(id)
         ? setExpanded(id, false)
         : focus(item.parentId ?? undefined);
+    } else {
+      handled = moveTypeahead(id, event);
     }
     if (handled) event.preventDefault();
   };
 
-  return (
+  const renderTreeItem = (item: Accessor<VisibleTreeNode>) => {
+    const id = untrack(() => item().node.id);
+    let ownHandle: Handle | undefined;
+    onCleanup(() => {
+      if (handles.get(id) === ownHandle) handles.delete(id);
+    });
+    const branch = () => model().isBranch(id);
+    return (
+      <HeadlessButton
+        unstyled
+        ref={(node) => {
+          ownHandle = node;
+          handles.set(id, node);
+          if (pendingFocusId === id) {
+            pendingFocusId = undefined;
+            node.focus();
+          }
+        }}
+        role="treeitem"
+        aria-label={item().node.label}
+        aria-expanded={branch() ? isExpanded(id) : undefined}
+        aria-selected={isSelected(id)}
+        selected={isSelected(id)}
+        disabled={item().node.disabled}
+        focusOrder={tabStop() === id ? 0 : -1}
+        class={(state) =>
+          mergeClasses(
+            "w-full h-8 min-w-0 pr-2 items-center gap-2 rounded-md text-sm",
+            state.selected
+              ? "bg-selected text-primary"
+              : state.hovered
+                ? "bg-control-hover text-primary"
+                : "bg-transparent text-secondary",
+            props.itemClass,
+          )
+        }
+        style={{
+          "padding-left": `${8 + (item().level - 1) * 20}px`,
+        }}
+        onFocus={() => setActiveId(id)}
+        onClick={() => activate(item().node)}
+        onKeyDown={(event) => handleKey(item(), event)}
+      >
+        {branch() ? (
+          <Icon
+            aria-hidden="true"
+            source={isExpanded(id) ? chevronDown : chevronRight}
+            size={14}
+            class="flex-none text-muted"
+          />
+        ) : (
+          <View aria-hidden="true" class="w-3.5 h-3.5 flex-none" />
+        )}
+        {props.renderItem ? (
+          props.renderItem(item().node, {
+            expanded: isExpanded(id),
+            selected: isSelected(id),
+            level: item().level,
+          })
+        ) : (
+          <Text maxLines={1} class="min-w-0 flex-1 text-sm">
+            {item().node.label}
+          </Text>
+        )}
+      </HeadlessButton>
+    );
+  };
+
+  return virtual ? (
+    <VirtualList
+      items={visible}
+      itemHeight={virtual.itemHeight}
+      overscan={virtual.overscan}
+      viewportHeight={virtual.viewportHeight}
+      getItemKey={(item) => item.node.id}
+      role="tree"
+      accessibilityLabel={props["aria-label"]}
+      controllerRef={(controller) => {
+        virtualController = controller;
+      }}
+      class={props.class}
+    >
+      {(item) => renderTreeItem(item)}
+    </VirtualList>
+  ) : (
     <View
       role="tree"
       aria-label={props["aria-label"]}
       class={mergeClasses("min-w-0 flex flex-col gap-0.5", props.class)}
     >
       <ForValue each={visible()}>
-        {(item) => {
-          const branch = () => model().isBranch(item.node.id);
-          return (
-            <HeadlessButton
-              unstyled
-              ref={(node) => handles.set(item.node.id, node)}
-              role="treeitem"
-              aria-label={item.node.label}
-              aria-expanded={branch() ? isExpanded(item.node.id) : undefined}
-              aria-selected={isSelected(item.node.id)}
-              selected={isSelected(item.node.id)}
-              disabled={item.node.disabled}
-              focusOrder={tabStop() === item.node.id ? 0 : -1}
-              class={(state) =>
-                mergeClasses(
-                  "w-full h-8 min-w-0 pr-2 items-center gap-2 rounded-md text-sm",
-                  state.selected
-                    ? "bg-selected text-primary"
-                    : state.hovered
-                      ? "bg-control-hover text-primary"
-                      : "bg-transparent text-secondary",
-                  props.itemClass,
-                )
-              }
-              style={{
-                "padding-left": `${8 + (item.level - 1) * 20}px`,
-              }}
-              onFocus={() => setActiveId(item.node.id)}
-              onClick={() => activate(item.node)}
-              onKeyDown={(event) => handleKey(item, event)}
-            >
-              {branch() ? (
-                <Icon
-                  aria-hidden="true"
-                  source={isExpanded(item.node.id) ? chevronDown : chevronRight}
-                  size={14}
-                  class="flex-none text-muted"
-                />
-              ) : (
-                <View aria-hidden="true" class="w-3.5 h-3.5 flex-none" />
-              )}
-              {props.renderItem ? (
-                props.renderItem(item.node, {
-                  expanded: isExpanded(item.node.id),
-                  selected: isSelected(item.node.id),
-                  level: item.level,
-                })
-              ) : (
-                <Text maxLines={1} class="min-w-0 flex-1 text-sm">
-                  {item.node.label}
-                </Text>
-              )}
-            </HeadlessButton>
-          );
-        }}
+        {(item) => renderTreeItem(() => item)}
       </ForValue>
     </View>
   );

@@ -2,18 +2,18 @@ import {
   Badge,
   Checkbox,
   ContentState,
+  createContainerMatch,
   createTanStackDataTable,
   Icon,
-  ScrollArea,
   Select,
   Table,
-  TableBody,
   TableCell,
   TableHeader,
   TableRow,
   type TanStackDataTableColumn,
   Text,
   View,
+  VirtualList,
 } from "@wabou/ui";
 import file from "lucide-static/icons/file.svg?raw";
 import folder from "lucide-static/icons/folder.svg?raw";
@@ -22,6 +22,7 @@ import {
   createMemo,
   createSignal,
   For as ForValue,
+  onCleanup,
   Show,
 } from "solid-js";
 import type {
@@ -31,24 +32,13 @@ import type {
   SnapshotEntry,
 } from "./api";
 import { useRusticApi } from "./api";
-import { formatSnapshotTime } from "./snapshot-details";
+import { createAsyncRequestGate } from "./async-request";
+import {
+  formatBytes,
+  formatOptionalTimestamp,
+  formatTimestamp,
+} from "./format";
 import { SortableTableHead } from "./sortable-table-head";
-
-function formatBytes(bytes?: number): string {
-  if (bytes === undefined) return "—";
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 ** 2) return `${(bytes / 1024).toFixed(1)} KB`;
-  if (bytes < 1024 ** 3) return `${(bytes / 1024 ** 2).toFixed(1)} MB`;
-  return `${(bytes / 1024 ** 3).toFixed(1)} GB`;
-}
-
-function formatModified(value?: string): string {
-  if (!value) return "—";
-  const match = value.match(/^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})/);
-  return match
-    ? `${match[1]}-${match[2]}-${match[3]} ${match[4]}:${match[5]}`
-    : value;
-}
 
 const changePresentation: Record<
   SnapshotDiffChange,
@@ -79,12 +69,35 @@ const diffColumns: TanStackDataTableColumn<SnapshotDiffEntry>[] = [
 
 const DIFF_ENTRY_LIMIT = 250;
 
+export function snapshotComparisonLabel(snapshot: SnapshotEntry): string {
+  const title = snapshot.label.trim() || `Snapshot ${snapshot.id.slice(0, 8)}`;
+  return `${title} · ${formatTimestamp(snapshot.time)}`;
+}
+
+function compactEntryDetails(entry: SnapshotDiffEntry): string {
+  let sizes: string | undefined;
+  if (entry.previousSize !== undefined && entry.currentSize !== undefined) {
+    sizes = `${formatBytes(entry.previousSize)} → ${formatBytes(entry.currentSize)}`;
+  } else if (entry.currentSize !== undefined) {
+    sizes = formatBytes(entry.currentSize);
+  } else if (entry.previousSize !== undefined) {
+    sizes = formatBytes(entry.previousSize);
+  }
+  const modified = formatOptionalTimestamp(
+    entry.currentModified ?? entry.previousModified,
+  );
+  return [sizes, modified === "—" ? undefined : modified]
+    .filter(Boolean)
+    .join(" · ");
+}
+
 export function SnapshotDiffPanel(props: {
   profileId: string;
   snapshot: SnapshotEntry;
   snapshots: readonly SnapshotEntry[];
 }) {
   const api = useRusticApi();
+  const compactTable = createContainerMatch({ maxWidth: 600 });
   const candidates = createMemo(() =>
     props.snapshots.filter((snapshot) => snapshot.id !== props.snapshot.id),
   );
@@ -105,7 +118,9 @@ export function SnapshotDiffPanel(props: {
   const [result, setResult] = createSignal<SnapshotDiff>();
   const [loading, setLoading] = createSignal(false);
   const [error, setError] = createSignal<string>();
-  let requestGeneration = 0;
+  const [retryRevision, setRetryRevision] = createSignal(0);
+  const requests = createAsyncRequestGate();
+  onCleanup(() => requests.invalidate());
 
   createEffect(
     () => ({
@@ -123,34 +138,38 @@ export function SnapshotDiffPanel(props: {
       snapshotId: props.snapshot.id,
       baseSnapshotId: baseSnapshotId(),
       includeMetadata: includeMetadata(),
+      retryRevision: retryRevision(),
     }),
     (request) => {
+      const requestToken = requests.begin();
       if (!request.baseSnapshotId) {
         setResult(undefined);
         setLoading(false);
+        setError(undefined);
         return;
       }
-      const generation = ++requestGeneration;
       setLoading(true);
       setError(undefined);
       void Promise.resolve(
         api.diffSnapshots({
-          ...request,
+          profileId: request.profileId,
+          snapshotId: request.snapshotId,
           baseSnapshotId: request.baseSnapshotId,
+          includeMetadata: request.includeMetadata,
           path: "",
           limit: DIFF_ENTRY_LIMIT,
         }),
       )
         .then((next) => {
-          if (generation === requestGeneration) setResult(next);
+          if (requests.isCurrent(requestToken)) setResult(next);
         })
         .catch((cause: unknown) => {
-          if (generation === requestGeneration) {
+          if (requests.isCurrent(requestToken)) {
             setError(cause instanceof Error ? cause.message : String(cause));
           }
         })
         .finally(() => {
-          if (generation === requestGeneration) setLoading(false);
+          if (requests.isCurrent(requestToken)) setLoading(false);
         });
     },
   );
@@ -172,29 +191,34 @@ export function SnapshotDiffPanel(props: {
 
   const columnClass = (columnId: string) =>
     columnId === "path"
-      ? "min-w-64 flex-1"
+      ? "min-w-0 flex-1"
       : columnId === "modified"
-        ? "w-36 flex-none"
-        : "w-28 flex-none";
+        ? "min-w-0 w-36 flex-none"
+        : "min-w-0 w-28 flex-none";
+  const visibleColumns = () =>
+    compactTable.matches() ? diffColumns.slice(0, 2) : diffColumns;
 
   return (
-    <View class="min-w-0 min-h-0 flex-1 flex flex-col">
-      <View class="flex-none px-4 py-3 flex flex-row items-center gap-3 border-b border-subtle bg-surface-muted">
-        <View class="min-w-0 flex-1 flex flex-col gap-0.5">
+    <View
+      ref={compactTable.ref}
+      class="w-full h-full min-w-0 min-h-0 flex flex-col"
+    >
+      <View class="flex-none px-4 py-3 flex flex-row flex-wrap items-center gap-3 border-b border-subtle bg-surface-muted">
+        <View class="min-w-40 flex-1 flex flex-col gap-0.5">
           <Text class="text-sm font-medium">Compare with</Text>
           <Text class="truncate text-xs text-muted">
-            Current: {formatSnapshotTime(props.snapshot.time)}
+            Current: {formatTimestamp(props.snapshot.time)}
           </Text>
         </View>
         <Select
           aria-label="Comparison snapshot"
-          class="w-56"
+          class="min-w-48 w-64 flex-none"
           contentClass="w-72"
           value={baseSnapshotId()}
           placeholder="Choose a snapshot"
           options={candidates().map((snapshot) => ({
             value: snapshot.id,
-            label: `${formatSnapshotTime(snapshot.time)} · ${snapshot.id.slice(0, 8)}`,
+            label: snapshotComparisonLabel(snapshot),
           }))}
           onValueChange={setBaseSnapshotId}
         />
@@ -234,11 +258,15 @@ export function SnapshotDiffPanel(props: {
                 state="error"
                 title="Could not compare snapshots"
                 description={error()}
+                action={{
+                  label: "Retry comparison",
+                  onAction: () => setRetryRevision((current) => current + 1),
+                }}
                 class="min-h-0 flex-1 border-0 shadow-none"
               />
             }
           >
-            <View class="flex-none px-4 py-2.5 flex flex-row items-center gap-2 border-b border-subtle">
+            <View class="flex-none px-4 py-2.5 flex flex-row flex-wrap items-center gap-2 border-b border-subtle">
               <Badge variant="success" weight="normal">
                 +{result()?.summary.added ?? 0}
               </Badge>
@@ -253,11 +281,11 @@ export function SnapshotDiffPanel(props: {
                   {result()?.summary.metadata ?? 0} metadata
                 </Badge>
               </Show>
-              <Text class="ml-auto text-xs text-muted">
+              <Text class="min-w-48 flex-1 text-right text-xs text-muted">
                 {result()?.truncated
-                  ? `Showing ${renderedChanges()} of ${totalChanges()} changes`
+                  ? `Showing first ${renderedChanges()} changes`
                   : baseSnapshot()
-                    ? `Since ${formatSnapshotTime(baseSnapshot()?.time ?? "")}`
+                    ? `Since ${formatTimestamp(baseSnapshot()?.time ?? "")}`
                     : `${totalChanges()} changes`}
               </Text>
             </View>
@@ -272,14 +300,19 @@ export function SnapshotDiffPanel(props: {
                 />
               }
             >
-              <ScrollArea
-                class="min-w-0 min-h-0 flex-1"
-                contentClass="min-w-full"
-              >
-                <Table aria-label="Snapshot changes">
+              <View class="w-full h-full min-w-0 min-h-0 flex flex-col">
+                <Table
+                  aria-label="Snapshot changes"
+                  class="min-h-0 flex-1"
+                  contentClass={
+                    compactTable.matches()
+                      ? "h-full min-h-0"
+                      : "h-full min-h-0 min-w-[46rem]"
+                  }
+                >
                   <TableHeader>
                     <TableRow class="bg-surface-muted">
-                      <ForValue each={diffColumns}>
+                      <ForValue each={visibleColumns()}>
                         {(column) => {
                           const id = String(column.id);
                           return (
@@ -296,56 +329,70 @@ export function SnapshotDiffPanel(props: {
                       </ForValue>
                     </TableRow>
                   </TableHeader>
-                  <TableBody>
-                    <ForValue each={diffTable.rows()}>
-                      {(row) => {
-                        const entry = row.original;
-                        const presentation = changePresentation[entry.change];
-                        return (
-                          <TableRow aria-label={entry.path}>
-                            <TableCell class="min-w-64 flex-1 gap-2">
-                              <Icon
-                                source={
-                                  entry.kind === "directory" ? folder : file
-                                }
-                                size={15}
-                                class="flex-none text-muted"
-                              />
-                              <View class="min-w-0 flex-1 flex flex-col gap-0.5">
-                                <Text class="w-full truncate">
-                                  {entry.name}
-                                </Text>
+                  <VirtualList
+                    items={diffTable.rows}
+                    itemHeight={64}
+                    getItemKey={(row) => row.id}
+                    role="group"
+                    accessibilityLabel="Snapshot change rows"
+                    class="min-h-0 flex-1"
+                  >
+                    {(row) => {
+                      const entry = () => row().original;
+                      const presentation = () =>
+                        changePresentation[entry().change];
+                      return (
+                        <TableRow aria-label={entry().path} class="h-16">
+                          <TableCell class="min-w-0 flex-1 gap-2">
+                            <Icon
+                              source={
+                                entry().kind === "directory" ? folder : file
+                              }
+                              size={15}
+                              class="flex-none text-muted"
+                            />
+                            <View class="min-w-0 flex-1 flex flex-col gap-0.5">
+                              <Text class="w-full truncate">
+                                {entry().name}
+                              </Text>
+                              <Text class="w-full truncate text-xs text-muted">
+                                {entry().path}
+                              </Text>
+                              <Show when={compactTable.matches()}>
                                 <Text class="w-full truncate text-xs text-muted">
-                                  {entry.path}
+                                  {compactEntryDetails(entry())}
                                 </Text>
-                              </View>
+                              </Show>
+                            </View>
+                          </TableCell>
+                          <TableCell class="min-w-0 w-28 flex-none">
+                            <Badge
+                              variant={presentation().variant}
+                              weight="normal"
+                            >
+                              {presentation().label}
+                            </Badge>
+                          </TableCell>
+                          <Show when={!compactTable.matches()}>
+                            <TableCell class="min-w-0 w-28 flex-none text-muted">
+                              {formatBytes(entry().previousSize)}
                             </TableCell>
-                            <TableCell class="w-28 flex-none">
-                              <Badge
-                                variant={presentation.variant}
-                                weight="normal"
-                              >
-                                {presentation.label}
-                              </Badge>
+                            <TableCell class="min-w-0 w-28 flex-none text-muted">
+                              {formatBytes(entry().currentSize)}
                             </TableCell>
-                            <TableCell class="w-28 flex-none text-muted">
-                              {formatBytes(entry.previousSize)}
-                            </TableCell>
-                            <TableCell class="w-28 flex-none text-muted">
-                              {formatBytes(entry.currentSize)}
-                            </TableCell>
-                            <TableCell class="w-36 flex-none text-muted">
-                              {formatModified(
-                                entry.currentModified ?? entry.previousModified,
+                            <TableCell class="min-w-0 w-36 flex-none text-muted">
+                              {formatOptionalTimestamp(
+                                entry().currentModified ??
+                                  entry().previousModified,
                               )}
                             </TableCell>
-                          </TableRow>
-                        );
-                      }}
-                    </ForValue>
-                  </TableBody>
+                          </Show>
+                        </TableRow>
+                      );
+                    }}
+                  </VirtualList>
                 </Table>
-              </ScrollArea>
+              </View>
             </Show>
           </Show>
         </Show>

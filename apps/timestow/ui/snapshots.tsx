@@ -1,169 +1,312 @@
 import {
-  Badge,
+  AdaptiveSplitPane,
+  AdaptiveSplitPaneDetail,
+  AdaptiveSplitPaneMain,
+  Breadcrumb,
+  BreadcrumbItem,
+  BreadcrumbLink,
+  BreadcrumbList,
+  BreadcrumbPage,
+  BreadcrumbSeparator,
   Button,
   ButtonGroup,
   ContentState,
-  ContextMenu,
-  createTanStackDataTable,
   Icon,
   InputGroup,
   InputGroupAddon,
   InputGroupInput,
   PageHeader,
   ProjectionBoundary,
-  ScrollArea,
-  Table,
-  TableBody,
-  TableCell,
-  TableHeader,
-  TableRow,
-  type TanStackDataTableColumn,
   Text,
   useNavigate,
   View,
 } from "@wabou/ui";
 import chevronLeft from "lucide-static/icons/chevron-left.svg?raw";
-import file from "lucide-static/icons/file.svg?raw";
 import folder from "lucide-static/icons/folder.svg?raw";
 import folderTree from "lucide-static/icons/folder-tree.svg?raw";
 import gitCompare from "lucide-static/icons/git-compare-arrows.svg?raw";
 import list from "lucide-static/icons/list.svg?raw";
 import refreshCw from "lucide-static/icons/refresh-cw.svg?raw";
 import search from "lucide-static/icons/search.svg?raw";
-import shieldCheck from "lucide-static/icons/shield-check.svg?raw";
 import x from "lucide-static/icons/x.svg?raw";
 import {
   createEffect,
   createSignal,
   For as ForValue,
+  type JSX,
+  Match,
   onCleanup,
   Show,
+  Switch,
 } from "solid-js";
-import { type FileEntry, type SnapshotEntry, useRusticApi } from "./api";
-import { BackupProgressStatus } from "./backup-progress";
+import {
+  FILE_PAGE_SIZE,
+  type FileEntry,
+  type SnapshotEntry,
+  useRusticApi,
+} from "./api";
+import { createAsyncRequestGate } from "./async-request";
 import { FileDetails } from "./file-details";
+import {
+  createLocalOperationId,
+  OperationProgressStatus,
+} from "./operation-progress";
+import { RepositoryCheckDialog } from "./repository-check";
 import { BackupScheduleDialog } from "./schedule-dialog";
 import { useTimestowSession } from "./session";
-import { createSnapshotBrowserCache } from "./snapshot-browser-cache";
-import { formatSnapshotTime, SnapshotDetails } from "./snapshot-details";
+import { SnapshotDetails } from "./snapshot-details";
 import { SnapshotDiffPanel } from "./snapshot-diff";
+import { SnapshotFileList } from "./snapshot-file-list";
+import { SnapshotHistory, snapshotDisplayTitle } from "./snapshot-history";
 import { SnapshotFileTree } from "./snapshot-tree";
-import { SortableTableHead } from "./sortable-table-head";
 import { BackupSourcesDialog } from "./workspace-components";
-
-const fileColumns: TanStackDataTableColumn<FileEntry>[] = [
-  { accessorKey: "name", header: "Name" },
-  { accessorKey: "size", header: "Size" },
-  { accessorKey: "modified", header: "Modified" },
-];
-
-function formatBytes(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 ** 2) return `${(bytes / 1024).toFixed(1)} KB`;
-  if (bytes < 1024 ** 3) return `${(bytes / 1024 ** 2).toFixed(1)} MB`;
-  return `${(bytes / 1024 ** 3).toFixed(1)} GB`;
-}
 
 function shortId(id: string): string {
   return id.slice(0, 8);
 }
 
-export function formatModified(value?: string): string {
-  if (!value) return "—";
-  const match = value.match(/^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})/);
-  return match
-    ? `${match[1]}-${match[2]}-${match[3]} ${match[4]}:${match[5]}`
-    : value;
+export interface SnapshotPathSegment {
+  label: string;
+  path: string;
 }
 
-export function SnapshotFileRow(props: {
-  entry: FileEntry;
-  selected: boolean;
-  searchActive: boolean;
-  onSelect: (entry: FileEntry) => void;
-  onOpenDirectory: (entry: FileEntry) => void;
+export function snapshotPathSegments(path: string): SnapshotPathSegment[] {
+  const names = path.split(/[\\/]/).filter(Boolean);
+  return [
+    { label: "Root", path: "" },
+    ...names.map((label, index) => ({
+      label,
+      path: names.slice(0, index + 1).join("/"),
+    })),
+  ];
+}
+
+export function SnapshotPathBreadcrumb(props: {
+  path: string;
+  onNavigate(path: string): void;
 }) {
-  const entry = () => props.entry;
-  let pendingSingleClick: ReturnType<typeof setTimeout> | undefined;
-  const cancelPendingSingleClick = () => {
-    if (pendingSingleClick === undefined) return;
-    clearTimeout(pendingSingleClick);
-    pendingSingleClick = undefined;
-  };
-  const select = () => {
-    if (entry().kind !== "directory") {
-      props.onSelect(entry());
-      return;
-    }
-    cancelPendingSingleClick();
-    pendingSingleClick = setTimeout(() => {
-      pendingSingleClick = undefined;
-      props.onSelect(entry());
-    }, 410);
-  };
-  onCleanup(cancelPendingSingleClick);
+  const segments = () => snapshotPathSegments(props.path);
   return (
-    <ContextMenu
-      aria-label={`${entry().name} actions`}
-      items={
-        entry().kind === "directory"
-          ? [
-              { id: "open", label: "Open folder" },
-              { id: "details", label: "Show details" },
-            ]
-          : [{ id: "details", label: "Show details" }]
-      }
-      onAction={(action) => {
-        if (action === "open") props.onOpenDirectory(entry());
-        if (action === "details") props.onSelect(entry());
-      }}
-      trigger={(contextMenu) => (
-        <TableRow
-          ref={contextMenu.ref}
-          aria-label={entry().name}
-          aria-haspopup={contextMenu["aria-haspopup"]}
-          aria-expanded={contextMenu["aria-expanded"]}
-          selected={props.selected}
-          class="cursor-pointer"
-          onClick={select}
-          onContextMenu={(event) => {
-            cancelPendingSingleClick();
-            props.onSelect(entry());
-            contextMenu.onContextMenu(event);
-          }}
-          onKeyDown={contextMenu.onKeyDown}
-          onDblClick={() => {
-            if (entry().kind !== "directory") return;
-            cancelPendingSingleClick();
-            props.onOpenDirectory(entry());
-          }}
-        >
-          <TableCell class="min-w-64 flex-1 gap-2">
-            <Icon
-              source={entry().kind === "directory" ? folder : file}
-              size={15}
-              class="flex-none text-muted"
-            />
-            <View class="min-w-0 flex-1 flex flex-col gap-0.5">
-              <Text class="w-full truncate">{entry().name}</Text>
-              <Show when={props.searchActive}>
-                <Text class="w-full truncate text-xs text-muted">
-                  {entry().path}
-                </Text>
+    <Breadcrumb aria-label="Snapshot path" class="min-w-0">
+      <BreadcrumbList class="min-w-0 flex-nowrap gap-1 text-xs">
+        <ForValue each={segments()}>
+          {(segment, index) => (
+            <>
+              <Show when={index() > 0}>
+                <BreadcrumbSeparator class="w-3 h-3" />
               </Show>
-            </View>
-          </TableCell>
-          <TableCell class="w-24 flex-none text-muted">
-            {entry().kind === "directory" ? "—" : formatBytes(entry().size)}
-          </TableCell>
-          <TableCell class="w-36 flex-none text-muted">
-            {formatModified(entry().modified)}
-          </TableCell>
-        </TableRow>
-      )}
+              <BreadcrumbItem class="min-w-0 gap-1">
+                <Show
+                  when={index() < segments().length - 1}
+                  fallback={
+                    <BreadcrumbPage class="truncate text-xs">
+                      {segment.label}
+                    </BreadcrumbPage>
+                  }
+                >
+                  <BreadcrumbLink
+                    class="truncate text-xs"
+                    aria-label={`Open ${segment.label}`}
+                    onClick={() => props.onNavigate(segment.path)}
+                  >
+                    {segment.label}
+                  </BreadcrumbLink>
+                </Show>
+              </BreadcrumbItem>
+            </>
+          )}
+        </ForValue>
+      </BreadcrumbList>
+    </Breadcrumb>
+  );
+}
+
+export { formatOptionalTimestamp as formatModified } from "./format";
+
+export function snapshotAfterRefresh(
+  snapshots: readonly SnapshotEntry[],
+  currentId: string | undefined,
+  selectNewest: boolean,
+): SnapshotEntry | undefined {
+  if (selectNewest) return snapshots[0];
+  return currentId
+    ? snapshots.find((snapshot) => snapshot.id === currentId)
+    : undefined;
+}
+
+export interface SnapshotWorkspaceHeaderProps {
+  name: string;
+  repositoryPath: string;
+  sources: readonly string[];
+  backingUp: boolean;
+  refreshing?: boolean;
+  showBackupAction?: boolean;
+  scheduleControl?: JSX.Element;
+  repositoryControl?: JSX.Element;
+  onSourcesChange(sources: string[]): void;
+  onRefresh(): void;
+  onBackup(): void;
+}
+
+export function SnapshotWorkspaceHeader(props: SnapshotWorkspaceHeaderProps) {
+  return (
+    <PageHeader
+      stacked
+      title={props.name}
+      description={props.repositoryPath}
+      actions={
+        <View
+          role="toolbar"
+          aria-label="Backup workspace actions"
+          class="w-full min-w-0 flex flex-row items-center justify-between gap-3"
+        >
+          <View class="min-w-0 flex flex-row items-center gap-2">
+            <BackupSourcesDialog
+              sources={props.sources}
+              disabled={props.backingUp}
+              onChange={props.onSourcesChange}
+            />
+            {props.scheduleControl}
+            {props.repositoryControl}
+          </View>
+          <View class="flex-none flex flex-row items-center gap-2">
+            <Button
+              aria-label="Refresh snapshots"
+              variant="outline"
+              disabled={props.backingUp}
+              loading={props.refreshing}
+              loadingLabel="Refreshing…"
+              onClick={props.onRefresh}
+            >
+              <Icon source={refreshCw} size={14} /> Refresh
+            </Button>
+            <Show when={props.showBackupAction !== false}>
+              <Button
+                aria-label={props.backingUp ? "Backing up" : "Back up now"}
+                disabled={props.sources.length === 0 || props.backingUp}
+                onClick={props.onBackup}
+              >
+                {props.backingUp ? "Backing up…" : "Back up now"}
+              </Button>
+            </Show>
+          </View>
+        </View>
+      }
     />
   );
 }
+
+export function SnapshotBrowserEmptyState(props: {
+  loading: boolean;
+  loadFailed: boolean;
+  hasSnapshots: boolean;
+  sourceCount: number;
+  backingUp: boolean;
+  onBackup(): void;
+}) {
+  return (
+    <Switch
+      fallback={
+        <ContentState
+          state="empty"
+          title="Create your first snapshot"
+          description={`Back up ${props.sourceCount} ${props.sourceCount === 1 ? "folder" : "folders"} to start the history.`}
+          renderAction={() => (
+            <Button size="sm" aria-label="Back up now" onClick={props.onBackup}>
+              Back up now
+            </Button>
+          )}
+          class="min-h-0 flex-1 border-0 shadow-none"
+        />
+      }
+    >
+      <Match when={props.loading}>
+        <ContentState
+          state="loading"
+          title="Loading snapshots"
+          description="Reading this backup’s history…"
+          class="min-h-0 flex-1 border-0 shadow-none"
+        />
+      </Match>
+      <Match when={props.loadFailed}>
+        <ContentState
+          state="error"
+          title="Snapshot history unavailable"
+          description="Resolve the error above or refresh to try again."
+          class="min-h-0 flex-1 border-0 shadow-none"
+        />
+      </Match>
+      <Match when={props.hasSnapshots}>
+        <ContentState
+          state="empty"
+          title="Select a snapshot"
+          description="Choose a point in time from the history to browse its files."
+          class="min-h-0 flex-1 border-0 shadow-none"
+        />
+      </Match>
+      <Match when={props.backingUp}>
+        <ContentState
+          state="loading"
+          title="Creating your first snapshot"
+          description="Timestow will open it here when the backup finishes."
+          class="min-h-0 flex-1 border-0 shadow-none"
+        />
+      </Match>
+      <Match when={props.sourceCount === 0}>
+        <ContentState
+          state="empty"
+          title="Choose folders to back up"
+          description="Add at least one folder using the folder control above."
+          class="min-h-0 flex-1 border-0 shadow-none"
+        />
+      </Match>
+    </Switch>
+  );
+}
+
+export function SnapshotFileListEmptyState(props: {
+  searchActive: boolean;
+  query: string;
+  path: string;
+  onClearSearch(): void;
+}) {
+  return (
+    <Switch>
+      <Match when={props.searchActive}>
+        <ContentState
+          state="empty"
+          title="No matching files"
+          description={`No files in this snapshot match “${props.query.trim()}”.`}
+          action={{ label: "Clear search", onAction: props.onClearSearch }}
+          class="min-h-0 flex-1 border-0 shadow-none"
+        />
+      </Match>
+      <Match when={Boolean(props.path)}>
+        <ContentState
+          state="empty"
+          title="This folder is empty"
+          description="No files or folders are stored at this path."
+          class="min-h-0 flex-1 border-0 shadow-none"
+        />
+      </Match>
+      <Match when>
+        <ContentState
+          state="empty"
+          title="This snapshot is empty"
+          description="No files or folders were recorded in this snapshot."
+          class="min-h-0 flex-1 border-0 shadow-none"
+        />
+      </Match>
+    </Switch>
+  );
+}
+
+export {
+  SnapshotHistory,
+  snapshotDisplayTitle,
+  snapshotHistoryMetadata,
+  snapshotMatchesQuery,
+} from "./snapshot-history";
 
 export function SnapshotsPage() {
   const api = useRusticApi();
@@ -172,8 +315,11 @@ export function SnapshotsPage() {
   const [snapshots, setSnapshots] = createSignal<SnapshotEntry[]>([]);
   const [selected, setSelected] = createSignal<SnapshotEntry>();
   const [files, setFiles] = createSignal<FileEntry[]>([]);
+  const [fileTotal, setFileTotal] = createSignal(0);
   const [selectedEntry, setSelectedEntry] = createSignal<FileEntry>();
   const [searchQuery, setSearchQuery] = createSignal("");
+  const [activeSearchQuery, setActiveSearchQuery] = createSignal("");
+  const [snapshotQuery, setSnapshotQuery] = createSignal("");
   const [searchResults, setSearchResults] = createSignal<FileEntry[]>([]);
   const [searchActive, setSearchActive] = createSignal(false);
   const [searching, setSearching] = createSignal(false);
@@ -184,25 +330,86 @@ export function SnapshotsPage() {
   const [currentPath, setCurrentPath] = createSignal("");
   const [loading, setLoading] = createSignal(true);
   const [loadingFiles, setLoadingFiles] = createSignal(false);
+  const [loadingMoreFiles, setLoadingMoreFiles] = createSignal(false);
+  const [loadMoreError, setLoadMoreError] = createSignal<string>();
+  const [historyError, setHistoryError] = createSignal<string>();
+  const [fileError, setFileError] = createSignal<string>();
   const [error, setError] = createSignal<string>();
-  const browserCache = createSnapshotBrowserCache();
-  let fileRequestGeneration = 0;
+  const browserCache = session.snapshotBrowser;
+  const fileRequests = createAsyncRequestGate();
+  const searchRequests = createAsyncRequestGate();
+  const snapshotRequests = createAsyncRequestGate();
+  onCleanup(() => {
+    fileRequests.invalidate();
+    searchRequests.invalidate();
+    snapshotRequests.invalidate();
+  });
 
-  async function loadSnapshots(profileId: string, selectNewest = false) {
+  function clearSnapshotWorkspace(): void {
+    fileRequests.invalidate();
+    searchRequests.invalidate();
+    setSelected(undefined);
+    setFiles([]);
+    setFileTotal(0);
+    setSelectedEntry(undefined);
+    setSearchQuery("");
+    setActiveSearchQuery("");
+    setSnapshotQuery("");
+    setSearchResults([]);
+    setSearchActive(false);
+    setActiveSearchQuery("");
+    setSearching(false);
+    setCurrentPath("");
+    setLoadingFiles(false);
+    setLoadingMoreFiles(false);
+    setLoadMoreError(undefined);
+    setFileError(undefined);
+  }
+
+  async function loadSnapshots(
+    profileId: string,
+    selection: "preserve" | "restore" | "newest" = "preserve",
+  ) {
+    const request = snapshotRequests.begin();
+    const preferredSnapshotId =
+      selection === "restore"
+        ? browserCache.selectedSnapshot(profileId)
+        : selected()?.id;
+    if (selection !== "preserve") {
+      if (selection === "newest") browserCache.clearListings(profileId);
+      clearSnapshotWorkspace();
+      setSnapshots([]);
+    }
     setLoading(true);
+    setHistoryError(undefined);
     setError(undefined);
     try {
       const next = await api.listSnapshots({ profileId });
+      if (!snapshotRequests.isCurrent(request)) return false;
       setSnapshots(next);
-      if (selectNewest && next[0]) selectSnapshot(profileId, next[0]);
-      else if (selected()) {
-        const refreshed = next.find((item) => item.id === selected()?.id);
-        if (refreshed) setSelected(refreshed);
+      const refreshed = snapshotAfterRefresh(
+        next,
+        preferredSnapshotId,
+        selection === "newest",
+      );
+      const nextSelection =
+        selection === "restore" ? (refreshed ?? next[0]) : refreshed;
+      if (nextSelection && selection !== "preserve") {
+        selectSnapshot(profileId, nextSelection);
+      } else if (nextSelection) {
+        setSelected(nextSelection);
+        browserCache.rememberSelection(profileId, nextSelection.id);
+      } else if (selected()) {
+        clearSnapshotWorkspace();
       }
+      return true;
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : String(cause));
+      if (snapshotRequests.isCurrent(request)) {
+        setHistoryError(cause instanceof Error ? cause.message : String(cause));
+      }
+      return false;
     } finally {
-      setLoading(false);
+      if (snapshotRequests.isCurrent(request)) setLoading(false);
     }
   }
 
@@ -211,16 +418,21 @@ export function SnapshotsPage() {
     snapshot: SnapshotEntry,
     path: string,
   ) {
-    const generation = ++fileRequestGeneration;
+    const request = fileRequests.begin();
+    searchRequests.invalidate();
     setCurrentPath(path);
     setFiles([]);
+    setFileTotal(0);
     setSelectedEntry(undefined);
     setSearchActive(false);
     setSearchResults([]);
-    setError(undefined);
-    const cached = browserCache.entries(snapshot.id, path);
+    setSearching(false);
+    setLoadingMoreFiles(false);
+    setFileError(undefined);
+    const cached = browserCache.listing(profileId, snapshot.id, path);
     if (cached) {
-      setFiles([...cached]);
+      setFiles([...cached.entries]);
+      setFileTotal(cached.total);
       setLoadingFiles(false);
       return;
     }
@@ -230,15 +442,56 @@ export function SnapshotsPage() {
         profileId,
         snapshotId: snapshot.id,
         path,
+        offset: 0,
+        limit: FILE_PAGE_SIZE,
       });
-      browserCache.remember(snapshot.id, path, next);
-      if (generation !== fileRequestGeneration) return;
-      setFiles(next);
+      if (!fileRequests.isCurrent(request)) return;
+      browserCache.remember(profileId, snapshot.id, path, next);
+      setFiles(next.entries);
+      setFileTotal(next.total);
     } catch (cause) {
-      if (generation !== fileRequestGeneration) return;
-      setError(cause instanceof Error ? cause.message : String(cause));
+      if (!fileRequests.isCurrent(request)) return;
+      setFileError(cause instanceof Error ? cause.message : String(cause));
     } finally {
-      if (generation === fileRequestGeneration) setLoadingFiles(false);
+      if (fileRequests.isCurrent(request)) setLoadingFiles(false);
+    }
+  }
+
+  async function loadMoreFiles() {
+    const profile = session.activeProfile();
+    const snapshot = selected();
+    const path = currentPath();
+    const offset = files().length;
+    if (!profile || !snapshot || loadingMoreFiles() || offset >= fileTotal())
+      return;
+    const request = fileRequests.capture();
+    setLoadingMoreFiles(true);
+    setLoadMoreError(undefined);
+    setError(undefined);
+    try {
+      const next = await api.listFiles({
+        profileId: profile.id,
+        snapshotId: snapshot.id,
+        path,
+        offset,
+        limit: FILE_PAGE_SIZE,
+      });
+      if (!fileRequests.isCurrent(request)) return;
+      const combined = [...files(), ...next.entries];
+      setFiles(combined);
+      setFileTotal(next.total);
+      browserCache.remember(profile.id, snapshot.id, path, {
+        entries: combined,
+        total: next.total,
+      });
+    } catch (cause) {
+      if (fileRequests.isCurrent(request)) {
+        setLoadMoreError(
+          cause instanceof Error ? cause.message : String(cause),
+        );
+      }
+    } finally {
+      if (fileRequests.isCurrent(request)) setLoadingMoreFiles(false);
     }
   }
 
@@ -247,43 +500,71 @@ export function SnapshotsPage() {
     const snapshot = selected();
     const query = searchQuery().trim();
     if (!profile || !snapshot || !query || searching()) return;
+    const request = searchRequests.begin();
     setSearching(true);
     setError(undefined);
     try {
-      setSearchResults(
-        await api.searchFiles({
-          profileId: profile.id,
-          snapshotId: snapshot.id,
-          query,
-          limit: 200,
-        }),
-      );
+      const results = await api.searchFiles({
+        profileId: profile.id,
+        snapshotId: snapshot.id,
+        query,
+        limit: 200,
+      });
+      if (!searchRequests.isCurrent(request)) return;
+      setSearchResults(results);
+      setActiveSearchQuery(query);
       setSearchActive(true);
       setSelectedEntry(undefined);
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : String(cause));
+      if (searchRequests.isCurrent(request)) {
+        setError(cause instanceof Error ? cause.message : String(cause));
+      }
     } finally {
-      setSearching(false);
+      if (searchRequests.isCurrent(request)) setSearching(false);
     }
   }
 
   function clearSearch() {
+    searchRequests.invalidate();
     setSearchQuery("");
+    setActiveSearchQuery("");
     setSearchResults([]);
     setSearchActive(false);
+    setSearching(false);
     setSelectedEntry(undefined);
+  }
+
+  function updateSearchQuery(value: string): void {
+    if (searching()) {
+      searchRequests.invalidate();
+      setSearching(false);
+    }
+    setSearchQuery(value);
   }
 
   function selectSnapshot(profileId: string, snapshot: SnapshotEntry) {
     setSelected(snapshot);
-    void loadFiles(profileId, snapshot, browserCache.lastPath(snapshot.id));
+    browserCache.rememberSelection(profileId, snapshot.id);
+    void loadFiles(
+      profileId,
+      snapshot,
+      browserCache.lastPath(profileId, snapshot.id),
+    );
+  }
+
+  function retryCurrentDirectory(): void {
+    const profile = session.activeProfile();
+    const snapshot = selected();
+    if (!profile || !snapshot) return;
+    void loadFiles(profile.id, snapshot, currentPath());
   }
 
   async function refreshSnapshots(profileId: string) {
+    if (loading()) return;
     const selectedId = selected()?.id;
     const path = currentPath();
-    browserCache.clear();
-    await loadSnapshots(profileId);
+    browserCache.clearListings(profileId);
+    if (!(await loadSnapshots(profileId))) return;
     const refreshed = snapshots().find(
       (snapshot) => snapshot.id === selectedId,
     );
@@ -293,10 +574,12 @@ export function SnapshotsPage() {
   async function saveSources(sources: string[]) {
     const profile = session.activeProfile();
     if (!profile) return;
+    setError(undefined);
     try {
       await session.updateSources(profile.id, sources);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : String(cause));
+      throw cause;
     }
   }
 
@@ -316,6 +599,8 @@ export function SnapshotsPage() {
     return profile ? session.isBackingUp(profile.id) : false;
   };
 
+  const pageError = () => historyError() ?? error();
+
   async function updateSnapshot(
     snapshot: SnapshotEntry,
     changes: Pick<
@@ -325,18 +610,46 @@ export function SnapshotsPage() {
   ) {
     const profile = session.activeProfile();
     if (!profile) return;
-    const updated = await api.updateSnapshot({
-      profileId: profile.id,
-      snapshotId: snapshot.id,
-      label: changes.label,
-      description: changes.description ?? "",
-      tags: changes.tags,
-      deleteProtected: changes.deleteProtected,
-    });
-    setSnapshots((items) =>
-      items.map((item) => (item.id === snapshot.id ? updated : item)),
-    );
-    if (selected()?.id === snapshot.id) setSelected(updated);
+    const profileId = profile.id;
+    const operationId = createLocalOperationId("snapshot-update");
+    session.beginOperation(profileId, operationId);
+    try {
+      const updated = await api.updateSnapshot({
+        profileId,
+        snapshotId: snapshot.id,
+        label: changes.label,
+        description: changes.description ?? "",
+        tags: changes.tags,
+        deleteProtected: changes.deleteProtected,
+      });
+      browserCache.replaceSnapshot(profileId, snapshot.id, updated.id);
+      if (session.activeProfile()?.id !== profileId) return;
+      setSnapshots((items) =>
+        items.map((item) => (item.id === snapshot.id ? updated : item)),
+      );
+      if (selected()?.id === snapshot.id) setSelected(updated);
+    } finally {
+      session.endOperation(profileId, operationId);
+    }
+  }
+
+  async function deleteSnapshot(snapshot: SnapshotEntry) {
+    const profile = session.activeProfile();
+    if (!profile) return;
+    const profileId = profile.id;
+    const operationId = createLocalOperationId("snapshot-delete");
+    session.beginOperation(profileId, operationId);
+    try {
+      await api.deleteSnapshot({
+        profileId,
+        snapshotId: snapshot.id,
+      });
+      browserCache.removeSnapshot(profileId, snapshot.id);
+      if (session.activeProfile()?.id !== profileId) return;
+      await loadSnapshots(profileId, "newest");
+    } finally {
+      session.endOperation(profileId, operationId);
+    }
   }
 
   function parentPath(path: string): string {
@@ -358,82 +671,77 @@ export function SnapshotsPage() {
         queueMicrotask(() => void navigate({ to: "/" }));
         return;
       }
-      void loadSnapshots(profileId, true);
+      void loadSnapshots(profileId, "restore");
     },
   );
 
   createEffect(
-    () => session.lastBackup(),
-    (completed) => {
-      const profile = session.activeProfile();
-      if (!completed || completed.profileId !== profile?.id) return;
-      void loadSnapshots(completed.profileId, true);
+    () => ({
+      completed: session.lastBackup(),
+      activeProfileId: session.activeProfile()?.id,
+    }),
+    ({ completed, activeProfileId }) => {
+      if (!completed || completed.profileId !== activeProfileId) return;
+      void loadSnapshots(completed.profileId, "newest");
     },
   );
 
   const visibleFiles = () => (searchActive() ? searchResults() : files());
-  const fileTable = createTanStackDataTable<FileEntry>({
-    data: visibleFiles,
-    columns: fileColumns,
-    getRowId: (entry) => entry.path,
-    initialSorting: [{ id: "name", desc: false }],
-  });
-
-  const sortDirection = (columnId: string) => {
-    const sorting = fileTable.sorting().find(({ id }) => id === columnId);
-    return sorting ? (sorting.desc ? "desc" : "asc") : undefined;
+  const fileCountLabel = () => {
+    if (loadingFiles()) return "Loading…";
+    if (fileError()) return "Unavailable";
+    if (searchActive()) return `${visibleFiles().length} matches`;
+    if (fileTotal() > files().length) {
+      return `${files().length} of ${fileTotal()} items`;
+    }
+    return `${files().length} items`;
   };
-
   return (
     <View class="w-full h-full min-w-0 min-h-0 flex flex-col">
-      <View class="flex-none px-6 py-5 flex flex-col gap-4 border-b border-subtle bg-surface">
-        <PageHeader
-          title={session.activeProfile()?.name ?? "Backup"}
-          description={session.activeProfile()?.repositoryPath ?? ""}
-          actions={
-            <>
-              <BackupSourcesDialog
-                sources={session.activeProfile()?.sources ?? []}
-                disabled={backingUp()}
-                onChange={(sources) => void saveSources(sources)}
-              />
-              <Show when={session.activeProfile()}>
-                {(profile) => (
-                  <BackupScheduleDialog
-                    profile={profile()}
-                    disabled={backingUp()}
-                  />
-                )}
-              </Show>
-              <Button
-                variant="outline"
-                onClick={() => {
-                  const profile = session.activeProfile();
-                  if (profile) void refreshSnapshots(profile.id);
-                }}
-              >
-                <Icon source={refreshCw} size={14} /> Refresh
-              </Button>
-              <Button
-                disabled={
-                  !session.activeProfile()?.sources.length || backingUp()
-                }
-                onClick={() => void runBackup()}
-              >
-                {backingUp() ? "Backing up…" : "Back up now"}
-              </Button>
-            </>
+      <View class="flex-none px-6 py-4 flex flex-col gap-3 border-b border-subtle bg-surface">
+        <SnapshotWorkspaceHeader
+          name={session.activeProfile()?.name ?? "Backup"}
+          repositoryPath={session.activeProfile()?.repositoryPath ?? ""}
+          sources={session.activeProfile()?.sources ?? []}
+          backingUp={backingUp()}
+          refreshing={loading()}
+          showBackupAction={snapshots().length > 0}
+          scheduleControl={
+            <Show when={session.activeProfile()}>
+              {(profile) => (
+                <BackupScheduleDialog
+                  profile={profile()}
+                  disabled={backingUp()}
+                />
+              )}
+            </Show>
           }
+          repositoryControl={
+            <Show when={session.activeProfile()}>
+              {(profile) => (
+                <RepositoryCheckDialog
+                  profileId={profile().id}
+                  disabled={backingUp()}
+                />
+              )}
+            </Show>
+          }
+          onSourcesChange={saveSources}
+          onRefresh={() => {
+            const profile = session.activeProfile();
+            if (profile) void refreshSnapshots(profile.id);
+          }}
+          onBackup={() => void runBackup()}
         />
         <Show when={backingUp() && session.activeProfile()}>
           {(profile) => (
             <Show when={session.backupProgress(profile().id)}>
-              {(progress) => <BackupProgressStatus progress={progress()} />}
+              {(progress) => <OperationProgressStatus progress={progress()} />}
             </Show>
           )}
         </Show>
       </View>
-      <Show when={error()}>
+      <Show when={pageError()}>
         {(message) => (
           <View class="flex-none mx-6 mt-4 rounded-md border border-danger bg-danger-surface px-3 py-2">
             <Text class="text-sm text-danger-primary">{message()}</Text>
@@ -441,85 +749,35 @@ export function SnapshotsPage() {
         )}
       </Show>
       <View class="min-w-0 min-h-0 flex-1 flex flex-row bg-surface">
-        <ProjectionBoundary
-          id="rustic-sidebar"
-          class="w-64 min-h-0 flex-none flex flex-col border-r border-subtle bg-surface-muted"
-        >
-          <View class="flex-none px-4 py-4 border-b border-subtle">
-            <Text class="text-xs font-semibold uppercase tracking-wide text-muted">
-              Snapshot history
-            </Text>
-          </View>
-          <ScrollArea
-            class="min-h-0 flex-1"
-            contentClass="flex flex-col gap-1 p-2"
-          >
-            <Show
-              when={!loading() && snapshots().length > 0}
-              fallback={
-                <ContentState
-                  state={loading() ? "loading" : "empty"}
-                  title={loading() ? "Loading snapshots" : "No snapshots yet"}
-                  description={
-                    loading()
-                      ? undefined
-                      : "Add a folder and run your first backup."
-                  }
-                  class="border-0 shadow-none"
-                />
-              }
-            >
-              <ForValue each={snapshots()}>
-                {(snapshot) => (
-                  <Button
-                    variant="ghost"
-                    selected={selected()?.id === snapshot.id}
-                    class="min-h-14 justify-start px-3"
-                    onClick={() => {
-                      const profile = session.activeProfile();
-                      if (profile) selectSnapshot(profile.id, snapshot);
-                    }}
-                  >
-                    <View class="min-w-0 flex-1 flex flex-col items-start gap-0.5">
-                      <Text class="font-medium">
-                        {snapshot.label || formatSnapshotTime(snapshot.time)}
-                      </Text>
-                      <View class="w-full min-w-0 flex flex-row items-center gap-1.5">
-                        <Show when={snapshot.deleteProtected}>
-                          <Icon
-                            source={shieldCheck}
-                            size={12}
-                            class="flex-none text-success-primary"
-                          />
-                        </Show>
-                        <Text class="min-w-0 flex-1 truncate text-xs text-muted">
-                          {snapshot.label
-                            ? `${formatSnapshotTime(snapshot.time)} · `
-                            : ""}
-                          {shortId(snapshot.id)} ·{" "}
-                          {snapshot.hostname || "Unknown host"}
-                        </Text>
-                      </View>
-                    </View>
-                  </Button>
-                )}
-              </ForValue>
-            </Show>
-          </ScrollArea>
-        </ProjectionBoundary>
+        <SnapshotHistory
+          loading={loading()}
+          loadFailed={historyError() !== undefined}
+          snapshots={snapshots()}
+          selectedId={selected()?.id}
+          query={snapshotQuery()}
+          onQueryChange={setSnapshotQuery}
+          onSelect={(snapshot) => {
+            const profile = session.activeProfile();
+            if (profile) selectSnapshot(profile.id, snapshot);
+          }}
+        />
 
         <ProjectionBoundary
           id="rustic-file-browser"
+          role="region"
+          aria-label="Snapshot browser"
           class="min-w-0 min-h-0 flex-1 flex flex-col bg-surface overflow-hidden"
         >
           <Show
             when={selected()}
             fallback={
-              <ContentState
-                state="empty"
-                title="Select a snapshot"
-                description="The files stored in that point in time will appear here."
-                class="min-h-0 flex-1 border-0 shadow-none"
+              <SnapshotBrowserEmptyState
+                loading={loading()}
+                loadFailed={historyError() !== undefined}
+                hasSnapshots={snapshots().length > 0}
+                sourceCount={session.activeProfile()?.sources.length ?? 0}
+                backingUp={backingUp()}
+                onBackup={() => void runBackup()}
               />
             }
           >
@@ -543,19 +801,51 @@ export function SnapshotsPage() {
                       <Icon source={chevronLeft} size={15} />
                     </Button>
                     <View class="min-w-0 flex-1 flex flex-col">
-                      <Text class="font-semibold">
-                        Snapshot {shortId(snapshot().id)}
+                      <Text class="truncate font-semibold">
+                        {snapshotDisplayTitle(snapshot())}
                       </Text>
-                      <Text class="truncate text-xs text-muted">
-                        {searchActive()
-                          ? `Search results for “${searchQuery()}”`
-                          : `/${currentPath() || ""}`}
-                      </Text>
+                      <View class="min-w-0 flex flex-row items-center gap-1 text-muted">
+                        <Show when={snapshot().label.trim()}>
+                          <Text class="flex-none text-xs text-muted">
+                            {shortId(snapshot().id)} ·
+                          </Text>
+                        </Show>
+                        <Show
+                          when={!searchActive()}
+                          fallback={
+                            <Text class="min-w-0 truncate text-xs text-muted">
+                              Search results for “{activeSearchQuery()}”
+                            </Text>
+                          }
+                        >
+                          <SnapshotPathBreadcrumb
+                            path={currentPath()}
+                            onNavigate={(path) =>
+                              void loadFiles(
+                                session.activeProfile()?.id ?? "",
+                                snapshot(),
+                                path,
+                              )
+                            }
+                          />
+                        </Show>
+                        <Text class="flex-none text-xs text-muted">
+                          · {fileCountLabel()}
+                        </Text>
+                      </View>
                     </View>
+                    <SnapshotDetails
+                      snapshot={snapshot()}
+                      onSave={(changes) => updateSnapshot(snapshot(), changes)}
+                      onDelete={() => deleteSnapshot(snapshot())}
+                    />
+                  </View>
+                  <View class="min-w-0 flex flex-row items-center justify-between gap-3">
                     <ButtonGroup
                       size="sm"
                       variant="ghost"
                       aria-label="Snapshot workspace"
+                      class="flex-none"
                     >
                       <Button
                         size="sm"
@@ -574,15 +864,12 @@ export function SnapshotsPage() {
                         <Icon source={gitCompare} size={14} /> Changes
                       </Button>
                     </ButtonGroup>
-                    <SnapshotDetails
-                      snapshot={snapshot()}
-                      onSave={(changes) => updateSnapshot(snapshot(), changes)}
-                    />
                     <Show when={workspaceMode() === "browse"}>
                       <ButtonGroup
                         size="sm"
                         variant="ghost"
                         aria-label="File view"
+                        class="flex-none"
                       >
                         <Button
                           size="icon"
@@ -606,11 +893,6 @@ export function SnapshotsPage() {
                           <Icon source={folderTree} size={14} />
                         </Button>
                       </ButtonGroup>
-                      <Badge variant="secondary">
-                        {loadingFiles()
-                          ? "Loading…"
-                          : `${visibleFiles().length} items`}
-                      </Badge>
                     </Show>
                   </View>
                   <Show when={workspaceMode() === "browse"}>
@@ -624,7 +906,7 @@ export function SnapshotsPage() {
                           placeholder="Search this snapshot…"
                           value={searchQuery()}
                           onInput={(event) =>
-                            setSearchQuery(event.currentTarget.value)
+                            updateSearchQuery(event.currentTarget.value)
                           }
                           onKeyDown={(event) => {
                             if (event.key === "Enter") {
@@ -667,103 +949,112 @@ export function SnapshotsPage() {
                   }
                 >
                   <Show
-                    when={!loadingFiles()}
+                    when={!loadingFiles() && !fileError()}
                     fallback={
-                      <ContentState
-                        state="loading"
-                        title="Loading snapshot files"
-                        description="Reading this snapshot’s directory…"
-                        class="min-h-0 flex-1 border-0 shadow-none"
-                      />
+                      <Show
+                        when={fileError()}
+                        fallback={
+                          <ContentState
+                            state="loading"
+                            title="Loading snapshot files"
+                            description="Reading this snapshot’s directory…"
+                            class="min-h-0 flex-1 border-0 shadow-none"
+                          />
+                        }
+                      >
+                        {(message) => (
+                          <ContentState
+                            state="error"
+                            title="Snapshot files unavailable"
+                            description={message()}
+                            action={{
+                              label: "Retry",
+                              onAction: retryCurrentDirectory,
+                            }}
+                            class="min-h-0 flex-1 border-0 shadow-none"
+                          />
+                        )}
+                      </Show>
                     }
                   >
-                    <View class="min-w-0 min-h-0 flex-1 flex flex-row">
-                      <Show
-                        when={browserMode() === "list" || searchActive()}
-                        fallback={
-                          <ScrollArea
-                            class="min-w-0 min-h-0 flex-1"
-                            contentClass="min-w-full px-2 py-2"
-                          >
+                    <AdaptiveSplitPane
+                      compactAt={720}
+                      aria-label="Snapshot file workspace"
+                      class="min-w-0 min-h-0 flex-1"
+                    >
+                      <AdaptiveSplitPaneMain class="h-full">
+                        <Show
+                          when={browserMode() === "list" || searchActive()}
+                          fallback={
                             <SnapshotFileTree
                               profileId={session.activeProfile()?.id ?? ""}
                               snapshotId={snapshot().id}
                               selectedPath={selectedEntry()?.path}
                               onSelect={setSelectedEntry}
                             />
-                          </ScrollArea>
-                        }
-                      >
-                        <ScrollArea
-                          class="min-w-0 min-h-0 flex-1"
-                          contentClass="min-w-full"
+                          }
                         >
-                          <Table>
-                            <TableHeader>
-                              <TableRow class="bg-surface-muted">
-                                <SortableTableHead
-                                  label="Name"
-                                  class="min-w-64 flex-1"
-                                  direction={() => sortDirection("name")}
-                                  onToggle={() =>
-                                    fileTable.table
-                                      .getColumn("name")
-                                      ?.toggleSorting()
-                                  }
-                                />
-                                <SortableTableHead
-                                  label="Size"
-                                  class="w-24 flex-none"
-                                  direction={() => sortDirection("size")}
-                                  onToggle={() =>
-                                    fileTable.table
-                                      .getColumn("size")
-                                      ?.toggleSorting()
-                                  }
-                                />
-                                <SortableTableHead
-                                  label="Modified"
-                                  class="w-36 flex-none"
-                                  direction={() => sortDirection("modified")}
-                                  onToggle={() =>
-                                    fileTable.table
-                                      .getColumn("modified")
-                                      ?.toggleSorting()
-                                  }
-                                />
-                              </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                              <ForValue each={fileTable.rows()}>
-                                {(row) => (
-                                  <SnapshotFileRow
-                                    entry={row.original}
-                                    selected={
-                                      selectedEntry()?.path ===
-                                      row.original.path
-                                    }
-                                    searchActive={searchActive()}
-                                    onSelect={setSelectedEntry}
-                                    onOpenDirectory={(directory) =>
-                                      void loadFiles(
-                                        session.activeProfile()?.id ?? "",
-                                        snapshot(),
-                                        directory.path,
-                                      )
-                                    }
-                                  />
-                                )}
-                              </ForValue>
-                            </TableBody>
-                          </Table>
-                        </ScrollArea>
+                          <Show
+                            when={visibleFiles().length > 0}
+                            fallback={
+                              <SnapshotFileListEmptyState
+                                searchActive={searchActive()}
+                                query={activeSearchQuery()}
+                                path={currentPath()}
+                                onClearSearch={clearSearch}
+                              />
+                            }
+                          >
+                            <SnapshotFileList
+                              entries={visibleFiles()}
+                              selectedPath={selectedEntry()?.path}
+                              searchActive={searchActive()}
+                              total={fileTotal()}
+                              loadingMore={loadingMoreFiles()}
+                              loadMoreError={loadMoreError()}
+                              canOpenParent={
+                                Boolean(currentPath()) && !searchActive()
+                              }
+                              onSelect={setSelectedEntry}
+                              onOpenDirectory={(directory) =>
+                                void loadFiles(
+                                  session.activeProfile()?.id ?? "",
+                                  snapshot(),
+                                  directory.path,
+                                )
+                              }
+                              onOpenParent={() =>
+                                void loadFiles(
+                                  session.activeProfile()?.id ?? "",
+                                  snapshot(),
+                                  parentPath(currentPath()),
+                                )
+                              }
+                              onLoadMore={() => void loadMoreFiles()}
+                            />
+                          </Show>
+                        </Show>
+                      </AdaptiveSplitPaneMain>
+                      <Show when={selectedEntry()}>
+                        <AdaptiveSplitPaneDetail
+                          open={true}
+                          aria-label="Selected file details"
+                          class="w-72 h-full flex-none border-l border-subtle"
+                          modalClass="w-96"
+                          onOpenChange={(open) => {
+                            if (!open) setSelectedEntry(undefined);
+                          }}
+                        >
+                          <FileDetails
+                            profileId={session.activeProfile()?.id ?? ""}
+                            snapshotId={snapshot().id}
+                            entry={selectedEntry()}
+                            onOperationStart={session.beginOperation}
+                            onOperationEnd={session.endOperation}
+                          />
+                        </AdaptiveSplitPaneDetail>
                       </Show>
-                      <FileDetails
-                        profileId={session.activeProfile()?.id ?? ""}
-                        snapshotId={snapshot().id}
-                        entry={selectedEntry()}
-                      />
-                    </View>
+                    </AdaptiveSplitPane>
                   </Show>
                 </Show>
               </>

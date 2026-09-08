@@ -10,7 +10,7 @@
 - Signature interaction: selecting a point in the snapshot timeline immediately opens its breadcrumb-driven, lazy file browser beside the rail; Changes compares it with its recorded parent without leaving the workspace.
 - Reference delta: use Wabou's retained native controls, PageViewport, DirectoryPicker, Table, and explicit scroll boundaries; do not inherit browser DOM behavior.
 - Shared contracts: ComponentsProvider, ColorThemeProvider, PageHeader, Button, DirectoryPicker, Input, Table, ContentState, ScrollArea, and ProjectionBoundary.
-- Required states: no profiles, locked profile, opening, one snapshot with no comparison target, unchanged snapshots, manual or scheduled backup running, schedule success/failure, long paths, narrow width, and large directories or diffs.
+- Required states: no profiles, locked profile, opening, one snapshot with no comparison target, unchanged snapshots, protected and deletable snapshots, deletion failure, manual or scheduled backup running, schedule success/failure, long paths, narrow width, and large directories or diffs.
 - Proof: Rust service tests cover create → backup → list snapshots → list files. Component tests cover setup, source editing, snapshot selection, and empty/error states. Native directory picking remains a focused behavior scenario.
 
 The first vertical slice stores profile metadata and source/repository relationships in Wabou's SQLite KV. Repository credentials deliberately remain process-local, so persisted profiles must be unlocked after restart. S3/OpenDAL and a native secret bridge are follow-up work.

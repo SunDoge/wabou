@@ -9,6 +9,7 @@ import {
   DialogTitle,
   DirectoryPicker,
   Icon,
+  subscribeJsonHostMessages,
   Text,
   View,
 } from "@wabou/ui";
@@ -16,48 +17,79 @@ import download from "lucide-static/icons/download.svg?raw";
 import eye from "lucide-static/icons/eye.svg?raw";
 import file from "lucide-static/icons/file.svg?raw";
 import folder from "lucide-static/icons/folder.svg?raw";
-import { createSignal, Show } from "solid-js";
+import { createEffect, createSignal, onCleanup, Show } from "solid-js";
 import { type FileEntry, type RestorePlanSummary, useRusticApi } from "./api";
-
-function formatBytes(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 ** 2) return `${(bytes / 1024).toFixed(1)} KB`;
-  if (bytes < 1024 ** 3) return `${(bytes / 1024 ** 2).toFixed(1)} MB`;
-  return `${(bytes / 1024 ** 3).toFixed(1)} GB`;
-}
+import { createAsyncRequestGate } from "./async-request";
+import {
+  formatBytes,
+  formatFileKind,
+  formatOptionalDetailedTimestamp,
+} from "./format";
+import {
+  createLocalOperationId,
+  decodeOperationProgressEvent,
+  OPERATION_PROGRESS_TOPIC,
+  type OperationProgressEvent,
+  OperationProgressStatus,
+} from "./operation-progress";
 
 export function FileDetails(props: {
   profileId: string;
   snapshotId: string;
   entry?: FileEntry;
+  onOperationStart?: (profileId: string, operationId: string) => void;
+  onOperationEnd?: (profileId: string, operationId: string) => void;
 }) {
   const api = useRusticApi();
   const [previewing, setPreviewing] = createSignal(false);
   const [previewPath, setPreviewPath] = createSignal<string>();
   const [previewError, setPreviewError] = createSignal<string>();
+  const previewRequests = createAsyncRequestGate();
+  onCleanup(() => previewRequests.invalidate());
+
+  createEffect(
+    () =>
+      `${props.profileId}\u0000${props.snapshotId}\u0000${props.entry?.path ?? ""}`,
+    () => {
+      previewRequests.invalidate();
+      setPreviewing(false);
+      setPreviewPath(undefined);
+      setPreviewError(undefined);
+    },
+  );
 
   async function preview() {
     const entry = props.entry;
     if (!entry || previewing()) return;
+    const request = previewRequests.begin();
+    const profileId = props.profileId;
+    const snapshotId = props.snapshotId;
     setPreviewing(true);
     setPreviewError(undefined);
     try {
       const result = await api.previewPath({
-        profileId: props.profileId,
-        snapshotId: props.snapshotId,
+        profileId,
+        snapshotId,
         path: entry.path,
       });
+      if (!previewRequests.isCurrent(request)) return;
       setPreviewPath(result.destination);
       await api.openPath({ path: result.destination });
     } catch (cause) {
-      setPreviewError(cause instanceof Error ? cause.message : String(cause));
+      if (previewRequests.isCurrent(request)) {
+        setPreviewError(cause instanceof Error ? cause.message : String(cause));
+      }
     } finally {
-      setPreviewing(false);
+      if (previewRequests.isCurrent(request)) setPreviewing(false);
     }
   }
 
   return (
-    <View class="w-72 min-h-0 flex-none flex flex-col gap-4 border-l border-subtle bg-surface-muted p-4">
+    <View
+      role="region"
+      aria-label="File details"
+      class="w-full h-full min-h-0 flex flex-col gap-4 bg-surface-muted p-4"
+    >
       <Show
         when={props.entry}
         fallback={
@@ -81,7 +113,7 @@ export function FileDetails(props: {
               <View class="min-w-0 flex-1 flex flex-col gap-0.5">
                 <Text class="truncate font-semibold">{entry().name}</Text>
                 <Badge variant="secondary" class="self-start">
-                  {entry().kind}
+                  {formatFileKind(entry().kind)}
                 </Badge>
               </View>
             </View>
@@ -92,20 +124,29 @@ export function FileDetails(props: {
                 entry().kind === "directory" ? "—" : formatBytes(entry().size)
               }
             />
-            <Detail label="Modified" value={entry().modified ?? "Unknown"} />
+            <Detail
+              label="Modified"
+              value={formatOptionalDetailedTimestamp(
+                entry().modified,
+                "Unknown",
+              )}
+            />
             <View class="flex flex-col gap-2 pt-1">
               <Button
+                aria-label="Open preview"
                 variant="outline"
                 loading={previewing()}
                 loadingLabel="Preparing preview…"
                 onClick={() => void preview()}
               >
-                <Icon source={eye} size={14} /> Preview temporary copy
+                <Icon source={eye} size={14} /> Open preview
               </Button>
               <ExtractDialog
                 profileId={props.profileId}
                 snapshotId={props.snapshotId}
                 entry={entry()}
+                onOperationStart={props.onOperationStart}
+                onOperationEnd={props.onOperationEnd}
               />
             </View>
             <Show when={previewPath()}>
@@ -146,6 +187,8 @@ function ExtractDialog(props: {
   profileId: string;
   snapshotId: string;
   entry: FileEntry;
+  onOperationStart?: (profileId: string, operationId: string) => void;
+  onOperationEnd?: (profileId: string, operationId: string) => void;
 }) {
   const api = useRusticApi();
   const [destination, setDestination] = createSignal("");
@@ -153,6 +196,26 @@ function ExtractDialog(props: {
   const [pending, setPending] = createSignal<"plan" | "extract">();
   const [error, setError] = createSignal<string>();
   const [result, setResult] = createSignal<string>();
+  const [progress, setProgress] = createSignal<OperationProgressEvent>();
+  let activeOperationId: string | undefined;
+
+  const unsubscribeProgress = subscribeJsonHostMessages<OperationProgressEvent>(
+    OPERATION_PROGRESS_TOPIC,
+    (event) => {
+      if (
+        event.operation === "restore" &&
+        event.operationId === activeOperationId
+      ) {
+        setProgress(event);
+      }
+    },
+    {
+      decode: decodeOperationProgressEvent,
+      onError: (cause) =>
+        console.error("[timestow] invalid operation progress", cause),
+    },
+  );
+  onCleanup(unsubscribeProgress);
 
   function reset() {
     setDestination("");
@@ -160,6 +223,8 @@ function ExtractDialog(props: {
     setPending(undefined);
     setError(undefined);
     setResult(undefined);
+    setProgress(undefined);
+    activeOperationId = undefined;
   }
 
   async function review() {
@@ -186,18 +251,36 @@ function ExtractDialog(props: {
     if (!plan() || pending()) return;
     setPending("extract");
     setError(undefined);
+    const operationId = createLocalOperationId("restore");
+    activeOperationId = operationId;
+    setProgress(undefined);
     try {
+      props.onOperationStart?.(props.profileId, operationId);
       const restored = await api.restorePath({
         profileId: props.profileId,
         snapshotId: props.snapshotId,
         path: props.entry.path,
         destination: destination(),
+        operationId,
       });
       setResult(restored.destination);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : String(cause));
     } finally {
+      activeOperationId = undefined;
+      props.onOperationEnd?.(props.profileId, operationId);
       setPending(undefined);
+    }
+  }
+
+  async function openExtractedItem(): Promise<void> {
+    const path = result();
+    if (!path) return;
+    setError(undefined);
+    try {
+      await api.openPath({ path });
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : String(cause));
     }
   }
 
@@ -210,7 +293,7 @@ function ExtractDialog(props: {
         if (open) reset();
       }}
       trigger={(trigger) => (
-        <Button {...trigger}>
+        <Button {...trigger} aria-label="Extract…">
           <Icon source={download} size={14} /> Extract…
         </Button>
       )}
@@ -238,31 +321,10 @@ function ExtractDialog(props: {
             }
           />
           <Show when={plan()}>
-            {(current) => (
-              <View class="grid grid-cols-2 gap-3 rounded-lg border border-subtle bg-surface-muted p-3">
-                <PlanMetric
-                  label="Data"
-                  value={formatBytes(current().restoreSize)}
-                />
-                <PlanMetric
-                  label="Files"
-                  value={String(
-                    current().filesToRestore + current().filesToModify,
-                  )}
-                />
-                <PlanMetric
-                  label="Folders"
-                  value={String(
-                    current().directoriesToRestore +
-                      current().directoriesToModify,
-                  )}
-                />
-                <PlanMetric
-                  label="Unchanged"
-                  value={String(current().filesUnchanged)}
-                />
-              </View>
-            )}
+            {(current) => <RestorePlanReview plan={current()} />}
+          </Show>
+          <Show when={pending() === "extract" && progress()}>
+            <OperationProgressStatus progress={progress()!} />
           </Show>
           <Show when={result()}>
             {(path) => (
@@ -287,26 +349,35 @@ function ExtractDialog(props: {
               {result() ? "Done" : "Cancel"}
             </Button>
             <Show
-              when={plan()}
+              when={!result()}
               fallback={
-                <Button
-                  disabled={!destination().trim() || Boolean(pending())}
-                  loading={pending() === "plan"}
-                  loadingLabel="Reviewing…"
-                  onClick={() => void review()}
-                >
-                  Review extraction
+                <Button onClick={() => void openExtractedItem()}>
+                  Open extracted item
                 </Button>
               }
             >
-              <Button
-                disabled={Boolean(pending()) || Boolean(result())}
-                loading={pending() === "extract"}
-                loadingLabel="Extracting…"
-                onClick={() => void extract()}
+              <Show
+                when={plan()}
+                fallback={
+                  <Button
+                    disabled={!destination().trim() || Boolean(pending())}
+                    loading={pending() === "plan"}
+                    loadingLabel="Reviewing…"
+                    onClick={() => void review()}
+                  >
+                    Review extraction
+                  </Button>
+                }
               >
-                Extract
-              </Button>
+                <Button
+                  disabled={Boolean(pending())}
+                  loading={pending() === "extract"}
+                  loadingLabel="Extracting…"
+                  onClick={() => void extract()}
+                >
+                  Extract
+                </Button>
+              </Show>
             </Show>
           </DialogFooter>
         </View>
@@ -315,11 +386,65 @@ function ExtractDialog(props: {
   );
 }
 
-function PlanMetric(props: { label: string; value: string }) {
+export function RestorePlanReview(props: { plan: RestorePlanSummary }) {
+  const changed = () =>
+    props.plan.filesToModify > 0 || props.plan.directoriesToModify > 0;
+  return (
+    <View
+      role="region"
+      aria-label="Restore plan"
+      class="min-w-0 flex flex-col gap-3"
+    >
+      <View class="grid grid-cols-2 gap-3 rounded-lg border border-subtle bg-surface-muted p-3">
+        <PlanMetric label="Data" value={formatBytes(props.plan.restoreSize)} />
+        <PlanMetric
+          label="New files"
+          value={String(props.plan.filesToRestore)}
+        />
+        <PlanMetric
+          label="Files replaced"
+          value={String(props.plan.filesToModify)}
+          changed={props.plan.filesToModify > 0}
+        />
+        <PlanMetric
+          label="New folders"
+          value={String(props.plan.directoriesToRestore)}
+        />
+        <PlanMetric
+          label="Folders updated"
+          value={String(props.plan.directoriesToModify)}
+          changed={props.plan.directoriesToModify > 0}
+        />
+        <PlanMetric
+          label="Unchanged"
+          value={String(props.plan.filesUnchanged)}
+        />
+      </View>
+      <Show when={changed()}>
+        <Alert variant="warning" title="Existing content will change">
+          Review the destination carefully. Existing files or folders in this
+          restore plan will be replaced.
+        </Alert>
+      </Show>
+    </View>
+  );
+}
+
+function PlanMetric(props: {
+  label: string;
+  value: string;
+  changed?: boolean;
+}) {
   return (
     <View class="flex flex-col gap-0.5">
       <Text class="text-xs text-muted">{props.label}</Text>
-      <Text class="font-semibold">{props.value}</Text>
+      <Text
+        class={
+          props.changed ? "font-semibold text-danger-primary" : "font-semibold"
+        }
+      >
+        {props.value}
+      </Text>
     </View>
   );
 }

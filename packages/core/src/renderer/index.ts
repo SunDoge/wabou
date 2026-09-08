@@ -206,6 +206,8 @@ export interface WabouElementProps {
   /** Numeric value committed by a retained native control. */
   onChange?: EventHandler<WabouValueChangeEvent>;
   onTextSelectionChange?: EventHandler<WabouTextSelectionChangeEvent>;
+  /** Redacted presence state from a native secret editor. */
+  onSecretStateChange?: EventHandler<WabouSecretStateChangeEvent>;
   onSubmit?: EventHandler<WabouSubmitEvent>;
   /** Preventing this event keeps the native window open. */
   onWindowCloseRequested?: EventHandler<WabouNodeEvent>;
@@ -408,6 +410,11 @@ export interface WabouSubmitEvent extends WabouNodeEvent {
 
 export interface WabouValueChangeEvent extends WabouNodeEvent {
   readonly value: number;
+}
+
+/** Secret-editor state that deliberately omits the secret and its length. */
+export interface WabouSecretStateChangeEvent extends WabouNodeEvent {
+  readonly hasValue: boolean;
 }
 
 export interface WabouTextCommitEvent extends WabouNodeEvent {
@@ -1482,6 +1489,12 @@ export {
 } from "./host";
 export { Portal, type PortalProps } from "./portal";
 export { createFps } from "./use-fps";
-export { VirtualList, type VirtualListProps } from "./virtual-list";
+export {
+  VirtualList,
+  type VirtualListController,
+  type VirtualListProps,
+  type VirtualListRange,
+  type VirtualListScrollAlignment,
+} from "./virtual-list";
 export type { JSX, Writer };
 export { EVENT_CODE, OP };

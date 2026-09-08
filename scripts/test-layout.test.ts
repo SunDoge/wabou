@@ -2,9 +2,9 @@ import { describe, expect, test } from "bun:test";
 import { parseLayoutTestArgs } from "./test-layout";
 
 describe("layout test selection", () => {
-  test("runs both applications when no fixture is selected", () => {
+  test("runs every layout-tested application when no fixture is selected", () => {
     expect(parseLayoutTestArgs([])).toEqual({
-      apps: ["gallery", "pi-agent"],
+      apps: ["gallery", "pi-agent", "timestow"],
       filters: [],
       skipBuild: false,
     });
@@ -19,6 +19,11 @@ describe("layout test selection", () => {
     expect(parseLayoutTestArgs(["shell/sidebar"])).toEqual({
       apps: ["pi-agent"],
       filters: ["shell/sidebar"],
+      skipBuild: false,
+    });
+    expect(parseLayoutTestArgs(["timestow/setup-minimum"])).toEqual({
+      apps: ["timestow"],
+      filters: ["timestow/setup-minimum"],
       skipBuild: false,
     });
     expect(
@@ -57,7 +62,7 @@ describe("layout test selection", () => {
 
   test("rejects misspelled applications and options", () => {
     expect(() => parseLayoutTestArgs(["--app", "agent"])).toThrow(
-      "expected gallery or pi-agent",
+      "expected gallery, pi-agent, or timestow",
     );
     expect(() => parseLayoutTestArgs(["--quick"])).toThrow(
       "unknown layout test option",

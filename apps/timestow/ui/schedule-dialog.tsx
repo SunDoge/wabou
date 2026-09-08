@@ -1,5 +1,4 @@
 import {
-  Badge,
   Button,
   Dialog,
   DialogDescription,
@@ -18,6 +17,7 @@ import type { BackupProfile } from "./api";
 import {
   BACKUP_SCHEDULE_OPTIONS,
   type BackupScheduleInterval,
+  backupScheduleIntervalLabel,
   isBackupScheduleInterval,
 } from "./backup-schedule";
 import { useTimestowSession } from "./session";
@@ -31,6 +31,7 @@ function formatScheduleTime(value?: string): string {
 export function BackupScheduleDialog(props: {
   profile: BackupProfile;
   disabled?: boolean;
+  defaultOpen?: boolean;
 }) {
   const session = useTimestowSession();
   const [enabled, setEnabled] = createSignal(false);
@@ -69,12 +70,24 @@ export function BackupScheduleDialog(props: {
   return (
     <Dialog
       aria-label="Backup schedule"
+      defaultOpen={props.defaultOpen}
       trigger={(trigger) => (
-        <Button {...trigger} variant="outline" disabled={props.disabled}>
-          <Icon source={clock} size={14} /> Schedule
-          <Show when={props.profile.schedule?.enabled}>
-            <Badge variant="secondary">On</Badge>
-          </Show>
+        <Button
+          {...trigger}
+          aria-label={
+            props.profile.schedule?.enabled
+              ? `Backup schedule: ${backupScheduleIntervalLabel(props.profile.schedule.intervalMinutes)}`
+              : "Schedule"
+          }
+          variant="outline"
+          disabled={props.disabled}
+        >
+          <Icon source={clock} size={14} />
+          {props.profile.schedule?.enabled
+            ? backupScheduleIntervalLabel(
+                props.profile.schedule.intervalMinutes,
+              )
+            : "Schedule"}
         </Button>
       )}
     >

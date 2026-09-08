@@ -365,11 +365,7 @@ fn draw_text(
     );
 }
 
-/// Paint a shaped layout while preserving its final-device pixel alignment.
-///
-/// Retained widget fragments use a non-identity `destination_to_output`;
-/// ordinary text paints directly into output coordinates. Both therefore
-/// select the same Swash subpixel variant for the same final baseline.
+/// Paint a shaped layout as hinted Vello glyph runs at the final device scale.
 pub fn draw_text_layout_into(
     scene: &mut Scene,
     tcx: &mut TextContext,
@@ -378,40 +374,7 @@ pub fn draw_text_layout_into(
     text_to_output: Affine,
     device_scale: f64,
 ) {
-    if !tcx.uses_swash_raster() {
-        draw_outline_fallback(
-            scene,
-            tcx,
-            layout,
-            destination_to_output.inverse() * text_to_output,
-            device_scale,
-        );
-        return;
-    }
-    let [a, b, c, d, tx, ty] = text_to_output.as_coeffs();
-    let raster_eligible = b.abs() < 1e-6
-        && c.abs() < 1e-6
-        && (a - device_scale).abs() < 1e-6
-        && (d - device_scale).abs() < 1e-6;
-    if raster_eligible {
-        let quantized_x = (tx * 4.0).round() / 4.0;
-        let quantized_y = (ty * 4.0).round() / 4.0;
-        let pixel_x = quantized_x.floor();
-        let pixel_y = quantized_y.floor();
-        let variant = [
-            ((quantized_x - pixel_x) * 4.0) as u8,
-            ((quantized_y - pixel_y) * 4.0) as u8,
-        ];
-        if let Some(glyph_scene) = tcx.raster_scene_scaled(layout, device_scale, variant) {
-            append_fragment(
-                scene,
-                &glyph_scene,
-                Some(destination_to_output.inverse() * Affine::translate((pixel_x, pixel_y))),
-            );
-            return;
-        }
-    }
-    draw_outline_fallback(
+    draw_outline_text(
         scene,
         tcx,
         layout,
@@ -466,7 +429,7 @@ pub fn layout_node_text(
     })
 }
 
-fn draw_outline_fallback(
+fn draw_outline_text(
     scene: &mut Scene,
     tcx: &mut TextContext,
     layout: &Arc<parley::Layout<[u8; 4]>>,

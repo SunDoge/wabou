@@ -7491,7 +7491,8 @@
     imedeletesurrounding: 36,
     imedisabled: 37,
     windowcloserequested: 38,
-    transitionend: 39
+    transitionend: 39,
+    secretstatechange: 40
   };
   var EVENT_DATA_SLOT = {
     clientX: 0,

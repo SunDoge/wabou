@@ -30,6 +30,7 @@ export interface ButtonProps
     | "aria-pressed"
     | "aria-selected"
     | "aria-valuetext"
+    | "id"
     | "role"
     | "focusOrder"
     | "onBlur"

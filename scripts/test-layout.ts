@@ -1,6 +1,6 @@
 import { resolve } from "node:path";
 
-export type LayoutTestApp = "gallery" | "pi-agent";
+export type LayoutTestApp = "gallery" | "pi-agent" | "timestow";
 
 export interface LayoutTestSelection {
   apps: readonly LayoutTestApp[];
@@ -9,7 +9,7 @@ export interface LayoutTestSelection {
   skipBuild: boolean;
 }
 
-const ALL_APPS: readonly LayoutTestApp[] = ["gallery", "pi-agent"];
+const ALL_APPS: readonly LayoutTestApp[] = ["gallery", "pi-agent", "timestow"];
 const PI_AGENT_FIXTURE_PREFIXES = [
   "conversation/",
   "settings/",
@@ -21,16 +21,18 @@ function inferApps(filters: readonly string[]): readonly LayoutTestApp[] {
   if (filters.length === 0) return ALL_APPS;
   const applications = new Set<LayoutTestApp>();
   for (const filter of filters) {
-    applications.add(
+    if (filter.startsWith("timestow/")) applications.add("timestow");
+    else if (
       PI_AGENT_FIXTURE_PREFIXES.some((prefix) => filter.startsWith(prefix))
-        ? "pi-agent"
-        : "gallery",
-    );
+    ) {
+      applications.add("pi-agent");
+    } else applications.add("gallery");
   }
   return ALL_APPS.filter((app) => applications.has(app));
 }
 
 function fixtureBelongsToApp(filter: string, app: LayoutTestApp): boolean {
+  if (filter.startsWith("timestow/")) return app === "timestow";
   const piAgentFixture = PI_AGENT_FIXTURE_PREFIXES.some((prefix) =>
     filter.startsWith(prefix),
   );
@@ -38,9 +40,10 @@ function fixtureBelongsToApp(filter: string, app: LayoutTestApp): boolean {
 }
 
 function parseApp(value: string | undefined): LayoutTestApp {
-  if (value === "gallery" || value === "pi-agent") return value;
+  if (value === "gallery" || value === "pi-agent" || value === "timestow")
+    return value;
   throw new Error(
-    `unknown layout app ${JSON.stringify(value)}; expected gallery or pi-agent`,
+    `unknown layout app ${JSON.stringify(value)}; expected gallery, pi-agent, or timestow`,
   );
 }
 

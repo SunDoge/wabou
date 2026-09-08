@@ -139,23 +139,9 @@ pub struct TextContext {
     ellipsis_cache: LruCache<TextLayoutKey, Arc<Layout<[u8; 4]>>>,
     clamp_cache: LruCache<(TextLayoutKey, u32), Arc<Layout<[u8; 4]>>>,
     glyph_cache: LruCache<(usize, u64), GlyphSceneEntry>,
-    raster_cache: LruCache<(usize, u64, u8, u8), GlyphSceneEntry>,
-    raster_scale_cx: swash::scale::ScaleContext,
-    use_swash_raster: bool,
 }
 
 type GlyphSceneEntry = (std::sync::Weak<Layout<[u8; 4]>>, Arc<Scene>);
-
-fn use_swash_raster_for(backend: Option<&str>) -> bool {
-    match backend {
-        Some(value) if value.eq_ignore_ascii_case("swash") => true,
-        Some(value) if value.eq_ignore_ascii_case("vello") => false,
-        // Match Xilem/Masonry's text path: Parley shapes in logical space and
-        // Vello consumes hinted glyph runs directly. The custom Swash raster
-        // path remains available as an explicit compatibility experiment.
-        _ => false,
-    }
-}
 
 fn synthetic_embolden(requested: bool, allowed: bool, font_size: f32, device_scale: f64) -> Vec2 {
     if requested && allowed {
@@ -185,26 +171,12 @@ impl TextContext {
             ellipsis_cache: LruCache::new(NonZeroUsize::new(1024).unwrap()),
             clamp_cache: LruCache::new(NonZeroUsize::new(1024).unwrap()),
             glyph_cache: LruCache::new(NonZeroUsize::new(2048).unwrap()),
-            raster_cache: LruCache::new(NonZeroUsize::new(256).unwrap()),
-            raster_scale_cx: swash::scale::ScaleContext::new(),
-            use_swash_raster: use_swash_raster_for(
-                std::env::var("WABOU_TEXT_BACKEND").ok().as_deref(),
-            ),
         }
-    }
-
-    /// Whether ordinary axis-aligned text should use Swash rasterization.
-    pub(crate) fn uses_swash_raster(&self) -> bool {
-        self.use_swash_raster
     }
 
     /// Stable diagnostic name for the active ordinary-text raster backend.
     pub fn raster_backend_name(&self) -> &'static str {
-        if self.use_swash_raster {
-            "swash"
-        } else {
-            "vello-outline"
-        }
+        "vello-outline"
     }
 
     /// Stable diagnostic name for the platform outline fallback policy.
@@ -229,7 +201,6 @@ impl TextContext {
         self.ellipsis_cache.clear();
         self.clamp_cache.clear();
         self.glyph_cache.clear();
-        self.raster_cache.clear();
     }
 
     /// Encode a positioned Parley layout once and reuse the retained Wabou paint
@@ -360,46 +331,6 @@ impl TextContext {
                 }
             }
         }
-    }
-
-    /// Rasterize a text layout into a device-pixel-aligned retained fragment.
-    ///
-    /// This is the preferred path for ordinary axis-aligned UI text. Parley
-    /// still owns font matching, shaping, wrapping, and glyph positioning;
-    /// Swash only produces the final hinted masks. Callers must place the
-    /// fragment at an integer physical-pixel origin. Unsupported or unusually
-    /// large layouts return `None` so painting can use vector outlines.
-    pub fn raster_scene_scaled(
-        &mut self,
-        layout: &Arc<Layout<[u8; 4]>>,
-        device_scale: f64,
-        subpixel_variant: [u8; 2],
-    ) -> Option<Arc<Scene>> {
-        let device_scale = device_scale.max(f64::EPSILON);
-        let id = Arc::as_ptr(layout) as usize;
-        let key = (
-            id,
-            device_scale.to_bits(),
-            subpixel_variant[0],
-            subpixel_variant[1],
-        );
-        if let Some((cached_layout, scene)) = self.raster_cache.get(&key)
-            && cached_layout
-                .upgrade()
-                .is_some_and(|cached| Arc::ptr_eq(&cached, layout))
-        {
-            return Some(scene.clone());
-        }
-        let scene = crate::text_raster::rasterize_layout(
-            layout,
-            device_scale,
-            subpixel_variant,
-            &mut self.raster_scale_cx,
-        )?;
-        let scene = Arc::new(scene);
-        self.raster_cache
-            .put(key, (Arc::downgrade(layout), scene.clone()));
-        Some(scene)
     }
 }
 
@@ -903,13 +834,7 @@ mod tests {
     }
 
     #[test]
-    fn text_backend_defaults_to_xilem_style_vello_and_keeps_swash_override() {
-        assert!(!use_swash_raster_for(None));
-        assert!(use_swash_raster_for(Some("swash")));
-        assert!(use_swash_raster_for(Some("SWASH")));
-        assert!(!use_swash_raster_for(Some("vello")));
-        assert!(!use_swash_raster_for(Some("VELLO")));
-
+    fn text_backend_uses_xilem_style_vello_glyph_runs() {
         let context = TextContext::new();
         assert_eq!(context.raster_backend_name(), "vello-outline");
         assert_eq!(context.outline_fallback_name(), "direct-native-weight");
@@ -1191,29 +1116,6 @@ mod tests {
 
         assert_eq!(metrics.line_box[1], 4.0);
         assert_eq!(metrics.baseline, 4.0 + baseline);
-    }
-
-    #[test]
-    fn raster_scene_is_cached_by_scale_and_fractional_origin() {
-        let mut context = TextContext::new();
-        let layout = layout_text(&mut context, "Hinted UI text", 14.0);
-        let first = context
-            .raster_scene_scaled(&layout, 1.0, [0, 0])
-            .expect("the system font should rasterize through Swash");
-        let cached = context
-            .raster_scene_scaled(&layout, 1.0, [0, 0])
-            .expect("the cached raster scene should remain available");
-        let fractional = context
-            .raster_scene_scaled(&layout, 1.0, [1, 0])
-            .expect("a quarter-pixel origin should rasterize independently");
-        let hidpi = context
-            .raster_scene_scaled(&layout, 2.0, [0, 0])
-            .expect("the same layout should rasterize at HiDPI scale");
-
-        assert!(Arc::ptr_eq(&first, &cached));
-        assert!(!Arc::ptr_eq(&first, &fractional));
-        assert!(!Arc::ptr_eq(&first, &hidpi));
-        assert_eq!(context.raster_cache.len(), 3);
     }
 
     #[test]

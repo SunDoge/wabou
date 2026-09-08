@@ -1,7 +1,10 @@
 import type { Row } from "@tanstack/table-core";
+import arrowDown from "lucide-static/icons/arrow-down.svg?raw";
+import arrowUp from "lucide-static/icons/arrow-up.svg?raw";
+import arrowUpDown from "lucide-static/icons/arrow-up-down.svg?raw";
 import { For as ForValue, type JSX, Show } from "solid-js";
 import type { TanStackDataTable } from "../integrations";
-import { Button as PrimitiveButton, Text, View } from "../primitives";
+import { Icon, Button as PrimitiveButton, Text, View } from "../primitives";
 import { Table, TableBody, TableCell, TableHeader, TableRow } from "./table";
 
 export interface DataTableProps<TData> {
@@ -14,6 +17,28 @@ export interface DataTableProps<TData> {
     columnId: string;
     row: Row<TData>;
   }) => JSX.Element;
+}
+
+export type TableSortDirection = "asc" | "desc" | false | undefined;
+
+export function TableSortIndicator(props: {
+  direction: TableSortDirection | (() => TableSortDirection);
+}): JSX.Element {
+  const direction = () =>
+    typeof props.direction === "function" ? props.direction() : props.direction;
+  return (
+    <Icon
+      source={
+        direction() === "asc"
+          ? arrowUp
+          : direction() === "desc"
+            ? arrowDown
+            : arrowUpDown
+      }
+      size={12}
+      class={direction() ? "flex-none text-secondary" : "flex-none text-muted"}
+    />
+  );
 }
 
 /** Shadcn-style table anatomy backed by the framework-agnostic TanStack core. */
@@ -39,23 +64,27 @@ export function DataTable<TData>(props: DataTableProps<TData>): JSX.Element {
                         : false;
                   const label = () =>
                     String(header.column.columnDef.header ?? header.id);
+                  const accessibleLabel = () => {
+                    const sorted = direction();
+                    return sorted
+                      ? `${label()}, sorted ${sorted === "asc" ? "ascending" : "descending"}`
+                      : sortable()
+                        ? `Sort by ${label()}`
+                        : label();
+                  };
                   return (
                     <PrimitiveButton
                       unstyled
                       role="columnheader"
-                      aria-label={sortable() ? `Sort by ${label()}` : label()}
-                      class="flex-1 min-w-0 px-4 justify-start text-xs font-semibold text-secondary"
+                      aria-label={accessibleLabel()}
+                      class="flex-1 min-w-0 px-4 justify-start gap-2 text-xs font-semibold text-secondary"
                       disabled={!sortable()}
                       onClick={() => header.column.toggleSorting()}
                     >
                       {label()}
-                      <Text class="ml-auto text-xs text-muted">
-                        {direction() === "asc"
-                          ? "Asc"
-                          : direction() === "desc"
-                            ? "Desc"
-                            : ""}
-                      </Text>
+                      <Show when={sortable()}>
+                        <TableSortIndicator direction={direction} />
+                      </Show>
                     </PrimitiveButton>
                   );
                 }}

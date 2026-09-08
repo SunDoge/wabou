@@ -6,11 +6,18 @@ use std::{
 use rustic_core::{Progress, ProgressBars, ProgressType, RusticProgress};
 use serde::{Deserialize, Serialize};
 
-pub const BACKUP_PROGRESS_TOPIC: &str = "timestow:backup-progress";
+pub const OPERATION_PROGRESS_TOPIC: &str = "timestow:operation-progress";
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
-pub enum BackupProgressPhase {
+pub enum OperationKind {
+    Backup,
+    Restore,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub enum OperationProgressPhase {
     Running,
     PhaseComplete,
     Completed,
@@ -19,7 +26,7 @@ pub enum BackupProgressPhase {
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
-pub enum BackupProgressKind {
+pub enum OperationProgressUnit {
     Spinner,
     Counter,
     Bytes,
@@ -27,16 +34,18 @@ pub enum BackupProgressKind {
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
-pub struct BackupProgressEvent {
+pub struct OperationProgressEvent {
     pub profile_id: String,
-    pub state: BackupProgressPhase,
-    pub kind: BackupProgressKind,
+    pub operation: OperationKind,
+    pub operation_id: String,
+    pub state: OperationProgressPhase,
+    pub unit: OperationProgressUnit,
     pub title: String,
     pub current: u64,
     pub total: Option<u64>,
 }
 
-type ProgressCallback = dyn Fn(&BackupProgressEvent) + Send + Sync;
+type ProgressCallback = dyn Fn(&OperationProgressEvent) + Send + Sync;
 
 #[derive(Clone, Default)]
 pub struct ProgressEmitter {
@@ -44,13 +53,13 @@ pub struct ProgressEmitter {
 }
 
 impl ProgressEmitter {
-    pub fn replace(&self, callback: impl Fn(&BackupProgressEvent) + Send + Sync + 'static) {
+    pub fn replace(&self, callback: impl Fn(&OperationProgressEvent) + Send + Sync + 'static) {
         if let Ok(mut current) = self.callback.write() {
             *current = Some(Arc::new(callback));
         }
     }
 
-    pub fn emit(&self, event: &BackupProgressEvent) {
+    pub fn emit(&self, event: &OperationProgressEvent) {
         let callback = self
             .callback
             .read()
@@ -61,14 +70,23 @@ impl ProgressEmitter {
         }
     }
 
-    pub fn emit_state(&self, profile_id: &str, state: BackupProgressPhase, title: &str) {
-        self.emit(&BackupProgressEvent {
+    pub fn emit_state(
+        &self,
+        profile_id: &str,
+        operation: OperationKind,
+        operation_id: &str,
+        state: OperationProgressPhase,
+        title: &str,
+    ) {
+        self.emit(&OperationProgressEvent {
             profile_id: profile_id.to_string(),
+            operation,
+            operation_id: operation_id.to_string(),
             state,
-            kind: BackupProgressKind::Spinner,
+            unit: OperationProgressUnit::Spinner,
             title: title.to_string(),
-            current: u64::from(state == BackupProgressPhase::Completed),
-            total: (state == BackupProgressPhase::Completed).then_some(1),
+            current: u64::from(state == OperationProgressPhase::Completed),
+            total: (state == OperationProgressPhase::Completed).then_some(1),
         });
     }
 }
@@ -82,33 +100,41 @@ struct ProgressState {
 }
 
 #[derive(Clone)]
-struct BackupProgress {
+struct OperationProgress {
     profile_id: String,
-    kind: BackupProgressKind,
+    operation: OperationKind,
+    operation_id: String,
+    unit: OperationProgressUnit,
     state: Arc<Mutex<ProgressState>>,
     emitter: ProgressEmitter,
 }
 
-impl std::fmt::Debug for BackupProgress {
+impl std::fmt::Debug for OperationProgress {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         formatter
-            .debug_struct("BackupProgress")
+            .debug_struct("OperationProgress")
             .field("profile_id", &self.profile_id)
-            .field("kind", &self.kind)
+            .field("operation", &self.operation)
+            .field("operation_id", &self.operation_id)
+            .field("unit", &self.unit)
             .finish_non_exhaustive()
     }
 }
 
-impl BackupProgress {
+impl OperationProgress {
     fn new(
         profile_id: String,
-        kind: BackupProgressKind,
+        operation: OperationKind,
+        operation_id: String,
+        unit: OperationProgressUnit,
         title: String,
         emitter: ProgressEmitter,
     ) -> Self {
         let progress = Self {
             profile_id,
-            kind,
+            operation,
+            operation_id,
+            unit,
             state: Arc::new(Mutex::new(ProgressState {
                 title,
                 current: 0,
@@ -117,11 +143,11 @@ impl BackupProgress {
             })),
             emitter,
         };
-        progress.publish(BackupProgressPhase::Running, true);
+        progress.publish(OperationProgressPhase::Running, true);
         progress
     }
 
-    fn publish(&self, phase: BackupProgressPhase, force: bool) {
+    fn publish(&self, phase: OperationProgressPhase, force: bool) {
         let event = {
             let Ok(mut state) = self.state.lock() else {
                 return;
@@ -136,10 +162,12 @@ impl BackupProgress {
                 return;
             }
             state.last_emit = Some(now);
-            BackupProgressEvent {
+            OperationProgressEvent {
                 profile_id: self.profile_id.clone(),
+                operation: self.operation,
+                operation_id: self.operation_id.clone(),
                 state: phase,
-                kind: self.kind,
+                unit: self.unit,
                 title: state.title.clone(),
                 current: state.current,
                 total: state.total,
@@ -149,7 +177,7 @@ impl BackupProgress {
     }
 }
 
-impl RusticProgress for BackupProgress {
+impl RusticProgress for OperationProgress {
     fn is_hidden(&self) -> bool {
         false
     }
@@ -158,21 +186,21 @@ impl RusticProgress for BackupProgress {
         if let Ok(mut state) = self.state.lock() {
             state.total = Some(len);
         }
-        self.publish(BackupProgressPhase::Running, true);
+        self.publish(OperationProgressPhase::Running, true);
     }
 
     fn set_title(&self, title: &str) {
         if let Ok(mut state) = self.state.lock() {
             state.title = title.to_string();
         }
-        self.publish(BackupProgressPhase::Running, true);
+        self.publish(OperationProgressPhase::Running, true);
     }
 
     fn inc(&self, inc: u64) {
         if let Ok(mut state) = self.state.lock() {
             state.current = state.current.saturating_add(inc);
         }
-        self.publish(BackupProgressPhase::Running, false);
+        self.publish(OperationProgressPhase::Running, false);
     }
 
     fn finish(&self) {
@@ -181,43 +209,56 @@ impl RusticProgress for BackupProgress {
         {
             state.current = total;
         }
-        self.publish(BackupProgressPhase::PhaseComplete, true);
+        self.publish(OperationProgressPhase::PhaseComplete, true);
     }
 }
 
 #[derive(Clone)]
-pub struct BackupProgressBars {
+pub struct OperationProgressBars {
     profile_id: String,
+    operation: OperationKind,
+    operation_id: String,
     emitter: ProgressEmitter,
 }
 
-impl BackupProgressBars {
-    pub fn new(profile_id: String, emitter: ProgressEmitter) -> Self {
+impl OperationProgressBars {
+    pub fn new(
+        profile_id: String,
+        operation: OperationKind,
+        operation_id: String,
+        emitter: ProgressEmitter,
+    ) -> Self {
         Self {
             profile_id,
+            operation,
+            operation_id,
             emitter,
         }
     }
 }
 
-impl std::fmt::Debug for BackupProgressBars {
+impl std::fmt::Debug for OperationProgressBars {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         formatter
-            .debug_struct("BackupProgressBars")
+            .debug_struct("OperationProgressBars")
             .field("profile_id", &self.profile_id)
+            .field("operation", &self.operation)
+            .field("operation_id", &self.operation_id)
             .finish_non_exhaustive()
     }
 }
 
-impl ProgressBars for BackupProgressBars {
+impl ProgressBars for OperationProgressBars {
     fn progress(&self, progress_type: ProgressType, prefix: &str) -> Progress {
         let kind = match progress_type {
-            ProgressType::Spinner => BackupProgressKind::Spinner,
-            ProgressType::Counter => BackupProgressKind::Counter,
-            ProgressType::Bytes => BackupProgressKind::Bytes,
+            ProgressType::Spinner => OperationProgressUnit::Spinner,
+            ProgressType::Counter => OperationProgressUnit::Counter,
+            ProgressType::Bytes => OperationProgressUnit::Bytes,
         };
-        Progress::new(BackupProgress::new(
+        Progress::new(OperationProgress::new(
             self.profile_id.clone(),
+            self.operation,
+            self.operation_id.clone(),
             kind,
             prefix.trim().trim_end_matches('.').to_string(),
             self.emitter.clone(),
@@ -231,7 +272,7 @@ mod tests {
 
     #[test]
     fn reports_real_counts_and_completion() {
-        let events = Arc::new(Mutex::new(Vec::<BackupProgressEvent>::new()));
+        let events = Arc::new(Mutex::new(Vec::<OperationProgressEvent>::new()));
         let captured = events.clone();
         let emitter = ProgressEmitter::default();
         emitter.replace(move |event| {
@@ -241,9 +282,11 @@ mod tests {
                 .push(event.clone());
         });
 
-        let progress = BackupProgress::new(
+        let progress = OperationProgress::new(
             "photos".to_string(),
-            BackupProgressKind::Bytes,
+            OperationKind::Restore,
+            "restore-7".to_string(),
+            OperationProgressUnit::Bytes,
             "Writing data".to_string(),
             emitter,
         );
@@ -254,14 +297,16 @@ mod tests {
         let events = events.lock().expect("progress events");
         assert!(events.iter().all(|event| event.profile_id == "photos"));
         assert!(events.iter().any(|event| {
-            event.state == BackupProgressPhase::Running && event.total == Some(2_048)
+            event.state == OperationProgressPhase::Running && event.total == Some(2_048)
         }));
         assert_eq!(
             events.last(),
-            Some(&BackupProgressEvent {
+            Some(&OperationProgressEvent {
                 profile_id: "photos".to_string(),
-                state: BackupProgressPhase::PhaseComplete,
-                kind: BackupProgressKind::Bytes,
+                operation: OperationKind::Restore,
+                operation_id: "restore-7".to_string(),
+                state: OperationProgressPhase::PhaseComplete,
+                unit: OperationProgressUnit::Bytes,
                 title: "Writing data".to_string(),
                 current: 2_048,
                 total: Some(2_048),
