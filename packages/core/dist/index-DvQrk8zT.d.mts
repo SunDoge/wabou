@@ -237,6 +237,8 @@ interface VirtualListProps<T> {
   items: () => readonly T[];
   /** Fixed height of every row, in logical pixels. */
   itemHeight: number;
+  /** Extra rows retained before and after the visible range. Defaults to 2. */
+  overscan?: number;
   /**
    * Visible viewport height in logical pixels. When omitted, the list fills
    * its bounded parent and observes its completed native layout size.
@@ -254,9 +256,9 @@ interface VirtualListProps<T> {
   children: (item: Accessor<T>, index: Accessor<number>) => JSX.Element;
 }
 /**
- * Uniform list whose viewport, scroll state, visible range, layout and paint
- * are owned by GPUI. Solid retains stable row subtrees so reactive updates keep
- * their ordinary component semantics; GPUI materializes only visible rows.
+ * Uniform-height list that keeps scrolling and clipping native while Solid
+ * mounts only the visible rows plus a small overscan. Spacer nodes preserve the
+ * complete native scroll extent without creating offscreen item subtrees.
  */
 declare function VirtualList<T>(props: VirtualListProps<T>): JSX.Element;
 //#endregion
@@ -635,4 +637,4 @@ declare function dispatchEvent(solidId: NodeKey$1, eventCode: number, payloadStr
 declare function reconcileControlledInputValues(): void;
 //#endregion
 export { isServer as $, WabouSemanticRole as A, LayoutRect as At, acquireOverlayRoot as B, PathLineCap as Bt, WabouNativeTag as C, HostProviderProps as Ct, WabouPositionedEvent as D, DebugOverlayPaintStats as Dt, WabouPointerEvent as E, useHost as Et, WabouTextSelectionChangeEvent as F, jsx as Ft, delegateEvents as G, isVectorPath as Gt, createComponent$1 as H, PathPoint as Ht, WabouTransitionEvent as I, jsxDEV as It, getMountRoot as J, dispatchEvent as K, WabouValueChangeEvent as L, jsxs as Lt, WabouSvgProps as M, LayoutSnapshot as Mt, WabouSvgShapeProps as N, Fragment as Nt, WabouScrollEvent as O, FrameStats as Ot, WabouTextCommitEvent as P, JSX$1 as Pt, isDirectEvent as Q, WabouVectorPathProps as R, PathBuilder as Rt, WabouNativeSpring as S, HostProvider as St, WabouNodeEvent as T, defaultHost as Tt, createElement as U, VectorPath as Ut, applyRef as V, PathLineJoin as Vt, createTextNode as W, VectorPathPaint as Wt, insert as X, getRequestEvent as Y, insertNode as Z, WabouImePreeditEvent as _, Portal as _t, WabouBuiltinIntrinsicElements as a, ref as at, WabouKeyEvent as b, DebugOverlayOptions as bt, WabouEventTarget as c, removeNode as ct, WabouFloatingPlacement as d, setProp as dt, memo as et, WabouFloatingPosition as f, setTransform2D as ft, WabouImeDeleteSurroundingEvent as g, VirtualListProps as gt, WabouImageProps as h, VirtualList as ht, NativeScrollbarStyle as i, reconcileControlledInputValues as it, WabouSubmitEvent as j, LayoutScrollMetrics as jt, WabouSecretStateChangeEvent as k, LayoutNodeMetrics as kt, WabouExposedSemanticRole as l, render as lt, WabouGlobalPointerListener as m, writer as mt, DynamicProps as n, mount as nt, WabouControlProps as o, registerRoot as ot, WabouGlobalPointerEventType as p, spread as pt, effect as q, Handle as r, observeGlobalPointerEvent as rt, WabouElementProps as s, releaseOverlayRoot as st, Dynamic as t, mergeProps as tt, WabouFloatingAnchor as u, runSweep as ut, WabouInputEvent as v, PortalProps as vt, WabouNativeTransition as w, LayoutTarget as wt, WabouNativeElements as x, Host as xt, WabouInputProps as y, BuiltinHost as yt, WabouWheelEvent as z, PathFillRule as zt };
-//# sourceMappingURL=index-BxoWeb5Y.d.mts.map
+//# sourceMappingURL=index-DvQrk8zT.d.mts.map

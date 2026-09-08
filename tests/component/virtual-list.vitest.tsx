@@ -23,3 +23,53 @@ test("owns the native scrolling and clipping viewport contract", () => {
   expect(list.className).toContain("h-full");
   expect(list.projectionBoundary).toBe(true);
 });
+
+test("mounts only visible rows and moves the window with native scrolling", () => {
+  const items = Array.from({ length: 10_000 }, (_, index) => `Row ${index}`);
+  const screen = renderComponent(() => (
+    <VirtualList
+      items={() => items}
+      itemHeight={20}
+      viewportHeight={100}
+      overscan={1}
+      getItemKey={(item) => item}
+      role="listbox"
+      accessibilityLabel="Large list"
+    >
+      {(item) => <Text role="option">{item()}</Text>}
+    </VirtualList>
+  ));
+
+  expect(screen.getAllByRole("option")).toHaveLength(6);
+  expect(screen.getByRole("option", { name: "Row 0" })).toBeDefined();
+  expect(screen.queryByRole("option", { name: "Row 7" })).toBeNull();
+
+  screen
+    .getByRole("listbox", { name: "Large list" })
+    .emit("scroll", { scrollY: 200 });
+
+  expect(screen.getAllByRole("option")).toHaveLength(7);
+  expect(screen.getByRole("option", { name: "Row 9" })).toBeDefined();
+  expect(screen.getByRole("option", { name: "Row 15" })).toBeDefined();
+  expect(screen.queryByRole("option", { name: "Row 0" })).toBeNull();
+});
+
+test("observes a parent-bounded viewport when no fixed height is supplied", () => {
+  const items = Array.from({ length: 100 }, (_, index) => `Item ${index}`);
+  const screen = renderComponent(() => (
+    <VirtualList
+      items={() => items}
+      itemHeight={25}
+      getItemKey={(item) => item}
+      role="listbox"
+      accessibilityLabel="Measured list"
+    >
+      {(item) => <Text role="option">{item()}</Text>}
+    </VirtualList>
+  ));
+  const list = screen.getByRole("listbox", { name: "Measured list" });
+
+  expect(screen.getAllByRole("option")).toHaveLength(3);
+  list.resize({ width: 300, height: 100 });
+  expect(screen.getAllByRole("option")).toHaveLength(6);
+});

@@ -1,5 +1,5 @@
-// Virtual-list UI demo — 10,000 retained rows, with GPUI materializing only
-// the visible range for native layout, paint, scrolling and clipping.
+// Virtual-list UI demo — 10,000 logical rows, with Solid mounting only the
+// visible range while the native backend owns layout, paint and scrolling.
 
 import "virtual:wabou-stylesheet";
 import { Button, createFps, mount, Text, View, VirtualList } from "@wabou/ui";

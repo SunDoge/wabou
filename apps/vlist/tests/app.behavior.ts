@@ -20,9 +20,8 @@ test("virtual list materializes new rows through native scrolling", async ({
   await page.getByRole("button", { name: "Show 24 rows" }).click();
   await page.waitForIdle();
 
-  // The host clamps its now-unreachable native offset and reports the
-  // correction to TanStack Virtual. A stale JS offset would leave the list
-  // empty after this immutable extent change.
+  // A stale scroll offset is clamped against the new logical extent, so the
+  // shortened list cannot become empty after an immutable data refresh.
   await page
     .getByRole("option", { name: "Row 23 — gamma variant 3" })
     .waitFor();

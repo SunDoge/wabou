@@ -334,6 +334,21 @@ function createVirtualRow(items, index) {
 	return createMemo(() => items()[index()]);
 }
 const encodedItemKey = (key) => typeof key === "number" ? `number:${key}` : `string:${key}`;
+function calculateVirtualRange(itemCount, itemHeight, viewportHeight, scrollTop, overscan) {
+	if (!Number.isSafeInteger(itemCount) || itemCount < 0) throw new RangeError("VirtualList item count must be a non-negative integer");
+	if (!Number.isFinite(itemHeight) || itemHeight <= 0) throw new RangeError("VirtualList itemHeight must be positive and finite");
+	if (!Number.isFinite(viewportHeight) || viewportHeight < 0) throw new RangeError("VirtualList viewport height must be finite and non-negative");
+	if (!Number.isFinite(scrollTop)) throw new RangeError("VirtualList scroll offset must be finite");
+	if (!Number.isSafeInteger(overscan) || overscan < 0) throw new RangeError("VirtualList overscan must be a non-negative integer");
+	const visibleCount = Math.max(1, Math.ceil(viewportHeight / itemHeight));
+	const maxFirstVisible = Math.max(0, itemCount - visibleCount);
+	const firstVisible = Math.min(maxFirstVisible, Math.floor(Math.max(0, scrollTop) / itemHeight));
+	const start = Math.max(0, Math.min(itemCount, firstVisible - overscan));
+	return {
+		start,
+		end: Math.max(start, Math.min(itemCount, firstVisible + visibleCount + overscan))
+	};
+}
 function validateVirtualItemKeys(items, getItemKey) {
 	const keys = new Array(items.length);
 	const seen = /* @__PURE__ */ new Set();
@@ -349,23 +364,17 @@ function validateVirtualItemKeys(items, getItemKey) {
 	}
 	return keys;
 }
-function createVirtualItemIdentity(items, index, getItemKey) {
-	return createMemo(() => {
-		const currentIndex = index();
-		const item = items()[currentIndex];
-		return item === void 0 ? void 0 : { key: encodedItemKey(getItemKey(item, currentIndex)) };
-	}, { equals: (previous, next) => previous?.key === next?.key });
-}
 /**
-* Uniform list whose viewport, scroll state, visible range, layout and paint
-* are owned by GPUI. Solid retains stable row subtrees so reactive updates keep
-* their ordinary component semantics; GPUI materializes only visible rows.
+* Uniform-height list that keeps scrolling and clipping native while Solid
+* mounts only the visible rows plus a small overscan. Spacer nodes preserve the
+* complete native scroll extent without creating offscreen item subtrees.
 */
 function VirtualList(props) {
 	const config = untrack(() => ({
 		items: props.items,
 		children: props.children,
 		itemHeight: props.itemHeight,
+		overscan: props.overscan ?? 2,
 		viewportHeight: props.viewportHeight,
 		class: props.class,
 		getItemKey: props.getItemKey,
@@ -375,39 +384,70 @@ function VirtualList(props) {
 	const itemKeys = createMemo(() => {
 		return validateVirtualItemKeys(config.items(), config.getItemKey);
 	});
-	var _el$ = createElement("virtual-list", { projectionBoundary: true });
+	const [scrollTop, setScrollTop] = createSignal(0);
+	const [measuredHeight, setMeasuredHeight] = createSignal(0);
+	let observer;
+	const viewportHeight = () => config.viewportHeight ?? measuredHeight();
+	const range = createMemo(() => calculateVirtualRange(itemKeys().length, config.itemHeight, viewportHeight(), scrollTop(), config.overscan), { equals: (previous, next) => previous.start === next.start && previous.end === next.end });
+	const visibleRows = createMemo(() => {
+		const currentRange = range();
+		const keys = itemKeys();
+		const rows = new Array(currentRange.end - currentRange.start);
+		for (let index = currentRange.start; index < currentRange.end; index++) rows[index - currentRange.start] = {
+			index,
+			key: encodedItemKey(keys[index] ?? index)
+		};
+		return rows;
+	});
+	const observeViewport = (node) => {
+		observer?.disconnect();
+		if (config.viewportHeight !== void 0) return;
+		observer = new ResizeObserver(([entry]) => {
+			if (entry) setMeasuredHeight(entry.contentRect.height);
+		});
+		observer.observe(node);
+	};
+	const handleScroll = (event) => {
+		if (event.scrollY !== void 0) setScrollTop(Math.max(0, event.scrollY));
+	};
+	onCleanup(() => observer?.disconnect());
+	var _el$ = createElement("virtual-list", {
+		projectionBoundary: true,
+		onScroll: handleScroll
+	});
+	var _el$2 = createElement("view", { "aria-hidden": true });
+	var _el$3 = createElement("view", { "aria-hidden": true });
+	insertNode(_el$, _el$2);
+	insertNode(_el$, _el$3);
+	ref(() => {
+		return observeViewport;
+	}, _el$);
 	insert(_el$, createComponent$1(For, {
 		get each() {
-			return config.items();
+			return visibleRows();
 		},
-		keyed: false,
-		children: (_value, index) => {
-			const rowIndex = () => index;
+		keyed: (row) => row.key,
+		children: (row) => {
+			const rowIndex = () => row().index;
 			const item = createVirtualRow(config.items, rowIndex);
-			const identity = createVirtualItemIdentity(config.items, rowIndex, (_item, currentIndex) => itemKeys()[currentIndex] ?? currentIndex);
-			var _el$2 = createElement("view");
-			insert(_el$2, (() => {
-				var _c$ = memo(() => {
-					return !!identity();
-				});
-				return () => {
-					return _c$() ? config.children(() => {
-						const current = item();
-						if (current === void 0) throw new Error("VirtualList item disappeared while its row was mounted");
-						return current;
-					}, rowIndex) : identity();
-				};
-			})());
+			var _el$4 = createElement("view");
+			insert(_el$4, () => {
+				return config.children(() => {
+					const current = item();
+					if (current === void 0) throw new Error("VirtualList item disappeared while its row was mounted");
+					return current;
+				}, rowIndex);
+			});
 			effect(() => ({
 				height: `${config.itemHeight}px`,
 				"flex-shrink": 0,
 				width: "100%"
 			}), (_v$, _$p) => {
-				setProp(_el$2, "style", _v$, _$p);
+				setProp(_el$4, "style", _v$, _$p);
 			});
-			return _el$2;
+			return _el$4;
 		}
-	}));
+	}), _el$3);
 	effect(() => {
 		return {
 			e: mergeClasses("w-full min-w-0 min-h-0 overflow-x-hidden overflow-y-auto", config.class),
@@ -416,13 +456,25 @@ function VirtualList(props) {
 			o: {
 				...config.viewportHeight === void 0 ? {} : { height: `${config.viewportHeight}px` },
 				width: "100%"
+			},
+			i: {
+				height: `${range().start * config.itemHeight}px`,
+				"flex-shrink": 0,
+				width: "100%"
+			},
+			n: {
+				height: `${(itemKeys().length - range().end) * config.itemHeight}px`,
+				"flex-shrink": 0,
+				width: "100%"
 			}
 		};
-	}, ({ e, t, a, o }, _p$) => {
+	}, ({ e, t, a, o, i, n }, _p$) => {
 		e !== _p$?.e && setProp(_el$, "class", e, _p$?.e);
 		t !== _p$?.t && setProp(_el$, "role", t, _p$?.t);
 		a !== _p$?.a && setProp(_el$, "aria-label", a, _p$?.a);
 		o !== _p$?.o && setProp(_el$, "style", o, _p$?.o);
+		i !== _p$?.i && setProp(_el$2, "style", i, _p$?.i);
+		n !== _p$?.n && setProp(_el$3, "style", n, _p$?.n);
 	});
 	return _el$;
 }
@@ -1150,4 +1202,4 @@ function eventName(code) {
 //#endregion
 export { writer as A, releaseOverlayRoot as C, setProp as D, runSweep as E, defaultHost as F, useHost as I, PathBuilder as L, createFps as M, Portal as N, setTransform2D as O, HostProvider as P, isVectorPath as R, registerRoot as S, render as T, mergeProps as _, createElement as a, reconcileControlledInputValues as b, dispatchEvent as c, getRequestEvent as d, insert as f, memo as g, isServer as h, createComponent$1 as i, VirtualList as j, spread as k, effect as l, isDirectEvent as m, acquireOverlayRoot as n, createTextNode as o, insertNode as p, applyRef as r, delegateEvents as s, Dynamic as t, getMountRoot as u, mount as v, removeNode as w, ref as x, observeGlobalPointerEvent as y };
 
-//# sourceMappingURL=renderer-CmGkLkrf.mjs.map
+//# sourceMappingURL=renderer-DKX8JQEL.mjs.map

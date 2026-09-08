@@ -1,10 +1,25 @@
 import { expect, test } from "bun:test";
 import { createRoot, createSignal, flush } from "solid-js";
 import {
+  calculateVirtualRange,
   createVirtualItemIdentity,
   createVirtualRow,
   validateVirtualItemKeys,
 } from "./virtual-list";
+
+test("calculates a bounded visible range with overscan", () => {
+  expect(calculateVirtualRange(10_000, 20, 100, 200, 1)).toEqual({
+    start: 9,
+    end: 16,
+  });
+  expect(calculateVirtualRange(3, 20, 100, 10_000, 2)).toEqual({
+    start: 0,
+    end: 3,
+  });
+  expect(() => calculateVirtualRange(1, 0, 100, 0, 1)).toThrow(
+    "itemHeight must be positive",
+  );
+});
 
 test("a virtual row follows item replacement at the same index", () =>
   createRoot((dispose) => {
