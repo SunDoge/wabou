@@ -1963,6 +1963,61 @@ test("a preview result cannot leak into another selected file", async () => {
   expect(fixture.callsTo("rustic.openPath")).toHaveLength(1);
 });
 
+test("a completed preview cannot open a file after its details view unmounts", async () => {
+  let completePreview!: (result: {
+    destination: string;
+    plan: RestorePlanSummary;
+  }) => void;
+  const fixture = createTestHost({
+    rustic: {
+      __wabouCapabilityVersion: 14,
+      previewPath: () =>
+        new Promise<{
+          destination: string;
+          plan: RestorePlanSummary;
+        }>((resolve) => {
+          completePreview = resolve;
+        }),
+      openPath: async () => {},
+    },
+  });
+  const entry: FileEntry = {
+    name: "notes.txt",
+    path: "docs/notes.txt",
+    kind: "file",
+    size: 12,
+    modified: "2026-09-04T08:00:00Z",
+  };
+  const screen = renderComponent(
+    () => (
+      <FileDetails profileId="profile" snapshotId="snapshot" entry={entry} />
+    ),
+    { host: fixture.host },
+  );
+
+  screen.getByRole("button", { name: "Open preview" }).click();
+  await screen.waitFor(() => {
+    expect(fixture.callsTo("rustic.previewPath")).toHaveLength(1);
+  });
+  screen.dispose();
+  completePreview({
+    destination: "/tmp/notes.txt",
+    plan: {
+      restoreSize: 12,
+      matchedSize: 0,
+      filesToRestore: 1,
+      filesToModify: 0,
+      filesUnchanged: 0,
+      directoriesToRestore: 0,
+      directoriesToModify: 0,
+    },
+  });
+  await Promise.resolve();
+  await Promise.resolve();
+
+  expect(fixture.callsTo("rustic.openPath")).toHaveLength(0);
+});
+
 test("backup sources add manual paths with Enter and remove existing paths", () => {
   const changes = vi.fn<(sources: string[]) => void>();
   const App = () => {

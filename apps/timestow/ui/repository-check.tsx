@@ -12,7 +12,13 @@ import {
   View,
 } from "@wabou/ui";
 import shieldCheck from "lucide-static/icons/shield-check.svg?raw";
-import { createEffect, createSignal, For as ForValue, Show } from "solid-js";
+import {
+  createEffect,
+  createSignal,
+  For as ForValue,
+  onCleanup,
+  Show,
+} from "solid-js";
 import {
   type RepositoryCheckResult,
   type RepositoryStats,
@@ -126,6 +132,7 @@ export function RepositoryCheckDialog(props: RepositoryCheckDialogProps) {
   const [result, setResult] = createSignal<RepositoryCheckResult>();
   const [error, setError] = createSignal<string>();
   const requests = createAsyncRequestGate();
+  onCleanup(() => requests.invalidate());
 
   createEffect(
     () => props.profileId,

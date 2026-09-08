@@ -23,6 +23,7 @@ import {
   createMemo,
   createSignal,
   For as ForValue,
+  onCleanup,
   Show,
 } from "solid-js";
 import type {
@@ -120,6 +121,7 @@ export function SnapshotDiffPanel(props: {
   const [error, setError] = createSignal<string>();
   const [retryRevision, setRetryRevision] = createSignal(0);
   const requests = createAsyncRequestGate();
+  onCleanup(() => requests.invalidate());
 
   createEffect(
     () => ({

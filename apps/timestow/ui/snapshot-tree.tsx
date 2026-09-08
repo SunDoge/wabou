@@ -17,6 +17,7 @@ import {
   createEffect,
   createMemo,
   createSignal,
+  onCleanup,
   Show,
   untrack,
 } from "solid-js";
@@ -66,6 +67,7 @@ export function SnapshotFileTree(props: {
   const [loadingPaths, setLoadingPaths] = createSignal<readonly string[]>([]);
   const [failure, setFailure] = createSignal<DirectoryLoadFailure>();
   const requests = createAsyncRequestGate();
+  onCleanup(() => requests.invalidate());
 
   const pathForId = (id: string) => (id === ROOT_ID ? "" : id);
   const idForPath = (path: string) => (path ? path : ROOT_ID);

@@ -597,6 +597,11 @@ export function SnapshotsPage() {
   const fileRequests = createAsyncRequestGate();
   const searchRequests = createAsyncRequestGate();
   const snapshotRequests = createAsyncRequestGate();
+  onCleanup(() => {
+    fileRequests.invalidate();
+    searchRequests.invalidate();
+    snapshotRequests.invalidate();
+  });
 
   function clearSnapshotWorkspace(): void {
     fileRequests.invalidate();

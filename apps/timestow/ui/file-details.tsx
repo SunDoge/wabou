@@ -45,6 +45,7 @@ export function FileDetails(props: {
   const [previewPath, setPreviewPath] = createSignal<string>();
   const [previewError, setPreviewError] = createSignal<string>();
   const previewRequests = createAsyncRequestGate();
+  onCleanup(() => previewRequests.invalidate());
 
   createEffect(
     () =>
