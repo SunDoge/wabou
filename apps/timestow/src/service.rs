@@ -56,6 +56,22 @@ pub struct RusticService {
     progress: ProgressEmitter,
     secrets: VelloHybridSecretStore,
     preview_roots: Arc<Mutex<Vec<tempfile::TempDir>>>,
+    repository_writes: Arc<Mutex<BTreeSet<PathBuf>>>,
+}
+
+struct RepositoryWriteGuard {
+    repository: PathBuf,
+    active: Arc<Mutex<BTreeSet<PathBuf>>>,
+}
+
+impl Drop for RepositoryWriteGuard {
+    fn drop(&mut self) {
+        let mut active = self
+            .active
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        active.remove(&self.repository);
+    }
 }
 
 #[derive(Clone, Default)]
@@ -312,6 +328,25 @@ impl RusticService {
         });
     }
 
+    fn begin_repository_write(&self, path: &str) -> Result<RepositoryWriteGuard, String> {
+        let repository = std::fs::canonicalize(path).unwrap_or_else(|_| PathBuf::from(path));
+        let mut active = self
+            .repository_writes
+            .lock()
+            .map_err(|_| "repository write coordinator is poisoned".to_string())?;
+        if !active.insert(repository.clone()) {
+            return Err(
+                "another write is already running for this repository; wait for it to finish"
+                    .to_string(),
+            );
+        }
+        drop(active);
+        Ok(RepositoryWriteGuard {
+            repository,
+            active: self.repository_writes.clone(),
+        })
+    }
+
     fn status(&self) -> Result<RuntimeStatus, String> {
         let state = self.state.read().map_err(|_| "service state is poisoned")?;
         Ok(status_from_state(&state))
@@ -380,10 +415,12 @@ impl RusticService {
             .ok_or_else(|| "repository password confirmation is required".to_string())?;
         let password = self.secrets.take(&request.password_slot);
         let confirmation = self.secrets.take(confirmation_slot);
-        if let Err(error) =
-            validate_new_repository_password(password.as_str(), confirmation.as_str())
-                .and_then(|()| create_repository(&request.path, password.as_str()))
-        {
+        let create_result = (|| {
+            validate_new_repository_password(password.as_str(), confirmation.as_str())?;
+            let _write = self.begin_repository_write(&request.path)?;
+            create_repository(&request.path, password.as_str())
+        })();
+        if let Err(error) = create_result {
             let _ = self.secrets.restore(&request.password_slot, password);
             let _ = self.secrets.restore(confirmation_slot, confirmation);
             return Err(error);
@@ -454,6 +491,7 @@ impl RusticService {
         );
         let result = (|| {
             let (path, password, sources) = self.profile_config(&profile_id)?;
+            let _write = self.begin_repository_write(&path)?;
             if sources.is_empty() {
                 return Err("add at least one backup folder first".to_string());
             }
@@ -713,6 +751,7 @@ impl RusticService {
 
     fn update_snapshot(&self, request: UpdateSnapshotRequest) -> Result<SnapshotEntry, String> {
         let (path, password, _) = self.profile_config(&request.profile_id)?;
+        let _write = self.begin_repository_write(&path)?;
         let repo = open_repository(&path, &password)?;
         let snapshots = repo.get_all_snapshots().map_err(display_error)?;
         let previous_ids: BTreeSet<_> = snapshots.iter().map(|snapshot| snapshot.id).collect();
@@ -751,6 +790,7 @@ impl RusticService {
 
     fn delete_snapshot(&self, request: DeleteSnapshotRequest) -> Result<(), String> {
         let (path, password, _) = self.profile_config(&request.profile_id)?;
+        let _write = self.begin_repository_write(&path)?;
         let repo = open_repository(&path, &password)?;
         let snapshot = repo
             .get_all_snapshots()
@@ -1376,6 +1416,33 @@ mod tests {
                 .collect::<Vec<_>>(),
             ["file-2", "file-3"]
         );
+    }
+
+    #[test]
+    fn repository_writes_are_single_flight_per_canonical_path() {
+        let service = RusticService::default();
+        let repository = tempfile::tempdir().expect("repository directory");
+        let other_repository = tempfile::tempdir().expect("other repository directory");
+        let repository_path = repository.path().to_string_lossy();
+        let alias = repository.path().join(".");
+
+        let write = service
+            .begin_repository_write(&repository_path)
+            .expect("first repository write");
+        let error = service
+            .begin_repository_write(&alias.to_string_lossy())
+            .err()
+            .expect("canonical aliases share one writer");
+        assert!(error.contains("another write is already running"));
+        let other_write = service
+            .begin_repository_write(&other_repository.path().to_string_lossy())
+            .expect("different repositories can write concurrently");
+
+        drop(write);
+        service
+            .begin_repository_write(&alias.to_string_lossy())
+            .expect("repository write slot is released on drop");
+        drop(other_write);
     }
 
     #[test]
