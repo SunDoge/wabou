@@ -749,9 +749,9 @@ impl RusticService {
     }
 
     fn list_snapshots(&self, request: ProfileIdRequest) -> Result<Vec<SnapshotEntry>, String> {
-        let (path, password, _) = self.profile_config(&request.profile_id)?;
+        let (path, _, _) = self.profile_config(&request.profile_id)?;
         self.invalidate_indexed_repository(&repository_cache_key(&path))?;
-        let repo = open_repository(&path, &password)?;
+        let repo = self.indexed_repository(&request.profile_id)?;
         let mut snapshots = repo.get_all_snapshots().map_err(display_error)?;
         snapshots.sort_unstable_by(|left, right| right.time.cmp(&left.time));
         Ok(snapshots.iter().map(snapshot_entry).collect())
@@ -1863,6 +1863,7 @@ mod tests {
             .expect("list snapshots");
         assert_eq!(snapshots.len(), 1);
         assert_eq!(snapshots[0].id, backup.snapshot.id);
+        assert_eq!(service.indexed_repository_cache_len(), 1);
         let check = service
             .check_repository(profile)
             .expect("check repository structure");
