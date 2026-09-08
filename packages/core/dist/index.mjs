@@ -8,21 +8,21 @@ import AbortControllerPolyfill, { AbortSignal } from "abort-controller/dist/abor
 import { ByteLengthQueuingStrategy, CountQueuingStrategy, ReadableByteStreamController, ReadableStream as ReadableStream$1, ReadableStreamBYOBReader, ReadableStreamBYOBRequest, ReadableStreamDefaultController, ReadableStreamDefaultReader, TransformStream, TransformStreamDefaultController, WritableStream, WritableStreamDefaultController, WritableStreamDefaultWriter } from "web-streams-polyfill";
 import { TextDecoderStream, TextEncoderStream } from "@stardazed/streams-text-encoding";
 import { For, createComponent, createContext, createEffect, createMemo, createSignal, flush, getOwner, latest, onCleanup, refresh, resolve, untrack, useContext } from "solid-js";
-//#region src/polyfills/abort-controller.ts
-/** Install cancellation primitives when the embedding runtime lacks them. */
-function installAbortControllerPolyfill() {
-	if (!("AbortSignal" in globalThis)) Object.defineProperty(globalThis, "AbortSignal", {
+//#region src/polyfills/globals.ts
+/** Install a writable runtime global without replacing a host implementation. */
+function installMissingGlobal(name, value) {
+	if (name in globalThis) return false;
+	Object.defineProperty(globalThis, name, {
 		configurable: true,
 		writable: true,
-		value: AbortSignal
+		value
 	});
-	if (!("AbortController" in globalThis)) Object.defineProperty(globalThis, "AbortController", {
-		configurable: true,
-		writable: true,
-		value: AbortControllerPolyfill
-	});
+	return true;
 }
-installAbortControllerPolyfill();
+/** Install a related set of runtime globals with the same preservation rule. */
+function installMissingGlobals(values) {
+	for (const [name, value] of Object.entries(values)) installMissingGlobal(name, value);
+}
 //#endregion
 //#region src/polyfills/dom-exception.ts
 var WabouDOMException = class extends Error {
@@ -34,13 +34,19 @@ var WabouDOMException = class extends Error {
 };
 /** Install the exception type shared by browser-compatible host APIs. */
 function installDOMExceptionPolyfill() {
-	if (!("DOMException" in globalThis)) Object.defineProperty(globalThis, "DOMException", {
-		configurable: true,
-		writable: true,
-		value: WabouDOMException
-	});
+	installMissingGlobal("DOMException", WabouDOMException);
 }
 installDOMExceptionPolyfill();
+//#endregion
+//#region src/polyfills/abort-controller.ts
+/** Install cancellation primitives when the embedding runtime lacks them. */
+function installAbortControllerPolyfill() {
+	installMissingGlobals({
+		AbortController: AbortControllerPolyfill,
+		AbortSignal
+	});
+}
+installAbortControllerPolyfill();
 //#endregion
 //#region src/polyfills/crypto.ts
 const DIGEST_IDS = {
@@ -87,11 +93,7 @@ var WabouCrypto = class {
 /** Install the native random and digest subset when Wabou's ABI is present. */
 function installCryptoPolyfill() {
 	if (!("__wabou_crypto_random" in globalThis)) return;
-	if (!("crypto" in globalThis)) Object.defineProperty(globalThis, "crypto", {
-		configurable: true,
-		writable: true,
-		value: new WabouCrypto()
-	});
+	installMissingGlobal("crypto", new WabouCrypto());
 }
 installCryptoPolyfill();
 //#endregion
@@ -113,14 +115,7 @@ const streamGlobals = {
 };
 /** Install the WHATWG Streams constructors missing from the current runtime. */
 function installStreamsPolyfill() {
-	for (const [name, constructor] of Object.entries(streamGlobals)) {
-		if (name in globalThis) continue;
-		Object.defineProperty(globalThis, name, {
-			configurable: true,
-			writable: true,
-			value: constructor
-		});
-	}
+	installMissingGlobals(streamGlobals);
 }
 installStreamsPolyfill();
 //#endregion
@@ -131,14 +126,7 @@ const encodingStreamGlobals = {
 };
 /** Install the Encoding Standard stream transforms missing from QuickJS. */
 function installEncodingStreamsPolyfill() {
-	for (const [name, constructor] of Object.entries(encodingStreamGlobals)) {
-		if (name in globalThis) continue;
-		Object.defineProperty(globalThis, name, {
-			configurable: true,
-			writable: true,
-			value: constructor
-		});
-	}
+	installMissingGlobals(encodingStreamGlobals);
 }
 installEncodingStreamsPolyfill();
 //#endregion
@@ -297,15 +285,9 @@ var WabouResponse = class WabouResponse {
 };
 /** Install the host-backed Fetch API surface. Safe to call again in tests. */
 function installFetchPolyfill() {
-	if (!("Headers" in globalThis)) Object.defineProperty(globalThis, "Headers", {
-		configurable: true,
-		writable: true,
-		value: WabouHeaders
-	});
-	if (!("Response" in globalThis)) Object.defineProperty(globalThis, "Response", {
-		configurable: true,
-		writable: true,
-		value: WabouResponse
+	installMissingGlobals({
+		Headers: WabouHeaders,
+		Response: WabouResponse
 	});
 	if (!("__wabou_fetch" in globalThis)) return;
 	globalThis.fetch = ((input, init) => {

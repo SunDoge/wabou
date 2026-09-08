@@ -10,14 +10,14 @@
 // any order; glue modules import the bundled renderer layer directly.
 
 import "./host";
-import "./polyfills/abort-controller";
 import "./polyfills/dom-exception";
+import "./polyfills/abort-controller";
 import "./polyfills/crypto";
 import "./polyfills/streams";
 import "./polyfills/encoding-streams";
 
 // URL and URLSearchParams are installed by the host's core-prelude (platform.ts,
-// bundled with whatwg-url/@ungap via gen-core-prelude) BEFORE the app boots.
+// bundled with whatwg-url via gen-core-prelude) BEFORE the app boots.
 // We don't re-import them here: in vite dev the live `import { URL } from
 // "whatwg-url"` fails to resolve CJS named exports via raw /@fs/ serving.
 import "./polyfills/fetch";
@@ -217,11 +217,12 @@ export * from "./registry";
 // only from `@wabou/core/renderer` to JSX tooling and host infrastructure.
 export {
   type BuiltinHost,
+  createFps,
   type DebugOverlayOptions,
   type DebugOverlayPaintStats,
-  defaultHost,
   Dynamic,
   type DynamicProps,
+  defaultHost,
   type FrameStats,
   type Handle,
   type Host,
@@ -239,6 +240,9 @@ export {
   type PortalProps,
   setTransform2D,
   useHost,
+  VirtualList,
+  type VirtualListController,
+  type VirtualListProps,
   type WabouBuiltinIntrinsicElements,
   type WabouControlProps,
   type WabouElementProps,
@@ -273,12 +277,6 @@ export {
   type WabouValueChangeEvent,
   type WabouVectorPathProps,
   type WabouWheelEvent,
-} from "./renderer";
-export {
-  createFps,
-  VirtualList,
-  type VirtualListController,
-  type VirtualListProps,
 } from "./renderer";
 export * from "./style";
 export * from "./vector-path";
