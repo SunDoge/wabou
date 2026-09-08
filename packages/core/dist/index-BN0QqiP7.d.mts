@@ -239,6 +239,12 @@ interface VirtualListProps<T> {
   itemHeight: number;
   /** Extra rows retained before and after the visible range. Defaults to 2. */
   overscan?: number;
+  /** Stable edge when items are inserted or removed. Defaults to `start`. */
+  anchorTo?: "start" | "end";
+  /** Follow appended items while an end-anchored viewport is already at its end. */
+  followOnAppend?: boolean | "auto" | "smooth" | "instant";
+  /** Logical pixels from the end that still count as end-pinned. */
+  scrollEndThreshold?: number;
   /**
    * Visible viewport height in logical pixels. When omitted, the list fills
    * its bounded parent and observes its completed native layout size.
@@ -262,6 +268,9 @@ interface VirtualListProps<T> {
 type VirtualListScrollAlignment = "nearest" | "start" | "center" | "end";
 interface VirtualListController {
   scrollToIndex(index: number, alignment?: VirtualListScrollAlignment): void;
+  scrollToEnd(behavior?: "auto" | "smooth" | "instant"): void;
+  isAtEnd(threshold?: number): boolean;
+  getDistanceFromEnd(): number;
 }
 interface VirtualListRange {
   readonly start: number;
@@ -649,4 +658,4 @@ declare function dispatchEvent(solidId: NodeKey$1, eventCode: number, payloadStr
 declare function reconcileControlledInputValues(): void;
 //#endregion
 export { isServer as $, WabouSemanticRole as A, DebugOverlayPaintStats as At, acquireOverlayRoot as B, jsxs as Bt, WabouNativeTag as C, DebugOverlayOptions as Ct, WabouPositionedEvent as D, LayoutTarget as Dt, WabouPointerEvent as E, HostProviderProps as Et, WabouTextSelectionChangeEvent as F, LayoutSnapshot as Ft, delegateEvents as G, PathPoint as Gt, createComponent$1 as H, PathFillRule as Ht, WabouTransitionEvent as I, Fragment as It, getMountRoot as J, isVectorPath as Jt, dispatchEvent as K, VectorPath as Kt, WabouValueChangeEvent as L, JSX$1 as Lt, WabouSvgProps as M, LayoutNodeMetrics as Mt, WabouSvgShapeProps as N, LayoutRect as Nt, WabouScrollEvent as O, defaultHost as Ot, WabouTextCommitEvent as P, LayoutScrollMetrics as Pt, isDirectEvent as Q, WabouVectorPathProps as R, jsx as Rt, WabouNativeSpring as S, BuiltinHost as St, WabouNodeEvent as T, HostProvider as Tt, createElement as U, PathLineCap as Ut, applyRef as V, PathBuilder as Vt, createTextNode as W, PathLineJoin as Wt, insert as X, getRequestEvent as Y, insertNode as Z, WabouImePreeditEvent as _, VirtualListProps as _t, WabouBuiltinIntrinsicElements as a, ref as at, WabouKeyEvent as b, Portal as bt, WabouEventTarget as c, removeNode as ct, WabouFloatingPlacement as d, setProp as dt, memo as et, WabouFloatingPosition as f, setTransform2D as ft, WabouImeDeleteSurroundingEvent as g, VirtualListController as gt, WabouImageProps as h, VirtualList as ht, NativeScrollbarStyle as i, reconcileControlledInputValues as it, WabouSubmitEvent as j, FrameStats as jt, WabouSecretStateChangeEvent as k, useHost as kt, WabouExposedSemanticRole as l, render as lt, WabouGlobalPointerListener as m, writer as mt, DynamicProps as n, mount as nt, WabouControlProps as o, registerRoot as ot, WabouGlobalPointerEventType as p, spread as pt, effect as q, VectorPathPaint as qt, Handle as r, observeGlobalPointerEvent as rt, WabouElementProps as s, releaseOverlayRoot as st, Dynamic as t, mergeProps as tt, WabouFloatingAnchor as u, runSweep as ut, WabouInputEvent as v, VirtualListRange as vt, WabouNativeTransition as w, Host as wt, WabouNativeElements as x, PortalProps as xt, WabouInputProps as y, VirtualListScrollAlignment as yt, WabouWheelEvent as z, jsxDEV as zt };
-//# sourceMappingURL=index-BvoZIsYb.d.mts.map
+//# sourceMappingURL=index-BN0QqiP7.d.mts.map

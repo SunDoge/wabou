@@ -162,3 +162,38 @@ test("reports the mounted range only when its overscanned window changes", () =>
     { start: 9, end: 16 },
   ]);
 });
+
+test("keeps an end-pinned list attached when new items are appended", () => {
+  const [items, setItems] = createSignal(
+    Array.from({ length: 20 }, (_, index) => `Message ${index}`),
+  );
+  let controller: VirtualListController | undefined;
+  const screen = renderComponent(() => (
+    <VirtualList
+      items={items}
+      itemHeight={20}
+      viewportHeight={100}
+      getItemKey={(item) => item}
+      role="log"
+      accessibilityLabel="Conversation"
+      anchorTo="end"
+      followOnAppend
+      controllerRef={(next) => {
+        controller = next;
+      }}
+    >
+      {(item) => <Text role="listitem">{item()}</Text>}
+    </VirtualList>
+  ));
+
+  controller?.scrollToEnd();
+  screen.flush();
+  expect(controller?.isAtEnd()).toBe(true);
+  expect(screen.getByRole("listitem", { name: "Message 19" })).toBeDefined();
+
+  setItems((current) => [...current, "Message 20"]);
+  screen.flush();
+
+  expect(controller?.isAtEnd()).toBe(true);
+  expect(screen.getByRole("listitem", { name: "Message 20" })).toBeDefined();
+});

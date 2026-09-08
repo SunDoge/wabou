@@ -1,4 +1,9 @@
 import {
+  Virtualizer,
+  type VirtualizerOptions,
+  type Rect as VirtualRect,
+} from "@tanstack/virtual-core";
+import {
   type Accessor,
   createEffect,
   createMemo,
@@ -18,6 +23,12 @@ export interface VirtualListProps<T> {
   itemHeight: number;
   /** Extra rows retained before and after the visible range. Defaults to 2. */
   overscan?: number;
+  /** Stable edge when items are inserted or removed. Defaults to `start`. */
+  anchorTo?: "start" | "end";
+  /** Follow appended items while an end-anchored viewport is already at its end. */
+  followOnAppend?: boolean | "auto" | "smooth" | "instant";
+  /** Logical pixels from the end that still count as end-pinned. */
+  scrollEndThreshold?: number;
   /**
    * Visible viewport height in logical pixels. When omitted, the list fills
    * its bounded parent and observes its completed native layout size.
@@ -43,6 +54,9 @@ export type VirtualListScrollAlignment = "nearest" | "start" | "center" | "end";
 
 export interface VirtualListController {
   scrollToIndex(index: number, alignment?: VirtualListScrollAlignment): void;
+  scrollToEnd(behavior?: "auto" | "smooth" | "instant"): void;
+  isAtEnd(threshold?: number): boolean;
+  getDistanceFromEnd(): number;
 }
 
 export function createVirtualRow<T>(
@@ -64,42 +78,8 @@ interface VirtualRow<T> {
   readonly index: number;
   readonly key: string;
   readonly item: T;
-}
-
-export function calculateVirtualRange(
-  itemCount: number,
-  itemHeight: number,
-  viewportHeight: number,
-  scrollTop: number,
-  overscan: number,
-): VirtualListRange {
-  if (!Number.isSafeInteger(itemCount) || itemCount < 0)
-    throw new RangeError(
-      "VirtualList item count must be a non-negative integer",
-    );
-  if (!Number.isFinite(itemHeight) || itemHeight <= 0)
-    throw new RangeError("VirtualList itemHeight must be positive and finite");
-  if (!Number.isFinite(viewportHeight) || viewportHeight < 0)
-    throw new RangeError(
-      "VirtualList viewport height must be finite and non-negative",
-    );
-  if (!Number.isFinite(scrollTop))
-    throw new RangeError("VirtualList scroll offset must be finite");
-  if (!Number.isSafeInteger(overscan) || overscan < 0)
-    throw new RangeError("VirtualList overscan must be a non-negative integer");
-
-  const visibleCount = Math.max(1, Math.ceil(viewportHeight / itemHeight));
-  const maxFirstVisible = Math.max(0, itemCount - visibleCount);
-  const firstVisible = Math.min(
-    maxFirstVisible,
-    Math.floor(Math.max(0, scrollTop) / itemHeight),
-  );
-  const start = Math.max(0, Math.min(itemCount, firstVisible - overscan));
-  const end = Math.max(
-    start,
-    Math.min(itemCount, firstVisible + visibleCount + overscan),
-  );
-  return { start, end };
+  readonly start: number;
+  readonly end: number;
 }
 
 export function validateVirtualItemKeys<T>(
@@ -159,6 +139,9 @@ export function VirtualList<T>(props: VirtualListProps<T>): JSX.Element {
     children: props.children,
     itemHeight: props.itemHeight,
     overscan: props.overscan ?? 2,
+    anchorTo: props.anchorTo ?? "start",
+    followOnAppend: props.followOnAppend ?? false,
+    scrollEndThreshold: props.scrollEndThreshold ?? 1,
     viewportHeight: props.viewportHeight,
     class: props.class,
     getItemKey: props.getItemKey,
@@ -167,6 +150,28 @@ export function VirtualList<T>(props: VirtualListProps<T>): JSX.Element {
     controllerRef: props.controllerRef,
     onVisibleRangeChange: props.onVisibleRangeChange,
   }));
+  if (!Number.isFinite(config.itemHeight) || config.itemHeight <= 0) {
+    throw new RangeError("VirtualList itemHeight must be positive and finite");
+  }
+  if (!Number.isSafeInteger(config.overscan) || config.overscan < 0) {
+    throw new RangeError("VirtualList overscan must be a non-negative integer");
+  }
+  if (
+    config.viewportHeight !== undefined &&
+    (!Number.isFinite(config.viewportHeight) || config.viewportHeight < 0)
+  ) {
+    throw new RangeError(
+      "VirtualList viewportHeight must be finite and non-negative",
+    );
+  }
+  if (
+    !Number.isFinite(config.scrollEndThreshold) ||
+    config.scrollEndThreshold < 0
+  ) {
+    throw new RangeError(
+      "VirtualList scrollEndThreshold must be finite and non-negative",
+    );
+  }
   const source = createMemo(() => {
     const items = config.items();
     return {
@@ -174,43 +179,139 @@ export function VirtualList<T>(props: VirtualListProps<T>): JSX.Element {
       keys: validateVirtualItemKeys(items, config.getItemKey),
     };
   });
-  const [scrollTop, setScrollTop] = createSignal(0);
-  const [measuredHeight, setMeasuredHeight] = createSignal(0);
+  const [measuredHeight, setMeasuredHeight] = createSignal(0, {
+    ownedWrite: true,
+  });
+  const [virtualRevision, setVirtualRevision] = createSignal(0, {
+    ownedWrite: true,
+  });
   let viewport: Handle | undefined;
   let observer: ResizeObserver | undefined;
+  let reportRect: ((rect: VirtualRect) => void) | undefined;
+  let reportOffset:
+    | ((offset: number, isScrolling: boolean) => void)
+    | undefined;
 
   const viewportHeight = () => config.viewportHeight ?? measuredHeight();
-  const range = createMemo(
-    () =>
-      calculateVirtualRange(
-        source().items.length,
-        config.itemHeight,
-        viewportHeight(),
-        scrollTop(),
-        config.overscan,
-      ),
+  let sourceSnapshot = untrack(source);
+  let currentViewportHeight = Math.max(
+    config.itemHeight,
+    untrack(viewportHeight),
+  );
+  let currentScrollOffset = 0;
+  const scrollTarget = {
+    ownerDocument: {
+      defaultView: globalThis as unknown as Window & typeof globalThis,
+    },
+    scrollHeight: sourceSnapshot.items.length * config.itemHeight,
+    scrollWidth: 0,
+    clientHeight: currentViewportHeight,
+    clientWidth: 0,
+  };
+  const virtualizerOptions = (): VirtualizerOptions<Element, Element> => {
+    const snapshot = sourceSnapshot;
+    const viewportHeight = currentViewportHeight;
+    const initialOffset = currentScrollOffset;
+    return {
+      count: snapshot.items.length,
+      getScrollElement: () => scrollTarget as unknown as Element,
+      estimateSize: () => config.itemHeight,
+      getItemKey: (index) => snapshot.keys[index] ?? index,
+      overscan: config.overscan,
+      anchorTo: config.anchorTo,
+      followOnAppend: config.followOnAppend,
+      scrollEndThreshold: config.scrollEndThreshold,
+      initialRect: { width: 0, height: viewportHeight },
+      initialOffset,
+      scrollToFn: (offset) => {
+        const next = Math.max(0, offset);
+        currentScrollOffset = next;
+        reportOffset?.(next, false);
+        viewport?.scrollTo({ top: next });
+      },
+      observeElementRect: (_instance, callback) => {
+        reportRect = callback;
+        callback({ width: 0, height: currentViewportHeight });
+        return () => {
+          if (reportRect === callback) reportRect = undefined;
+        };
+      },
+      observeElementOffset: (_instance, callback) => {
+        reportOffset = callback;
+        callback(currentScrollOffset, false);
+        return () => {
+          if (reportOffset === callback) reportOffset = undefined;
+        };
+      },
+      onChange: () => setVirtualRevision((revision) => revision + 1),
+    };
+  };
+  const virtualizer = new Virtualizer<Element, Element>(virtualizerOptions());
+  virtualizer._willUpdate();
+  const disposeVirtualizer = virtualizer._didMount();
+  const virtualInputs = createMemo(
+    () => ({ source: source(), height: viewportHeight() }),
+    {
+      equals: (previous, next) =>
+        previous.source === next.source && previous.height === next.height,
+    },
+  );
+  createEffect(virtualInputs, ({ source: nextSource, height }) => {
+    sourceSnapshot = nextSource;
+    currentViewportHeight = Math.max(config.itemHeight, height);
+    virtualizer.setOptions(virtualizerOptions());
+    scrollTarget.scrollHeight = sourceSnapshot.items.length * config.itemHeight;
+    scrollTarget.clientHeight = currentViewportHeight;
+    reportRect?.({ width: 0, height: currentViewportHeight });
+    const maxOffset = Math.max(
+      0,
+      scrollTarget.scrollHeight - currentViewportHeight,
+    );
+    if (currentScrollOffset > maxOffset) {
+      currentScrollOffset = maxOffset;
+      reportOffset?.(maxOffset, false);
+      viewport?.scrollTo({ top: maxOffset });
+    }
+    virtualizer._willUpdate();
+  });
+  const virtualWindow = createMemo(() => {
+    virtualRevision();
+    return {
+      items: virtualizer.getVirtualItems(),
+      totalSize: virtualizer.getTotalSize(),
+    };
+  });
+  const range = createMemo<VirtualListRange>(
+    () => {
+      const items = virtualWindow().items;
+      const first = items[0];
+      const last = items.at(-1);
+      return {
+        start: first?.index ?? 0,
+        end: last === undefined ? 0 : last.index + 1,
+      };
+    },
     {
       equals: (previous, next) =>
         previous.start === next.start && previous.end === next.end,
     },
   );
   const visibleRows = createMemo<readonly VirtualRow<T>[]>(() => {
-    const currentRange = range();
-    const { items, keys } = source();
-    const rows = new Array<VirtualRow<T>>(
-      currentRange.end - currentRange.start,
-    );
-    for (let index = currentRange.start; index < currentRange.end; index++) {
+    const window = virtualWindow();
+    const { items, keys } = sourceSnapshot;
+    return window.items.map((virtualItem) => {
+      const index = virtualItem.index;
       const item = items[index];
       if (item === undefined)
         throw new Error("VirtualList item snapshot changed during projection");
-      rows[index - currentRange.start] = {
+      return {
         index,
         key: encodedItemKey(keys[index] ?? index),
         item,
+        start: virtualItem.start,
+        end: virtualItem.end,
       };
-    }
-    return rows;
+    });
   });
   const observeViewport = (node: Handle) => {
     viewport = node;
@@ -222,48 +323,39 @@ export function VirtualList<T>(props: VirtualListProps<T>): JSX.Element {
     observer.observe(node as never);
   };
   const handleScroll = (event: WabouScrollEvent) => {
-    if (event.scrollY !== undefined) setScrollTop(Math.max(0, event.scrollY));
+    if (event.scrollY === undefined) return;
+    const next = Math.max(0, event.scrollY);
+    currentScrollOffset = next;
+    reportOffset?.(next, true);
   };
 
   const controller: VirtualListController = {
     scrollToIndex(index, alignment = "nearest") {
-      const itemCount = source().items.length;
+      const itemCount = sourceSnapshot.items.length;
       if (!Number.isSafeInteger(index) || index < 0 || index >= itemCount) {
         throw new RangeError(
           `VirtualList index ${index} is outside 0..${Math.max(0, itemCount - 1)}`,
         );
       }
-      const height = viewportHeight();
-      const itemTop = index * config.itemHeight;
-      const itemBottom = itemTop + config.itemHeight;
-      const currentTop = scrollTop();
-      const currentBottom = currentTop + height;
-      const requested =
-        alignment === "start"
-          ? itemTop
-          : alignment === "center"
-            ? itemTop - (height - config.itemHeight) / 2
-            : alignment === "end"
-              ? itemBottom - height
-              : itemTop < currentTop
-                ? itemTop
-                : itemBottom > currentBottom
-                  ? itemBottom - height
-                  : currentTop;
-      const next = Math.min(
-        Math.max(0, itemCount * config.itemHeight - height),
-        Math.max(0, requested),
-      );
-      setScrollTop(next);
-      viewport?.scrollTo({ top: next });
+      virtualizer.scrollToIndex(index, {
+        align: alignment === "nearest" ? "auto" : alignment,
+      });
     },
+    scrollToEnd(behavior = "auto") {
+      virtualizer.scrollToEnd({ behavior });
+    },
+    isAtEnd: (threshold) => virtualizer.isAtEnd(threshold),
+    getDistanceFromEnd: () => virtualizer.getDistanceFromEnd(),
   };
   config.controllerRef?.(controller);
   createEffect(range, (next) => {
     untrack(() => config.onVisibleRangeChange?.(next));
   });
 
-  onCleanup(() => observer?.disconnect());
+  onCleanup(() => {
+    observer?.disconnect();
+    disposeVirtualizer();
+  });
 
   return (
     <virtual-list
@@ -286,7 +378,7 @@ export function VirtualList<T>(props: VirtualListProps<T>): JSX.Element {
       <view
         aria-hidden
         style={{
-          height: `${range().start * config.itemHeight}px`,
+          height: `${visibleRows()[0]?.start ?? 0}px`,
           "flex-shrink": 0,
           width: "100%",
         }}
@@ -310,7 +402,10 @@ export function VirtualList<T>(props: VirtualListProps<T>): JSX.Element {
       <view
         aria-hidden
         style={{
-          height: `${(source().items.length - range().end) * config.itemHeight}px`,
+          height: `${Math.max(
+            0,
+            virtualWindow().totalSize - (visibleRows().at(-1)?.end ?? 0),
+          )}px`,
           "flex-shrink": 0,
           width: "100%",
         }}
