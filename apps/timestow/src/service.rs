@@ -1,6 +1,7 @@
 use std::{
     cmp::Ordering,
     collections::{BTreeSet, VecDeque},
+    hash::Hash,
     num::NonZeroUsize,
     path::{Path, PathBuf},
     sync::{Arc, Mutex, RwLock},
@@ -31,6 +32,7 @@ const MAX_RETAINED_PREVIEW_ROOTS: usize = 8;
 const MAX_CACHED_INDEXED_REPOSITORIES: usize = 4;
 const MAX_CACHED_DIRECTORY_LISTINGS: usize = 16;
 const MAX_CACHED_DIRECTORY_LISTING_ENTRIES: usize = 10_000;
+const MAX_CACHED_SNAPSHOT_DIFFS: usize = 8;
 
 type IndexedRepository = Repository<rustic_core::IndexedIdsStatus>;
 
@@ -39,6 +41,47 @@ struct DirectoryCacheKey {
     repository: PathBuf,
     snapshot_id: String,
     path: String,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+struct SnapshotDiffCacheKey {
+    repository: PathBuf,
+    base_snapshot_id: String,
+    snapshot_id: String,
+    path: String,
+    include_metadata: bool,
+    limit: usize,
+}
+
+struct RepositoryCaches {
+    indexed: LruCache<PathBuf, Arc<IndexedRepository>>,
+    directories: LruCache<DirectoryCacheKey, Arc<Vec<FileEntry>>>,
+    diffs: LruCache<SnapshotDiffCacheKey, Arc<SnapshotDiff>>,
+}
+
+impl RepositoryCaches {
+    fn new() -> Self {
+        Self {
+            indexed: LruCache::new(
+                NonZeroUsize::new(MAX_CACHED_INDEXED_REPOSITORIES)
+                    .expect("repository cache capacity is non-zero"),
+            ),
+            directories: LruCache::new(
+                NonZeroUsize::new(MAX_CACHED_DIRECTORY_LISTINGS)
+                    .expect("directory cache capacity is non-zero"),
+            ),
+            diffs: LruCache::new(
+                NonZeroUsize::new(MAX_CACHED_SNAPSHOT_DIFFS)
+                    .expect("snapshot diff cache capacity is non-zero"),
+            ),
+        }
+    }
+
+    fn invalidate(&mut self, repository: &Path) {
+        self.indexed.pop(repository);
+        remove_cache_entries(&mut self.directories, |key| key.repository == repository);
+        remove_cache_entries(&mut self.diffs, |key| key.repository == repository);
+    }
 }
 
 const STATUS: HostMethod<(), RuntimeStatus> = HostMethod::no_request("status");
@@ -72,15 +115,13 @@ pub struct RusticService {
     secrets: VelloHybridSecretStore,
     preview_roots: Arc<Mutex<VecDeque<tempfile::TempDir>>>,
     repository_writes: Arc<Mutex<BTreeSet<PathBuf>>>,
-    indexed_repositories: Arc<Mutex<LruCache<PathBuf, Arc<IndexedRepository>>>>,
-    directory_listings: Arc<Mutex<LruCache<DirectoryCacheKey, Arc<Vec<FileEntry>>>>>,
+    repository_caches: Arc<Mutex<RepositoryCaches>>,
 }
 
 struct RepositoryWriteGuard {
     repository: PathBuf,
     active: Arc<Mutex<BTreeSet<PathBuf>>>,
-    indexed_repositories: Arc<Mutex<LruCache<PathBuf, Arc<IndexedRepository>>>>,
-    directory_listings: Arc<Mutex<LruCache<DirectoryCacheKey, Arc<Vec<FileEntry>>>>>,
+    repository_caches: Arc<Mutex<RepositoryCaches>>,
 }
 
 impl Drop for RepositoryWriteGuard {
@@ -91,17 +132,10 @@ impl Drop for RepositoryWriteGuard {
             .unwrap_or_else(std::sync::PoisonError::into_inner);
         active.remove(&self.repository);
         drop(active);
-        self.indexed_repositories
+        self.repository_caches
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner)
-            .pop(&self.repository);
-        invalidate_directory_listings(
-            &mut self
-                .directory_listings
-                .lock()
-                .unwrap_or_else(std::sync::PoisonError::into_inner),
-            &self.repository,
-        );
+            .invalidate(&self.repository);
     }
 }
 
@@ -113,14 +147,7 @@ impl Default for RusticService {
             secrets: VelloHybridSecretStore::default(),
             preview_roots: Arc::default(),
             repository_writes: Arc::default(),
-            indexed_repositories: Arc::new(Mutex::new(LruCache::new(
-                NonZeroUsize::new(MAX_CACHED_INDEXED_REPOSITORIES)
-                    .expect("repository cache capacity is non-zero"),
-            ))),
-            directory_listings: Arc::new(Mutex::new(LruCache::new(
-                NonZeroUsize::new(MAX_CACHED_DIRECTORY_LISTINGS)
-                    .expect("directory cache capacity is non-zero"),
-            ))),
+            repository_caches: Arc::new(Mutex::new(RepositoryCaches::new())),
         }
     }
 }
@@ -395,23 +422,17 @@ impl RusticService {
         let guard = RepositoryWriteGuard {
             repository: repository.clone(),
             active: self.repository_writes.clone(),
-            indexed_repositories: self.indexed_repositories.clone(),
-            directory_listings: self.directory_listings.clone(),
+            repository_caches: self.repository_caches.clone(),
         };
         self.invalidate_indexed_repository(&repository)?;
         Ok(guard)
     }
 
     fn invalidate_indexed_repository(&self, repository: &Path) -> Result<(), String> {
-        self.indexed_repositories
+        self.repository_caches
             .lock()
-            .map_err(|_| "repository index cache is poisoned".to_string())?
-            .pop(repository);
-        let mut listings = self
-            .directory_listings
-            .lock()
-            .map_err(|_| "directory listing cache is poisoned".to_string())?;
-        invalidate_directory_listings(&mut listings, repository);
+            .map_err(|_| "repository cache is poisoned".to_string())?
+            .invalidate(repository);
         Ok(())
     }
 
@@ -422,9 +443,10 @@ impl RusticService {
         let (path, password, _) = self.profile_config(profile_id)?;
         let cache_key = repository_cache_key(&path);
         if let Some(repository) = self
-            .indexed_repositories
+            .repository_caches
             .lock()
-            .map_err(|_| "repository index cache is poisoned".to_string())?
+            .map_err(|_| "repository cache is poisoned".to_string())?
+            .indexed
             .get(&cache_key)
             .cloned()
         {
@@ -442,9 +464,10 @@ impl RusticService {
                 "backup profile {profile_id} changed while its repository was opening"
             ));
         }
-        self.indexed_repositories
+        self.repository_caches
             .lock()
-            .map_err(|_| "repository index cache is poisoned".to_string())?
+            .map_err(|_| "repository cache is poisoned".to_string())?
+            .indexed
             .put(cache_key.clone(), repository.clone());
         Ok((cache_key, repository))
     }
@@ -456,17 +479,28 @@ impl RusticService {
 
     #[cfg(test)]
     fn indexed_repository_cache_len(&self) -> usize {
-        self.indexed_repositories
+        self.repository_caches
             .lock()
             .expect("repository index cache")
+            .indexed
             .len()
     }
 
     #[cfg(test)]
     fn directory_listing_cache_len(&self) -> usize {
-        self.directory_listings
+        self.repository_caches
             .lock()
             .expect("directory listing cache")
+            .directories
+            .len()
+    }
+
+    #[cfg(test)]
+    fn snapshot_diff_cache_len(&self) -> usize {
+        self.repository_caches
+            .lock()
+            .expect("snapshot diff cache")
+            .diffs
             .len()
     }
 
@@ -731,9 +765,10 @@ impl RusticService {
             path: request.path.clone(),
         };
         if let Some(files) = self
-            .directory_listings
+            .repository_caches
             .lock()
-            .map_err(|_| "directory listing cache is poisoned".to_string())?
+            .map_err(|_| "repository cache is poisoned".to_string())?
+            .directories
             .get(&cache_key)
             .cloned()
         {
@@ -763,9 +798,10 @@ impl RusticService {
         });
         let files = Arc::new(files);
         if files.len() <= MAX_CACHED_DIRECTORY_LISTING_ENTRIES {
-            self.directory_listings
+            self.repository_caches
                 .lock()
-                .map_err(|_| "directory listing cache is poisoned".to_string())?
+                .map_err(|_| "repository cache is poisoned".to_string())?
+                .directories
                 .put(cache_key, files.clone());
         }
         Ok(file_listing_page(&files, request.offset, request.limit))
@@ -806,7 +842,26 @@ impl RusticService {
         if request.base_snapshot_id == request.snapshot_id {
             return Err("choose two different snapshots to compare".to_string());
         }
-        let repo = self.indexed_repository(&request.profile_id)?;
+        let limit = request.limit.clamp(1, MAX_DIFF_ENTRIES);
+        let (repository, repo) = self.indexed_repository_with_key(&request.profile_id)?;
+        let cache_key = SnapshotDiffCacheKey {
+            repository,
+            base_snapshot_id: request.base_snapshot_id.clone(),
+            snapshot_id: request.snapshot_id.clone(),
+            path: request.path.clone(),
+            include_metadata: request.include_metadata,
+            limit,
+        };
+        if let Some(result) = self
+            .repository_caches
+            .lock()
+            .map_err(|_| "repository cache is poisoned".to_string())?
+            .diffs
+            .get(&cache_key)
+            .cloned()
+        {
+            return Ok((*result).clone());
+        }
         let base = snapshot_by_id(&repo, &request.base_snapshot_id)?;
         let current = snapshot_by_id(&repo, &request.snapshot_id)?;
         let base_node = repo
@@ -820,7 +875,6 @@ impl RusticService {
         let mut current_entries = repo.ls(&current_node, &options).map_err(display_error)?;
         let mut previous = base_entries.next().transpose().map_err(display_error)?;
         let mut current = current_entries.next().transpose().map_err(display_error)?;
-        let limit = request.limit.clamp(1, MAX_DIFF_ENTRIES);
         let mut result = SnapshotDiff::default();
         while previous.is_some() || current.is_some() {
             let (relative_path, previous_node, current_node, advance_previous, advance_current) =
@@ -897,6 +951,11 @@ impl RusticService {
                 current = current_entries.next().transpose().map_err(display_error)?;
             }
         }
+        self.repository_caches
+            .lock()
+            .map_err(|_| "repository cache is poisoned".to_string())?
+            .diffs
+            .put(cache_key, Arc::new(result.clone()));
         Ok(result)
     }
 
@@ -1131,17 +1190,17 @@ fn file_listing_page(
     }
 }
 
-fn invalidate_directory_listings(
-    listings: &mut LruCache<DirectoryCacheKey, Arc<Vec<FileEntry>>>,
-    repository: &Path,
-) {
-    let stale = listings
+fn remove_cache_entries<K, V>(cache: &mut LruCache<K, V>, matches: impl Fn(&K) -> bool)
+where
+    K: Clone + Eq + Hash,
+{
+    let stale = cache
         .iter()
-        .filter(|(key, _)| key.repository == repository)
+        .filter(|(key, _)| matches(key))
         .map(|(key, _)| key.clone())
         .collect::<Vec<_>>();
     for key in stale {
-        listings.pop(&key);
+        cache.pop(&key);
     }
 }
 
@@ -1937,17 +1996,19 @@ mod tests {
         assert_eq!(service.directory_listing_cache_len(), 0);
         let updated_snapshot_id = next_backup.snapshot.id.clone();
         let base_snapshot_id = backup.snapshot.id.clone();
+        let diff_request = DiffSnapshotsRequest {
+            profile_id: "photos".to_string(),
+            base_snapshot_id: base_snapshot_id.clone(),
+            snapshot_id: updated_snapshot_id.clone(),
+            path: String::new(),
+            include_metadata: false,
+            limit: 10,
+        };
         let diff = service
-            .diff_snapshots(DiffSnapshotsRequest {
-                profile_id: "photos".to_string(),
-                base_snapshot_id: base_snapshot_id.clone(),
-                snapshot_id: updated_snapshot_id.clone(),
-                path: String::new(),
-                include_metadata: false,
-                limit: 10,
-            })
+            .diff_snapshots(diff_request.clone())
             .expect("compare snapshots");
         assert_eq!(service.indexed_repository_cache_len(), 1);
+        assert_eq!(service.snapshot_diff_cache_len(), 1);
         assert!(
             diff.entries
                 .iter()
@@ -1969,6 +2030,13 @@ mod tests {
         assert_eq!(diff.total_entries, 3);
         assert_eq!(diff.entries.len(), 3);
         assert!(!diff.truncated);
+        assert_eq!(
+            service
+                .diff_snapshots(diff_request)
+                .expect("reuse snapshot comparison"),
+            diff
+        );
+        assert_eq!(service.snapshot_diff_cache_len(), 1);
 
         let bounded_diff = service
             .diff_snapshots(DiffSnapshotsRequest {
@@ -1980,6 +2048,7 @@ mod tests {
                 limit: 2,
             })
             .expect("bound snapshot comparison payload");
+        assert_eq!(service.snapshot_diff_cache_len(), 2);
         assert_eq!(bounded_diff.total_entries, 3);
         assert_eq!(bounded_diff.entries.len(), 2);
         assert!(bounded_diff.truncated);
@@ -1995,6 +2064,7 @@ mod tests {
             })
             .expect("update snapshot metadata");
         assert_eq!(service.indexed_repository_cache_len(), 0);
+        assert_eq!(service.snapshot_diff_cache_len(), 0);
         assert_ne!(updated.id, updated_snapshot_id);
         assert_eq!(updated.label, "After cleanup");
         assert_eq!(updated.description.as_deref(), Some("Removed stale notes"));
