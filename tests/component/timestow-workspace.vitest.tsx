@@ -1374,6 +1374,107 @@ test("timestow session preserves snapshot navigation across workspace remounts",
   expect(screen.getByRole("status").text).toBe("snapshot-a:docs");
 });
 
+test("snapshot search ignores a superseded query and labels committed results", async () => {
+  const profile = {
+    id: "photos",
+    name: "Photos",
+    repositoryPath: "/data/photos-repository",
+    sources: ["/data/photos"],
+  };
+  const snapshot: SnapshotEntry = {
+    id: "snapshot",
+    time: "2026-09-08T00:42:00Z",
+    hostname: "workstation",
+    paths: ["/data/photos"],
+    filesNew: 2,
+    filesChanged: 0,
+    label: "Photos snapshot",
+    tags: [],
+    deleteProtected: false,
+  };
+  const searchCompletions = new Map<string, (entries: FileEntry[]) => void>();
+  const store: ProfileStore = {
+    load: async () => ({ profiles: [profile], activeProfileId: profile.id }),
+    save: async () => {},
+    setActive: async () => {},
+    remove: async () => {},
+  };
+  const fixture = createTestHost({
+    rustic: {
+      __wabouCapabilityVersion: 14,
+      status: async () => ({ unlockedProfileIds: [profile.id] }),
+      listSnapshots: async () => [snapshot],
+      listFiles: async ({ offset = 0 }: { offset?: number }) => ({
+        entries: [],
+        total: 0,
+        offset,
+        hasMore: false,
+      }),
+      searchFiles: ({ query }: { query: string }) =>
+        new Promise<FileEntry[]>((resolve) => {
+          searchCompletions.set(query, resolve);
+        }),
+    },
+  });
+  const root = new BaseRootRoute({ component: (props) => props.children });
+  const setup = new BaseRoute({
+    getParentRoute: () => root,
+    path: "/",
+    component: () => <Text>Setup</Text>,
+  });
+  const snapshots = new BaseRoute({
+    getParentRoute: () => root,
+    path: "snapshots",
+    component: SnapshotsPage,
+  });
+  const router = createDataRouter({
+    routeTree: root.addChildren([setup, snapshots]),
+    history: createMemoryHistory({ initialEntries: ["/snapshots"] }),
+    context: {},
+    defaultPendingMs: 0,
+  });
+  const screen = renderComponent(
+    () => (
+      <TimestowSessionProvider store={store}>
+        <RouterProvider router={router} />
+      </TimestowSessionProvider>
+    ),
+    { host: fixture.host },
+  );
+
+  await screen.waitFor(() => {
+    expect(
+      screen.getByRole("textbox", { name: "Search snapshot" }),
+    ).toBeDefined();
+  });
+  const input = screen.getByRole("textbox", { name: "Search snapshot" });
+  input.input("old");
+  screen.getByRole("button", { name: "Search" }).click();
+  await screen.waitFor(() => expect(searchCompletions.has("old")).toBe(true));
+
+  input.input("current");
+  screen.getByRole("button", { name: "Search" }).click();
+  await screen.waitFor(() =>
+    expect(searchCompletions.has("current")).toBe(true),
+  );
+  searchCompletions.get("current")?.([
+    { name: "current.txt", path: "current.txt", kind: "file", size: 7 },
+  ]);
+  await screen.waitFor(() => {
+    expect(screen.getByRole("row", { name: "current.txt" })).toBeDefined();
+    expect(screen.roots[0]?.text).toContain("Search results for “current”");
+  });
+
+  searchCompletions.get("old")?.([
+    { name: "stale.txt", path: "stale.txt", kind: "file", size: 5 },
+  ]);
+  await Promise.resolve();
+  screen.flush();
+  expect(screen.queryByRole("row", { name: "stale.txt" })).toBeNull();
+  expect(screen.getByRole("row", { name: "current.txt" })).toBeDefined();
+  screen.dispose();
+});
+
 test("a completed snapshot deletion cannot reload a profile that is no longer active", async () => {
   const profiles = [
     {

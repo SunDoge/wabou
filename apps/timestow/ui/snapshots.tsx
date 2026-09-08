@@ -582,6 +582,7 @@ export function SnapshotsPage() {
   const [fileTotal, setFileTotal] = createSignal(0);
   const [selectedEntry, setSelectedEntry] = createSignal<FileEntry>();
   const [searchQuery, setSearchQuery] = createSignal("");
+  const [activeSearchQuery, setActiveSearchQuery] = createSignal("");
   const [snapshotQuery, setSnapshotQuery] = createSignal("");
   const [searchResults, setSearchResults] = createSignal<FileEntry[]>([]);
   const [searchActive, setSearchActive] = createSignal(false);
@@ -615,9 +616,11 @@ export function SnapshotsPage() {
     setFileTotal(0);
     setSelectedEntry(undefined);
     setSearchQuery("");
+    setActiveSearchQuery("");
     setSnapshotQuery("");
     setSearchResults([]);
     setSearchActive(false);
+    setActiveSearchQuery("");
     setSearching(false);
     setCurrentPath("");
     setLoadingFiles(false);
@@ -768,6 +771,7 @@ export function SnapshotsPage() {
       });
       if (!searchRequests.isCurrent(request)) return;
       setSearchResults(results);
+      setActiveSearchQuery(query);
       setSearchActive(true);
       setSelectedEntry(undefined);
     } catch (cause) {
@@ -782,9 +786,19 @@ export function SnapshotsPage() {
   function clearSearch() {
     searchRequests.invalidate();
     setSearchQuery("");
+    setActiveSearchQuery("");
     setSearchResults([]);
     setSearchActive(false);
+    setSearching(false);
     setSelectedEntry(undefined);
+  }
+
+  function updateSearchQuery(value: string): void {
+    if (searching()) {
+      searchRequests.invalidate();
+      setSearching(false);
+    }
+    setSearchQuery(value);
   }
 
   function selectSnapshot(profileId: string, snapshot: SnapshotEntry) {
@@ -1071,7 +1085,7 @@ export function SnapshotsPage() {
                           when={!searchActive()}
                           fallback={
                             <Text class="min-w-0 truncate text-xs text-muted">
-                              Search results for “{searchQuery()}”
+                              Search results for “{activeSearchQuery()}”
                             </Text>
                           }
                         >
@@ -1163,7 +1177,7 @@ export function SnapshotsPage() {
                           placeholder="Search this snapshot…"
                           value={searchQuery()}
                           onInput={(event) =>
-                            setSearchQuery(event.currentTarget.value)
+                            updateSearchQuery(event.currentTarget.value)
                           }
                           onKeyDown={(event) => {
                             if (event.key === "Enter") {
@@ -1261,7 +1275,7 @@ export function SnapshotsPage() {
                             fallback={
                               <SnapshotFileListEmptyState
                                 searchActive={searchActive()}
-                                query={searchQuery()}
+                                query={activeSearchQuery()}
                                 path={currentPath()}
                                 onClearSearch={clearSearch}
                               />
