@@ -60,24 +60,28 @@ const capabilities = [
     detail: "Local-first storage",
     status: "Ready",
     icon: database,
+    tone: "teal",
   },
   {
     title: "Tray",
     detail: "Background lifecycle",
     status: "Enabled",
     icon: monitor,
+    tone: "indigo",
   },
   {
     title: "Updater",
     detail: "Signed delivery",
     status: "Up to date",
     icon: refresh,
+    tone: "blue",
   },
   {
     title: "Agent Preview",
     detail: "Approval-first tools",
     status: "Preview",
     icon: bot,
+    tone: "coral",
   },
 ] as const;
 
@@ -221,8 +225,25 @@ function CapabilityCard(props: (typeof capabilities)[number]): JSX.Element {
       class="min-w-0 h-44"
     >
       <CardContent class="h-full items-center justify-between text-center">
-        <View class="w-14 h-14 flex-none flex items-center justify-center rounded-2xl bg-success-surface">
-          <Icon source={props.icon} size={26} class="text-accent" />
+        <View
+          class="w-14 h-14 flex-none flex items-center justify-center rounded-2xl"
+          classList={{
+            "bg-success-surface": props.tone === "teal",
+            "bg-indigo-surface": props.tone === "indigo",
+            "bg-blue-surface": props.tone === "blue",
+            "bg-coral-surface": props.tone === "coral",
+          }}
+        >
+          <Icon
+            source={props.icon}
+            size={26}
+            classList={{
+              "text-success-primary": props.tone === "teal",
+              "text-indigo-primary": props.tone === "indigo",
+              "text-blue-primary": props.tone === "blue",
+              "text-coral-primary": props.tone === "coral",
+            }}
+          />
         </View>
         <View class="min-w-0 w-full flex flex-col items-center gap-1">
           <Text class="w-full truncate text-base font-semibold text-primary">
@@ -231,8 +252,18 @@ function CapabilityCard(props: (typeof capabilities)[number]): JSX.Element {
           <Text class="w-full truncate text-xs text-muted">{props.detail}</Text>
         </View>
         <Badge
-          variant={props.status === "Preview" ? "outline" : "success"}
+          variant="outline"
           weight="normal"
+          classList={{
+            "border-success-primary bg-success-surface text-success-primary":
+              props.tone === "teal",
+            "border-indigo-primary bg-indigo-surface text-indigo-primary":
+              props.tone === "indigo",
+            "border-blue-primary bg-blue-surface text-blue-primary":
+              props.tone === "blue",
+            "border-coral-primary bg-coral-surface text-coral-primary":
+              props.tone === "coral",
+          }}
         >
           {props.status}
         </Badge>
