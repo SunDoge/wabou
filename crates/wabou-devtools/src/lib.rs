@@ -1,8 +1,8 @@
 //! Agent-friendly development protocol for a running Wabou application.
 //!
 //! The runtime publishes immutable snapshots into [`DebugState`]. A local
-//! newline-delimited JSON socket serves those snapshots to the CLI and MCP
-//! adapter without ever touching UI state from a background thread.
+//! newline-delimited JSON socket serves those snapshots to CLI clients without
+//! ever touching UI state from a background thread.
 
 #![warn(missing_docs)]
 

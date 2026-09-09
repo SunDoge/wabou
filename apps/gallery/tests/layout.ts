@@ -232,7 +232,7 @@ const assertToolLayout = (snapshot: LayoutSnapshot) => {
   const root = getLayoutNode(snapshot, { role: "group", name: "Tool fixture" });
   const trigger = getLayoutNode(snapshot, {
     role: "button",
-    name: "mcp__workspace__read_repository_file: crates/wabou-runtime/src/gpui_projection_boundary.rs: Running",
+    name: "workspace.read_repository_file: crates/wabou-runtime/src/gpui_projection_boundary.rs: Running",
   });
   const details = getLayoutNode(snapshot, {
     role: "region",
@@ -242,7 +242,7 @@ const assertToolLayout = (snapshot: LayoutSnapshot) => {
     text: "crates/wabou-runtime/src/gpui_projection_boundary.rs",
   });
   const title = getLayoutNode(snapshot, {
-    text: "mcp__workspace__read_repository_file",
+    text: "workspace.read_repository_file",
   });
   assertLayoutRectContains(root.rect, trigger.rect, {
     label: "tool header",

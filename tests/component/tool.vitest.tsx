@@ -46,7 +46,7 @@ test("tool header lets dynamic names and summaries shrink before status", () => 
   const screen = renderComponent(() => (
     <Tool>
       <ToolHeader
-        title="mcp__workspace__read_repository_file"
+        title="workspace.read_repository_file"
         summary="packages/ui/src/components/tool.tsx at the requested revision"
         status="running"
       />
@@ -54,10 +54,10 @@ test("tool header lets dynamic names and summaries shrink before status", () => 
   ));
 
   const trigger = screen.getByRole("button", {
-    name: "mcp__workspace__read_repository_file: packages/ui/src/components/tool.tsx at the requested revision: Running",
+    name: "workspace.read_repository_file: packages/ui/src/components/tool.tsx at the requested revision: Running",
   });
   const title = trigger.children[0]?.children.find((node) =>
-    node.text.includes("mcp__workspace__read_repository_file"),
+    node.text.includes("workspace.read_repository_file"),
   );
   const summary = trigger.children[0]?.children.find((node) =>
     node.text.includes("packages/ui/src/components/tool.tsx"),
