@@ -1,0 +1,12 @@
+[package]
+name = "meow-starter-wabou"
+version = "0.1.0"
+edition = "2024"
+
+[[bin]]
+name = "meow-starter"
+path = "src/main.rs"
+
+[dependencies]
+snafu = { workspace = true }
+wabou = { workspace = true, features = ["vello-hybrid"] }

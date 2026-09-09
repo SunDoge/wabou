@@ -98,6 +98,20 @@
         "vite": "^8.2.2",
       },
     },
+    "apps/meow-starter": {
+      "name": "@wabou/meow-starter",
+      "version": "0.0.0",
+      "dependencies": {
+        "@wabou/ui": "workspace:*",
+        "lucide-static": "1.31.0",
+        "solid-js": "2.0.0-rc.7",
+      },
+      "devDependencies": {
+        "@wabou/test": "workspace:*",
+        "@wabou/vite": "workspace:*",
+        "vite": "^8.2.2",
+      },
+    },
     "apps/motrix": {
       "name": "@wabou/motrix",
       "version": "0.0.0",
@@ -738,6 +752,8 @@
     "@wabou/hackernews": ["@wabou/hackernews@workspace:apps/hackernews"],
 
     "@wabou/manga-ocr": ["@wabou/manga-ocr@workspace:apps/manga-ocr"],
+
+    "@wabou/meow-starter": ["@wabou/meow-starter@workspace:apps/meow-starter"],
 
     "@wabou/motrix": ["@wabou/motrix@workspace:apps/motrix"],
 

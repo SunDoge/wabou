@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 1280">
+  <defs>
+    <linearGradient id="meow-gradient" x1="220" y1="250" x2="1060" y2="980" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#6ff4de"/>
+      <stop offset="0.48" stop-color="#39d6c3"/>
+      <stop offset="1" stop-color="#0aa098"/>
+    </linearGradient>
+  </defs>
+  <circle cx="428" cy="332" r="124" fill="url(#meow-gradient)"/>
+  <circle cx="850" cy="332" r="124" fill="url(#meow-gradient)"/>
+  <path d="M 288 904 C 252 801 306 677 414 589 C 467 546 516 548 558 609 L 640 715 L 722 609 C 764 548 813 546 866 589 C 974 677 1028 801 992 904" fill="none" stroke="url(#meow-gradient)" stroke-linecap="round" stroke-linejoin="round" stroke-width="172"/>
+</svg>
