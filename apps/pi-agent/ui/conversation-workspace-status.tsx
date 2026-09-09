@@ -47,7 +47,7 @@ export function ConversationWorkspaceStatus(props: {
     <StatusBar
       role={props.connection === "failed" ? "alert" : "status"}
       aria-label={i18n.message(m.workspace_status, {})}
-      class="max-w-4xl mx-auto h-6 px-1 gap-3 border-0 bg-transparent"
+      class="max-w-[920px] mx-auto h-6 px-1 gap-3 border-0 bg-transparent"
     >
       <StatusBarGroup shrink class="px-0">
         <Icon source={folder} size={12} class="flex-none" />

@@ -216,7 +216,7 @@ function FullWorkbenchFixture() {
         <MessageScroller class="flex-1 min-h-0">
           <MessageScrollerViewport>
             <MessageScrollerContent>
-              <WorkbenchContentColumn class="px-6 py-5">
+              <WorkbenchContentColumn class="max-w-[920px] px-6 py-5">
                 <ConversationList items={state.items} />
               </WorkbenchContentColumn>
             </MessageScrollerContent>
@@ -265,6 +265,11 @@ defineLayoutFixtures(
       "shell/full-workbench-minimum": {
         width: 1_180,
         height: 680,
+        render: FullWorkbenchFixture,
+      },
+      "shell/electron-reference": {
+        width: 1_440,
+        height: 900,
         render: FullWorkbenchFixture,
       },
       "shell/content-column-wide": {

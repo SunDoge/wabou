@@ -60,12 +60,13 @@ function assertFullWorkbenchLayout(
       `workbench did not fill viewport: width=${shell.rect.width}, viewport=${viewportWidth}`,
     );
   }
-  if (Math.abs(main.rect.x - 240) > 0.5) {
+  const sidebarWidth = 288;
+  if (Math.abs(main.rect.x - sidebarWidth) > 0.5) {
     throw new Error(
       `workbench sidebar contract drifted: main x=${main.rect.x}`,
     );
   }
-  if (Math.abs(main.rect.width - (viewportWidth - 240)) > 0.5) {
+  if (Math.abs(main.rect.width - (viewportWidth - sidebarWidth)) > 0.5) {
     throw new Error(
       `main pane did not consume remaining width: width=${main.rect.width}`,
     );
@@ -127,6 +128,13 @@ try {
         height: 680,
         checks: ["visible-overflow", "text-collision", "visual-quality"],
         assert: (fixture) => assertFullWorkbenchLayout(fixture, 1_180),
+      },
+      {
+        id: "shell/electron-reference",
+        width: 1_440,
+        height: 900,
+        checks: ["visible-overflow", "text-collision", "visual-quality"],
+        assert: (fixture) => assertFullWorkbenchLayout(fixture, 1_440),
       },
       {
         id: "shell/content-column-wide",
