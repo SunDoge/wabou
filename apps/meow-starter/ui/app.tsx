@@ -316,7 +316,7 @@ export function OverviewPage(): JSX.Element {
                 return (
                   <Button
                     variant="ghost"
-                    class="w-full h-10 px-0 justify-start rounded-none border-b border-subtle"
+                    class="w-full h-10 px-0 justify-start rounded-none border-0 border-b border-subtle"
                     aria-label={`${done() ? "Mark incomplete" : "Mark complete"}: ${task.label}`}
                     onClick={() => toggle(task.id)}
                   >
