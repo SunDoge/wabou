@@ -2,6 +2,7 @@ import {
   AdaptiveSplitPane,
   AdaptiveSplitPaneDetail,
   AdaptiveSplitPaneMain,
+  Badge,
   Breadcrumb,
   BreadcrumbItem,
   BreadcrumbLink,
@@ -137,6 +138,7 @@ export function snapshotAfterRefresh(
 export interface SnapshotWorkspaceHeaderProps {
   name: string;
   repositoryPath: string;
+  readOnly?: boolean;
   sources: readonly string[];
   backingUp: boolean;
   refreshing?: boolean;
@@ -154,6 +156,11 @@ export function SnapshotWorkspaceHeader(props: SnapshotWorkspaceHeaderProps) {
       stacked
       title={props.name}
       description={props.repositoryPath}
+      titleAdornment={
+        <Show when={props.readOnly}>
+          <Badge variant="secondary">Read-only import</Badge>
+        </Show>
+      }
       actions={
         <View
           role="toolbar"
@@ -161,12 +168,14 @@ export function SnapshotWorkspaceHeader(props: SnapshotWorkspaceHeaderProps) {
           class="w-full min-w-0 flex flex-row items-center justify-between gap-3"
         >
           <View class="min-w-0 flex flex-row items-center gap-2">
-            <BackupSourcesDialog
-              sources={props.sources}
-              disabled={props.backingUp}
-              onChange={props.onSourcesChange}
-            />
-            {props.scheduleControl}
+            <Show when={!props.readOnly}>
+              <BackupSourcesDialog
+                sources={props.sources}
+                disabled={props.backingUp}
+                onChange={props.onSourcesChange}
+              />
+              {props.scheduleControl}
+            </Show>
             {props.repositoryControl}
           </View>
           <View class="flex-none flex flex-row items-center gap-2">
@@ -180,7 +189,7 @@ export function SnapshotWorkspaceHeader(props: SnapshotWorkspaceHeaderProps) {
             >
               <Icon source={refreshCw} size={14} /> Refresh
             </Button>
-            <Show when={props.showBackupAction !== false}>
+            <Show when={!props.readOnly && props.showBackupAction !== false}>
               <Button
                 aria-label={props.backingUp ? "Backing up" : "Back up now"}
                 disabled={props.sources.length === 0 || props.backingUp}
@@ -202,6 +211,7 @@ export function SnapshotBrowserEmptyState(props: {
   hasSnapshots: boolean;
   sourceCount: number;
   backingUp: boolean;
+  readOnly?: boolean;
   onBackup(): void;
 }) {
   return (
@@ -209,13 +219,27 @@ export function SnapshotBrowserEmptyState(props: {
       fallback={
         <ContentState
           state="empty"
-          title="Create your first snapshot"
-          description={`Back up ${props.sourceCount} ${props.sourceCount === 1 ? "folder" : "folders"} to start the history.`}
-          renderAction={() => (
-            <Button size="sm" aria-label="Back up now" onClick={props.onBackup}>
-              Back up now
-            </Button>
-          )}
+          title={
+            props.readOnly ? "No snapshots found" : "Create your first snapshot"
+          }
+          description={
+            props.readOnly
+              ? "The imported rustic repository does not contain a visible snapshot."
+              : `Back up ${props.sourceCount} ${props.sourceCount === 1 ? "folder" : "folders"} to start the history.`
+          }
+          renderAction={
+            props.readOnly
+              ? undefined
+              : () => (
+                  <Button
+                    size="sm"
+                    aria-label="Back up now"
+                    onClick={props.onBackup}
+                  >
+                    Back up now
+                  </Button>
+                )
+          }
           class="min-h-0 flex-1 border-0 shadow-none"
         />
       }
@@ -687,6 +711,8 @@ export function SnapshotsPage() {
   );
 
   const visibleFiles = () => (searchActive() ? searchResults() : files());
+  const readOnly = () =>
+    session.activeProfile()?.repositoryKind === "rusticConfig";
   const fileCountLabel = () => {
     if (loadingFiles()) return "Loading…";
     if (fileError()) return "Unavailable";
@@ -702,10 +728,11 @@ export function SnapshotsPage() {
         <SnapshotWorkspaceHeader
           name={session.activeProfile()?.name ?? "Backup"}
           repositoryPath={session.activeProfile()?.repositoryPath ?? ""}
+          readOnly={readOnly()}
           sources={session.activeProfile()?.sources ?? []}
           backingUp={backingUp()}
           refreshing={loading()}
-          showBackupAction={snapshots().length > 0}
+          showBackupAction={!readOnly() && snapshots().length > 0}
           scheduleControl={
             <Show when={session.activeProfile()}>
               {(profile) => (
@@ -777,6 +804,7 @@ export function SnapshotsPage() {
                 hasSnapshots={snapshots().length > 0}
                 sourceCount={session.activeProfile()?.sources.length ?? 0}
                 backingUp={backingUp()}
+                readOnly={readOnly()}
                 onBackup={() => void runBackup()}
               />
             }
@@ -836,8 +864,16 @@ export function SnapshotsPage() {
                     </View>
                     <SnapshotDetails
                       snapshot={snapshot()}
-                      onSave={(changes) => updateSnapshot(snapshot(), changes)}
-                      onDelete={() => deleteSnapshot(snapshot())}
+                      onSave={
+                        readOnly()
+                          ? undefined
+                          : (changes) => updateSnapshot(snapshot(), changes)
+                      }
+                      onDelete={
+                        readOnly()
+                          ? undefined
+                          : () => deleteSnapshot(snapshot())
+                      }
                     />
                   </View>
                   <View class="min-w-0 flex flex-row items-center justify-between gap-3">

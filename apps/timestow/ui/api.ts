@@ -8,10 +8,13 @@ import type { BackupSchedule } from "./backup-schedule";
 
 export const FILE_PAGE_SIZE = 250;
 
+export type RepositoryKind = "local" | "rusticConfig";
+
 export interface BackupProfile {
   id: string;
   name: string;
   repositoryPath: string;
+  repositoryKind?: RepositoryKind;
   sources: string[];
   schedule?: BackupSchedule;
 }
@@ -104,6 +107,13 @@ export interface RestorePlanSummary {
   directoriesToModify: number;
 }
 
+export type RestoreDestinationMode = "original" | "custom";
+
+export interface RestorePreview {
+  destination: string;
+  plan: RestorePlanSummary;
+}
+
 export interface RestoreResult {
   destination: string;
   plan: RestorePlanSummary;
@@ -115,6 +125,7 @@ export interface RusticCapability extends NativeCapability {
     id: string;
     name: string;
     path: string;
+    configPath?: string;
     passwordSlot: string;
     confirmationSlot: string;
     sources: string[];
@@ -123,6 +134,7 @@ export interface RusticCapability extends NativeCapability {
     id: string;
     name: string;
     path: string;
+    configPath?: string;
     passwordSlot: string;
     sources: string[];
   }): RuntimeStatus | PromiseLike<RuntimeStatus>;
@@ -179,13 +191,16 @@ export interface RusticCapability extends NativeCapability {
     profileId: string;
     snapshotId: string;
     path: string;
+    destinationMode: RestoreDestinationMode;
     destination: string;
-  }): RestorePlanSummary | PromiseLike<RestorePlanSummary>;
+  }): RestorePreview | PromiseLike<RestorePreview>;
   restorePath(request: {
     profileId: string;
     snapshotId: string;
     path: string;
+    destinationMode: RestoreDestinationMode;
     destination: string;
+    allowOverwrite: boolean;
     operationId: string;
   }): RestoreResult | PromiseLike<RestoreResult>;
   previewPath(request: {
@@ -203,6 +218,6 @@ interface RusticHost extends Host {
 export function useRusticApi(): RusticCapability {
   return bindCapability(useHost<RusticHost>().rustic, {
     name: "rustic",
-    version: 14,
+    version: 16,
   });
 }

@@ -79,6 +79,7 @@ test("backup profiles persist their source-to-repository aggregate without crede
         id: "photos",
         name: "Photos",
         repositoryPath: "/backups/photos",
+        repositoryKind: "local",
         sources: ["/home/me/Pictures", "/home/me/Scans"],
       },
     ],
@@ -162,12 +163,34 @@ test("forgetting a profile clears its active selection without touching other pr
         id: "documents",
         name: "Documents",
         repositoryPath: "/backups/documents",
+        repositoryKind: "local",
         sources: ["/documents"],
       },
     ],
     activeProfileId: undefined,
   });
   await expect(store.remove("missing")).resolves.toBeUndefined();
+});
+
+test("rustic configuration profiles persist only their config path and backend kind", async () => {
+  const { kv, values } = memoryKv();
+  const store = createProfileStore(kv);
+  await store.save({
+    id: "s3-archive",
+    name: "S3 archive",
+    repositoryPath: "/home/me/.config/rustic/rustic.toml",
+    repositoryKind: "rusticConfig",
+    sources: [],
+  });
+
+  expect((await store.load()).profiles[0]).toMatchObject({
+    repositoryKind: "rusticConfig",
+    repositoryPath: "/home/me/.config/rustic/rustic.toml",
+  });
+  expect(JSON.stringify([...values.values()])).not.toContain(
+    "secret_access_key",
+  );
+  expect(JSON.stringify([...values.values()])).not.toContain("password");
 });
 
 test("damaged profile metadata is quarantined without hiding healthy backups", async () => {
