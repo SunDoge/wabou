@@ -74,6 +74,11 @@ test("expands, selects, and skips disabled items through native focus routing", 
 
   runtime.click();
   expect(runtime.selected).toBe(true);
+  const tests = screen.getByRole("treeitem", { name: "Tests" });
+  tests.click();
+  expect(runtime.selected).toBe(false);
+  expect(tests.selected).toBe(true);
+  expect(screen.getAllByRole("treeitem", { selected: true })).toHaveLength(1);
 });
 
 test("focuses the next matching visible node through typeahead", () => {
@@ -136,6 +141,30 @@ test("windows large trees and keeps End-key focus navigation intact", () => {
   );
   expect(screen.queryByRole("treeitem", { name: "Entry 0" })).toBeNull();
   expect(screen.getAllByRole("treeitem").length).toBeLessThanOrEqual(5);
+});
+
+test("does not carry virtual row interaction state to a different item", () => {
+  const largeItems = Array.from({ length: 200 }, (_, index) => ({
+    id: `entry-${index}`,
+    label: `Entry ${index}`,
+  }));
+  const screen = renderComponent(() => (
+    <TreeView
+      items={largeItems}
+      aria-label="Virtual interaction tree"
+      virtual={{ itemHeight: 34, viewportHeight: 102, overscan: 1 }}
+    />
+  ));
+
+  const first = screen.getByRole("treeitem", { name: "Entry 0" });
+  first.hover();
+  first.focus();
+  first.press("End");
+  screen.flush();
+
+  const last = screen.getByRole("treeitem", { name: "Entry 199" });
+  expect(last.className).not.toContain("bg-control-hover");
+  expect(screen.queryAllByRole("treeitem", { selected: true })).toHaveLength(0);
 });
 
 test("typeahead scrolls a virtual tree before focusing an offscreen match", () => {

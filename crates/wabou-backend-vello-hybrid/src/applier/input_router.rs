@@ -103,6 +103,7 @@ pub(super) struct InputRouter {
     pub(super) listeners: HashMap<NodeKey, EventMask>,
     pub(super) pointer_position: (f64, f64),
     pub(super) pointer_buttons: u32,
+    pub(super) pointer_modifiers: shell_api::Modifiers,
     pub(super) pointer_properties: shell_api::PointerProperties,
     pub(super) pointer_routes: HashMap<shell_api::PointerId, PointerRouteState>,
     pub(super) pointer_down_target: Option<NodeKey>,
@@ -169,6 +170,7 @@ impl InputRouter {
         if pointer.properties.primary {
             self.pointer_position = route.position;
             self.pointer_buttons = pointer.buttons;
+            self.pointer_modifiers = pointer.modifiers;
             self.pointer_properties = pointer.properties;
         }
     }
