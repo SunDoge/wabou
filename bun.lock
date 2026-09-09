@@ -8,8 +8,8 @@
         "@biomejs/biome": "2.5.3",
         "@changesets/cli": "^2.29.8",
         "@inlang/paraglide-js": "^2.24.1",
-        "@solidjs/vite-plugin": "3.0.0-next.39",
-        "@solidjs/web": "2.0.0-rc.6",
+        "@solidjs/vite-plugin": "3.0.0-next.40",
+        "@solidjs/web": "2.0.0-rc.7",
         "@tanstack/history": "1.162.1",
         "@tanstack/router-core": "1.171.24",
         "@types/bun": "^1.4.0",
@@ -18,7 +18,7 @@
         "@wabou/ui": "workspace:*",
         "@wabou/vite": "workspace:*",
         "abort-controller": "3.0.0",
-        "solid-js": "2.0.0-rc.6",
+        "solid-js": "2.0.0-rc.7",
         "tsdown": "0.22.14",
         "turbo": "^2.10.11",
         "typescript": "^5.9.0",
@@ -32,7 +32,7 @@
       "version": "0.0.0",
       "dependencies": {
         "@wabou/ui": "workspace:*",
-        "solid-js": "2.0.0-rc.6",
+        "solid-js": "2.0.0-rc.7",
         "valibot": "^1.4.2",
       },
       "devDependencies": {
@@ -46,7 +46,7 @@
       "version": "0.0.0",
       "dependencies": {
         "@wabou/ui": "workspace:*",
-        "solid-js": "2.0.0-rc.6",
+        "solid-js": "2.0.0-rc.7",
       },
       "devDependencies": {
         "@types/node": "^26.1.1",
@@ -62,7 +62,7 @@
         "d3-scale": "4.0.2",
         "d3-shape": "3.2.0",
         "lucide-static": "1.31.0",
-        "solid-js": "2.0.0-rc.6",
+        "solid-js": "2.0.0-rc.7",
       },
       "devDependencies": {
         "@inlang/paraglide-js": "^2.24.1",
@@ -80,7 +80,7 @@
       "dependencies": {
         "@wabou/ui": "workspace:*",
         "lucide-static": "1.31.0",
-        "solid-js": "2.0.0-rc.6",
+        "solid-js": "2.0.0-rc.7",
       },
       "devDependencies": {
         "@types/node": "^26.1.1",
@@ -94,7 +94,7 @@
       "dependencies": {
         "@wabou/ui": "workspace:*",
         "lucide-static": "1.31.0",
-        "solid-js": "2.0.0-rc.6",
+        "solid-js": "2.0.0-rc.7",
       },
       "devDependencies": {
         "@wabou/test": "workspace:*",
@@ -108,7 +108,7 @@
       "dependencies": {
         "@wabou/ui": "workspace:*",
         "lucide-static": "1.31.0",
-        "solid-js": "2.0.0-rc.6",
+        "solid-js": "2.0.0-rc.7",
         "ts-pattern": "^5.9.0",
       },
       "devDependencies": {
@@ -124,7 +124,7 @@
         "@wabou/terminal": "workspace:*",
         "@wabou/ui": "workspace:*",
         "lucide-static": "1.31.0",
-        "solid-js": "2.0.0-rc.6",
+        "solid-js": "2.0.0-rc.7",
         "ts-pattern": "^5.9.0",
       },
       "devDependencies": {
@@ -139,7 +139,7 @@
       "version": "0.0.0",
       "dependencies": {
         "@wabou/ui": "workspace:*",
-        "solid-js": "2.0.0-rc.6",
+        "solid-js": "2.0.0-rc.7",
       },
       "devDependencies": {
         "@types/node": "^26.1.1",
@@ -154,7 +154,7 @@
         "@wabou/terminal": "workspace:*",
         "@wabou/ui": "workspace:*",
         "lucide-static": "1.31.0",
-        "solid-js": "2.0.0-rc.6",
+        "solid-js": "2.0.0-rc.7",
       },
       "devDependencies": {
         "@wabou/vite": "workspace:*",
@@ -167,7 +167,7 @@
       "dependencies": {
         "@wabou/ui": "workspace:*",
         "lucide-static": "1.31.0",
-        "solid-js": "2.0.0-rc.6",
+        "solid-js": "2.0.0-rc.7",
       },
       "devDependencies": {
         "@wabou/test": "workspace:*",
@@ -180,7 +180,7 @@
       "version": "0.0.0",
       "dependencies": {
         "@wabou/ui": "workspace:*",
-        "solid-js": "2.0.0-rc.6",
+        "solid-js": "2.0.0-rc.7",
       },
       "devDependencies": {
         "@types/node": "^26.1.1",
@@ -193,11 +193,11 @@
       "name": "@wabou/core",
       "version": "0.1.0-alpha.3",
       "dependencies": {
-        "@solidjs/universal": "2.0.0-rc.6",
+        "@solidjs/universal": "2.0.0-rc.7",
         "@stardazed/streams-text-encoding": "1.0.2",
         "@tanstack/virtual-core": "3.17.7",
         "abort-controller": "3.0.0",
-        "solid-js": "2.0.0-rc.6",
+        "solid-js": "2.0.0-rc.7",
         "web-streams-polyfill": "4.3.0",
         "whatwg-url": "^17.1.0",
       },
@@ -207,7 +207,7 @@
       "version": "0.1.0-alpha.3",
       "dependencies": {
         "@wabou/core": "workspace:*",
-        "solid-js": "2.0.0-rc.6",
+        "solid-js": "2.0.0-rc.7",
       },
     },
     "packages/test": {
@@ -217,7 +217,7 @@
         "@wabou/core": "workspace:*",
       },
       "peerDependencies": {
-        "solid-js": ">=2.0.0-rc.6",
+        "solid-js": ">=2.0.0-rc.7",
         "vitest": ">=2.1.0",
       },
     },
@@ -235,7 +235,7 @@
         "marked": "18.0.11",
         "motion-dom": "13.1.1",
         "remend": "1.3.0",
-        "solid-js": "2.0.0-rc.6",
+        "solid-js": "2.0.0-rc.7",
         "ts-pattern": "^5.9.0",
         "uqr": "^0.1.3",
       },
@@ -249,7 +249,7 @@
         "@formatjs/intl-locale": "^5.3.10",
         "@formatjs/intl-numberformat": "^9.4.0",
         "@formatjs/intl-pluralrules": "^6.3.13",
-        "@solidjs/vite-plugin": "3.0.0-next.39",
+        "@solidjs/vite-plugin": "3.0.0-next.40",
         "@unocss/core": "^66.7.5",
         "@wabou/core": "workspace:*",
         "magic-string": "^0.30.21",
@@ -617,13 +617,13 @@
 
     "@solidjs/compiler-win32-x64-msvc": ["@solidjs/compiler-win32-x64-msvc@2.0.0-rc.6", "", { "os": "win32", "cpu": "x64" }, "sha512-8luAnqBxHJxEfw8SKqKGV1W2x+j1yk0G2rb242/z45pbVkQz+J5HNKMYSnvfKN3B2VpIvhZ447yph449wDKpEA=="],
 
-    "@solidjs/signals": ["@solidjs/signals@2.0.0-rc.6", "", {}, "sha512-lPqwZNLPq1Z9CBvgXkMvi1ZFr5OHUiFNz1X40+yehszDWEbJkneZx7BGKIe9eMT/AN1NSL+PMjOiMyZaqVB2xw=="],
+    "@solidjs/signals": ["@solidjs/signals@2.0.0-rc.7", "", {}, "sha512-JY0OJ5nGeqxGKOAqCtuoHkFBkaWQYxmf+yBQE8vw/o9C7yUF+Kan9PwcrL0ZHR6+MgyixBUtTfBigwou5hwW5w=="],
 
-    "@solidjs/universal": ["@solidjs/universal@2.0.0-rc.6", "", { "peerDependencies": { "solid-js": "^2.0.0-rc.6" } }, "sha512-SLjclsfKVKSRAs8RgJRwGNfk3xB45aPEFPjMAveLQRQA4Om3LPDMZebwB3DvAldiruCEkC33y3lyvuHq4CU9vg=="],
+    "@solidjs/universal": ["@solidjs/universal@2.0.0-rc.7", "", { "peerDependencies": { "solid-js": "^2.0.0-rc.7" } }, "sha512-3Nocy3P2pdj+reMLKJF05hcSSMFBRdnxj7WRz4XlqSzqh0MbVjclUIKbgem+rzt0tUfBGRhWI2IkOwIKOJgKwA=="],
 
-    "@solidjs/vite-plugin": ["@solidjs/vite-plugin@3.0.0-next.39", "", { "dependencies": { "@ampproject/remapping": "^2.3.0", "@babel/core": "^7.23.3", "@solidjs/babel-plugin": "^2.0.0-rc.6", "@solidjs/compiler": "^2.0.0-rc.6", "@types/babel__core": "^7.20.4", "merge-anything": "^5.1.7", "vitefu": "^1.0.4" }, "peerDependencies": { "@solidjs/start-devtools": "^1.0.0-next.2", "@solidjs/web": "^2.0.0-rc.0", "@testing-library/jest-dom": "^5.16.6 || ^5.17.0 || ^6.*", "solid-js": "^2.0.0-rc.0", "vite": "^8.0.0 || ^9.0.0" }, "optionalPeers": ["@solidjs/start-devtools", "@testing-library/jest-dom"] }, "sha512-gIJI6TJd3Vs5LYSZ7w1oil5sy0dC+QuheHhTUYdwYSFy/v8yuHXKJ+tUl3dBg1yF7pZ9zbtV9d9UvNMgeyceFg=="],
+    "@solidjs/vite-plugin": ["@solidjs/vite-plugin@3.0.0-next.40", "", { "dependencies": { "@ampproject/remapping": "^2.3.0", "@babel/core": "^7.23.3", "@solidjs/babel-plugin": "^2.0.0-rc.6", "@solidjs/compiler": "^2.0.0-rc.6", "@types/babel__core": "^7.20.4", "merge-anything": "^5.1.7", "vitefu": "^1.0.4" }, "peerDependencies": { "@solidjs/start-devtools": "^1.0.0-next.2", "@solidjs/web": "^2.0.0-rc.7", "@testing-library/jest-dom": "^5.16.6 || ^5.17.0 || ^6.*", "solid-js": "^2.0.0-rc.7", "vite": "^8.0.0 || ^9.0.0" }, "optionalPeers": ["@solidjs/start-devtools", "@testing-library/jest-dom"] }, "sha512-ut/qs+7PDqK8hLKFvqPRFbX4VrGwWq0QrlNdZOG5piskPKYBztuu/8mjO4YbKhLP0Q1LAMWSY/NJtxNCtnu9bg=="],
 
-    "@solidjs/web": ["@solidjs/web@2.0.0-rc.6", "", { "dependencies": { "seroval": "~1.5.4", "seroval-plugins": "~1.5.4" }, "peerDependencies": { "solid-js": "^2.0.0-rc.6" } }, "sha512-JgQ2NCjygQpZizZrVjcwPqH3dhIZQZoMRGoGSC6+Tr622cvbuXthDC3pKdNMsjCKCVp19UbT0kkPX15FOdT0pw=="],
+    "@solidjs/web": ["@solidjs/web@2.0.0-rc.7", "", { "dependencies": { "seroval": "~1.5.4", "seroval-plugins": "~1.5.4" }, "peerDependencies": { "solid-js": "^2.0.0-rc.7" } }, "sha512-qsKKWR4PzzPw8ZGFR0Oc2776G1ONMMBKPJWO3Opf3cWHoczgfhknW6NED0WtdCuR6T8usFTWCZgMM5Cc0h14Dg=="],
 
     "@sqlite.org/sqlite-wasm": ["@sqlite.org/sqlite-wasm@3.48.0-build4", "", { "bin": { "sqlite-wasm": "bin/index.js" } }, "sha512-hI6twvUkzOmyGZhQMza1gpfqErZxXRw6JEsiVjUbo7tFanVD+8Oil0Ih3l2nGzHdxPI41zFmfUQG7GHqhciKZQ=="],
 
@@ -1169,7 +1169,7 @@
 
     "smol-toml": ["smol-toml@1.8.0", "", {}, "sha512-kCZr2V3ch9i00x8zXRhjUNVcjG9ijES5dDudkXvUVCT5QlJNQWElSJdZqyPemffHoLNUYwOcou0Fy+ojN0uHSQ=="],
 
-    "solid-js": ["solid-js@2.0.0-rc.6", "", { "dependencies": { "@solidjs/signals": "^2.0.0-rc.6", "csstype": "^3.1.0", "seroval": "~1.5.4", "seroval-plugins": "~1.5.4" } }, "sha512-Z/M8s9ypLBf+6Bl3AAb5upgkYCl73HkpM+UxdUJ5uFGctTwpOQVCM9Gpj3Mjbiaki270HHUfA3Z0Lyn4w+fDtg=="],
+    "solid-js": ["solid-js@2.0.0-rc.7", "", { "dependencies": { "@solidjs/signals": "^2.0.0-rc.7", "csstype": "^3.1.0", "seroval": "~1.5.4", "seroval-plugins": "~1.5.4" } }, "sha512-3APJcwGbJ3YzXzPXwl0R3cAiogXLacXdXSFasdE2uw1Gzj5xqDW/0bJu4fs75KK5WzXg+JfpkcsxBjTxkbnLQQ=="],
 
     "source-map-js": ["source-map-js@1.2.1", "", {}, "sha512-UXWMKhLOwVKb728IUtQPXxfYU+usdybtUrK/8uGE8CQMvrhOpwvzDBwj0QhSL7MQc7vIsISBG8VQ8+IDQxpfQA=="],
 
@@ -1295,10 +1295,6 @@
 
     "@manypkg/get-packages/fs-extra": ["fs-extra@8.1.0", "", { "dependencies": { "graceful-fs": "^4.2.0", "jsonfile": "^4.0.0", "universalify": "^0.1.0" } }, "sha512-yhlQgA6mnOJUKOsRUFsgJdQCvkKhcz8tlZG5HBQfReYZy46OwLcY+Zia0mtdHsOo9y/hP+CxMN0TU9QxoOtG4g=="],
 
-    "@napi-rs/wasm-runtime/@emnapi/core": ["@emnapi/core@1.11.2", "", { "dependencies": { "@emnapi/wasi-threads": "1.2.2", "tslib": "^2.4.0" } }, "sha512-TC8MkTuZUtcTSiFeuC0ksCh9QIJ5+F21MvZ4Wn4ORfYaFJ/0dsiudv5tVkejgwZlwQ39jL9WWDe2lz8x0WglOA=="],
-
-    "@napi-rs/wasm-runtime/@emnapi/runtime": ["@emnapi/runtime@1.11.2", "", { "dependencies": { "tslib": "^2.4.0" } }, "sha512-kyOl3X0DuTiT1h2ft8r2fYO8JYtU9a9Xis/zBSiGArNaagCOWx90N1k2wxp18czFDH+OgcWGb5ZP/XMt3dcyPA=="],
-
     "@oxc-parser/binding-wasm32-wasi/@emnapi/core": ["@emnapi/core@1.10.0", "", { "dependencies": { "@emnapi/wasi-threads": "1.2.1", "tslib": "^2.4.0" } }, "sha512-yq6OkJ4p82CAfPl0u9mQebQHKPJkY7WrIuk205cTYnYe+k2Z8YBh11FrbRG/H6ihirqcacOgl2BIO8oyMQLeXw=="],
 
     "@oxc-parser/binding-wasm32-wasi/@emnapi/runtime": ["@emnapi/runtime@1.10.0", "", { "dependencies": { "tslib": "^2.4.0" } }, "sha512-ewvYlk86xUoGI0zQRNq/mC+16R1QeDlKQy21Ki3oSYXNgLb45GV1P6A0M+/s6nyCuNDqe5VpaY84BzXGwVbwFA=="],
@@ -1340,8 +1336,6 @@
     "vitest/tinyexec": ["tinyexec@0.3.2", "", {}, "sha512-KQQR9yN7R5+OSwaK0XQoj22pwHoTlgYqmUscPYoknOoWCWfj/5/ABTMRi69FrKU5ffPVh5QcFikpWJI/P1ocHA=="],
 
     "vitest/vite": ["vite@5.4.21", "", { "dependencies": { "esbuild": "^0.21.3", "postcss": "^8.4.43", "rollup": "^4.20.0" }, "optionalDependencies": { "fsevents": "~2.3.3" }, "peerDependencies": { "@types/node": "^18.0.0 || >=20.0.0", "less": "*", "lightningcss": "^1.21.0", "sass": "*", "sass-embedded": "*", "stylus": "*", "sugarss": "*", "terser": "^5.4.0" }, "optionalPeers": ["@types/node", "less", "lightningcss", "sass", "sass-embedded", "stylus", "sugarss", "terser"], "bin": { "vite": "bin/vite.js" } }, "sha512-o5a9xKjbtuhY6Bi5S3+HvbRERmouabWbyUcpXXUA1u+GNUKoROi9byOJ8M0nHbHYHkYICiMlqxkg1KkYmm25Sw=="],
-
-    "@napi-rs/wasm-runtime/@emnapi/core/@emnapi/wasi-threads": ["@emnapi/wasi-threads@1.2.2", "", { "dependencies": { "tslib": "^2.4.0" } }, "sha512-c95qOXkHdydNKhscBTebqEC1CVAZpyqOfVfBzQ1qgzyl3gfeldUjIggDbIZgDKsHLgnsM+igH7TJ/eAasaVuMA=="],
 
     "@oxc-parser/binding-wasm32-wasi/@emnapi/core/@emnapi/wasi-threads": ["@emnapi/wasi-threads@1.2.1", "", { "dependencies": { "tslib": "^2.4.0" } }, "sha512-uTII7OYF+/Mes/MrcIOYp5yOtSMLBWSIoLPpcgwipoiKbli6k322tcoFsxoIIxPDqW01SQGAgko4EzZi2BNv2w=="],
 

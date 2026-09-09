@@ -10,7 +10,7 @@
   },
   "dependencies": {
     "@wabou/ui": "workspace:*",
-    "solid-js": "2.0.0-rc.6"
+    "solid-js": "2.0.0-rc.7"
   },
   "devDependencies": {
     "@wabou/vite": "workspace:*",
