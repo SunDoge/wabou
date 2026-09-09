@@ -67,6 +67,7 @@ import * as basics from "./pages/basics";
 import * as chart from "./pages/chart";
 import * as dataTable from "./pages/data-table";
 import * as foundations from "./pages/foundations";
+import { GithubDesktopReference } from "./pages/github-desktop";
 import * as i18n from "./pages/i18n";
 import * as imageViewport from "./pages/image-viewport";
 import * as markdown from "./pages/markdown";
@@ -109,6 +110,16 @@ function pageFixtures(
 export const galleryLayoutFixtures: LayoutFixtureRegistry = {
   ...defineComponentFixtures(
     {
+      "reference/GithubDesktop": {
+        width: 1_280,
+        height: 800,
+        render: () => <GithubDesktopReference />,
+      },
+      "reference/GithubDesktopMinimum": {
+        width: 1_024,
+        height: 680,
+        render: () => <GithubDesktopReference />,
+      },
       "component/Sidebar": {
         width: 360,
         height: 420,

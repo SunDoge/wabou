@@ -1473,6 +1473,50 @@ const assertMarkdownConversationLayout = (snapshot: LayoutSnapshot) => {
   });
 };
 
+const assertGithubDesktopReferenceLayout = (snapshot: LayoutSnapshot) => {
+  const workbench = getLayoutNode(snapshot, {
+    role: "region",
+    name: "GitHub Desktop reference workbench",
+  });
+  const toolbar = getLayoutNode(snapshot, {
+    role: "toolbar",
+    name: "Repository controls",
+  });
+  const files = getLayoutNode(snapshot, {
+    role: "region",
+    name: "Changed files",
+  });
+  const diff = getLayoutNode(snapshot, {
+    role: "region",
+    name: "Selected file diff: github-desktop.tsx",
+  });
+  const commit = getLayoutNode(snapshot, {
+    role: "group",
+    name: "Commit changes",
+  });
+  const selected = getLayoutNode(snapshot, {
+    role: "button",
+    name: "Open github-desktop.tsx",
+  });
+
+  for (const [label, node] of [
+    ["repository toolbar", toolbar],
+    ["changed files", files],
+    ["selected diff", diff],
+    ["commit controls", commit],
+  ] as const) {
+    assertLayoutRectContains(workbench.contentRect, node.rect, { label });
+  }
+  if (new Map(selected.attrs).get("aria-selected") !== "true")
+    throw new Error("Git workbench did not expose its selected changed file");
+  if (diff.rect.width < 600)
+    throw new Error(
+      `Git workbench diff was compressed to ${diff.rect.width}px`,
+    );
+  if (layoutRectBottom(files.rect) > commit.rect.y + 1)
+    throw new Error("changed file list overlapped the fixed commit controls");
+};
+
 const overrides: Readonly<Record<string, Omit<LayoutFixtureCase, "id">>> = {
   "gallery/Overview": {
     // The complete overview is intentionally taller than the fixture viewport;
@@ -1554,6 +1598,12 @@ const overrides: Readonly<Record<string, Omit<LayoutFixtureCase, "id">>> = {
     assert: assertMarkdownConversationLayout,
   },
   "component/Message": { assert: assertMessageLayout },
+  "reference/GithubDesktop": {
+    assert: assertGithubDesktopReferenceLayout,
+  },
+  "reference/GithubDesktopMinimum": {
+    assert: assertGithubDesktopReferenceLayout,
+  },
   "component/PiAgentHeader": { assert: assertPiAgentHeaderLayout },
   "pi-agent/toolbar": { assert: assertPiAgentToolbarLayout },
   "primitive/Icon": { assert: assertIconLayout },
