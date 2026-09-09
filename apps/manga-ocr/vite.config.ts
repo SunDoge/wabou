@@ -4,6 +4,7 @@ export default defineWabouConfig({
   ignoreClasses: ["lucide", "lucide-*"],
   outDir: "../../dist/manga-ocr-wabou/resources",
   globalName: "MangaOcrWabouApp",
+  themeContrast: "error",
   theme: {
     default: "light",
     themes: {
@@ -12,7 +13,7 @@ export default defineWabouConfig({
         colors: {
           canvas: "#f7f8fb",
           surface: "#ffffff",
-          "surface-muted": "#f3f4f7",
+          "surface-muted": "#f7f8fa",
           input: "#ffffff",
           control: "#eef1f6",
           "control-hover": "#e5e9f1",
@@ -20,7 +21,7 @@ export default defineWabouConfig({
           selected: "#ede9fe",
           primary: "#171923",
           secondary: "#4b5565",
-          muted: "#788294",
+          muted: "#6a7383",
           subtle: "#dce1e9",
           strong: "#aeb7c5",
           accent: "#7c3aed",
@@ -56,7 +57,7 @@ export default defineWabouConfig({
           accent: "#8b5cf6",
           "accent-hover": "#7c3aed",
           "accent-pressed": "#6d28d9",
-          "on-accent": "#ffffff",
+          "on-accent": "#0f0f0f",
           danger: "#ef4444",
           "danger-hover": "#dc2626",
           "danger-pressed": "#b91c1c",

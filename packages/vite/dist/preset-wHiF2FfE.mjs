@@ -207,7 +207,7 @@ const defaultWabouColorThemes = {
 			colors: {
 				canvas: "#ffffff",
 				surface: "#ffffff",
-				"surface-muted": "#f0f2f5",
+				"surface-muted": "#f7f8fa",
 				input: "#ffffff",
 				control: "#f1f3f6",
 				"control-hover": "#e8ebef",
@@ -652,4 +652,4 @@ function presetWabou(options = {}) {
 //#endregion
 export { defaultWabouColorThemes as a, wabouUtilityManifest as i, resolveWabouUtility as n, defaultWabouSemanticColorTokens as o, validateWabouUtility as r, presetWabou as t };
 
-//# sourceMappingURL=preset-CrC4UNv4.mjs.map
+//# sourceMappingURL=preset-wHiF2FfE.mjs.map

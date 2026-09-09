@@ -52,7 +52,7 @@ declare const defaultWabouColorThemes: {
       readonly colors: {
         readonly canvas: "#ffffff";
         readonly surface: "#ffffff";
-        readonly "surface-muted": "#f0f2f5";
+        readonly "surface-muted": "#f7f8fa";
         readonly input: "#ffffff";
         readonly control: "#f1f3f6";
         readonly "control-hover": "#e8ebef";
@@ -84,4 +84,4 @@ type DefaultWabouSemanticColorToken = keyof (typeof defaultWabouColorThemes)["th
 declare const defaultWabouSemanticColorTokens: readonly ("canvas" | "surface" | "surface-muted" | "input" | "control" | "control-hover" | "control-pressed" | "selected" | "primary" | "secondary" | "muted" | "subtle" | "strong" | "accent" | "accent-hover" | "accent-pressed" | "on-accent" | "danger" | "danger-hover" | "danger-pressed" | "danger-surface" | "danger-primary" | "success-surface" | "success-primary" | "focus")[];
 //#endregion
 export { defaultWabouSemanticColorTokens as a, defaultWabouColorThemes as i, WabouColorThemeOptions as n, WabouThemeColor as r, DefaultWabouSemanticColorToken as t };
-//# sourceMappingURL=theme-contract-BXj8mg9N.d.mts.map
+//# sourceMappingURL=theme-contract-B79FL9uR.d.mts.map

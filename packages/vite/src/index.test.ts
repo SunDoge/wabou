@@ -98,6 +98,9 @@ describe("@wabou/vite", () => {
     }
     expect(auditColorThemeContrast(compiled!)).toEqual([]);
     expect(defaultWabouColorThemes.themes.light.colors.canvas).toBe("#ffffff");
+    expect(defaultWabouColorThemes.themes.light.colors["surface-muted"]).toBe(
+      "#f7f8fa",
+    );
   });
 
   test("defines and validates typed application themes eagerly", () => {
@@ -117,9 +120,7 @@ describe("@wabou/vite", () => {
     });
 
     expect(theme.themes.light.colors.accent).toBe("#2563eb");
-    expect(() => color("rgb(1 2 3)")).toThrow(
-      "expected #RRGGBB or #RRGGBBAA",
-    );
+    expect(() => color("rgb(1 2 3)")).toThrow("expected #RRGGBB or #RRGGBBAA");
     expect(() =>
       defineWabouTheme({
         default: "missing",

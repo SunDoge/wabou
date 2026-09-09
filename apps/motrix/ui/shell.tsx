@@ -167,7 +167,7 @@ export function AppShell(props: { children?: JSX.Element }) {
             onSidebarOpenChange={setSidebarOpen}
             onNewTask={() => openAddTask()}
           />
-          <View class="relative min-h-0 flex-1 p-2 flex gap-3">
+          <View class="relative min-h-0 flex-1 p-2 flex gap-3 bg-canvas">
             <Show when={draggingFile()}>
               <View
                 overlayPlane="floating"

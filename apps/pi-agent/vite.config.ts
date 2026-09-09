@@ -28,7 +28,7 @@ export default defineWabouConfig(({ mode }) => ({
         colors: {
           canvas: "#f7f7f8",
           surface: "#ffffff",
-          "surface-muted": "#f0f0f1",
+          "surface-muted": "#f7f7f8",
           input: "#ffffff",
           control: "#f0f0f1",
           "control-hover": "#e8e8e9",

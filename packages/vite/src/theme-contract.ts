@@ -56,7 +56,7 @@ export const defaultWabouColorThemes = {
       colors: {
         canvas: "#ffffff",
         surface: "#ffffff",
-        "surface-muted": "#f0f2f5",
+        "surface-muted": "#f7f8fa",
         input: "#ffffff",
         control: "#f1f3f6",
         "control-hover": "#e8ebef",
