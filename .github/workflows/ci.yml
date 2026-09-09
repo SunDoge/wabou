@@ -144,7 +144,7 @@ jobs:
 
       - name: Upload native-test diagnostics
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: native-test-diagnostics
           path: |
@@ -215,7 +215,7 @@ jobs:
             squashfs-root/usr/lib/seven-guis/resources/bundle.js
 
       - name: Upload AppImage
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: seven-guis-appimage
           path: dist/7guis/bundles/*.AppImage
