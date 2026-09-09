@@ -93,8 +93,15 @@ export function componentsControlSize(size: ComponentsControlSize): string {
  * Shared native panel chrome. Component composition owns padding and layout;
  * this contract owns the edge geometry that must not drift between surfaces.
  */
-export function componentsSurfaceClass(_surface: ComponentsSurface): string {
-  return "rounded-lg border border-subtle bg-surface";
+export function componentsSurfaceClass(surface: ComponentsSurface): string {
+  switch (surface) {
+    case "raised":
+      return "rounded-lg border border-subtle bg-surface";
+    case "floating":
+      return "rounded-lg border border-strong bg-surface";
+    case "modal":
+      return "rounded-xl border border-strong bg-surface";
+  }
 }
 
 /**

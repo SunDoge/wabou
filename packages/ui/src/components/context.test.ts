@@ -30,7 +30,10 @@ test("default desktop geometry is shared by high-frequency controls", () => {
     "rounded-lg border border-subtle bg-surface",
   );
   expect(componentsSurfaceClass("floating")).toBe(
-    componentsSurfaceClass("modal"),
+    "rounded-lg border border-strong bg-surface",
+  );
+  expect(componentsSurfaceClass("modal")).toBe(
+    "rounded-xl border border-strong bg-surface",
   );
 });
 

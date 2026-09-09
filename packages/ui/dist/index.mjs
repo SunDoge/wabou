@@ -521,8 +521,12 @@ function componentsControlSize(size) {
 * Shared native panel chrome. Component composition owns padding and layout;
 * this contract owns the edge geometry that must not drift between surfaces.
 */
-function componentsSurfaceClass(_surface) {
-	return "rounded-lg border border-subtle bg-surface";
+function componentsSurfaceClass(surface) {
+	switch (surface) {
+		case "raised": return "rounded-lg border border-subtle bg-surface";
+		case "floating": return "rounded-lg border border-strong bg-surface";
+		case "modal": return "rounded-xl border border-strong bg-surface";
+	}
 }
 /**
 * Native elevation recipes adapted from gpui-component. Wabou and GPUI both
@@ -690,21 +694,21 @@ function alertColors(variant) {
 		title: "text-primary",
 		description: "text-secondary"
 	})).with("info", () => ({
-		container: "border-accent bg-selected",
-		title: "text-accent",
+		container: componentToneClass("accent", "surface"),
+		title: componentToneClass("accent", "text"),
 		description: "text-secondary"
 	})).with("success", () => ({
-		container: "border-success-primary bg-success-surface",
-		title: "text-success-primary",
-		description: "text-success-primary"
+		container: componentToneClass("success", "surface"),
+		title: componentToneClass("success", "text"),
+		description: componentToneClass("success", "text")
 	})).with("warning", () => ({
 		container: "border-strong bg-control",
 		title: "text-primary",
 		description: "text-secondary"
 	})).with(P.union("error", "destructive"), () => ({
-		container: "border-danger bg-danger-surface",
-		title: "text-danger-primary",
-		description: "text-danger-primary"
+		container: componentToneClass("danger", "surface"),
+		title: componentToneClass("danger", "text"),
+		description: componentToneClass("danger", "text")
 	})).exhaustive();
 }
 function alertGeometry(size) {

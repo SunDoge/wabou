@@ -21,6 +21,7 @@ import {
 } from "../primitives";
 import { Button } from "./button";
 import { componentsSurfaceClass } from "./theme";
+import { componentToneClass } from "./tone";
 
 export type AlertVariant =
   | "default"
@@ -51,14 +52,14 @@ export function alertColors(variant: AlertVariant): {
       description: "text-secondary",
     }))
     .with("info", () => ({
-      container: "border-accent bg-selected",
-      title: "text-accent",
+      container: componentToneClass("accent", "surface"),
+      title: componentToneClass("accent", "text"),
       description: "text-secondary",
     }))
     .with("success", () => ({
-      container: "border-success-primary bg-success-surface",
-      title: "text-success-primary",
-      description: "text-success-primary",
+      container: componentToneClass("success", "surface"),
+      title: componentToneClass("success", "text"),
+      description: componentToneClass("success", "text"),
     }))
     .with("warning", () => ({
       container: "border-strong bg-control",
@@ -66,9 +67,9 @@ export function alertColors(variant: AlertVariant): {
       description: "text-secondary",
     }))
     .with(P.union("error", "destructive"), () => ({
-      container: "border-danger bg-danger-surface",
-      title: "text-danger-primary",
-      description: "text-danger-primary",
+      container: componentToneClass("danger", "surface"),
+      title: componentToneClass("danger", "text"),
+      description: componentToneClass("danger", "text"),
     }))
     .exhaustive();
 }
