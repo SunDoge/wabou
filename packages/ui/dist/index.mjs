@@ -86,7 +86,7 @@ function componentToneClass(tone, presentation) {
 	}, () => "border-success-primary bg-success-surface text-success-primary").with({
 		tone: "success",
 		presentation: "solid"
-	}, () => "border-success-primary bg-success-primary text-surface").with({
+	}, () => "border-success-primary bg-success-primary text-on-success").with({
 		tone: "success",
 		presentation: "indicator"
 	}, () => "bg-success-primary").with({
@@ -98,7 +98,7 @@ function componentToneClass(tone, presentation) {
 	}, () => "border-danger bg-danger-surface text-danger-primary").with({
 		tone: "danger",
 		presentation: "solid"
-	}, () => "border-danger bg-danger text-surface").with({
+	}, () => "border-danger bg-danger text-on-danger").with({
 		tone: "danger",
 		presentation: "indicator"
 	}, () => "bg-danger").exhaustive();
@@ -622,10 +622,10 @@ function buttonColors(variant, state, visuallyDisabled = false) {
 	}, () => mergeClasses("bg-accent-hover border-transparent text-on-accent", focus)).with({ variant: "default" }, () => mergeClasses("bg-accent border-transparent text-on-accent", focus)).with({
 		variant: "destructive",
 		pressed: true
-	}, () => mergeClasses("bg-danger-pressed border-transparent text-on-accent", focus)).with({
+	}, () => mergeClasses("bg-danger-pressed border-transparent text-on-danger", focus)).with({
 		variant: "destructive",
 		hovered: true
-	}, () => mergeClasses("bg-danger-hover border-transparent text-on-accent", focus)).with({ variant: "destructive" }, () => mergeClasses("bg-danger border-transparent text-on-accent", focus)).with({
+	}, () => mergeClasses("bg-danger-hover border-transparent text-on-danger", focus)).with({ variant: "destructive" }, () => mergeClasses("bg-danger border-transparent text-on-danger", focus)).with({
 		variant: "secondary",
 		pressed: true
 	}, () => mergeClasses("bg-control-pressed border-transparent text-primary", focus)).with({
@@ -637,7 +637,7 @@ function buttonSize(size, grouped) {
 	return grouped ? componentsControlContentSize(size) : componentsControlSize(size);
 }
 function buttonSpinnerColor(variant) {
-	return match(variant).with("default", "destructive", () => "text-on-accent").with("secondary", () => "text-primary").with("outline", "ghost", () => "text-secondary").exhaustive();
+	return match(variant).with("default", () => "text-on-accent").with("destructive", () => "text-on-danger").with("secondary", () => "text-primary").with("outline", "ghost", () => "text-secondary").exhaustive();
 }
 function Button(props) {
 	const local = props;

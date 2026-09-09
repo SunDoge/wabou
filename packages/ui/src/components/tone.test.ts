@@ -22,4 +22,10 @@ describe("component tone contract", () => {
     );
     expect(componentToneClass("danger", "indicator")).toBe("bg-danger");
   });
+
+  test("keeps solid semantic foregrounds independent from the accent", () => {
+    expect(componentToneClass("accent", "solid")).toContain("text-on-accent");
+    expect(componentToneClass("success", "solid")).toContain("text-on-success");
+    expect(componentToneClass("danger", "solid")).toContain("text-on-danger");
+  });
 });

@@ -84,6 +84,8 @@ describe("@wabou/vite", () => {
           "input",
           "muted",
           "on-accent",
+          "on-danger",
+          "on-success",
           "primary",
           "secondary",
           "selected",

@@ -1,4 +1,4 @@
-import { n as WabouColorThemeOptions } from "./theme-contract-B79FL9uR.mjs";
+import { n as WabouColorThemeOptions } from "./theme-contract-f21cN-tv.mjs";
 import { Preset } from "@unocss/core";
 //#region src/preset/index.d.ts
 type Length = {

@@ -192,6 +192,8 @@ const defaultWabouColorThemes = {
 				"accent-hover": "#6aa1ff",
 				"accent-pressed": "#397ce8",
 				"on-accent": "#121418",
+				"on-danger": "#121418",
+				"on-success": "#121418",
 				danger: "#ef4444",
 				"danger-hover": "#dc2626",
 				"danger-pressed": "#b91c1c",
@@ -222,6 +224,8 @@ const defaultWabouColorThemes = {
 				"accent-hover": "#1d4ed8",
 				"accent-pressed": "#1e40af",
 				"on-accent": "#ffffff",
+				"on-danger": "#ffffff",
+				"on-success": "#ffffff",
 				danger: "#dc2626",
 				"danger-hover": "#b91c1c",
 				"danger-pressed": "#991b1b",
@@ -652,4 +656,4 @@ function presetWabou(options = {}) {
 //#endregion
 export { defaultWabouColorThemes as a, wabouUtilityManifest as i, resolveWabouUtility as n, defaultWabouSemanticColorTokens as o, validateWabouUtility as r, presetWabou as t };
 
-//# sourceMappingURL=preset-wHiF2FfE.mjs.map
+//# sourceMappingURL=preset-SnHYIpsD.mjs.map

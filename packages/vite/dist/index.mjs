@@ -1,4 +1,4 @@
-import { a as defaultWabouColorThemes, i as wabouUtilityManifest, n as resolveWabouUtility, o as defaultWabouSemanticColorTokens, r as validateWabouUtility, t as presetWabou } from "./preset-wHiF2FfE.mjs";
+import { a as defaultWabouColorThemes, i as wabouUtilityManifest, n as resolveWabouUtility, o as defaultWabouSemanticColorTokens, r as validateWabouUtility, t as presetWabou } from "./preset-SnHYIpsD.mjs";
 import { existsSync, readFileSync } from "node:fs";
 import { dirname, join, parse, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -25,6 +25,8 @@ const TEXT_CONTRAST_PAIRS = [
 	["muted", "canvas"],
 	["muted", "surface"],
 	["on-accent", "accent"],
+	["on-danger", "danger"],
+	["on-success", "success-primary"],
 	["danger-primary", "danger-surface"],
 	["success-primary", "success-surface"]
 ];

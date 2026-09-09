@@ -50,7 +50,7 @@ export function componentToneClass(
     )
     .with(
       { tone: "success", presentation: "solid" },
-      () => "border-success-primary bg-success-primary text-surface",
+      () => "border-success-primary bg-success-primary text-on-success",
     )
     .with(
       { tone: "success", presentation: "indicator" },
@@ -63,7 +63,7 @@ export function componentToneClass(
     )
     .with(
       { tone: "danger", presentation: "solid" },
-      () => "border-danger bg-danger text-surface",
+      () => "border-danger bg-danger text-on-danger",
     )
     .with({ tone: "danger", presentation: "indicator" }, () => "bg-danger")
     .exhaustive();

@@ -73,6 +73,8 @@ const TEXT_CONTRAST_PAIRS = [
   ["muted", "canvas"],
   ["muted", "surface"],
   ["on-accent", "accent"],
+  ["on-danger", "danger"],
+  ["on-success", "success-primary"],
   ["danger-primary", "danger-surface"],
   ["success-primary", "success-surface"],
 ] as const;

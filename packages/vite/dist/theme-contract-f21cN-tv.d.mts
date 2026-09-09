@@ -37,6 +37,8 @@ declare const defaultWabouColorThemes: {
         readonly "accent-hover": "#6aa1ff";
         readonly "accent-pressed": "#397ce8";
         readonly "on-accent": "#121418";
+        readonly "on-danger": "#121418";
+        readonly "on-success": "#121418";
         readonly danger: "#ef4444";
         readonly "danger-hover": "#dc2626";
         readonly "danger-pressed": "#b91c1c";
@@ -67,6 +69,8 @@ declare const defaultWabouColorThemes: {
         readonly "accent-hover": "#1d4ed8";
         readonly "accent-pressed": "#1e40af";
         readonly "on-accent": "#ffffff";
+        readonly "on-danger": "#ffffff";
+        readonly "on-success": "#ffffff";
         readonly danger: "#dc2626";
         readonly "danger-hover": "#b91c1c";
         readonly "danger-pressed": "#991b1b";
@@ -81,7 +85,7 @@ declare const defaultWabouColorThemes: {
 };
 type DefaultWabouSemanticColorToken = keyof (typeof defaultWabouColorThemes)["themes"]["light"]["colors"];
 /** Semantic colors guaranteed by Wabou's built-in component theme. */
-declare const defaultWabouSemanticColorTokens: readonly ("canvas" | "surface" | "surface-muted" | "input" | "control" | "control-hover" | "control-pressed" | "selected" | "primary" | "secondary" | "muted" | "subtle" | "strong" | "accent" | "accent-hover" | "accent-pressed" | "on-accent" | "danger" | "danger-hover" | "danger-pressed" | "danger-surface" | "danger-primary" | "success-surface" | "success-primary" | "focus")[];
+declare const defaultWabouSemanticColorTokens: readonly ("canvas" | "surface" | "surface-muted" | "input" | "control" | "control-hover" | "control-pressed" | "selected" | "primary" | "secondary" | "muted" | "subtle" | "strong" | "accent" | "accent-hover" | "accent-pressed" | "on-accent" | "on-danger" | "on-success" | "danger" | "danger-hover" | "danger-pressed" | "danger-surface" | "danger-primary" | "success-surface" | "success-primary" | "focus")[];
 //#endregion
 export { defaultWabouSemanticColorTokens as a, defaultWabouColorThemes as i, WabouColorThemeOptions as n, WabouThemeColor as r, DefaultWabouSemanticColorToken as t };
-//# sourceMappingURL=theme-contract-B79FL9uR.d.mts.map
+//# sourceMappingURL=theme-contract-f21cN-tv.d.mts.map
