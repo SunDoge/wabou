@@ -430,7 +430,7 @@ export async function findWorkspacePackages(
       );
       if (Array.isArray(manifest.workspaces)) {
         const packageWorkspace = manifest.workspaces.find(
-          (workspace): workspace is string =>
+          (workspace: unknown): workspace is string =>
             typeof workspace === "string" &&
             workspace.split(/[\\/]/).includes("packages"),
         );
