@@ -18,6 +18,10 @@ animations, native windows, and Rust-powered custom widgets.
 <img width="45%" alt="image" src="https://github.com/user-attachments/assets/85b7ac8d-eade-46d5-9022-4c46f9f99509" />
 </p>
 
+Custom WGSL shader is supported
+
+[Screencast_20260908_154412.webm](https://github.com/user-attachments/assets/7f36cd40-d709-4b7b-a7e7-d07adfaccf75)
+
 ### Terminal
 
 A native terminal widget powered by [rio-vt](https://crates.io/crates/rio-vt), demonstrating keyboard and pointer input, text
