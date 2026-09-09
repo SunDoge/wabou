@@ -110,8 +110,8 @@ export function componentsElevation(
   if (elevation === "raised") {
     return [
       shadow({ spread: 1, stdDev: 0, color: 0x0000000a }),
-      shadow({ offsetY: 2, stdDev: 3, spread: -1, color: 0x00000022 }),
-      shadow({ offsetY: 8, stdDev: 14, spread: -6, color: 0x0000001a }),
+      shadow({ offsetY: 1, stdDev: 1, color: 0x00000014 }),
+      shadow({ offsetY: 4, stdDev: 5, spread: -2, color: 0x00000010 }),
     ];
   }
   if (elevation === "floating") {

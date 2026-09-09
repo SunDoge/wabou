@@ -37,8 +37,8 @@ test("default desktop geometry is shared by high-frequency controls", () => {
 test("component elevations use restrained native shadows and a themed popup ring", () => {
   expect(componentsElevation("light", "raised")).toEqual([
     { offsetX: 0, offsetY: 0, stdDev: 0, spread: 1, color: 0x0000000a },
-    { offsetX: 0, offsetY: 2, stdDev: 3, spread: -1, color: 0x00000022 },
-    { offsetX: 0, offsetY: 8, stdDev: 14, spread: -6, color: 0x0000001a },
+    { offsetX: 0, offsetY: 1, stdDev: 1, spread: 0, color: 0x00000014 },
+    { offsetX: 0, offsetY: 4, stdDev: 5, spread: -2, color: 0x00000010 },
   ]);
   const light = componentsElevation("light", "floating");
   const dark = componentsElevation("dark", "floating");
