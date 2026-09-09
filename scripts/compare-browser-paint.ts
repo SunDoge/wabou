@@ -4,17 +4,28 @@ import { pathToFileURL } from "node:url";
 import solid from "@solidjs/vite-plugin";
 import UnoCSS from "unocss/vite";
 import { build } from "vite";
+import { CROSS_RENDER_POLICIES } from "../tests/render-reference/cross-render-fixture";
 
 type Rect = { x: number; y: number; width: number; height: number };
 type BrowserNode = {
   name: string | null;
   rect: Rect;
-  style: { background: string; color: string };
+  style: {
+    background: string;
+    color: string;
+    fontFamily: string;
+    fontSize: string;
+    fontWeight: string;
+    lineHeight: string;
+  };
+  text: string | null;
+  baseline: number | null;
 };
 type NativeNode = {
   attrs: [string, string][];
   rect: Rect;
   computed: { background: string | null; textColor: string };
+  textMetrics?: { baseline: number } | null;
 };
 
 const root = resolve(import.meta.dir, "..");
@@ -29,11 +40,15 @@ const output = resolve(
 );
 const app = argument("--app", "apps/gallery");
 const fixture = argument("--fixture", "foundations/paint-reference");
-const width = Number(argument("--width", "640"));
-const height = Number(argument("--height", "420"));
+const width = Number(argument("--width", "960"));
+const height = Number(argument("--height", "720"));
 const layoutTolerance = Number(argument("--layout-tolerance", "0.51"));
 const pixelTolerance = Number(argument("--pixel-tolerance", "0.01"));
 const regionTolerance = Number(argument("--region-tolerance", "0.01"));
+const reportOnly = argv.includes("--report-only");
+const hasExcludedPixelRegions = Object.values(CROSS_RENDER_POLICIES).some(
+  ({ comparePixels }) => comparePixels === false,
+);
 const wabou =
   process.env.WABOU_RENDER_COMMAND ?? resolve(root, "target/release/wabou");
 const chrome =
@@ -185,9 +200,21 @@ function normalizeBrowserColor(value: string): string | null {
 const geometry: Record<string, Record<keyof Rect, number>> = {};
 const colors: Record<
   string,
-  { wabou: string | null; chromium: string | null }
+  {
+    background: { wabou: string | null; chromium: string | null };
+    text: { wabou: string | null; chromium: string | null };
+  }
 > = {};
 const comparedBrowserNodes: BrowserNode[] = [];
+const textMetrics: Record<
+  string,
+  {
+    wabouBaseline: number;
+    chromiumBaseline: number;
+    baselineDelta: number;
+    chromiumFont: string;
+  }
+> = {};
 const contractRegressions: string[] = [];
 for (const browserNode of browserNodes) {
   if (!browserNode.name?.startsWith("compare/")) continue;
@@ -205,24 +232,54 @@ for (const browserNode of browserNodes) {
     width: nativeNode.rect.width - browserNode.rect.width,
     height: nativeNode.rect.height - browserNode.rect.height,
   };
+  const policy = CROSS_RENDER_POLICIES[browserNode.name];
   for (const [field, delta] of Object.entries(geometry[browserNode.name])) {
-    if (Math.abs(delta) > layoutTolerance) {
+    if (policy?.compareGeometry === false) break;
+    const nodeLayoutTolerance = policy?.layoutTolerance ?? layoutTolerance;
+    if (Math.abs(delta) > nodeLayoutTolerance) {
       contractRegressions.push(
-        `${browserNode.name}.${field}: delta ${delta.toFixed(3)}px exceeds ${layoutTolerance}px`,
+        `${browserNode.name}.${field}: delta ${delta.toFixed(3)}px exceeds ${nodeLayoutTolerance}px`,
       );
     }
   }
   const browserBackground = normalizeBrowserColor(browserNode.style.background);
   const nativeBackground =
     nativeNode.computed.background?.toLowerCase() ?? null;
+  const browserText = normalizeBrowserColor(browserNode.style.color);
+  const nativeText = nativeNode.computed.textColor?.toLowerCase() ?? null;
   colors[browserNode.name] = {
-    wabou: nativeBackground,
-    chromium: browserBackground,
+    background: { wabou: nativeBackground, chromium: browserBackground },
+    text: { wabou: nativeText, chromium: browserText },
   };
   if (nativeBackground !== browserBackground) {
     contractRegressions.push(
       `${browserNode.name}.background: Wabou ${nativeBackground} != Chromium ${browserBackground}`,
     );
+  }
+  if (browserNode.text?.trim() && nativeText !== browserText) {
+    contractRegressions.push(
+      `${browserNode.name}.text: Wabou ${nativeText} != Chromium ${browserText}`,
+    );
+  }
+  const nativeBaseline = nativeNode.textMetrics?.baseline;
+  if (
+    browserNode.text?.trim() &&
+    nativeBaseline !== undefined &&
+    browserNode.baseline !== null
+  ) {
+    const baselineDelta = nativeBaseline - browserNode.baseline;
+    textMetrics[browserNode.name] = {
+      wabouBaseline: nativeBaseline,
+      chromiumBaseline: browserNode.baseline,
+      baselineDelta,
+      chromiumFont: `${browserNode.style.fontWeight} ${browserNode.style.fontSize}/${browserNode.style.lineHeight} ${browserNode.style.fontFamily}`,
+    };
+    const nodeLayoutTolerance = policy?.layoutTolerance ?? layoutTolerance;
+    if (Math.abs(baselineDelta) > nodeLayoutTolerance) {
+      contractRegressions.push(
+        `${browserNode.name}.baseline: delta ${baselineDelta.toFixed(3)}px exceeds ${nodeLayoutTolerance}px`,
+      );
+    }
   }
   nativeNodes.delete(browserNode.name);
 }
@@ -242,6 +299,7 @@ const normalizedRmse = Number(
 const regionRmse: Record<string, number> = {};
 for (const node of comparedBrowserNodes) {
   if (!node.name || node.name === "compare/root") continue;
+  const policy = CROSS_RENDER_POLICIES[node.name];
   const left = Math.max(0, Math.floor(node.rect.x));
   const top = Math.max(0, Math.floor(node.rect.y));
   const right = Math.min(width, Math.ceil(node.rect.x + node.rect.width));
@@ -264,9 +322,10 @@ for (const node of comparedBrowserNodes) {
       Number.NaN,
   );
   regionRmse[node.name] = value;
-  if (value > regionTolerance) {
+  const nodeRegionTolerance = policy?.regionTolerance ?? regionTolerance;
+  if (policy?.comparePixels !== false && value > nodeRegionTolerance) {
     contractRegressions.push(
-      `${node.name}: pixel RMSE ${value.toFixed(6)} exceeds ${regionTolerance}`,
+      `${node.name}: pixel RMSE ${value.toFixed(6)} exceeds ${nodeRegionTolerance}`,
     );
   }
 }
@@ -277,14 +336,18 @@ await run(magick, [
   "+append",
   comparisonPng,
 ]);
-if (normalizedRmse > pixelTolerance) {
+if (
+  !reportOnly &&
+  !hasExcludedPixelRegions &&
+  normalizedRmse > pixelTolerance
+) {
   contractRegressions.push(
     `global pixel RMSE ${normalizedRmse.toFixed(6)} exceeds ${pixelTolerance}`,
   );
 }
 
 const report = {
-  version: 2,
+  version: 3,
   app,
   fixture,
   viewport: { width, height, scaleFactor: 1 },
@@ -292,9 +355,16 @@ const report = {
   layoutTolerance,
   pixelTolerance,
   regionTolerance,
+  reportOnly,
+  globalPixelComparable: !hasExcludedPixelRegions,
   geometry,
   colors,
+  textMetrics,
   regionRmse,
+  largestPixelDifferences: Object.entries(regionRmse)
+    .sort((left, right) => right[1] - left[1])
+    .slice(0, 10)
+    .map(([name, rmse]) => ({ name, rmse })),
   regressions: contractRegressions,
   note: "The same Solid TSX and Wabou UnoCSS preset render through native Wabou primitives and a DOM adapter. Text rasterization and platform-specific compositing require separate references.",
   outputs: {
@@ -314,7 +384,7 @@ console.log(
 );
 console.log(`[wabou] wrote ${comparisonPng}`);
 
-if (contractRegressions.length > 0) {
+if (contractRegressions.length > 0 && !reportOnly) {
   throw new Error(
     `cross-render comparison regressed:\n  - ${contractRegressions.join("\n  - ")}`,
   );

@@ -486,6 +486,9 @@ function cssValue(value: WabouStyleValue): string | number {
       if (kind?.type !== "keyword" || !argument) return "";
       if (kind.value === "breadth") return cssValue(argument);
       if (kind.value === "flex") return `${cssValue(argument)}fr`;
+      if (kind.value === "rotate" && argument.type === "number") {
+        return `rotate(${argument.value}rad)`;
+      }
       const text =
         argument.type === "list"
           ? argument.values.map(cssValue).join(", ")

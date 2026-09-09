@@ -164,7 +164,7 @@ describe("presetWabou", () => {
     const transform = await uno.generate("translate-x-4 scale-150 rotate-45");
     expect(transform.css).toContain("transform:translateX(16px)");
     expect(transform.css).toContain("transform:scale(1.5, 1.5)");
-    expect(transform.css).toContain("transform:rotate(0.785398");
+    expect(transform.css).toMatch(/transform:rotate\(0\.785398[^)]*rad\)/);
     const shadow = await uno.generate("shadow-sm");
     expect(shadow.css).toContain("box-shadow:0px 1px 3px 0px #0f172a1a");
     const layeredShadow = await uno.generate("shadow-md");

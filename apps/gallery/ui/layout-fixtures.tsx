@@ -135,8 +135,8 @@ function PiAgentToolbarFixture() {
 
 defineLayoutFixtures({
   "foundations/paint-reference": {
-    width: 640,
-    height: 420,
+    width: 960,
+    height: 720,
     render: CrossRenderFixture,
   },
   "foundations/muted-contrast": {

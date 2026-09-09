@@ -25,6 +25,21 @@ const snapshot = [
 ].map((element) => {
   const rect = element.getBoundingClientRect();
   const style = getComputedStyle(element);
+  let baseline: number | null = null;
+  if (element.textContent?.trim()) {
+    const canvas = document.createElement("canvas");
+    const context = canvas.getContext("2d");
+    if (context) {
+      context.font = `${style.fontStyle} ${style.fontWeight} ${style.fontSize} ${style.fontFamily}`;
+      const metrics = context.measureText(element.textContent);
+      const lineHeight = Number.parseFloat(style.lineHeight);
+      const ascent = metrics.fontBoundingBoxAscent;
+      const descent = metrics.fontBoundingBoxDescent;
+      if ([lineHeight, ascent, descent].every(Number.isFinite)) {
+        baseline = rect.y + (lineHeight - ascent - descent) / 2 + ascent;
+      }
+    }
+  }
   return {
     name: element.getAttribute("aria-label"),
     rect: {
@@ -36,7 +51,13 @@ const snapshot = [
     style: {
       background: style.backgroundColor,
       color: style.color,
+      fontFamily: style.fontFamily,
+      fontSize: style.fontSize,
+      fontWeight: style.fontWeight,
+      lineHeight: style.lineHeight,
     },
+    text: element.textContent,
+    baseline,
   };
 });
 document.documentElement.dataset.wabouSnapshot = btoa(JSON.stringify(snapshot));

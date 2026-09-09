@@ -615,6 +615,7 @@ function cssValue(value) {
 			if (kind?.type !== "keyword" || !argument) return "";
 			if (kind.value === "breadth") return cssValue(argument);
 			if (kind.value === "flex") return `${cssValue(argument)}fr`;
+			if (kind.value === "rotate" && argument.type === "number") return `rotate(${argument.value}rad)`;
 			const text = argument.type === "list" ? argument.values.map(cssValue).join(", ") : cssValue(argument);
 			return `${kind.value}(${text})`;
 		}
@@ -669,4 +670,4 @@ function presetWabou(options = {}) {
 //#endregion
 export { defaultWabouColorThemes as a, wabouUtilityManifest as i, resolveWabouUtility as n, defaultWabouSemanticColorTokens as o, validateWabouUtility as r, presetWabou as t };
 
-//# sourceMappingURL=preset-HRJ8hs1m.mjs.map
+//# sourceMappingURL=preset-CGzgoEVG.mjs.map
