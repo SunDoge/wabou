@@ -27,6 +27,7 @@
     "test:layout": "bun run packages:build && cargo build --release -p wabou-cli && bun --conditions=wabou-source run apps/gallery/tests/layout.ts && bun --conditions=wabou-source run apps/pi-agent/tests/layout.ts && bun --conditions=wabou-source run apps/timestow/tests/layout.ts && bun --conditions=wabou-source run apps/meow-starter/tests/layout.ts",
     "test:layout:quick": "bun run scripts/test-layout.ts",
     "test:paint-reference": "bun run scripts/compare-browser-paint.ts",
+    "test:render-compare": "bun run scripts/compare-browser-paint.ts",
     "ci:local": "bash scripts/run-act.sh",
     "packages:build": "turbo run build --filter='./packages/*'",
     "packages:check": "bun run scripts/check-package-boundaries.ts && tsc -p tests/package-consumer/tsconfig.json && bun run scripts/check-ui-tarball.ts",
@@ -78,6 +79,7 @@
     "typescript": "^5.9.0",
     "unocss": "^66.7.5",
     "valibot": "^1.4.2",
+    "vite": "^8.2.2",
     "@solidjs/vite-plugin": "3.0.0-next.40",
     "vitest": "2.1.9"
   }

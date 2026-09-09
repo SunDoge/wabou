@@ -33,6 +33,12 @@ describe("presetWabou", () => {
       type: "color",
       value: { kind: "literal", rgba: 0x336699cc },
     });
+    expect(
+      resolveWabouUtility("bg-[#dc2626]/50")?.declarations[0].value,
+    ).toEqual({
+      type: "color",
+      value: { kind: "literal", rgba: 0xdc262680 },
+    });
   });
 
   test("supports fractional dimensions and scoped container widths", () => {
@@ -144,6 +150,7 @@ describe("presetWabou", () => {
     const result = await uno.generate(
       "flex px-3 bg-slate-900 bg-control text-primary border-focus",
     );
+    expect(result.css).toContain("border-style:solid");
     expect(result.css).toContain("padding-left:12px");
     expect(result.css).toContain("background-color:#0f172aff");
     expect(result.css).toContain("background-color:var(--wabou-control)");
@@ -158,6 +165,10 @@ describe("presetWabou", () => {
     expect(transform.css).toContain("transform:translateX(16px)");
     expect(transform.css).toContain("transform:scale(1.5, 1.5)");
     expect(transform.css).toContain("transform:rotate(0.785398");
+    const shadow = await uno.generate("shadow-sm");
+    expect(shadow.css).toContain("box-shadow:0px 1px 3px 0px #0f172a1a");
+    const layeredShadow = await uno.generate("shadow-md");
+    expect(layeredShadow.css).toContain(", 0px 5px 5px -2px");
     const dimensions = await uno.generate("w-2/3 max-w-md");
     expect(dimensions.css).toContain("width:66.666");
     expect(dimensions.css).toContain("max-width:448px");

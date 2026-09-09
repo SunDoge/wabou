@@ -795,25 +795,35 @@ Use `expect.poll(() => value).toBe(expected)` for state that settles across
 asynchronous host turns. DevTools remains a diagnostic interface; behavior
 assertions belong in scenarios.
 
-## Browser paint reference
+## Solid cross-render comparison
 
-Use the paint reference when solid colors are correct in the layout snapshot
-but alpha composition, rounded clipping, or shadows look different from a
-browser rendering of the same geometry:
+Use the cross-render comparison when Wabou layout or paint should be checked
+against Chromium:
 
 ```bash
-bun run test:paint-reference
+bun run test:render-compare
 ```
 
-The command renders one fixed fixture through Wabou/Vello Hybrid and Chromium,
-writes both PNGs plus a difference image under `target/render-reference`, and
-checks normalized RMSE for the full image and focused paint regions. Solid and
-alpha interiors use a near-exact threshold; rounded edges, translucency, and
-shadows have separate tolerances because their rasterization kernels are
-backend-specific. Set `CHROME`, `MAGICK`, or `WABOU_RENDER_COMMAND` when those
-executables are not on `PATH`.
+Unlike two hand-maintained reference pages, this command compiles
+`tests/render-reference/cross-render-fixture.tsx` twice. The native build maps
+its Solid JSX to Wabou primitives; the browser build aliases the same primitive
+imports to a small DOM adapter and generates CSS from the same Wabou UnoCSS
+preset. Nodes with an `aria-label` beginning with `compare/` are checked for:
+
+- exact semantic color values;
+- x/y/width/height drift beyond 0.51 logical pixels;
+- missing nodes on either backend;
+- full-frame and per-node pixel RMSE beyond 0.01.
+
+The command writes the native and Chromium PNGs, their visual difference,
+side-by-side comparison, native tree and JSON report under
+`target/render-reference`. Use `--out`, `--width`, `--height`,
+`--layout-tolerance`, `--pixel-tolerance`, and `--region-tolerance` to override defaults. Set
+`CHROME`, `MAGICK`, or `WABOU_RENDER_COMMAND` when those executables are not on
+`PATH`. `test:paint-reference` remains as a compatibility alias.
 
 This is a renderer comparison, not a browser-compatibility promise. Do not add
-text to the fixture: Chromium and Wabou intentionally use different font
-resolution and glyph rasterization paths. Text quality requires the focused
-text and HiDPI checks described above.
+browser-only DOM behavior to the shared fixture. The current adapter deliberately
+covers the common `View` subset. Chromium and Wabou intentionally use different
+font resolution and glyph rasterization paths, so text quality still requires
+the focused text and HiDPI checks described above.
