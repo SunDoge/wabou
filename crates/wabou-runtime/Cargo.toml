@@ -57,7 +57,7 @@ tungstenite = {
   optional = true
 }
 # vite feature only
-ureq = { version = "3.3", optional = true }
+ureq = { version = "3.3", default-features = false, optional = true }
 
 [features]
 default = []
