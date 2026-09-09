@@ -1,6 +1,6 @@
 import type { Dirent } from "node:fs";
 import { readdir, readFile } from "node:fs/promises";
-import { dirname, join, parse, sep } from "node:path";
+import { dirname, join, parse, resolve, sep } from "node:path";
 import { createGenerator } from "@unocss/core";
 import type { ModuleNode, Plugin } from "vite";
 import {
@@ -135,7 +135,8 @@ function opaqueColor(red: number, green: number, blue: number): number {
     ((Math.round(red * 255) << 24) |
       (Math.round(green * 255) << 16) |
       (Math.round(blue * 255) << 8) |
-      0xff) >>> 0
+      0xff) >>>
+    0
   );
 }
 
@@ -427,8 +428,18 @@ export async function findWorkspacePackages(
       const manifest = JSON.parse(
         await readFile(join(directory, "package.json"), "utf8"),
       );
-      if (Array.isArray(manifest.workspaces))
-        return join(directory, "packages");
+      if (Array.isArray(manifest.workspaces)) {
+        const packageWorkspace = manifest.workspaces.find(
+          (workspace): workspace is string =>
+            typeof workspace === "string" &&
+            workspace.split(/[\\/]/).includes("packages"),
+        );
+        if (packageWorkspace) {
+          const segments = packageWorkspace.split(/[\\/]/);
+          const packages = segments.lastIndexOf("packages");
+          return resolve(directory, ...segments.slice(0, packages + 1));
+        }
+      }
     } catch {
       // Keep walking: application directories need not contain package.json.
     }

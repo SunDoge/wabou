@@ -256,7 +256,14 @@ async function findWorkspacePackages(root) {
 	for (;;) {
 		try {
 			const manifest = JSON.parse(await readFile(join(directory, "package.json"), "utf8"));
-			if (Array.isArray(manifest.workspaces)) return join(directory, "packages");
+			if (Array.isArray(manifest.workspaces)) {
+				const packageWorkspace = manifest.workspaces.find((workspace) => typeof workspace === "string" && workspace.split(/[\\/]/).includes("packages"));
+				if (packageWorkspace) {
+					const segments = packageWorkspace.split(/[\\/]/);
+					const packages = segments.lastIndexOf("packages");
+					return resolve(directory, ...segments.slice(0, packages + 1));
+				}
+			}
 		} catch {}
 		const parent = dirname(directory);
 		if (parent === directory || directory === parse(directory).root) return;
