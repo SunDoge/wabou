@@ -794,3 +794,26 @@ test("minimum window layout", async ({ page, window }) => {
 Use `expect.poll(() => value).toBe(expected)` for state that settles across
 asynchronous host turns. DevTools remains a diagnostic interface; behavior
 assertions belong in scenarios.
+
+## Browser paint reference
+
+Use the paint reference when solid colors are correct in the layout snapshot
+but alpha composition, rounded clipping, or shadows look different from a
+browser rendering of the same geometry:
+
+```bash
+bun run test:paint-reference
+```
+
+The command renders one fixed fixture through Wabou/Vello Hybrid and Chromium,
+writes both PNGs plus a difference image under `target/render-reference`, and
+checks normalized RMSE for the full image and focused paint regions. Solid and
+alpha interiors use a near-exact threshold; rounded edges, translucency, and
+shadows have separate tolerances because their rasterization kernels are
+backend-specific. Set `CHROME`, `MAGICK`, or `WABOU_RENDER_COMMAND` when those
+executables are not on `PATH`.
+
+This is a renderer comparison, not a browser-compatibility promise. Do not add
+text to the fixture: Chromium and Wabou intentionally use different font
+resolution and glyph rasterization paths. Text quality requires the focused
+text and HiDPI checks described above.

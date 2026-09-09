@@ -1,4 +1,6 @@
 import { defineLayoutFixtures } from "@wabou/test/layout/fixtures";
+import { rgba } from "@wabou/core";
+import { shadow } from "@wabou/core/style";
 import {
   Button,
   DirectoryPicker,
@@ -43,9 +45,7 @@ function EffectFixture() {
 }
 
 declare global {
-  var __wabou_projection_probe_set_left:
-    | ((value: string) => void)
-    | undefined;
+  var __wabou_projection_probe_set_left: ((value: string) => void) | undefined;
 }
 
 function ProjectionBoundaryProbeFixture() {
@@ -135,6 +135,52 @@ function PiAgentToolbarFixture() {
 }
 
 defineLayoutFixtures({
+  "foundations/paint-reference": {
+    width: 640,
+    height: 420,
+    render: () => (
+      <View
+        aria-label="Browser paint comparison reference"
+        class="relative w-full h-full overflow-hidden"
+        style={{ "background-color": rgba(0xf7f8faff) }}
+      >
+        <View
+          class="absolute left-10 top-10 w-28 h-20"
+          style={{ "background-color": rgba(0x2563ebff) }}
+        />
+        <View
+          class="absolute left-48 top-10 w-28 h-20"
+          style={{ "background-color": rgba(0x2563ebff) }}
+        />
+        <View
+          class="absolute w-20 h-16"
+          style={{
+            left: "232px",
+            top: "60px",
+            "background-color": rgba(0xdc262680),
+          }}
+        />
+        <View class="absolute left-10 top-40 w-36 h-24 rounded-2xl border-2 border-strong bg-surface overflow-hidden">
+          <View
+            class="absolute left-20 top-12 w-24 h-20"
+            style={{ "background-color": rgba(0x14b8a6ff) }}
+          />
+        </View>
+        <View
+          class="absolute left-56 top-40 w-40 h-24 rounded-xl border border-subtle bg-surface"
+          shadows={[
+            shadow({ spread: 1, stdDev: 0, color: 0x0000000a }),
+            shadow({ offsetY: 1, stdDev: 1, color: 0x00000014 }),
+            shadow({ offsetY: 4, stdDev: 5, spread: -2, color: 0x00000010 }),
+          ]}
+        />
+        <View
+          class="absolute left-10 top-72 w-96 h-16 rounded-xl"
+          style={{ "background-color": rgba(0x11182740) }}
+        />
+      </View>
+    ),
+  },
   "foundations/muted-contrast": {
     width: 480,
     height: 180,
@@ -172,7 +218,9 @@ defineLayoutFixtures({
         <Icon
           label="Layout fixture icon"
           size={18}
-          source={'<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/></svg>'}
+          source={
+            '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/></svg>'
+          }
         />
       </View>
     ),
@@ -181,7 +229,11 @@ defineLayoutFixtures({
     width: 1280,
     height: 1200,
     render: () => (
-      <OverviewPage theme="light" onCycleTheme={() => {}} onExplore={() => {}} />
+      <OverviewPage
+        theme="light"
+        onCycleTheme={() => {}}
+        onExplore={() => {}}
+      />
     ),
   },
   "component/DirectoryPicker": {
