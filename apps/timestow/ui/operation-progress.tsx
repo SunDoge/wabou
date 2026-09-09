@@ -78,7 +78,7 @@ export function OperationProgressStatus(props: {
           {props.progress.title ||
             (props.progress.operation === "backup"
               ? "Backing up"
-              : "Extracting")}
+              : "Restoring")}
         </Text>
         <Text class="flex-none text-xs font-mono text-muted">
           {valueLabel()}
@@ -88,7 +88,7 @@ export function OperationProgressStatus(props: {
         label={
           props.progress.operation === "backup"
             ? "Backup progress"
-            : "Extraction progress"
+            : "Restore progress"
         }
         size="sm"
         value={props.progress.current}

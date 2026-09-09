@@ -1,6 +1,10 @@
 # Wabou
 
 [![CI](https://github.com/SunDoge/wabou/actions/workflows/ci.yml/badge.svg)](https://github.com/SunDoge/wabou/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/SunDoge/wabou?include_prereleases&sort=semver)](https://github.com/SunDoge/wabou/releases)
+[![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
+[![Platforms](https://img.shields.io/badge/platforms-macOS%20%7C%20Linux-lightgrey.svg)](#quick-start)
+[![SolidJS 2](https://img.shields.io/badge/SolidJS-2-2c4f7c.svg)](https://www.solidjs.com/)
 
 Wabou is an experimental native UI runtime for building desktop applications with SolidJS and Rust. It runs application logic in QuickJS, then performs layout, painting, and native integration in Rust—without embedding a browser or a WebView.
 

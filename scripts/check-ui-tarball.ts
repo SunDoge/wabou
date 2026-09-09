@@ -57,9 +57,9 @@ await writeFile(
       private: true,
       type: "module",
       dependencies: {
-        "@solidjs/web": "2.0.0-rc.6",
+        "@solidjs/web": "2.0.0-rc.7",
         "@wabou/ui": `file:${uiTarball}`,
-        "solid-js": "2.0.0-rc.6",
+        "solid-js": "2.0.0-rc.7",
       },
       devDependencies: {
         "@wabou/vite": `file:${viteTarball}`,

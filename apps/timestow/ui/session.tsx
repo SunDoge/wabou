@@ -11,6 +11,7 @@ import {
 } from "solid-js";
 import {
   type BackupProfile,
+  type RepositoryKind,
   type RuntimeStatus,
   type SnapshotEntry,
   useRusticApi,
@@ -37,6 +38,7 @@ export interface ConnectProfileInput {
   id?: string;
   name: string;
   repositoryPath: string;
+  repositoryKind?: RepositoryKind;
   passwordSlot: string;
   confirmationSlot?: string;
   sources?: string[];
@@ -338,6 +340,7 @@ export function TimestowSessionProvider(props: {
       id: input.id ?? crypto.randomUUID(),
       name: input.name.trim(),
       repositoryPath: input.repositoryPath.trim(),
+      repositoryKind: input.repositoryKind ?? "local",
       sources: [...(input.sources ?? [])],
       ...(existing?.schedule ? { schedule: existing.schedule } : {}),
     };
@@ -347,6 +350,9 @@ export function TimestowSessionProvider(props: {
       id: profile.id,
       name: profile.name,
       path: profile.repositoryPath,
+      ...(profile.repositoryKind === "rusticConfig"
+        ? { configPath: profile.repositoryPath }
+        : {}),
       passwordSlot: input.passwordSlot,
       sources: profile.sources,
     };

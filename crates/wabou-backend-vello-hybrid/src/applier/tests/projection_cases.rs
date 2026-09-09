@@ -405,6 +405,52 @@ fn pointer_target_transitions_emit_over_enter_out_and_leave() {
 }
 
 #[test]
+fn geometry_changes_reconcile_hover_without_pointer_motion() {
+    let mut applier = interactive_applier();
+    applier.handle_event(pointer(PointerPhase::Move, 20.0, 20.0, 0));
+    assert_eq!(
+        applier.interaction.input.hovered_target,
+        Some(NodeKey::new(2, 1))
+    );
+
+    // Scrolling and virtual-row replacement can move the painted target while
+    // the native cursor remains stationary and no pointer-move is delivered.
+    applier.interaction.input.hit_items.clear();
+    assert!(applier.reconcile_primary_hover_target());
+
+    let codes = applier
+        .runtime
+        .js
+        .with(|ctx| ctx.eval::<Vec<u8>, _>("globalThis.dispatched.map((x) => x[1])"))
+        .expect("read dispatched events");
+    assert_eq!(
+        codes,
+        vec![
+            event::POINTEROVER,
+            event::POINTERENTER,
+            event::POINTERMOVE,
+            event::POINTEROUT,
+            event::POINTERLEAVE,
+        ]
+    );
+    assert!(applier.interaction.input.hovered_target.is_none());
+}
+
+#[test]
+fn geometry_changes_do_not_invent_hover_before_pointer_entry() {
+    let mut applier = interactive_applier();
+
+    assert!(!applier.reconcile_primary_hover_target());
+    let event_count = applier
+        .runtime
+        .js
+        .with(|ctx| ctx.eval::<usize, _>("globalThis.dispatched.length"))
+        .expect("read dispatched event count");
+    assert_eq!(event_count, 0);
+    assert!(applier.interaction.input.hovered_target.is_none());
+}
+
+#[test]
 fn crossing_descendants_keeps_the_interactive_ancestor_hovered() {
     let mut applier = interactive_applier();
     let view = applier.document.atoms.borrow_mut().intern("view");

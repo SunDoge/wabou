@@ -3232,7 +3232,7 @@
   }
   installFetchPolyfill();
 
-  // node_modules/.bun/@solidjs+signals@2.0.0-rc.6/node_modules/@solidjs/signals/dist/dev.js
+  // node_modules/.bun/@solidjs+signals@2.0.0-rc.7/node_modules/@solidjs/signals/dist/dev.js
   class NotReadyError extends Error {
     source;
     constructor(source) {
@@ -3296,6 +3296,7 @@
   var CONFIG_DIRECT_COMMIT = 1 << 15;
   var CONFIG_FRESH_READ = 1 << 16;
   var CONFIG_HELD_TRUTH = 1 << 17;
+  var CONFIG_SLOT_NODE = 1 << 18;
   var STATUS_PENDING = 1 << 0;
   var STATUS_ERROR = 1 << 1;
   var STATUS_UNINITIALIZED = 1 << 2;
@@ -3326,7 +3327,9 @@
     hotTime: { budgetMs: 8, windowMs: 1000 },
     unstableMemos: 4,
     wideWrites: 250,
-    waterfalls: { minFlightMs: 50 }
+    waterfalls: { minFlightMs: 50 },
+    holds: { infoMs: 100, warnMs: 200 },
+    longHolds: { infoMs: 500, warnMs: 1000 }
   };
   var options = { ...defaultOptions };
   var listeners = new Set;
@@ -3403,6 +3406,76 @@
     return raw.slice(1).filter((line) => !/(?:^|[/\\])(?:packages[/\\])?signals[/\\](src|dist)[/\\]/.test(line)).slice(0, 3).map((line) => line.trim());
   }
   var NO_VALUES = Symbol("no-values");
+  var EXTERNAL_ORIGIN = { kind: "external" };
+  var originFrames = [];
+  var actionInteractions = new WeakMap;
+  var currentInteraction = null;
+  function interactionOf(origin) {
+    if (origin === undefined)
+      return;
+    return origin.kind === "interaction" ? origin : origin.interaction;
+  }
+  function interactionIn(causes) {
+    for (const c2 of causes) {
+      const found = c2.kind === "derived" ? c2.causes !== undefined ? interactionIn(c2.causes) : undefined : interactionOf(c2.origin);
+      if (found !== undefined)
+        return found;
+    }
+    return;
+  }
+  function currentOrigin() {
+    const frame = originFrames[originFrames.length - 1];
+    if (frame !== undefined)
+      return frame;
+    return currentInteraction ?? EXTERNAL_ORIGIN;
+  }
+  var effectFrames = new WeakMap;
+  function pushFrame(kind, name, interaction, effect) {
+    const frame = { kind };
+    if (name)
+      frame.name = name;
+    const under = interaction ?? currentInteraction ?? undefined;
+    if (under !== undefined)
+      frame.interaction = under;
+    if (effect !== undefined) {
+      const node = effect;
+      if (node._devRunSeq !== undefined)
+        frame.run = node._devRunSeq;
+      effectFrames.set(frame, { node: effect, causes: node._devRunCauses });
+    }
+    originFrames.push(frame);
+  }
+  function popFrame(kind) {
+    const top = originFrames[originFrames.length - 1];
+    if (top !== undefined && top.kind === kind)
+      originFrames.pop();
+  }
+  function withInteraction(ref, fn) {
+    const prev = currentInteraction;
+    const origin = { kind: "interaction", name: ref.type, at: ref.at ?? now() };
+    if (ref.target)
+      origin.target = ref.target;
+    currentInteraction = origin;
+    try {
+      return fn();
+    } finally {
+      currentInteraction = prev;
+    }
+  }
+  function formatOrigin(origin) {
+    switch (origin.kind) {
+      case "interaction":
+        return `${origin.name} on ${origin.target ?? "an element"}`;
+      case "effect":
+        return `effect${origin.name ? ` "${origin.name}"` : ""}`;
+      case "action":
+        return `action${origin.name ? ` "${origin.name}"` : ""}`;
+      case "async":
+        return `async landing${origin.name ? ` on "${origin.name}"` : ""}`;
+      default:
+        return "outside the reactive system";
+    }
+  }
   function checkWideWrite(node, kind) {
     const limit = options.wideWrites;
     if (typeof limit !== "number")
@@ -3413,16 +3486,15 @@
       return;
     attributed._devWideWriteWarnedAt = subs;
     const verb = kind === "refresh" ? "refresh of" : kind === "async" ? "async landing on" : "write to";
-    const message = `[WIDE_WRITE] ${verb} "${nodeName(node)}" reached ${subs} subscribers — every one ` + `re-runs this flush. If consumers ask keyed questions of this value (for example every ` + `row comparing against one selected id), invert with createSelector or createProjection ` + `so only the keys whose answer flipped update.`;
-    emitDiagnostic({
+    const message = `[WIDE_WRITE] ${verb} "${nodeName(node)}" reached ${subs} subscribers — every one ` + `re-runs this flush. If consumers ask keyed questions of this value (for example every ` + `row comparing against one selected id), invert it: keep the answer in a store used as a ` + `map keyed by id, so each consumer reads its own key and only the keys that flipped update.`;
+    reportDiagnostic(emitDiagnostic({
       code: "WIDE_WRITE",
       kind: "perf",
       severity: "warn",
       message,
       nodeName: nodeName(node),
       data: { subscribers: subs, write: kind }
-    });
-    console.warn(message);
+    }, node));
   }
   function stampWrite(node, kind, prev = NO_VALUES, value = NO_VALUES) {
     const record = { seq: ++changeSeq, kind, name: nodeName(node) };
@@ -3430,8 +3502,12 @@
       record.prev = prev === NO_VALUES ? undefined : preview(prev);
       record.value = preview(value);
     }
+    record.origin = kind === "async" ? asyncOrigin(node) : currentOrigin();
+    record.at = now();
     record.stack = captureStack();
     node._devChange = record;
+    if (kind === "write")
+      trackEffectWrite(node, record, value);
     checkWideWrite(node, kind);
   }
   function stampDerived(node, causes) {
@@ -3481,15 +3557,14 @@
     node._devWideWarnedAt = count;
     const kind = el._type ? "effect" : "memo";
     const message = `[WIDE_SCOPE_DEPS] ${kind} "${nodeName(el)}" is subscribed to ${count} sources — ` + `it re-runs when any of them change. Narrow its reads or split it into smaller memos. ` + `Sources: ${names.join(", ")}${count > names.length ? ", …" : ""}`;
-    emitDiagnostic({
+    reportDiagnostic(emitDiagnostic({
       code: "WIDE_SCOPE_DEPS",
       kind: "perf",
       severity: "warn",
       message,
       nodeName: nodeName(el),
       data: { depCount: count, deps: names }
-    });
-    console.warn(message);
+    }, el));
   }
   var hotCauses = new Map;
   var HOT_FANOUT_FIRST_MILESTONE = 5;
@@ -3521,7 +3596,7 @@
     if (window2.scopes === 1) {
       const rootCause = event.causes.map((c2) => `"${c2.name}" (${c2.kind})`).join(", ");
       const message2 = `[HOT_SCOPE_RERUNS] ${event.nodeKind} "${event.nodeName}" re-ran ${node._devWinCount} times ` + `in ${Math.max(1, now2 - node._devWinStart)}ms — a hot signal is likely leaking into this ` + `scope. Latest cause: ${rootCause || "(untracked pull)"}`;
-      emitDiagnostic({
+      reportDiagnostic(emitDiagnostic({
         code: "HOT_SCOPE_RERUNS",
         kind: "perf",
         severity: "warn",
@@ -3532,23 +3607,21 @@
           windowMs: cfg.windowMs,
           causes: event.causes.map((c2) => c2.name)
         }
-      });
-      console.warn(message2);
+      }, el));
       return;
     }
     if (window2.scopes < window2.nextMilestone)
       return;
     window2.nextMilestone *= 10;
-    const message = `[HOT_SCOPE_FANOUT] ${window2.scopes} scopes have gone hot (${window2.runs} re-runs) within ` + `${cfg.windowMs}ms, all driven by ${causeKey} — one hot cause is re-running a large part ` + `of the graph. Per-scope warnings are suppressed; fix the cause. If consumers ask keyed ` + `questions of it, invert with createSelector or createProjection.`;
-    emitDiagnostic({
+    const message = `[HOT_SCOPE_FANOUT] ${window2.scopes} scopes have gone hot (${window2.runs} re-runs) within ` + `${cfg.windowMs}ms, all driven by ${causeKey} — one hot cause is re-running a large part ` + `of the graph. Per-scope warnings are suppressed; fix the cause. If consumers ask keyed ` + `questions of it, invert it: a store used as a map keyed by id, one key per consumer.`;
+    reportDiagnostic(emitDiagnostic({
       code: "HOT_SCOPE_FANOUT",
       kind: "perf",
       severity: "warn",
       message,
       nodeName: causeKey,
       data: { cause: causeKey, scopes: window2.scopes, runs: window2.runs, windowMs: cfg.windowMs }
-    });
-    console.warn(message);
+    }, null));
   }
   function checkHotTime(el, event) {
     const cfg = options.hotTime;
@@ -3567,7 +3640,7 @@
     node._devTimeWarned = true;
     const rootCause = event.causes.map((c2) => `"${c2.name}" (${c2.kind})`).join(", ");
     const message = `[HOT_SCOPE_TIME] ${event.nodeKind} "${event.nodeName}" spent ` + `${node._devTimeWinMs.toFixed(1)}ms of compute inside one ${cfg.windowMs}ms window ` + `(budget ${cfg.budgetMs}ms). Latest cause: ${rootCause || "(untracked pull)"}`;
-    emitDiagnostic({
+    reportDiagnostic(emitDiagnostic({
       code: "HOT_SCOPE_TIME",
       kind: "perf",
       severity: "warn",
@@ -3579,11 +3652,11 @@
         windowMs: cfg.windowMs,
         causes: event.causes.map((c2) => c2.name)
       }
-    });
-    console.warn(message);
+    }, el));
   }
   function recordRerun(el, causes, prevDeps, timing, changed, phase, held) {
     const node = el;
+    const prevCauses = node._devRunCauses;
     const newDeps = captureDeps(el);
     const prevSet = new Set(prevDeps);
     const newSet = new Set(newDeps);
@@ -3611,23 +3684,39 @@
       phase,
       held
     };
+    const interaction = interactionIn(causes);
+    if (interaction !== undefined)
+      event.interaction = interaction;
+    node._devRunInteraction = interaction;
+    node._devRunSeq = event.run;
+    node._devRunCauses = causes;
     history.push(event);
     if (history.length > options.historyLimit)
       history.shift();
     recordCosts(event);
+    recordFeedbackRun(event);
+    if (event.nodeKind === "effect")
+      checkEffectCycle(el, causes);
+    checkRelayTear(el, causes, prevCauses);
     checkHotRuns(el, event);
     checkHotTime(el, event);
     checkDepWidth(el);
     for (const listener of listeners)
       listener(event);
     if (options.log)
-      console.log(formatRerun(event));
+      logRerun(event);
   }
   function formatCause(cause, depth, out) {
     const pad = "  ".repeat(depth + 1);
     let line = `${pad}← ${cause.kind === "derived" ? "memo" : "signal"} "${cause.name}" ${cause.kind === "derived" ? "changed" : cause.kind} (#${cause.seq})`;
     if (cause.prev !== undefined)
       line += ` ${cause.prev} → ${cause.value}`;
+    if (cause.origin !== undefined && cause.origin.kind !== "external") {
+      line += ` — ${formatOrigin(cause.origin)}`;
+      const under = cause.origin.interaction;
+      if (under !== undefined)
+        line += ` (under ${formatOrigin(under)})`;
+    }
     out.push(line);
     if (cause.stack)
       for (const frame of cause.stack)
@@ -3652,6 +3741,18 @@
     }
     return out.join(`
 `);
+  }
+  function logRerun(event) {
+    const text = formatRerun(event);
+    const nl = text.indexOf(`
+`);
+    if (nl === -1 || typeof console.groupCollapsed !== "function") {
+      console.log(text);
+      return;
+    }
+    console.groupCollapsed(text.slice(0, nl));
+    console.log(text.slice(nl + 1));
+    console.groupEnd();
   }
   function isPlainShape(v2) {
     if (v2 === null || typeof v2 !== "object")
@@ -3701,15 +3802,330 @@
     node._devUnstableWarned = true;
     const shape = Array.isArray(newValue) ? "array" : "object";
     const message = `[UNSTABLE_MEMO_OUTPUT] memo "${nodeName(el)}" produced a new-but-equivalent ${shape} on ` + `${node._devUnstableRuns} consecutive runs — its equality gate never closes, so every ` + `subscriber re-runs on every upstream change. Return stable references or pass an ` + `\`equals\` option.`;
-    emitDiagnostic({
+    reportDiagnostic(emitDiagnostic({
       code: "UNSTABLE_MEMO_OUTPUT",
       kind: "perf",
       severity: "warn",
       message,
       nodeName: nodeName(el),
       data: { runs: node._devUnstableRuns, shape }
-    });
-    console.warn(message);
+    }, el));
+  }
+  var EFFECT_CYCLE_MAX_HOPS = 6;
+  var reportedCycles = new Set;
+  var nextDevId = 0;
+  var devIds = new WeakMap;
+  function devId(node) {
+    let id = devIds.get(node);
+    if (id === undefined)
+      devIds.set(node, id = ++nextDevId);
+    return id;
+  }
+  function rootWrites(causes, out) {
+    for (const c2 of causes) {
+      if (c2.kind === "derived") {
+        if (c2.causes !== undefined)
+          rootWrites(c2.causes, out);
+      } else
+        out.push(c2);
+    }
+  }
+  function findEffectCycle(target, causes, visited, hops) {
+    const roots = [];
+    rootWrites(causes, roots);
+    for (const write of roots) {
+      const origin = write.origin;
+      if (origin === undefined || origin.kind !== "effect")
+        continue;
+      const info = effectFrames.get(origin);
+      if (info === undefined)
+        continue;
+      if (info.node === target)
+        return [{ effect: info.node, write }];
+      if (hops >= EFFECT_CYCLE_MAX_HOPS || visited.has(info.node) || info.causes === undefined)
+        continue;
+      visited.add(info.node);
+      const rest = findEffectCycle(target, info.causes, visited, hops + 1);
+      if (rest !== null) {
+        rest.push({ effect: info.node, write });
+        return rest;
+      }
+    }
+    return null;
+  }
+  function derivedPath(causes, write, path) {
+    for (const c2 of causes) {
+      if (c2 === write)
+        return true;
+      if (c2.kind === "derived" && c2.causes !== undefined) {
+        path.unshift(c2.name);
+        if (derivedPath(c2.causes, write, path))
+          return true;
+        path.shift();
+      }
+    }
+    return false;
+  }
+  function describeWrite(write) {
+    if (write.kind === "refresh")
+      return `refreshed "${write.name}"`;
+    const values = write.prev !== undefined ? ` (${write.prev} → ${write.value})` : "";
+    return `wrote "${write.name}"${values}`;
+  }
+  function checkEffectCycle(el, causes) {
+    const links = findEffectCycle(el, causes, new Set([el]), 0);
+    if (links === null)
+      return;
+    const key = links.map((link) => devId(link.effect)).sort((a2, b2) => a2 - b2).join(",");
+    if (reportedCycles.has(key))
+      return;
+    reportedCycles.add(key);
+    const flushes = links.length + 1;
+    let message;
+    if (links.length === 1) {
+      const [{ write }] = links;
+      const path = [];
+      derivedPath(causes, write, path);
+      const via = path.length > 0 ? ` through ${path.map((n2) => `memo "${n2}"`).join(" → ")}` : "";
+      message = `[EFFECT_WRITES_OWN_SOURCE] effect "${nodeName(el)}" re-ran because of its own write: it ` + `${describeWrite(write)}, which fed back into its inputs${via}. Two flushes to settle, ` + `and the screen rendered the pre-write value in between. The written value is a function ` + `of what the effect reads — compute it in a memo (or normalize where the source is ` + `written) instead of correcting it after the fact.`;
+    } else {
+      const names = links.map((link) => `"${nodeName(link.effect)}"`);
+      const steps = links.map((link, i2) => `effect ${names[i2]}${i2 > 0 ? " re-ran and" : ""} ${describeWrite(link.write)}`).join("; ");
+      message = `[EFFECT_WRITES_OWN_SOURCE] effects ${[...names, names[0]].join(" → ")} relay writes in a ` + `cycle: ${steps}; which fed back into effect ${names[0]}'s inputs — ${flushes} flushes to ` + `settle after each change, each rendering an intermediate state. Every relayed value is a ` + `function of the original inputs: derive them in memos and drop the writes.`;
+    }
+    const severity = links.length === 1 ? "warn" : "info";
+    const entry = emitDiagnostic({
+      code: "EFFECT_WRITES_OWN_SOURCE",
+      kind: "perf",
+      severity,
+      message,
+      nodeName: nodeName(el),
+      data: {
+        effects: links.map((link) => nodeName(link.effect)),
+        writes: links.map((link) => ({
+          effect: nodeName(link.effect),
+          kind: link.write.kind,
+          name: link.write.name,
+          prev: link.write.prev,
+          value: link.write.value
+        })),
+        flushes
+      }
+    }, el);
+    if (severity === "warn")
+      reportDiagnostic(entry);
+  }
+  var RELAY_WARN_AT = 3;
+  var relays = new Map;
+  var copyWrites = new WeakSet;
+  var copyReported = new WeakSet;
+  var recordNodes = new WeakMap;
+  function trackEffectWrite(node, record, value) {
+    const n2 = node;
+    const origin = record.origin;
+    const info = origin !== undefined && origin.kind === "effect" ? effectFrames.get(origin) : undefined;
+    const writer = info === undefined ? 0 : devId(info.node);
+    recordNodes.set(record, node);
+    n2._devSoleWriter = n2._devSoleWriter === undefined || n2._devSoleWriter === writer ? writer : null;
+    if (info !== undefined && value !== undefined && value === info.node._value) {
+      copyWrites.add(record);
+      n2._devCopyRuns = n2._devCopyFrom === writer ? (n2._devCopyRuns ?? 0) + 1 : 1;
+      n2._devCopyFrom = writer;
+      if (n2._devCopyRuns >= 2 && n2._devSoleWriter === writer)
+        checkCopyEffect(info.node, node);
+    } else
+      n2._devCopyRuns = 0;
+  }
+  function passthroughSource(effect) {
+    for (let l2 = effect._deps;l2 !== null; l2 = l2._nextDep)
+      if (l2._dep._value === effect._value)
+        return nodeName(l2._dep);
+    return;
+  }
+  function copyRepair(effect, target) {
+    const source = passthroughSource(effect);
+    return source !== undefined ? `The written value is "${source}" itself: read "${source}" where "${target}" is read ` + `(or createMemo it if a stable derivation is needed) and delete the effect.` : `The written value is the effect's compute output — by contract a pure function of ` + `what it tracks: make "${target}" a memo of that computation and delete the effect.`;
+  }
+  function checkCopyEffect(effect, target) {
+    if (copyReported.has(target))
+      return;
+    copyReported.add(target);
+    const name = nodeName(target);
+    const message = `[EFFECT_RELAY_TEAR] effect "${nodeName(effect)}" writes its compute output into ` + `"${name}" on every run, and nothing else writes "${name}" — it is derived state kept ` + `one flush late: everything reading it paints a frame behind everything reading the ` + `source. ${copyRepair(effect, name)}`;
+    reportDiagnostic(emitDiagnostic({
+      code: "EFFECT_RELAY_TEAR",
+      kind: "perf",
+      severity: "warn",
+      message,
+      nodeName: nodeName(effect),
+      data: {
+        relay: nodeName(effect),
+        wrote: name,
+        copy: true,
+        passthrough: passthroughSource(effect) ?? null,
+        soleWriter: true
+      }
+    }, effect));
+  }
+  function checkRelayTear(victim, causes, prevCauses) {
+    if (prevCauses === undefined || causes.length === 0)
+      return;
+    const roots = [];
+    rootWrites(causes, roots);
+    if (roots.length === 0)
+      return;
+    let relay;
+    let write;
+    let shared;
+    for (const root of roots) {
+      const origin = root.origin;
+      if (origin === undefined || origin.kind !== "effect")
+        return;
+      const info = effectFrames.get(origin);
+      if (info === undefined || info.node === victim || info.causes === undefined)
+        return;
+      if (shared === undefined) {
+        const relayRoots = [];
+        rootWrites(info.causes, relayRoots);
+        const prevRoots = [];
+        rootWrites(prevCauses, prevRoots);
+        const hit = relayRoots.find((r2) => prevRoots.includes(r2));
+        if (hit !== undefined) {
+          shared = hit;
+          relay = info;
+          write = root;
+        }
+      }
+    }
+    if (shared === undefined || relay === undefined || write === undefined)
+      return;
+    const key = `${devId(relay.node)}:${write.name}`;
+    let state = relays.get(key);
+    if (state === undefined)
+      relays.set(key, state = { count: 0, warned: false });
+    state.count++;
+    const copy = copyWrites.has(write);
+    const target = recordNodes.get(write);
+    const soleWriter = target !== undefined && target._devSoleWriter === devId(relay.node);
+    const derivable = copy && soleWriter;
+    const severity = derivable || state.count >= RELAY_WARN_AT ? "warn" : "info";
+    if (state.count > 1 && (severity !== "warn" || state.warned))
+      return;
+    if (derivable && target !== undefined) {
+      if (copyReported.has(target))
+        return;
+      copyReported.add(target);
+    }
+    if (severity === "warn")
+      state.warned = true;
+    const victimKind = victim._type ? "effect" : "memo";
+    const relayName = nodeName(relay.node);
+    const repair = derivable ? copyRepair(relay.node, write.name) : copy ? `The written value is the effect's compute output, but "${write.name}" has other ` + `writers — editable state reset from a source. If the reset is the intent, the tear ` + `is its cost; if "${write.name}" only ever mirrors the source, drop the local copy ` + `and read the source.` : soleWriter ? `Nothing else writes "${write.name}" — it is derived state: make it a memo over what ` + `the effect reads and every reader gets it in the same flush.` : `If "${write.name}" is computed from what the effect reads, make it a memo so readers ` + `get it in the same flush; if the write reads something outside the graph (layout, ` + `time), the tear is the cost of measuring.`;
+    const message = `[EFFECT_RELAY_TEAR] ${victimKind} "${nodeName(victim)}" ran twice for one write of ` + `"${shared.name}": once in the flush where "${shared.name}" changed, and again after ` + `effect "${relayName}" relayed it by writing "${write.name}" — the first frame showed the ` + `new "${shared.name}" with the stale "${write.name}"` + (state.count > 1 ? ` (${state.count} times so far)` : "") + `. ${repair}`;
+    const entry = emitDiagnostic({
+      code: "EFFECT_RELAY_TEAR",
+      kind: "perf",
+      severity,
+      message,
+      nodeName: nodeName(victim),
+      data: {
+        victim: nodeName(victim),
+        root: shared.name,
+        relay: relayName,
+        wrote: write.name,
+        copy,
+        passthrough: copy ? passthroughSource(relay.node) ?? null : null,
+        soleWriter,
+        occurrences: state.count
+      }
+    }, victim);
+    if (severity === "warn")
+      reportDiagnostic(entry);
+  }
+  var immutableReported = new Set;
+  function checkImmutableUpdate(path, isArray, total, same, prevTotal) {
+    if (immutableReported.has(path) || total < 2)
+      return;
+    if (isArray && Math.abs(prevTotal - total) > Math.max(1, total >> 2))
+      return;
+    if (same === 0 || same * 2 < total)
+      return;
+    immutableReported.add(path);
+    const changed = total - same;
+    const shape = isArray ? "array" : "object";
+    const repair = isArray ? `mutate the draft in place (push/splice/index assignment) so only the touched ` + `indices notify` : `assign the leaf on the draft (\`${path}.<key> = …\`) so only readers of that key re-run`;
+    const message = `[IMMUTABLE_UPDATE_IN_STORE] "${path}" was replaced with a fresh ${shape} whose ` + `${isArray ? "items" : "leaves"} are mostly the same values (${same} of ${total} unchanged` + `${changed > 0 ? `, ${changed} changed` : ""}) — a spread-copy update. The store already ` + `tracks ${isArray ? "items" : "leaves"}; a new container makes every reader of "${path}" ` + `re-run for the ${changed === 1 ? "one that" : "few that"} moved. Instead, ${repair}. For ` + `data arriving from outside (a fetch result), merge it with reconcile(data, key)(${path}).`;
+    reportDiagnostic(emitDiagnostic({
+      code: "IMMUTABLE_UPDATE_IN_STORE",
+      kind: "perf",
+      severity: "warn",
+      message,
+      nodeName: path,
+      data: { path, shape, total, unchanged: same, changed }
+    }));
+  }
+  var LIST_CHURN_SAMPLE = 8;
+  var listIdentityWarned = new WeakSet;
+  function recordId(item) {
+    if (item === null || typeof item !== "object")
+      return;
+    const o2 = item;
+    return o2.id ?? o2.key ?? o2._id ?? undefined;
+  }
+  function checkListIdentity(el, removed, created, newLen, keyed) {
+    if (listIdentityWarned.has(el))
+      return;
+    if (created.length < 2 || created.length * 2 < newLen)
+      return;
+    if (Math.abs(removed.length - created.length) > Math.max(1, created.length >> 2))
+      return;
+    const byId = new Map;
+    for (const item of removed) {
+      const id = recordId(item);
+      if (id !== undefined)
+        byId.set(id, item);
+    }
+    let sampled = 0;
+    let equivalent = 0;
+    const step = Math.max(1, Math.floor(created.length / LIST_CHURN_SAMPLE));
+    for (let i2 = 0;i2 < created.length && sampled < LIST_CHURN_SAMPLE; i2 += step) {
+      const item = created[i2];
+      const id = recordId(item);
+      const prev = id !== undefined ? byId.get(id) : removed[i2];
+      if (prev === undefined || !isPlainShape(prev) || !isPlainShape(item))
+        continue;
+      sampled++;
+      if (shallowEquivalent(prev, item))
+        equivalent++;
+    }
+    if (sampled === 0 || equivalent * 2 < sampled)
+      return;
+    listIdentityWarned.add(el);
+    const name = nodeName(el);
+    const repair = keyed ? `The key function returned different keys for equivalent records — return a stable ` + `field (\`keyed: item => item.id\`), not the object or a computed value that changes ` + `with the fetch.` : `Key the list by a stable field (\`keyed: item => item.id\`), or merge the data into ` + `a store with reconcile(data, "id") so the same records keep the same identity.`;
+    const message = `[UNSTABLE_LIST_IDENTITY] list "${name}" recreated ${created.length} of ${newLen} rows on ` + `an update where the entering items are equivalent to the ones they replaced ` + `(${equivalent} of ${sampled} sampled pairs identical field-for-field) — fresh objects ` + `for the same records, so identity keying threw away every row's DOM and state and ` + `rebuilt it. ${repair}`;
+    reportDiagnostic(emitDiagnostic({
+      code: "UNSTABLE_LIST_IDENTITY",
+      kind: "perf",
+      severity: "warn",
+      message,
+      nodeName: name,
+      data: {
+        removed: removed.length,
+        created: created.length,
+        length: newLen,
+        sampled,
+        equivalent,
+        keyed
+      }
+    }, el));
+  }
+  function asyncOrigin(el) {
+    const origin = { kind: "async", name: nodeName(el) };
+    const interaction = liveFlights.get(el)?.interaction;
+    if (interaction !== undefined)
+      origin.interaction = interaction;
+    return origin;
   }
   var liveFlights = new WeakMap;
   var landedFlights = new WeakMap;
@@ -3729,27 +4145,33 @@
     return best;
   }
   function trackFlightStart(el, flight) {
-    if (options.waterfalls === false)
-      return;
     const at2 = now();
     const origin = flightOrigins.get(flight) ?? at2;
     if (origin === at2)
       flightOrigins.set(flight, at2);
-    let parent = null;
+    const stats = flightBucket(el);
+    stats.flights++;
+    if (liveFlights.has(el))
+      stats.abandoned++;
+    let causes = null;
     for (let i2 = frames.length - 1;i2 >= 0; i2--) {
-      const causes = frames[i2].causes;
-      if (causes !== null) {
-        parent = flightCauseIn(causes);
+      if (frames[i2].causes !== null) {
+        causes = frames[i2].causes;
         break;
       }
     }
-    if (parent !== null && origin < parent.landedAt)
-      parent = null;
-    liveFlights.set(el, {
-      origin,
-      startSeq: changeSeq,
-      chain: parent === null ? [] : [...parent.chain, { name: parent.name, ms: parent.ms }]
-    });
+    const live = { origin, startSeq: changeSeq, chain: [] };
+    const interaction = causes !== null ? interactionIn(causes) : currentInteraction ?? undefined;
+    if (interaction !== undefined)
+      live.interaction = interaction;
+    if (options.waterfalls !== false && causes !== null) {
+      let parent = flightCauseIn(causes);
+      if (parent !== null && origin < parent.landedAt)
+        parent = null;
+      if (parent !== null)
+        live.chain = [...parent.chain, { name: parent.name, ms: parent.ms }];
+    }
+    liveFlights.set(el, live);
   }
   function finalizeFlight(el) {
     const flight = liveFlights.get(el);
@@ -3758,6 +4180,11 @@
     liveFlights.delete(el);
     const landedAt = now();
     const ms = landedAt - flight.origin;
+    const stats = flightBucket(el);
+    stats.landed++;
+    stats.landedMs += ms;
+    if (ms > stats.worstMs)
+      stats.worstMs = ms;
     const record = el._devChange;
     if (record !== undefined && record.kind === "async" && record.seq > flight.startSeq)
       landedFlights.set(record, { name: nodeName(el), ms, chain: flight.chain, landedAt });
@@ -3793,16 +4220,394 @@
     const path = links.map((l2) => `"${l2.name}" (${l2.ms.toFixed(0)}ms)`).join(" → ");
     const message = `[ASYNC_WATERFALL] ${seq} sequential async flights — ${path} — ` + `${totalMs.toFixed(0)}ms serialized: each began only after the previous resolved ` + `(as far as this graph can see). If a later request doesn't need the earlier ` + `response, derive both from the same inputs so they start together; if the ` + `dependency is intrinsic, preload the dependent data or join the requests ` + `server-side. If this work WAS already started elsewhere (a preloader or request ` + `cache), have that layer stamp its promises with DEV.attribution.markFlight().`;
     const severity = seq > 2 ? "warn" : "info";
-    emitDiagnostic({
+    const entry = emitDiagnostic({
       code: "ASYNC_WATERFALL",
       kind: "perf",
       severity,
       message,
       nodeName: nodeName(el),
       data: { chain: links.map((l2) => ({ name: l2.name, ms: l2.ms })), sequentialMs: totalMs }
-    });
+    }, el);
     if (severity === "warn")
-      console.warn(message);
+      reportDiagnostic(entry);
+  }
+  var holdStates = new WeakMap;
+  var activeHold = null;
+  var holdLog = [];
+  function isCompanion(node) {
+    return !!node._x && node._x._parentSource !== undefined;
+  }
+  function censusRegistrations(t2, state) {
+    for (const node of t2._optimisticNodes)
+      if (!isCompanion(node))
+        state.acknowledgedBy.add(`optimistic:${nodeName(node)}`);
+    for (const store of t2._optimisticStores)
+      state.acknowledgedBy.add(`optimistic:${store?._name ?? "store"}`);
+    for (const node of t2._affectsNodes)
+      state.acknowledgedBy.add(`affects:${nodeName(node)}`);
+  }
+  var HOLD_CENSUS_CAP = 1e4;
+  function censusCompanions(roots, out) {
+    const visited = new Set;
+    const stack = [...roots];
+    while (stack.length > 0 && visited.size < HOLD_CENSUS_CAP) {
+      const node = stack.pop();
+      if (visited.has(node))
+        continue;
+      visited.add(node);
+      const x2 = node._x;
+      if (x2) {
+        if (x2._pendingSignal !== undefined && x2._pendingSignal._subs !== null)
+          out.add(`isPending:${nodeName(node)}`);
+        if (x2._latestValueComputed !== undefined && x2._latestValueComputed._subs !== null)
+          out.add(`latest:${nodeName(node)}`);
+        for (let child = x2._child ?? null;child !== null; child = child._nextChild ?? null)
+          stack.push(child);
+      }
+      for (let s2 = node._subs;s2 !== null; s2 = s2._nextSub)
+        stack.push(s2._sub);
+    }
+  }
+  function holdState(t2) {
+    let state = holdStates.get(t2);
+    if (state === undefined) {
+      state = {
+        start: now(),
+        flushes: 0,
+        blockers: new Set,
+        acknowledgedBy: new Set,
+        painted: 0,
+        action: false
+      };
+      holdStates.set(t2, state);
+    }
+    return state;
+  }
+  function trackHoldStart(t2) {
+    if (options.holds === false)
+      return;
+    const state = holdState(t2);
+    state.flushes++;
+    if (t2._actions.length > 0)
+      state.action = true;
+    for (const [source, reporters] of t2._asyncReporters)
+      if (reporters.size > 0)
+        state.blockers.add(source);
+    censusRegistrations(t2, state);
+    activeHold = state;
+  }
+  function trackHoldMerge(target, outgoing) {
+    const from = holdStates.get(outgoing);
+    if (from === undefined)
+      return;
+    holdStates.delete(outgoing);
+    const into = holdState(target);
+    if (from.start < into.start)
+      into.start = from.start;
+    into.flushes += from.flushes;
+    into.painted += from.painted;
+    into.action ||= from.action;
+    for (const b2 of from.blockers)
+      into.blockers.add(b2);
+    for (const a2 of from.acknowledgedBy)
+      into.acknowledgedBy.add(a2);
+  }
+  function trackHoldSettled(t2) {
+    const state = holdStates.get(t2);
+    if (state === undefined)
+      return;
+    holdStates.delete(t2);
+    const heldWrites = [];
+    let subject = null;
+    let interaction;
+    let lastJoinAt = -Infinity;
+    for (const node of t2._pendingNodes) {
+      if (typeof node._fn === "function" || isCompanion(node))
+        continue;
+      const change = node._devChange;
+      if (change === undefined || change.kind !== "write")
+        continue;
+      if (subject === null)
+        subject = node;
+      const held = { name: nodeName(node), prev: change.prev, value: change.value };
+      if (change.origin !== undefined)
+        held.origin = change.origin;
+      heldWrites.push(held);
+      const under = interactionOf(change.origin);
+      if (under !== undefined && (interaction === undefined || under.at < interaction.at))
+        interaction = under;
+      if (change.at !== undefined && change.at > lastJoinAt)
+        lastJoinAt = change.at;
+    }
+    if (heldWrites.length === 0)
+      return;
+    censusRegistrations(t2, state);
+    censusCompanions([...t2._pendingNodes, ...state.blockers], state.acknowledgedBy);
+    const end = now();
+    const holdMs = end - Math.min(state.start, interaction !== undefined ? interaction.at : Infinity);
+    const event = {
+      holdMs,
+      tailMs: lastJoinAt === -Infinity ? holdMs : Math.min(holdMs, end - lastJoinAt),
+      flushes: state.flushes,
+      heldWrites,
+      blockers: [...state.blockers].map(nodeName),
+      acknowledgedBy: [...state.acknowledgedBy],
+      paintedDuringHold: state.painted,
+      action: state.action
+    };
+    if (interaction !== undefined)
+      event.interaction = interaction;
+    holdLog.push(event);
+    if (holdLog.length > options.historyLimit)
+      holdLog.shift();
+    recordFeedbackHold(event);
+    if (isSilentHold(event))
+      checkSilentHold(event, subject);
+    else
+      checkLongHold(event, subject);
+  }
+  function isLongHold(event) {
+    const cfg = options.longHolds;
+    return cfg !== false && cfg !== undefined && event.tailMs >= cfg.infoMs;
+  }
+  function describeHeldWrites(event) {
+    return event.heldWrites.map((w2) => w2.prev !== undefined ? `"${w2.name}" (${w2.prev} → ${w2.value})` : `"${w2.name}"`).join(", ");
+  }
+  function describeBlockers(event, lead) {
+    return event.blockers.length > 0 ? ` ${lead} ${event.blockers.map((b2) => `"${b2}"`).join(", ")}` : "";
+  }
+  function boundaryRepair(event) {
+    const key = event.heldWrites[0]?.name ?? "key";
+    return `A wait this long is past what a stale screen should carry: show a fallback instead. Put ` + `the reader behind a Loading boundary keyed on what changed — <Loading on={${key}()} ` + `fallback={…}> — so the write commits at once and the fallback shows where the data lands; ` + `a boundary that has already revealed keeps the old content unless \`on\` changes. If the ` + `data itself is the problem, preload it or cache it so the wait never gets this long.`;
+  }
+  function holdData(event) {
+    const data = {
+      holdMs: event.holdMs,
+      tailMs: event.tailMs,
+      flushes: event.flushes,
+      heldWrites: event.heldWrites.map((w2) => w2.name),
+      blockers: event.blockers,
+      action: event.action
+    };
+    if (event.interaction !== undefined)
+      data.interaction = { type: event.interaction.name, target: event.interaction.target };
+    return data;
+  }
+  function checkSilentHold(event, subject) {
+    const cfg = options.holds;
+    if (cfg === false)
+      return;
+    if (event.holdMs < cfg.infoMs)
+      return;
+    const ms = event.holdMs.toFixed(0);
+    const writes = describeHeldWrites(event);
+    const waitedOn = describeBlockers(event, "waiting on");
+    const who = event.interaction !== undefined ? `${formatOrigin(event.interaction)} ` : "";
+    let message = event.action ? `[SILENT_HOLD] ${who}${who ? "started an action that" : "an action"} held ${writes} for ` + `${ms}ms${waitedOn} and the screen showed nothing for the whole round-trip: no optimistic ` + `value, no isPending() reader, no affects() mark, and no effect ran while it was held. ` + `Pair the action with a createOptimistic/createOptimisticStore write for the expected ` + `outcome (it reverts on failure), or co-write a createOptimistic(false) "saving" flag ` + `the UI reads.` : `[SILENT_HOLD] ${who}${who ? "wrote" : "writes to"} ${writes}${who ? "; the write was" : " were"} ` + `held ${ms}ms${waitedOn} and the screen showed nothing for the wait: no ` + `isPending()/latest() reader downstream, no optimistic value, no affects() mark, and no ` + `effect ran while it was held — the interaction was dead for ${ms}ms. Show the wait: ` + `read isPending(() => ${event.blockers[0] ?? "source"}()) to render a busy state, or ` + `latest(${event.heldWrites[0].name}) to reveal the new input immediately while the data ` + `catches up. The hold itself is correct — do not "fix" this by moving the write off the ` + `async path.`;
+    const long = isLongHold(event);
+    if (long)
+      message += ` ${boundaryRepair(event)}`;
+    const severity = event.holdMs >= cfg.warnMs ? "warn" : "info";
+    const data = holdData(event);
+    data.long = long;
+    const entry = emitDiagnostic({
+      code: "SILENT_HOLD",
+      kind: "responsiveness",
+      severity,
+      message,
+      nodeName: nodeName(subject),
+      data
+    }, subject);
+    if (severity === "warn")
+      reportDiagnostic(entry);
+  }
+  function checkLongHold(event, subject) {
+    const cfg = options.longHolds;
+    if (cfg === false || cfg === undefined)
+      return;
+    if (event.tailMs < cfg.infoMs)
+      return;
+    const tail = event.tailMs.toFixed(0);
+    const writes = describeHeldWrites(event);
+    const waitedOn = describeBlockers(event, "waiting on");
+    const who = event.interaction !== undefined ? `${formatOrigin(event.interaction)} ` : "";
+    const answered = event.acknowledgedBy.length > 0 ? `${event.acknowledgedBy.map((a2) => `"${a2}"`).join(", ")} said it was pending` : `an effect painted meanwhile`;
+    const sinceLast = event.tailMs < event.holdMs - 1 ? ` after the last input (${event.holdMs.toFixed(0)}ms in all)` : "";
+    const message = `[LONG_HOLD] ${who}${who ? "wrote" : "writes to"} ${writes}; the screen kept the old ` + `content for ${tail}ms${sinceLast}${waitedOn} — ${answered}, but the hold ran on well past ` + `the point where "loading" over stale content reads as broken. ${boundaryRepair(event)}`;
+    const severity = event.tailMs >= cfg.warnMs ? "warn" : "info";
+    const data = holdData(event);
+    data.acknowledgedBy = event.acknowledgedBy;
+    const entry = emitDiagnostic({
+      code: "LONG_HOLD",
+      kind: "responsiveness",
+      severity,
+      message,
+      nodeName: nodeName(subject),
+      data
+    }, subject);
+    if (severity === "warn")
+      reportDiagnostic(entry);
+  }
+  var feedbackSources = new Map;
+  var feedbackInteractions = new Map;
+  var flightStats = new Map;
+  var fallbackStats = new Map;
+  var FALLBACK_FLASH_MS = 150;
+  function flightBucket(el) {
+    let row = flightStats.get(el);
+    if (row === undefined) {
+      row = { source: nodeName(el), flights: 0, landed: 0, abandoned: 0, landedMs: 0, worstMs: 0 };
+      flightStats.set(el, row);
+    }
+    return row;
+  }
+  function trackFallback(boundary, tree, shown) {
+    let bucket = fallbackStats.get(boundary);
+    if (bucket === undefined) {
+      bucket = {
+        row: { boundary: "boundary", shows: 0, shownMs: 0, worstMs: 0, flashes: 0 },
+        shownAt: null
+      };
+      fallbackStats.set(boundary, bucket);
+    }
+    if (bucket.row.boundary === "boundary" && tree !== undefined) {
+      const path = ownerPath(tree);
+      if (path !== undefined)
+        bucket.row.boundary = path.join(" › ");
+    }
+    if (shown) {
+      if (bucket.shownAt === null) {
+        bucket.shownAt = now();
+        bucket.row.shows++;
+      }
+      return;
+    }
+    if (bucket.shownAt === null)
+      return;
+    const ms = now() - bucket.shownAt;
+    bucket.shownAt = null;
+    bucket.row.shownMs += ms;
+    if (ms > bucket.row.worstMs)
+      bucket.row.worstMs = ms;
+    if (ms < FALLBACK_FLASH_MS)
+      bucket.row.flashes++;
+  }
+  function isSilentHold(event) {
+    return event.paintedDuringHold === 0 && event.acknowledgedBy.length === 0;
+  }
+  function interactionBucket(interaction) {
+    const key = formatOrigin(interaction);
+    let bucket = feedbackInteractions.get(key);
+    if (bucket === undefined) {
+      bucket = {
+        row: {
+          interaction: key,
+          dispatches: 0,
+          runs: 0,
+          selfMs: 0,
+          worstDispatchMs: 0,
+          holds: 0,
+          heldMs: 0,
+          silentMs: 0,
+          worstHoldMs: 0
+        },
+        dispatches: new Map
+      };
+      feedbackInteractions.set(key, bucket);
+    }
+    const at2 = interaction.at ?? 0;
+    if (!bucket.dispatches.has(at2)) {
+      bucket.dispatches.set(at2, 0);
+      bucket.row.dispatches++;
+    }
+    return bucket;
+  }
+  function recordFeedbackRun(event) {
+    if (event.interaction === undefined)
+      return;
+    const bucket = interactionBucket(event.interaction);
+    bucket.row.runs++;
+    bucket.row.selfMs += event.selfMs;
+    const at2 = event.interaction.at ?? 0;
+    const dispatchMs = bucket.dispatches.get(at2) + event.selfMs;
+    bucket.dispatches.set(at2, dispatchMs);
+    if (dispatchMs > bucket.row.worstDispatchMs)
+      bucket.row.worstDispatchMs = dispatchMs;
+  }
+  function recordFeedbackHold(event) {
+    const sources = [...event.blockers].sort();
+    const key = sources.join("\x00");
+    let bucket = feedbackSources.get(key);
+    if (bucket === undefined) {
+      bucket = {
+        row: {
+          sources,
+          holds: 0,
+          heldMs: 0,
+          worstMs: 0,
+          silent: 0,
+          silentMs: 0,
+          latestOnly: 0,
+          long: 0,
+          longMs: 0,
+          acknowledgedBy: [],
+          interactions: [],
+          writes: [],
+          actions: 0
+        },
+        acks: new Map,
+        interactions: new Map,
+        writes: new Set
+      };
+      feedbackSources.set(key, bucket);
+    }
+    const row = bucket.row;
+    const silent = isSilentHold(event);
+    row.holds++;
+    row.heldMs += event.holdMs;
+    if (event.holdMs > row.worstMs)
+      row.worstMs = event.holdMs;
+    if (silent) {
+      row.silent++;
+      row.silentMs += event.holdMs;
+    } else if (event.acknowledgedBy.length > 0 && event.acknowledgedBy.every((by) => by.startsWith("latest:")))
+      row.latestOnly++;
+    if (isLongHold(event)) {
+      row.long++;
+      row.longMs += event.tailMs;
+    }
+    if (event.action)
+      row.actions++;
+    for (const by of event.acknowledgedBy)
+      bucket.acks.set(by, (bucket.acks.get(by) ?? 0) + 1);
+    for (const w2 of event.heldWrites)
+      bucket.writes.add(w2.name);
+    if (event.interaction !== undefined) {
+      const key2 = formatOrigin(event.interaction);
+      bucket.interactions.set(key2, (bucket.interactions.get(key2) ?? 0) + 1);
+      const ib = interactionBucket(event.interaction);
+      ib.row.holds++;
+      ib.row.heldMs += event.holdMs;
+      if (silent)
+        ib.row.silentMs += event.holdMs;
+      if (event.holdMs > ib.row.worstHoldMs)
+        ib.row.worstHoldMs = event.holdMs;
+    }
+  }
+  function rankedCounts(counts, key) {
+    return [...counts].sort((a2, b2) => b2[1] - a2[1]).map(([name, holds]) => ({ [key]: name, holds }));
+  }
+  function feedbackTables() {
+    const flights = [...flightStats.values()].map((row) => ({ ...row })).sort((a2, b2) => b2.abandoned - a2.abandoned || b2.flights - a2.flights);
+    const fallbacks = [...fallbackStats.values()].map((bucket) => ({ ...bucket.row })).sort((a2, b2) => b2.flashes - a2.flashes || b2.shownMs - a2.shownMs);
+    const sources = [...feedbackSources.values()].map((bucket) => ({
+      ...bucket.row,
+      acknowledgedBy: rankedCounts(bucket.acks, "by"),
+      interactions: rankedCounts(bucket.interactions, "interaction"),
+      writes: [...bucket.writes]
+    })).sort((a2, b2) => b2.silentMs - a2.silentMs || b2.heldMs - a2.heldMs);
+    const interactions = [...feedbackInteractions.values()].map((bucket) => ({ ...bucket.row })).sort((a2, b2) => b2.heldMs + b2.selfMs - (a2.heldMs + a2.selfMs));
+    return { sources, interactions, flights, fallbacks };
   }
   var asyncStartSeq = 0;
   var asyncStartTime = 0;
@@ -3837,7 +4642,7 @@
       if (frame.causes !== null && changed && !optimistic && !transition && !el._type)
         checkUnstableOutput(el, frame.prevValue, el._pendingValue !== NOT_PENDING ? el._pendingValue : el._value);
       if (frame.causes !== null)
-        recordRerun(el, frame.causes, frame.prevDeps, { selfMs, totalMs }, changed, optimistic ? "optimistic" : transition ? "transition" : "plain", held);
+        recordRerun(el, frame.causes, frame.prevDeps, { selfMs, totalMs }, changed, optimistic ? "optimistic" : transition ? "held" : "plain", held);
       else
         checkDepWidth(el);
       markSeen(el);
@@ -3868,6 +4673,46 @@
       if (change !== undefined && change.seq > asyncStartSeq && change.kind === "write")
         stampWrite(el, "async", NO_VALUES, value);
       finalizeFlight(el);
+    },
+    effectRunStart(el) {
+      pushFrame("effect", nodeName(el), el._devRunInteraction, el);
+    },
+    effectRunEnd() {
+      popFrame("effect");
+      if (activeHold !== null)
+        activeHold.painted++;
+    },
+    actionStepStart(it2, name) {
+      let interaction = actionInteractions.get(it2);
+      if (interaction === undefined && !actionInteractions.has(it2)) {
+        interaction = currentInteraction ?? undefined;
+        actionInteractions.set(it2, interaction);
+      }
+      pushFrame("action", name, interaction);
+    },
+    actionStepEnd() {
+      popFrame("action");
+    },
+    holdStart(t2) {
+      trackHoldStart(t2);
+    },
+    holdEnd() {
+      activeHold = null;
+    },
+    transitionSettled(t2) {
+      trackHoldSettled(t2);
+    },
+    transitionMerged(target, outgoing) {
+      trackHoldMerge(target, outgoing);
+    },
+    storeReplaced(path, isArray, total, unchanged, prevTotal) {
+      checkImmutableUpdate(path, isArray, total, unchanged, prevTotal);
+    },
+    listChurn(el, removed, created, newLen, keyed) {
+      checkListIdentity(el, removed, created, newLen, keyed);
+    },
+    boundaryFallback(boundary, tree, shown) {
+      trackFallback(boundary, tree, shown);
     }
   };
   var attribution = {
@@ -3877,6 +4722,16 @@
       scopeCosts.clear();
       writeCosts.clear();
       waterfallLog = [];
+      holdLog = [];
+      activeHold = null;
+      feedbackSources.clear();
+      feedbackInteractions.clear();
+      reportedCycles.clear();
+      relays.clear();
+      immutableReported.clear();
+      flightStats.clear();
+      fallbackStats.clear();
+      originFrames.length = 0;
       hotCauses.clear();
       setAttributionHooks(engineHooks);
     },
@@ -3887,6 +4742,16 @@
       scopeCosts.clear();
       writeCosts.clear();
       waterfallLog = [];
+      holdLog = [];
+      activeHold = null;
+      feedbackSources.clear();
+      feedbackInteractions.clear();
+      reportedCycles.clear();
+      relays.clear();
+      immutableReported.clear();
+      flightStats.clear();
+      fallbackStats.clear();
+      originFrames.length = 0;
       hotCauses.clear();
       setAttributionHooks(null);
     },
@@ -3917,12 +4782,20 @@
     waterfalls() {
       return waterfallLog;
     },
+    holds() {
+      return holdLog;
+    },
+    feedback() {
+      return feedbackTables();
+    },
     markFlight(flight, startedAt = now()) {
       const existing = flightOrigins.get(flight);
       if (existing === undefined || startedAt < existing)
         flightOrigins.set(flight, startedAt);
     },
-    format: formatRerun
+    withInteraction,
+    format: formatRerun,
+    formatOrigin
   };
   var GRAPH_SIZE_WARN_AT = 2000;
   var GRAPH_SIZE_WARN_EVERY = 500;
@@ -3970,22 +4843,60 @@
     getSources,
     getObservers
   };
-  function emitDiagnostic(event) {
+  function ownerPath(subject) {
+    if (!subject)
+      return;
+    let owner = "_parent" in subject ? subject : subject._owner ?? null;
+    const path = [];
+    for (;owner !== null; owner = owner._parent) {
+      const name = owner._name;
+      if (typeof name === "string" && name.length)
+        path.push(name);
+    }
+    return path.length ? path.reverse() : undefined;
+  }
+  function emitDiagnostic(event, subject = context) {
     const entry = {
       sequence: ++diagnosticSequence,
       ...event
     };
+    const path = ownerPath(subject);
+    if (path)
+      entry.ownerPath = path;
+    if (subject)
+      eventSubjects.set(entry, subject);
     for (const listener of diagnosticListeners)
       listener(entry);
     for (const capture of diagnosticCaptures)
       capture.push(entry);
-    if (consoleFooter && !footeredCodes.has(entry.code)) {
-      footeredCodes.add(entry.code);
-      const footer = consoleFooter(entry);
-      if (footer)
-        queueMicrotask(() => console.warn(footer));
+    if (entry.severity === "error" && consoleFooter && !footeredCodes.has(entry.code)) {
+      queueMicrotask(() => {
+        const footer = takeFooter(entry);
+        if (footer)
+          console.warn(footer);
+      });
     }
     return entry;
+  }
+  function takeFooter(entry) {
+    if (!consoleFooter || footeredCodes.has(entry.code))
+      return;
+    footeredCodes.add(entry.code);
+    return consoleFooter(entry);
+  }
+  var eventSubjects = new WeakMap;
+  function reportDiagnostic(entry) {
+    let text = entry.message;
+    if (entry.ownerPath)
+      text += `
+  in ${entry.ownerPath.join(" › ")}`;
+    const footer = takeFooter(entry);
+    if (footer)
+      text += `
+${footer}`;
+    const element = eventSubjects.get(entry)?._devElement;
+    const args = element !== undefined ? [text, element] : [text];
+    entry.severity === "error" ? console.error(...args) : console.warn(...args);
   }
   function throwPendingUntrackedRead(strictReadLabel, fields) {
     const message = `[PENDING_ASYNC_UNTRACKED_READ] Reading a pending async value directly in ${strictReadLabel}. ` + `Async values must be read within a tracking scope (JSX, a memo, or an effect's compute function).`;
@@ -4001,15 +4912,14 @@
   }
   function warnStrictReadUntracked(strictReadLabel, fields) {
     const message = `[STRICT_READ_UNTRACKED] Reactive value read directly in ${strictReadLabel} will not update. ` + `Move it into a tracking scope (JSX, a memo, or an effect's compute function).`;
-    emitDiagnostic({
+    reportDiagnostic(emitDiagnostic({
       code: "STRICT_READ_UNTRACKED",
       kind: "strict-read",
       severity: "warn",
       message,
       data: { strictRead: strictReadLabel },
       ...fields
-    });
-    console.warn(message);
+    }));
   }
   function registerGraph(value, owner) {
     value._owner = owner;
@@ -4065,7 +4975,7 @@
     if (shouldWarnGraphSize(fanOut)) {
       const name = dep._name;
       const message = `[HUGE_FAN_OUT] ${name ? `Signal "${name}"` : "A signal"} has ${fanOut} subscribers. ` + `Each will re-run when it changes. If many independent computations read the same value ` + `(for example every row of a list comparing against one selected id), prefer a per-key ` + `store or projection so only the items whose result flipped update.`;
-      emitDiagnostic({
+      reportDiagnostic(emitDiagnostic({
         code: "HUGE_FAN_OUT",
         kind: "graph",
         severity: "warn",
@@ -4074,13 +4984,12 @@
         ownerId: dep.id,
         ownerName: name,
         data: { count: fanOut }
-      });
-      console.warn(message);
+      }, dep));
     }
     if (shouldWarnGraphSize(fanIn)) {
       const name = sub._name;
       const message = `[HUGE_FAN_IN] ${name ? `Computation "${name}"` : "A computation"} has ${fanIn} sources. ` + `It will re-run when any of them change. Narrow the read or split the derivation so each ` + `computation tracks only what it needs.`;
-      emitDiagnostic({
+      reportDiagnostic(emitDiagnostic({
         code: "HUGE_FAN_IN",
         kind: "graph",
         severity: "warn",
@@ -4089,8 +4998,7 @@
         ownerId: sub.id,
         ownerName: name,
         data: { count: fanIn }
-      });
-      console.warn(message);
+      }, sub));
     }
   }
   function unnoteGraphLink(link) {
@@ -4155,6 +5063,15 @@
     while (lane._mergedInto)
       lane = lane._mergedInto;
     return lane;
+  }
+  function laneHeld(lane) {
+    const t2 = lane._transition;
+    if (t2) {
+      for (const node of lane._pendingAsync)
+        if (currentTransition(t2)._asyncReporters.has(node))
+          return true;
+    }
+    return false;
   }
   function mergeLanes(lane1, lane2) {
     lane1 = findLane(lane1);
@@ -4245,7 +5162,7 @@
   }
   var clock = 0;
   var activeTransition = null;
-  var scheduled$1 = false;
+  var scheduled = false;
   var halted = false;
   var haltNotified = false;
   var syncDepth = 0;
@@ -4253,6 +5170,7 @@
   var inTrackedQueueCallback = false;
   var _enforceLoadingBoundary = false;
   var _hitUnhandledAsync = false;
+  var _reportedUnhandledAsync = false;
   var transientStoreNodes = new Set;
   function canUseSimpleSyncFlush(queue) {
     const batch = queue._batch;
@@ -4273,11 +5191,18 @@
       if (node._x?._affectsCount)
         continue;
       transientStoreNodes.delete(node);
-      node._x?._unobserved?.();
+      if (node._config & CONFIG_SLOT_NODE)
+        slotUnobservedHook(node);
+      else
+        node._x?._unobserved?.();
     }
   }
   function resetUnhandledAsync() {
     _hitUnhandledAsync = false;
+    if (_reportedUnhandledAsync)
+      return false;
+    _reportedUnhandledAsync = true;
+    return true;
   }
   var inEffectCallback = false;
   function setEffectCallback(value) {
@@ -4298,6 +5223,8 @@
     };
   }
   function mergeTransitionState(target, outgoing) {
+    if (attrHooks !== null)
+      attrHooks.transitionMerged(target, outgoing);
     outgoing._done = target;
     target._actions.push(...outgoing._actions);
     for (const lane of activeLanes)
@@ -4313,20 +5240,6 @@
     }
     for (const store of outgoing._optimisticStores)
       target._optimisticStores.add(store);
-    const heldPatches = outgoing._heldPatches;
-    if (heldPatches !== undefined) {
-      outgoing._heldPatches = undefined;
-      let dest = target._heldPatches;
-      if (dest !== undefined)
-        dest.push(...heldPatches);
-      else
-        dest = target._heldPatches = heldPatches;
-      for (let i2 = 0;i2 < heldPatches.length; i2++) {
-        const pc = heldPatches[i2].pc;
-        if (pc !== undefined && pc.qe === heldPatches[i2])
-          pc.qa = dest;
-      }
-    }
     for (const [source, reporters] of outgoing._asyncReporters) {
       let targetReporters = target._asyncReporters.get(source);
       if (!targetReporters)
@@ -4342,9 +5255,9 @@
       notifyHalted();
       return;
     }
-    if (scheduled$1)
+    if (scheduled)
       return;
-    scheduled$1 = true;
+    scheduled = true;
     if (!syncDepth && !globalQueue._running && !projectionWriteActive)
       queueMicrotask(flush);
   }
@@ -4427,6 +5340,8 @@
       schedule();
     }
     stashQueues(stub) {
+      if (attrHooks !== null && this === globalQueue)
+        attrHooks.holdEnd();
       stub._queues[0].push(...this._queues[0]);
       stub._queues[1].push(...this._queues[1]);
       this._queues = [[], []];
@@ -4512,7 +5427,7 @@
             }
             this.stashQueues(stashedTransition._queueStash);
             clock++;
-            scheduled$1 = dirtyQueue._max >= dirtyQueue._min || this._batch._pendingNodes.length > 0;
+            scheduled = dirtyQueue._max >= dirtyQueue._min || this._batch._pendingNodes.length > 0;
             reassignPendingTransition(stashedTransition._pendingNodes);
             activeTransition = null;
             finalizePureQueue(null, true);
@@ -4548,7 +5463,7 @@
           }
         }
         clock++;
-        scheduled$1 = dirtyQueue._max >= dirtyQueue._min;
+        scheduled = dirtyQueue._max >= dirtyQueue._min;
         activeLanes.size && GlobalQueue._runLaneEffects(EFFECT_RENDER);
         this.run(EFFECT_RENDER);
         activeLanes.size && GlobalQueue._runLaneEffects(EFFECT_USER);
@@ -4566,7 +5481,7 @@
           });
           devCensusCompanions((n2) => this._batch._pendingNodes.includes(n2));
         }
-        if (!scheduled$1 && !activeTransition && transitions.size === 0 && activeLanes.size === 0) {
+        if (!scheduled && !activeTransition && transitions.size === 0 && activeLanes.size === 0) {
           devCheckQuiescent((n2) => this._batch._pendingNodes.includes(n2));
         }
         if (true)
@@ -4578,19 +5493,23 @@
     notify(node, mask, flags, error) {
       if (mask & STATUS_PENDING) {
         if (flags & STATUS_PENDING) {
-          const actualError = error !== undefined ? error : node._x?._error;
+          const actualError = error ?? node._x?._error;
           if (actualError?._markVisual)
             return true;
-          if (activeTransition && actualError) {
-            const source = actualError.source;
-            let reporters = activeTransition._asyncReporters.get(source);
-            if (!reporters)
-              activeTransition._asyncReporters.set(source, reporters = new Set);
-            const prevSize = reporters.size;
-            reporters.add(node);
-            if (reporters.size !== prevSize) {
-              schedule();
-              GlobalQueue._wakeSuppressedProbes?.(activeTransition);
+          if (actualError) {
+            if (!activeTransition && !node._transition && currentBatch._pendingNodes.length)
+              this.initTransition();
+            if (activeTransition) {
+              const source = actualError.source;
+              let reporters = activeTransition._asyncReporters.get(source);
+              if (!reporters)
+                activeTransition._asyncReporters.set(source, reporters = new Set);
+              const prevSize = reporters.size;
+              reporters.add(node);
+              if (reporters.size !== prevSize) {
+                schedule();
+                GlobalQueue._wakeSuppressedProbes?.(activeTransition);
+              }
             }
           }
           if (_enforceLoadingBoundary)
@@ -4613,6 +5532,7 @@
       } else if (transition) {
         const outgoing = activeTransition;
         mergeTransitionState(transition, outgoing);
+        this.restoreQueues(outgoing._queueStash);
         transitions.delete(outgoing);
         activeTransition = transition;
       }
@@ -4714,7 +5634,6 @@
       GlobalQueue._snapCompanions(n2);
   }
   var storeCommitHook = null;
-  var patchCommitHook = null;
   var heldRevealed = [];
   function commitPendingNodes() {
     const pendingNodes = currentBatch._pendingNodes;
@@ -4729,7 +5648,6 @@
     }
     pendingNodes.length = 0;
     storeCommitHook?.();
-    patchCommitHook?.(currentBatch);
   }
   function finalizePureQueue(completingTransition = null, incomplete = false) {
     const resolvePending = !incomplete;
@@ -4811,23 +5729,22 @@
       }
       if (inEffectCallback) {
         const message = "[FLUSH_IN_EFFECT_CALLBACK] flush() called from inside an effect callback is a no-op: the flush that runs effects is already in progress. " + "Writes made here are processed in the same flush's continuation; to force a drain afterwards, defer it: queueMicrotask(() => flush()).";
-        emitDiagnostic({
+        reportDiagnostic(emitDiagnostic({
           code: "FLUSH_IN_EFFECT_CALLBACK",
           kind: "lifecycle",
           severity: "warn",
           message
-        });
-        console.warn(message);
+        }));
       }
       return;
     }
     if (halted)
       return;
     let count = 0;
-    while (scheduled$1 || activeTransition) {
+    while (scheduled || activeTransition) {
       if (++count === 1e5) {
         const t2 = activeTransition;
-        throw new Error(`Potential Infinite Loop Detected. Kept alive by ${scheduled$1 ? "scheduled work" : "an active transition"}${t2 ? `; transition: done=${t2._done === true}, pending=${t2._pendingNodes.length}, optimistic=${t2._optimisticNodes.length}, asyncReporters=${t2._asyncReporters.size}` : ""}${lastStagedNodeName ? `; last staged node: ${lastStagedNodeName}` : ""}`);
+        throw new Error(`Potential Infinite Loop Detected. Kept alive by ${scheduled ? "scheduled work" : "an active transition"}${t2 ? `; transition: done=${t2._done === true}, pending=${t2._pendingNodes.length}, optimistic=${t2._optimisticNodes.length}, asyncReporters=${t2._asyncReporters.size}` : ""}${lastStagedNodeName ? `; last staged node: ${lastStagedNodeName}` : ""}`);
       }
       globalQueue.flush();
     }
@@ -4854,8 +5771,11 @@
   function transitionComplete(transition) {
     if (transition._done)
       return true;
-    if (transition._actions.length)
+    if (transition._actions.length) {
+      if (attrHooks !== null)
+        attrHooks.holdStart(transition);
       return false;
+    }
     let done = true;
     for (const [source, reporters] of transition._asyncReporters) {
       let hasLive = false;
@@ -4875,6 +5795,8 @@
     }
     if (done && GlobalQueue._transitionBlocked?.(transition))
       done = false;
+    if (attrHooks !== null)
+      done ? attrHooks.transitionSettled(transition) : attrHooks.holdStart(transition);
     done && (transition._done = true);
     return done;
   }
@@ -4896,14 +5818,6 @@
     return n2._flags & REACTIVE_ZOMBIE ? zombieQueue : dirtyQueue;
   }
   function enqueueSub(node) {
-    if (node._type === EFFECT_TRACKED) {
-      const tracked = node;
-      if (!tracked._modified) {
-        tracked._modified = true;
-        tracked._queue.enqueue(EFFECT_USER, tracked._run);
-      }
-      return;
-    }
     const queue = queueFor(node);
     if (queue._min > node._height)
       queue._min = node._height;
@@ -5205,7 +6119,10 @@
     else {
       dep._subs = nextSub;
       if (nextSub === null) {
-        dep._x?._unobserved?.();
+        if (dep._config & CONFIG_SLOT_NODE)
+          slotUnobservedHook(dep);
+        else
+          dep._x?._unobserved?.();
         const c2 = dep;
         c2._fn && c2._config & CONFIG_AUTO_DISPOSE && !(c2._flags & REACTIVE_ZOMBIE) && !(c2._statusFlags & STATUS_PENDING) && unobserved(c2);
       }
@@ -5372,7 +6289,7 @@
         releaseIfSettledUnobserved(node);
   }
   function settleErroredDependents(el, error) {
-    let scheduled = false;
+    let scheduled2 = false;
     const visited = new Set;
     const visit = (node) => {
       if (visited.has(node))
@@ -5380,12 +6297,12 @@
       visited.add(node);
       if (node._x?._error === error) {
         enqueueSub(node);
-        scheduled = true;
+        scheduled2 = true;
       }
       forEachDependent(node, visit);
     };
     forEachDependent(el, visit);
-    if (scheduled)
+    if (scheduled2)
       schedule();
   }
   function settlePendingSource(el) {
@@ -5403,7 +6320,7 @@
       }
     }
     removePendingSource(el, el);
-    let scheduled = false;
+    let scheduled2 = false;
     let released;
     const visited = new Set;
     const updateCompanions = GlobalQueue._updatePendingSignal;
@@ -5425,7 +6342,7 @@
         updateCompanions?.(node);
         if (node._x?._blocked) {
           enqueueSub(node);
-          scheduled = true;
+          scheduled2 = true;
         }
         if (node._x !== null)
           node._x._blocked = false;
@@ -5438,7 +6355,7 @@
     if (released)
       for (const node of released)
         releaseIfSettledUnobserved(node);
-    if (scheduled)
+    if (scheduled2)
       schedule();
   }
   function isThenable(value) {
@@ -5531,7 +6448,12 @@
       if (attrHooks !== null)
         attrHooks.asyncStart(el);
       if (setter) {
-        setter(value);
+        try {
+          setter(value);
+        } catch (error) {
+          handleError(error);
+          return;
+        }
         if (wasUninitialized)
           clearStatus(el, true);
       } else if (el._x?._overrideValue !== undefined) {
@@ -5806,7 +6728,14 @@
       }
     });
   }
-  GlobalQueue._update = recompute;
+  GlobalQueue._update = (el) => {
+    if (el._type === EFFECT_TRACKED) {
+      deleteFromHeap(el, queueFor(el));
+      el._modified = true;
+      el._queue.enqueue(EFFECT_USER, el._run);
+    } else
+      recompute(el);
+  };
   GlobalQueue._dispose = disposeChildren;
   var PRIMITIVE_IN_FORBIDDEN_SCOPE_MESSAGE = "[PRIMITIVE_IN_FORBIDDEN_SCOPE] Cannot create reactive primitives inside createTrackedEffect or owner-backed onSettled";
   var REACTIVE_WRITE_IN_OWNED_SCOPE_SIGNAL_MESSAGE = "[REACTIVE_WRITE_IN_OWNED_SCOPE] Writing to reactive state inside an owned scope (component, computation) is not allowed. " + "Move the write outside or set the `ownedWrite` option if this is intentional.";
@@ -6232,6 +7161,45 @@
     }
     return s2;
   }
+  var slotUnobservedHook;
+  function setSlotUnobserved(fn) {
+    slotUnobservedHook = fn;
+  }
+  function slotSignal(v2, equals, host, key, acc, firewall = null) {
+    const s2 = {
+      _equals: equals,
+      _config: CONFIG_OWNED_WRITE | CONFIG_SLOT_NODE,
+      _value: v2,
+      _subs: null,
+      _subsTail: null,
+      _time: clock,
+      _firewall: firewall,
+      _nextChild: firewall?._x?._child || null,
+      _pendingValue: NOT_PENDING,
+      _transition: null,
+      _notifiedAt: -1,
+      _x: null,
+      _host: host,
+      _key: key,
+      acc,
+      px: undefined,
+      pxv: undefined
+    };
+    {
+      s2._name = "signal";
+      s2._internal = !!firewall;
+    }
+    if (firewall) {
+      ext(firewall)._child = s2;
+      firewall._config |= CONFIG_FW_CHILDREN;
+    }
+    if (snapshotCaptureActive && !((firewall?._statusFlags ?? 0) & STATUS_PENDING)) {
+      ext(s2)._snapshotValue = v2 === undefined ? NO_SNAPSHOT : v2;
+      s2._config |= CONFIG_HAS_SNAPSHOT;
+      snapshotSources.add(s2);
+    }
+    return s2;
+  }
   function optimisticComputed(fn, options2) {
     const c2 = computed(fn, options2);
     ext(c2)._overrideValue = NOT_PENDING;
@@ -6320,7 +7288,7 @@
       if (c2 && !(stale && owner._transition && activeTransition !== owner._transition)) {
         if (c2 && c2._config & CONFIG_CHILDREN_FORBIDDEN) {
           const message = "[PENDING_ASYNC_FORBIDDEN_SCOPE] Reading a pending async value inside createTrackedEffect or onSettled will throw. " + "Use createEffect instead which supports async-aware reactivity.";
-          emitDiagnostic({
+          reportDiagnostic(emitDiagnostic({
             code: "PENDING_ASYNC_FORBIDDEN_SCOPE",
             kind: "async",
             severity: "warn",
@@ -6328,8 +7296,7 @@
             ownerId: c2.id,
             ownerName: c2._name,
             nodeName: owner?._name
-          });
-          console.warn(message);
+          }, c2));
         }
         if (currentOptimisticLane === null || GlobalQueue._laneSuspends(owner)) {
           if (!tracking && el !== c2)
@@ -6444,15 +7411,14 @@
   function runWithOwner(owner, fn) {
     if (owner && owner._flags & REACTIVE_DISPOSED) {
       const message = "[RUN_WITH_DISPOSED_OWNER] runWithOwner called with a disposed owner. Children created inside will never be disposed.";
-      emitDiagnostic({
+      reportDiagnostic(emitDiagnostic({
         code: "RUN_WITH_DISPOSED_OWNER",
         kind: "owner",
         severity: "warn",
         message,
         ownerId: owner.id,
         ownerName: owner._name
-      });
-      console.warn(message);
+      }, owner));
     }
     const oldContext = context;
     const prevTracking = tracking;
@@ -6469,8 +7435,10 @@
     if (!owner) {
       throw new NoOwnerError;
     }
-    const value = hasContext(context2, owner) ? owner._context[context2.id] : context2.defaultValue;
-    if (isUndefined(value)) {
+    let value = owner._context[context2.id];
+    if (value === undefined)
+      value = context2.defaultValue;
+    if (value === undefined) {
       throw new ContextNotFoundError;
     }
     return value;
@@ -6481,14 +7449,8 @@
     }
     owner._context = {
       ...owner._context,
-      [context2.id]: isUndefined(value) ? context2.defaultValue : value
+      [context2.id]: value === undefined ? context2.defaultValue : value
     };
-  }
-  function hasContext(context2, owner) {
-    return !isUndefined(owner?._context[context2.id]);
-  }
-  function isUndefined(value) {
-    return typeof value === "undefined";
   }
   function optimisticWrite(el, v2) {
     const hasOverride = el._x?._overrideValue !== NOT_PENDING;
@@ -6561,7 +7523,7 @@
   }
   function runLaneEffects(type) {
     for (const lane of activeLanes) {
-      if (lane._mergedInto || lane._pendingAsync.size > 0)
+      if (lane._mergedInto || laneHeld(lane))
         continue;
       const effects = lane._effectQueues[type - 1];
       if (effects.length) {
@@ -6595,6 +7557,8 @@
     }
   }
   function laneSuspends(owner) {
+    if (owner._statusFlags & STATUS_UNINITIALIZED)
+      return true;
     const pendingLane = owner._x?._optimisticLane;
     if (!pendingLane)
       return false;
@@ -6651,14 +7615,12 @@
       lane._pendingAsync.add(el);
       ext(el)._optimisticLane = lane;
       el._config |= CONFIG_HAS_LANE;
-      GlobalQueue._updatePendingSignal !== null && GlobalQueue._updatePendingSignal(lane._source);
     }
   }
   function laneAsyncSettled(el) {
     const resolvedLane = resolveLane(el);
     if (resolvedLane) {
       resolvedLane._pendingAsync.delete(el);
-      GlobalQueue._updatePendingSignal !== null && GlobalQueue._updatePendingSignal(resolvedLane._source);
     }
   }
   function trackOptimisticStore(store) {
@@ -6725,9 +7687,6 @@
     }
     return false;
   }
-  function markCovered(el) {
-    return activeAffectsMarks !== 0 && markWalk(el, new Set);
-  }
   function quietPending(el) {
     if (el._x?._pendingSources) {
       for (const source of el._x._pendingSources)
@@ -6744,7 +7703,7 @@
     const comp = el;
     if (comp._flags & REACTIVE_DISPOSED)
       return false;
-    if (markCovered(el))
+    if (activeAffectsMarks !== 0 && markWalk(el, new Set))
       return true;
     const firewall = el._firewall;
     if (el._x?._parentSource) {
@@ -6908,7 +7867,7 @@
     if (stale && currentOptimisticLane && pendingComputed._x?._optimisticLane) {
       const pcLane = findLane(pendingComputed._x?._optimisticLane);
       const curLane = findLane(currentOptimisticLane);
-      if (pcLane !== curLane && pcLane._pendingAsync.size > 0) {
+      if (pcLane !== curLane && laneHeld(pcLane)) {
         return visibleValue;
       }
     }
@@ -6991,7 +7950,7 @@
     !options2?.defer && (node._type === EFFECT_USER || options2?.schedule ? node._queue.enqueue(node._type, runEffect.bind(null, node)) : runEffect(node));
     if (!node._parent) {
       const message = "[NO_OWNER_EFFECT] Effects created outside a reactive context will never be disposed";
-      emitDiagnostic({
+      reportDiagnostic(emitDiagnostic({
         code: "NO_OWNER_EFFECT",
         kind: "lifecycle",
         severity: "warn",
@@ -6999,8 +7958,7 @@
         ownerId: node.id,
         ownerName: node._name,
         data: { effectType: "effect" }
-      });
-      console.warn(message);
+      }, node));
     }
   }
   function notifyEffectStatus(status, error) {
@@ -7021,18 +7979,16 @@
       }
     } else if (this._type === EFFECT_RENDER) {
       this._queue.notify(this, STATUS_PENDING | STATUS_ERROR, actualStatus, actualError);
-      if (_hitUnhandledAsync) {
-        resetUnhandledAsync();
+      if (_hitUnhandledAsync && resetUnhandledAsync()) {
         const message = "[ASYNC_OUTSIDE_LOADING_BOUNDARY] An async value was read outside a Loading boundary. The root mount will be deferred until all pending async settles.";
-        emitDiagnostic({
+        reportDiagnostic(emitDiagnostic({
           code: "ASYNC_OUTSIDE_LOADING_BOUNDARY",
           kind: "async",
           severity: "warn",
           message,
           ownerId: this.id,
           ownerName: this._name
-        });
-        console.warn(message);
+        }, this));
       }
     }
   }
@@ -7061,6 +8017,8 @@
     {
       prevStrictRead = setStrictRead("an effect callback");
       setEffectCallback(true);
+      if (attrHooks !== null)
+        attrHooks.effectRunStart(node);
     }
     const prevCleanup = node._cleanup;
     node._cleanup = undefined;
@@ -7086,6 +8044,8 @@
       node._prevValue = node._value;
       node._modified = false;
     }
+    if (attrHooks !== null)
+      attrHooks.effectRunEnd(node);
   }
   GlobalQueue._runEffect = runEffect;
   setEffectStatusNotify(notifyEffectStatus);
@@ -7181,36 +8141,36 @@
     this.a = undefined;
     this.sc = undefined;
     this.nc = undefined;
-    this.adopted = undefined;
+    this.ab = undefined;
     this.fam = undefined;
     this.s = undefined;
     this.ovl = undefined;
     this.del = undefined;
-    this.pc = undefined;
+    this.wk = undefined;
     this.hv = undefined;
     this.ht = undefined;
   }
   TargetShape.prototype = Object.prototype;
-  function getNode(target, key, current) {
+  var slotNodeEquals = function(a2, b2) {
+    return isEqual(a2, b2) || sameLogicalSlot(this._host, a2, b2);
+  };
+  setSlotUnobserved((node) => {
+    if (node._x?._affectsCount)
+      return;
+    const t2 = node._host;
+    const key = node._key;
+    if (t2.n && t2.n[key] === node) {
+      delete t2.n[key];
+      t2.nc--;
+    }
+  });
+  function getNode(target, key, current, accKnown = -1) {
     const nodes = target.n ??= Object.create(null);
     let node = nodes[key];
     if (node === undefined) {
-      const created = node = signal(current, {
-        name: attrHooks !== null ? "store." + String(key) : undefined,
-        equals: (a2, b2) => isEqual(a2, b2) || sameLogicalSlot(target, a2, b2),
-        unobserved() {
-          if (created._x?._affectsCount)
-            return;
-          if (target.n && target.n[key] === created) {
-            delete target.n[key];
-            target.nc--;
-          }
-        }
-      }, target.fam?.node ?? undefined);
-      created._config |= CONFIG_OWNED_WRITE;
-      created.acc = isOwnAccessor(target.pb ?? target.v, key);
-      created.px = undefined;
-      created.pxv = undefined;
+      const created = node = slotSignal(current, slotNodeEquals, target, key, accKnown === -1 ? isOwnAccessor(target.pb ?? target.v, key) : accKnown === 1, target.fam?.node ?? undefined);
+      if (attrHooks !== null)
+        created._name = "store." + String(key);
       if (target.fam?.opt) {
         ext(created)._overrideValue = NOT_PENDING;
         created._config |= CONFIG_OPTIMISTIC;
@@ -7246,7 +8206,6 @@
     return hasOwn.call(src, key) && (lookupGetter.call(src, key) !== undefined || lookupSetter.call(src, key) !== undefined);
   }
   setNextAffectsNodeResolver((t2, key) => key === $AFFECTS ? getNode(t2, $AFFECTS, undefined) : getNode(t2, key, (t2.pb ?? t2.v)[key]));
-  var UNSET = Symbol();
   var DELETE = Symbol("STORE_PATH_DELETE");
   function trueFn() {
     return true;
@@ -7422,7 +8381,7 @@
   }
   var DEV = DEV$1;
 
-  // node_modules/.bun/solid-js@2.0.0-rc.6/node_modules/solid-js/dist/dev.js
+  // node_modules/.bun/solid-js@2.0.0-rc.7/node_modules/solid-js/dist/solid.dev.js
   var $DEVCOMP = Symbol("COMPONENT_DEV");
   function createContext(defaultValue, options2) {
     const id = Symbol(options2 && options2.name || "");
@@ -7458,6 +8417,7 @@
     if (typeof Comp !== "function") {
       throw new Error(`createComponent: expected a component function but got ${Comp === null ? "null" : typeof Comp}. A JSX tag resolved to a non-function value — check the import: a missing or misnamed export resolves to undefined.`);
     }
+    const label = `<${Comp.name || "Anonymous"}>`;
     return createRoot(() => {
       const owner = getOwner();
       owner._component = {
@@ -7465,10 +8425,11 @@
         props,
         name: Comp.name
       };
+      owner._name = label;
       Object.assign(Comp, {
         [$DEVCOMP]: true
       });
-      return untrack(() => Comp(props), `<${Comp.name || "Anonymous"}>`);
+      return untrack(() => Comp(props), label);
     }, {
       transparent: true
     });
@@ -7502,11 +8463,13 @@
     else
       console.warn("You appear to have multiple instances of Solid. This can lead to unexpected behavior.");
   }
+  var SKILLS_URL = "https://github.com/solidjs/solid/blob/main/packages";
   if (DEV) {
     DEV.diagnostics.setConsoleFooter((event) => {
-      const base = `[${event.code}] repair guide: node_modules/solid-js/skills/reactivity-diagnostics/SKILL.md`;
-      return event.kind === "perf" || event.kind === "graph" ? base + `
-[${event.code}] deeper evidence: DEV.attribution.enable() explains every re-run ` + `— why-chains, costs(), waterfalls() — agent loop: ` + `node_modules/@solidjs/diagnostics/skills/agent-loops/SKILL.md` : base;
+      const anchor = event.code.toLowerCase();
+      const base = `[${event.code}] repair guide: node_modules/solid-js/skills/reactivity-diagnostics/SKILL.md ` + `— ${SKILLS_URL}/solid/skills/reactivity-diagnostics/SKILL.md#${anchor}`;
+      return event.kind === "perf" || event.kind === "graph" || event.kind === "responsiveness" ? base + `
+[${event.code}] deeper evidence: DEV.attribution.enable() explains every re-run ` + `— why-chains, costs(), waterfalls(), holds(), feedback() — agent loop: ` + `node_modules/@solidjs/diagnostics/skills/agent-loops/SKILL.md — ` + `${SKILLS_URL}/diagnostics/skills/agent-loops/SKILL.md` : base;
     });
   }
 
@@ -9578,7 +10541,7 @@
     return typeof value === "object" && value !== null && value.kind === "wabou-vector-path" && typeof value.drawable === "boolean" && value.data instanceof Uint8Array;
   }
 
-  // node_modules/.bun/@solidjs+universal@2.0.0-rc.6+7f7c04572bc85ca7/node_modules/@solidjs/universal/dist/dev.js
+  // node_modules/.bun/@solidjs+universal@2.0.0-rc.7+045509bee22f3ccc/node_modules/@solidjs/universal/dist/universal.dev.js
   var transparentOptions = {
     transparent: true,
     sync: true
@@ -9921,12 +10884,7 @@
       memo,
       createComponent,
       applyRef,
-      ref,
-      patchDriver(subject, body) {
-        effect2(() => body(subject, subject, false), () => body(subject, undefined, true), {
-          name: "renderer patch"
-        });
-      }
+      ref
     };
   }
 

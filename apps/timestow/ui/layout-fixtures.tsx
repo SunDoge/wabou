@@ -14,6 +14,7 @@ import {
   createMemoryHistory,
   HostProvider,
   PageHeader,
+  PageViewport,
   RouterProvider,
   Text,
   useHost,
@@ -29,7 +30,7 @@ import {
   type SnapshotDiffEntry,
   type SnapshotEntry,
 } from "./api";
-import { FileDetails, RestorePlanReview } from "./file-details";
+import { FileDetails, RestoreDialog, RestorePlanReview } from "./file-details";
 import { OperationProgressStatus } from "./operation-progress";
 import type { ProfileStore } from "./profile-store";
 import {
@@ -169,7 +170,7 @@ const fixtureStatus = {
 };
 
 const fixtureRustic: RusticCapability = {
-  __wabouCapabilityVersion: 14,
+  __wabouCapabilityVersion: 16,
   status: () => fixtureStatus,
   createProfile: () => fixtureStatus,
   openProfile: () => fixtureStatus,
@@ -236,7 +237,10 @@ const fixtureRustic: RusticCapability = {
     deleteProtected: request.deleteProtected,
   }),
   deleteSnapshot: () => {},
-  previewRestore: () => emptyPlan,
+  previewRestore: () => ({
+    destination: "/data/documents/backup-notes.md",
+    plan: emptyPlan,
+  }),
   restorePath: ({ destination }) => ({ destination, plan: emptyPlan }),
   previewPath: ({ path }) => ({ destination: path, plan: emptyPlan }),
   openPath: () => {},
@@ -267,7 +271,7 @@ function NewBackupFixture() {
             onRenameProfile={() => {}}
             onForgetProfile={async () => {}}
           />
-          <View class="min-w-0 min-h-0 flex-1 px-6 py-5">
+          <PageViewport contentClass="min-h-full px-6 py-5">
             <View class="w-full max-w-3xl mx-auto flex flex-col gap-5">
               <PageHeader
                 title="Create a backup"
@@ -285,7 +289,52 @@ function NewBackupFixture() {
                 onSubmit={() => {}}
               />
             </View>
-          </View>
+          </PageViewport>
+        </View>
+      </ComponentsProvider>
+    </ColorThemeProvider>
+  );
+}
+
+function ImportRemoteBackupFixture() {
+  return (
+    <ColorThemeProvider theme="light">
+      <ComponentsProvider theme="light">
+        <View
+          role="region"
+          aria-label="Timestow setup workspace"
+          class="w-full h-full min-w-0 min-h-0 flex flex-row bg-canvas text-primary"
+        >
+          <TimestowSidebar
+            active="new"
+            profiles={[]}
+            unlockedProfileIds={[]}
+            onCreate={() => {}}
+            onSelectProfile={() => {}}
+            onRenameProfile={() => {}}
+            onForgetProfile={async () => {}}
+          />
+          <PageViewport contentClass="min-h-full px-6 py-5">
+            <View class="w-full max-w-3xl mx-auto flex flex-col gap-5">
+              <PageHeader
+                title="Open a remote backup"
+                description="Import an existing rustic configuration without exposing repository credentials to JavaScript."
+              />
+              <BackupConnectionForm
+                mode="open"
+                repositoryKind="rusticConfig"
+                name="Backblaze home archive"
+                path="/home/me/.config/rustic/a-deliberately-long-s3-profile-name.toml"
+                passwordSecret="timestow:fixture"
+                confirmationSecret="timestow:fixture:confirmation"
+                onModeChange={() => {}}
+                onRepositoryKindChange={() => {}}
+                onNameChange={() => {}}
+                onPathChange={() => {}}
+                onSubmit={() => {}}
+              />
+            </View>
+          </PageViewport>
         </View>
       </ComponentsProvider>
     </ColorThemeProvider>
@@ -823,6 +872,36 @@ function RestorePlanFixture() {
   );
 }
 
+function RestoreDialogFixture() {
+  const inheritedHost = useHost();
+  return (
+    <HostProvider
+      value={
+        { ...inheritedHost, rustic: fixtureRustic } as typeof inheritedHost
+      }
+    >
+      <ColorThemeProvider theme="light">
+        <ComponentsProvider theme="light">
+          <View class="w-full h-full min-w-0 min-h-0 bg-canvas p-4 text-primary">
+            <RestoreDialog
+              profileId={profile.id}
+              snapshotId={newestSnapshot.id}
+              entry={{
+                name: "backup-notes.md",
+                path: "data/users/me/Documents/Archive/backup-notes.md",
+                kind: "file",
+                size: 18_240,
+                modified: "2026-09-08T00:41:00Z",
+              }}
+              defaultOpen
+            />
+          </View>
+        </ComponentsProvider>
+      </ColorThemeProvider>
+    </HostProvider>
+  );
+}
+
 function BackupSourcesFixture() {
   return (
     <ColorThemeProvider theme="light">
@@ -902,6 +981,11 @@ defineLayoutFixtures(
       width: 900,
       height: 620,
       render: NewBackupFixture,
+    },
+    "timestow/setup-remote-config": {
+      width: 900,
+      height: 620,
+      render: ImportRemoteBackupFixture,
     },
     "timestow/unlock-minimum": {
       width: 900,
@@ -1033,6 +1117,12 @@ defineLayoutFixtures(
       width: 480,
       height: 300,
       render: RestorePlanFixture,
+    },
+    "timestow/restore-dialog": {
+      width: 640,
+      height: 520,
+      waitMs: 100,
+      render: RestoreDialogFixture,
     },
     "timestow/backup-sources-narrow": {
       width: 360,

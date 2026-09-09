@@ -9,13 +9,14 @@ name = "timestow"
 path = "src/main.rs"
 
 [dependencies]
-rustic_backend = { version = "0.7.0", default-features = false }
+rustic_backend = { version = "0.7.0", default-features = false, features = ["opendal"] }
 rustic_core = "0.13.0"
 lru = { workspace = true }
 open = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 snafu = { workspace = true }
 tempfile = "3"
+toml = "0.9"
 tokio = { workspace = true, features = ["rt", "sync"] }
 wabou = { workspace = true, features = ["vello-hybrid"] }
 zeroize = { workspace = true }

@@ -509,6 +509,10 @@ impl FrameSource for Applier {
             self.update_scrollbar_visuals(&mut placed);
             if geometry_dirty {
                 self.rebuild_hit_geometry(&placed);
+                let hover_changed = self.reconcile_primary_hover_target();
+                if hover_changed {
+                    self.document.invalidation.insert(InvalidationFlags::TICK);
+                }
             }
             if projection_dirty {
                 self.interaction.scroll.placed_rects.clear();

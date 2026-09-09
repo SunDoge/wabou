@@ -361,7 +361,7 @@ export function TimestowCloseGuard(props: {
         <AlertDialogHeader>
           <AlertDialogTitle>Quit during an active operation?</AlertDialogTitle>
           <AlertDialogDescription>
-            A backup or extraction is still running. Quitting now may leave the
+            A backup or restore is still running. Quitting now may leave the
             operation incomplete. Existing repository snapshots will not be
             deleted.
           </AlertDialogDescription>

@@ -2,6 +2,7 @@ import {
   Alert,
   Badge,
   Button,
+  ButtonGroup,
   Dialog,
   DialogDescription,
   DialogFooter,
@@ -18,7 +19,13 @@ import eye from "lucide-static/icons/eye.svg?raw";
 import file from "lucide-static/icons/file.svg?raw";
 import folder from "lucide-static/icons/folder.svg?raw";
 import { createEffect, createSignal, onCleanup, Show } from "solid-js";
-import { type FileEntry, type RestorePlanSummary, useRusticApi } from "./api";
+import {
+  type FileEntry,
+  type RestoreDestinationMode,
+  type RestorePlanSummary,
+  type RestorePreview,
+  useRusticApi,
+} from "./api";
 import { createAsyncRequestGate } from "./async-request";
 import {
   formatBytes,
@@ -96,7 +103,7 @@ export function FileDetails(props: {
           <View class="flex flex-col gap-1 py-6">
             <Text class="font-medium">File details</Text>
             <Text class="text-sm text-muted">
-              Select an item to inspect it or extract a copy.
+              Select an item to inspect it or restore a copy.
             </Text>
           </View>
         }
@@ -141,7 +148,7 @@ export function FileDetails(props: {
               >
                 <Icon source={eye} size={14} /> Open preview
               </Button>
-              <ExtractDialog
+              <RestoreDialog
                 profileId={props.profileId}
                 snapshotId={props.snapshotId}
                 entry={entry()}
@@ -183,21 +190,30 @@ function Detail(props: { label: string; value: string }) {
   );
 }
 
-function ExtractDialog(props: {
+export function RestoreDialog(props: {
   profileId: string;
   snapshotId: string;
   entry: FileEntry;
+  defaultOpen?: boolean;
   onOperationStart?: (profileId: string, operationId: string) => void;
   onOperationEnd?: (profileId: string, operationId: string) => void;
 }) {
   const api = useRusticApi();
+  const [destinationMode, setDestinationMode] =
+    createSignal<RestoreDestinationMode>("original");
   const [destination, setDestination] = createSignal("");
-  const [plan, setPlan] = createSignal<RestorePlanSummary>();
-  const [pending, setPending] = createSignal<"plan" | "extract">();
+  const [preview, setPreview] = createSignal<RestorePreview>();
+  const [pending, setPending] = createSignal<"plan" | "restore">();
   const [error, setError] = createSignal<string>();
   const [result, setResult] = createSignal<string>();
   const [progress, setProgress] = createSignal<OperationProgressEvent>();
   let activeOperationId: string | undefined;
+  const willOverwrite = () => {
+    const plan = preview()?.plan;
+    return Boolean(
+      plan && (plan.filesToModify > 0 || plan.directoriesToModify > 0),
+    );
+  };
 
   const unsubscribeProgress = subscribeJsonHostMessages<OperationProgressEvent>(
     OPERATION_PROGRESS_TOPIC,
@@ -218,8 +234,9 @@ function ExtractDialog(props: {
   onCleanup(unsubscribeProgress);
 
   function reset() {
+    setDestinationMode("original");
     setDestination("");
-    setPlan(undefined);
+    setPreview(undefined);
     setPending(undefined);
     setError(undefined);
     setResult(undefined);
@@ -228,15 +245,17 @@ function ExtractDialog(props: {
   }
 
   async function review() {
-    if (!destination().trim() || pending()) return;
+    if ((destinationMode() === "custom" && !destination().trim()) || pending())
+      return;
     setPending("plan");
     setError(undefined);
     try {
-      setPlan(
+      setPreview(
         await api.previewRestore({
           profileId: props.profileId,
           snapshotId: props.snapshotId,
           path: props.entry.path,
+          destinationMode: destinationMode(),
           destination: destination(),
         }),
       );
@@ -247,9 +266,10 @@ function ExtractDialog(props: {
     }
   }
 
-  async function extract() {
-    if (!plan() || pending()) return;
-    setPending("extract");
+  async function restore() {
+    const reviewed = preview();
+    if (!reviewed || pending()) return;
+    setPending("restore");
     setError(undefined);
     const operationId = createLocalOperationId("restore");
     activeOperationId = operationId;
@@ -260,7 +280,9 @@ function ExtractDialog(props: {
         profileId: props.profileId,
         snapshotId: props.snapshotId,
         path: props.entry.path,
+        destinationMode: destinationMode(),
         destination: destination(),
+        allowOverwrite: willOverwrite(),
         operationId,
       });
       setResult(restored.destination);
@@ -286,56 +308,112 @@ function ExtractDialog(props: {
 
   return (
     <Dialog
-      aria-label={`Extract ${props.entry.name}`}
+      aria-label={`Restore ${props.entry.name}`}
+      defaultOpen={props.defaultOpen}
       closeOnBackdrop={!pending()}
       closeOnEscape={!pending()}
       onOpenChange={(open) => {
         if (open) reset();
       }}
       trigger={(trigger) => (
-        <Button {...trigger} aria-label="Extract…">
-          <Icon source={download} size={14} /> Extract…
+        <Button {...trigger} aria-label="Restore…">
+          <Icon source={download} size={14} /> Restore…
         </Button>
       )}
     >
       {(dialog) => (
         <View class="flex flex-col gap-4">
           <DialogHeader>
-            <DialogTitle>Extract {props.entry.name}</DialogTitle>
+            <DialogTitle>Restore {props.entry.name}</DialogTitle>
             <DialogDescription>
-              Choose a destination, review the restore plan, then extract a copy
-              without changing the snapshot.
+              Restore to the recorded source path, or choose another folder. The
+              snapshot itself is never changed.
             </DialogDescription>
           </DialogHeader>
-          <DirectoryPicker
-            aria-label="Extraction destination"
-            placeholder="Choose a destination folder"
-            value={destination()}
-            disabled={Boolean(pending()) || Boolean(result())}
-            onValueChange={(value) => {
-              setDestination(value);
-              setPlan(undefined);
-            }}
-            onBrowseError={(cause) =>
-              setError(cause instanceof Error ? cause.message : String(cause))
-            }
-          />
-          <Show when={plan()}>
-            {(current) => <RestorePlanReview plan={current()} />}
+          <View class="flex flex-col gap-2">
+            <Text class="text-sm font-medium">Restore destination</Text>
+            <ButtonGroup
+              size="sm"
+              variant="outline"
+              aria-label="Restore destination mode"
+              class="self-start"
+            >
+              <Button
+                size="sm"
+                variant="outline"
+                selected={destinationMode() === "original"}
+                aria-pressed={destinationMode() === "original"}
+                aria-label="Original location"
+                disabled={Boolean(pending()) || Boolean(result())}
+                onClick={() => {
+                  setDestinationMode("original");
+                  setPreview(undefined);
+                }}
+              >
+                Original location
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                selected={destinationMode() === "custom"}
+                aria-pressed={destinationMode() === "custom"}
+                aria-label="Choose folder"
+                disabled={Boolean(pending()) || Boolean(result())}
+                onClick={() => {
+                  setDestinationMode("custom");
+                  setPreview(undefined);
+                }}
+              >
+                Choose folder
+              </Button>
+            </ButtonGroup>
+            <Show
+              when={destinationMode() === "custom"}
+              fallback={
+                <Text class="text-xs text-muted">
+                  The recorded source path is used by default. Existing content
+                  is never replaced without a reviewed restore plan.
+                </Text>
+              }
+            >
+              <DirectoryPicker
+                aria-label="Restore destination"
+                placeholder="Choose a destination folder"
+                value={destination()}
+                disabled={Boolean(pending()) || Boolean(result())}
+                onValueChange={(value) => {
+                  setDestination(value);
+                  setPreview(undefined);
+                }}
+                onBrowseError={(cause) =>
+                  setError(
+                    cause instanceof Error ? cause.message : String(cause),
+                  )
+                }
+              />
+            </Show>
+          </View>
+          <Show when={preview()}>
+            {(current) => (
+              <View class="flex flex-col gap-3">
+                <Detail label="Will restore to" value={current().destination} />
+                <RestorePlanReview plan={current().plan} />
+              </View>
+            )}
           </Show>
-          <Show when={pending() === "extract" && progress()}>
+          <Show when={pending() === "restore" && progress()}>
             <OperationProgressStatus progress={progress()!} />
           </Show>
           <Show when={result()}>
             {(path) => (
-              <Alert title="Extraction complete">
+              <Alert title="Restore complete">
                 <Text class="whitespace-normal text-sm">{path()}</Text>
               </Alert>
             )}
           </Show>
           <Show when={error()}>
             {(message) => (
-              <Alert variant="destructive" title="Extraction failed">
+              <Alert variant="destructive" title="Restore failed">
                 {message()}
               </Alert>
             )}
@@ -352,30 +430,35 @@ function ExtractDialog(props: {
               when={!result()}
               fallback={
                 <Button onClick={() => void openExtractedItem()}>
-                  Open extracted item
+                  Open restored item
                 </Button>
               }
             >
               <Show
-                when={plan()}
+                when={preview()}
                 fallback={
                   <Button
-                    disabled={!destination().trim() || Boolean(pending())}
+                    disabled={
+                      (destinationMode() === "custom" &&
+                        !destination().trim()) ||
+                      Boolean(pending())
+                    }
                     loading={pending() === "plan"}
                     loadingLabel="Reviewing…"
+                    aria-label="Review restore"
                     onClick={() => void review()}
                   >
-                    Review extraction
+                    Review restore
                   </Button>
                 }
               >
                 <Button
                   disabled={Boolean(pending())}
-                  loading={pending() === "extract"}
-                  loadingLabel="Extracting…"
-                  onClick={() => void extract()}
+                  loading={pending() === "restore"}
+                  loadingLabel="Restoring…"
+                  onClick={() => void restore()}
                 >
-                  Extract
+                  {willOverwrite() ? "Replace and restore" : "Restore"}
                 </Button>
               </Show>
             </Show>

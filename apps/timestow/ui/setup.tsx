@@ -9,12 +9,16 @@ import {
   PageViewport,
   PasswordInput,
   Text,
+  useDialog,
   useNavigate,
   View,
 } from "@wabou/ui";
 import archiveRestore from "lucide-static/icons/archive-restore.svg?raw";
 import databaseZap from "lucide-static/icons/database-zap.svg?raw";
+import fileCog from "lucide-static/icons/file-cog.svg?raw";
+import folderOpen from "lucide-static/icons/folder-open.svg?raw";
 import { createEffect, createSignal, Show } from "solid-js";
+import type { RepositoryKind } from "./api";
 import { useTimestowSession } from "./session";
 
 export type RepositoryMode = "create" | "open";
@@ -23,28 +27,34 @@ export interface BackupConnectionFormProps {
   mode: RepositoryMode;
   name: string;
   path: string;
+  repositoryKind?: RepositoryKind;
   passwordSecret: string;
   confirmationSecret: string;
   pending?: RepositoryMode;
   locked?: boolean;
   error?: string;
   onModeChange(mode: RepositoryMode): void;
+  onRepositoryKindChange?(kind: RepositoryKind): void;
   onNameChange(value: string): void;
   onPathChange(value: string): void;
   onSubmit(): void;
 }
 
 export function BackupConnectionForm(props: BackupConnectionFormProps) {
+  const nativeDialog = useDialog();
   const [passwordPresent, setPasswordPresent] = createSignal(false);
   const [confirmationPresent, setConfirmationPresent] = createSignal(false);
   const ready = () =>
     Boolean(
       props.name.trim() &&
         props.path.trim() &&
-        passwordPresent() &&
+        (passwordPresent() || importingConfig()) &&
         (!creating() || props.locked || confirmationPresent()),
     ) && !props.pending;
   const creating = () => props.mode === "create";
+  const repositoryKind = () => props.repositoryKind ?? "local";
+  const importingConfig = () =>
+    !creating() && repositoryKind() === "rusticConfig";
 
   createEffect(
     () => props.passwordSecret,
@@ -69,7 +79,9 @@ export function BackupConnectionForm(props: BackupConnectionFormProps) {
       return "This profile reconnects to its existing encrypted repository.";
     return creating()
       ? "Choose an empty folder for the new repository."
-      : "Choose an existing rustic or restic repository.";
+      : importingConfig()
+        ? "Choose the rustic TOML profile that already connects to S3."
+        : "Choose an existing rustic or restic repository.";
   };
   const submitLabel = () => {
     if (props.pending) return creating() ? "Creating…" : "Opening…";
@@ -118,6 +130,35 @@ export function BackupConnectionForm(props: BackupConnectionFormProps) {
               ? "Start a new encrypted backup repository in an empty folder."
               : "Connect a repository previously created by rustic or restic."}
           </Text>
+          <Show when={!creating()}>
+            <ButtonGroup
+              class="self-start"
+              size="sm"
+              variant="outline"
+              aria-label="Existing repository source"
+            >
+              <Button
+                size="sm"
+                variant="outline"
+                selected={repositoryKind() === "local"}
+                aria-pressed={repositoryKind() === "local"}
+                aria-label="Repository folder"
+                onClick={() => props.onRepositoryKindChange?.("local")}
+              >
+                <Icon source={folderOpen} size={14} /> Repository folder
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                selected={importingConfig()}
+                aria-pressed={importingConfig()}
+                aria-label="Rustic config"
+                onClick={() => props.onRepositoryKindChange?.("rusticConfig")}
+              >
+                <Icon source={fileCog} size={14} /> Rustic config
+              </Button>
+            </ButtonGroup>
+          </Show>
         </View>
       </Show>
 
@@ -138,14 +179,48 @@ export function BackupConnectionForm(props: BackupConnectionFormProps) {
         <Text class="font-medium">Storage location</Text>
         <Text class="text-sm text-muted">{storageDescription()}</Text>
       </View>
-      <DirectoryPicker
-        aria-label="Repository location"
-        value={props.path}
-        onValueChange={props.onPathChange}
-        disabled={props.locked}
-        placeholder="/data/backups/my-repository"
-        browseLabel="Choose folder"
-      />
+      <Show
+        when={importingConfig()}
+        fallback={
+          <DirectoryPicker
+            aria-label="Repository location"
+            value={props.path}
+            onValueChange={props.onPathChange}
+            disabled={props.locked}
+            placeholder="/data/backups/my-repository"
+            browseLabel="Choose folder"
+          />
+        }
+      >
+        <View class="min-w-0 flex flex-row items-center gap-2">
+          <Input
+            aria-label="Rustic configuration file"
+            class="min-w-0 flex-1"
+            value={props.path}
+            disabled={props.locked}
+            placeholder="~/.config/rustic/rustic.toml"
+            onInput={(event) => props.onPathChange(event.currentTarget.value)}
+          />
+          <Button
+            variant="outline"
+            disabled={props.locked}
+            aria-label="Choose config"
+            onClick={() => {
+              void nativeDialog
+                .open({
+                  title: "Choose rustic configuration",
+                  filters: [{ name: "TOML", extensions: ["toml"] }],
+                })
+                .then((paths) => {
+                  const path = paths?.[0];
+                  if (path) props.onPathChange(path);
+                });
+            }}
+          >
+            Choose config
+          </Button>
+        </View>
+      </Show>
       <View
         role="group"
         aria-label="Repository credentials"
@@ -156,7 +231,9 @@ export function BackupConnectionForm(props: BackupConnectionFormProps) {
         }
       >
         <View class="flex flex-col gap-1.5">
-          <Text class="font-medium">Repository password</Text>
+          <Text class="font-medium">
+            Repository password{importingConfig() ? " (if not in config)" : ""}
+          </Text>
           <Show when={props.passwordSecret} keyed>
             {(secret) => (
               <PasswordInput
@@ -202,8 +279,9 @@ export function BackupConnectionForm(props: BackupConnectionFormProps) {
         </Show>
       </View>
       <Text class="text-xs text-muted">
-        Passwords stay in this app process and are never written to the profile
-        database. New repositories require confirmation to prevent typos.
+        {importingConfig()
+          ? "S3 credentials and repository passwords are read by Rust and never exposed to JavaScript. Imported repositories are read-only in Timestow."
+          : "Passwords stay in this app process and are never written to the profile database. New repositories require confirmation to prevent typos."}
       </Text>
       <Show when={props.error}>
         {(message) => (
@@ -236,6 +314,8 @@ export function SetupPage() {
   const [name, setName] = createSignal("");
   const [path, setPath] = createSignal("");
   const [mode, setMode] = createSignal<RepositoryMode>("create");
+  const [repositoryKind, setRepositoryKind] =
+    createSignal<RepositoryKind>("local");
   const [pending, setPending] = createSignal<"create" | "open">();
   const [error, setError] = createSignal<string>();
   const passwordSecret = () =>
@@ -252,6 +332,7 @@ export function SetupPage() {
         id: locked?.id,
         name: name(),
         repositoryPath: path(),
+        repositoryKind: repositoryKind(),
         passwordSlot: passwordSecret(),
         confirmationSlot: mode === "create" ? confirmationSecret() : undefined,
         sources: locked?.sources,
@@ -270,6 +351,7 @@ export function SetupPage() {
       setName(profile?.name ?? "");
       setPath(profile?.repositoryPath ?? "");
       setMode(profile ? "open" : "create");
+      setRepositoryKind(profile?.repositoryKind ?? "local");
     },
   );
 
@@ -298,6 +380,7 @@ export function SetupPage() {
             mode={mode()}
             name={name()}
             path={path()}
+            repositoryKind={repositoryKind()}
             passwordSecret={passwordSecret()}
             confirmationSecret={confirmationSecret()}
             pending={pending()}
@@ -305,6 +388,12 @@ export function SetupPage() {
             error={error()}
             onModeChange={(nextMode) => {
               setMode(nextMode);
+              if (nextMode === "create") setRepositoryKind("local");
+              setError(undefined);
+            }}
+            onRepositoryKindChange={(kind) => {
+              setRepositoryKind(kind);
+              setPath("");
               setError(undefined);
             }}
             onNameChange={setName}

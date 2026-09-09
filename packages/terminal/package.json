@@ -26,6 +26,6 @@
   },
   "dependencies": {
     "@wabou/core": "workspace:*",
-    "solid-js": "2.0.0-rc.6"
+    "solid-js": "2.0.0-rc.7"
   }
 }

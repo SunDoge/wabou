@@ -158,6 +158,33 @@ await renderLayoutFixtures({
       assert: (fixture) => assertSetupWorkspace(fixture, 900, 620),
     },
     {
+      id: "timestow/setup-remote-config",
+      width: 900,
+      height: 620,
+      checks: ["visible-overflow", "text-collision", "visual-quality"],
+      assert: (fixture) => {
+        const form = getLayoutNode(fixture, {
+          role: "group",
+          name: "Backup repository setup",
+        });
+        getLayoutNode(fixture, {
+          role: "textbox",
+          name: "Rustic configuration file",
+        });
+        getLayoutNode(fixture, { role: "button", name: "Choose config" });
+        const submit = getLayoutNode(fixture, {
+          role: "button",
+          name: "Open repository",
+        });
+        if (
+          submit.rect.x + submit.rect.width >
+          form.rect.x + form.rect.width + 0.5
+        ) {
+          throw new Error("remote repository action escapes its form surface");
+        }
+      },
+    },
+    {
       id: "timestow/unlock-minimum",
       width: 900,
       height: 620,
@@ -177,6 +204,38 @@ await renderLayoutFixtures({
       height: 176,
       checks: ["visible-overflow", "text-collision", "visual-quality"],
       assert: assertWorkspaceHeader,
+    },
+    {
+      id: "timestow/restore-dialog",
+      width: 640,
+      height: 520,
+      checks: ["visible-overflow", "text-collision", "visual-quality"],
+      assert: (fixture) => {
+        getLayoutNode(fixture, {
+          role: "dialog",
+          name: "Restore backup-notes.md",
+        });
+        const original = getLayoutNode(fixture, {
+          role: "button",
+          name: "Original location",
+        });
+        if (
+          !original.attrs.some(
+            ([name, value]) => name === "aria-pressed" && value === "true",
+          )
+        ) {
+          throw new Error("original location is not the default restore mode");
+        }
+        getLayoutNode(fixture, { role: "button", name: "Review restore" });
+        if (
+          queryLayoutNodes(fixture, {
+            role: "textbox",
+            name: "Restore destination",
+          }).length > 0
+        ) {
+          throw new Error("the default restore mode still asks for a folder");
+        }
+      },
     },
     {
       id: "timestow/workspace-wide",

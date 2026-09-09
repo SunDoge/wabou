@@ -53,6 +53,25 @@ impl Applier {
         changed
     }
 
+    /// Re-evaluate hover after scrolling, layout, or transforms move content
+    /// underneath a stationary pointer. Native platforms do not necessarily
+    /// emit a pointer-move for geometry-only changes, so retaining the old hit
+    /// would leave JS hover state attached to rows that are no longer there.
+    pub(super) fn reconcile_primary_hover_target(&mut self) -> bool {
+        let pointer_id = self.interaction.input.pointer_properties.id;
+        if !self
+            .interaction
+            .input
+            .pointer_routes
+            .contains_key(&pointer_id)
+        {
+            return false;
+        }
+        let (x, y) = self.interaction.input.pointer_position;
+        let target = self.interaction.input.hit_test(x, y);
+        self.update_hover_target(pointer_id, target, self.interaction.input.pointer_modifiers)
+    }
+
     pub(super) fn handle_pointer_enter(
         &mut self,
         pointer: shell_api::PointerEvent,
@@ -445,29 +464,45 @@ impl Applier {
 
     pub(super) fn handle_wheel_event(&mut self, wheel: shell_api::WheelEvent) -> EventResponse {
         self.interaction.input.pointer_position = (wheel.position.x, wheel.position.y);
+        self.interaction.input.pointer_modifiers = wheel.modifiers;
         // Wheel events carry their own pointer position. Re-hit-test it even
         // when the cached hover target is still alive: semantic automation,
         // trackpads and virtualized content can move the wheel position
         // without first delivering a pointer-move event.
-        self.interaction.input.hovered_target =
+        let hit_target = self.interaction.input.hit_test(
+            self.interaction.input.pointer_position.0,
+            self.interaction.input.pointer_position.1,
+        );
+        // A native widget may receive a wheel event before the first retained
+        // hit projection is available. Preserve its already-established route
+        // only in that specific state; once geometry exists, `None` means the
+        // pointer is genuinely over empty space and must clear hover.
+        let target = hit_target.or_else(|| {
             self.interaction
                 .input
-                .hit_test(
-                    self.interaction.input.pointer_position.0,
-                    self.interaction.input.pointer_position.1,
-                )
-                .or_else(|| {
-                    self.interaction.input.hovered_target.filter(|target| {
-                        self.document.node_store.solid_to_node.contains_key(target)
-                    })
-                });
-        let Some(target) = self.interaction.input.hovered_target else {
-            return EventResponse::IGNORED;
+                .hit_items
+                .is_empty()
+                .then_some(self.interaction.input.hovered_target)
+                .flatten()
+                .filter(|target| self.document.node_store.solid_to_node.contains_key(target))
+        });
+        let hover_changed = self.update_hover_target(
+            self.interaction.input.pointer_properties.id,
+            target,
+            wheel.modifiers,
+        );
+        let Some(target) = target else {
+            return Self::response(hover_changed);
         };
+        if !self.document.node_store.solid_to_node.contains_key(&target) {
+            return EventResponse::IGNORED;
+        }
 
         // Rust widgets, such as terminal scrollback, get first refusal before
         // JavaScript listeners and native overflow scrolling.
-        if let Some(response) = self.handle_widget_event(target, &UiEvent::Wheel(wheel)) {
+        if let Some(mut response) = self.handle_widget_event(target, &UiEvent::Wheel(wheel)) {
+            response.handled |= hover_changed;
+            response.request_redraw |= hover_changed;
             return response;
         }
 
@@ -498,7 +533,7 @@ impl Applier {
                 wheel.delta_y as f32,
                 wheel.delta_mode == shell_api::WheelDeltaMode::Line,
             );
-        Self::response(dispatched || scrolled)
+        Self::response(hover_changed || dispatched || scrolled)
     }
 
     pub(super) fn rebuild_hit_geometry(&mut self, placed: &[PlacedNode]) {

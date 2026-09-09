@@ -5,7 +5,7 @@ import {
   backupScheduleValue,
 } from "./backup-schedule";
 
-const SCHEMA_VERSION = 2;
+const SCHEMA_VERSION = 3;
 
 export interface StoredProfiles {
   profiles: BackupProfile[];
@@ -44,6 +44,8 @@ function profileFromValue(value: KvValue, expectedId: string): BackupProfile {
     id: value.id,
     name: value.name,
     repositoryPath: value.repositoryPath,
+    repositoryKind:
+      value.repositoryKind === "rusticConfig" ? "rusticConfig" : "local",
     sources: sources as string[],
     ...(schedule ? { schedule } : {}),
   };
@@ -81,6 +83,7 @@ function profileValue(profile: BackupProfile): KvValue {
     id: profile.id,
     name: profile.name,
     repositoryPath: profile.repositoryPath,
+    repositoryKind: profile.repositoryKind ?? "local",
     sources: [...profile.sources],
     ...(profile.schedule
       ? { schedule: backupScheduleValue(profile.schedule) }
@@ -95,7 +98,11 @@ export function createProfileStore(kv: Kv): ProfileStore {
       const schema = await kv.get(["meta", "schemaVersion"]);
       if (schema === null) {
         await kv.set(["meta", "schemaVersion"], SCHEMA_VERSION);
-      } else if (schema.value !== 1 && schema.value !== SCHEMA_VERSION) {
+      } else if (
+        schema.value !== 1 &&
+        schema.value !== 2 &&
+        schema.value !== SCHEMA_VERSION
+      ) {
         throw new Error(
           `unsupported backup profile schema ${String(schema.value)}`,
         );
@@ -127,7 +134,7 @@ export function createProfileStore(kv: Kv): ProfileStore {
       if (active !== null && activeProfileId === undefined) {
         await kv.delete(["state", "activeProfileId"]);
       }
-      if (schema?.value === 1) {
+      if (schema?.value === 1 || schema?.value === 2) {
         await kv.set(["meta", "schemaVersion"], SCHEMA_VERSION);
       }
       return {
