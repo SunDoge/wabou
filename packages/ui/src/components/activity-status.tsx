@@ -1,15 +1,9 @@
 import { mergeClasses } from "@wabou/core/style";
 import { type JSX, omit, Show } from "solid-js";
 import { Pulse, Text, View, type ViewProps } from "../primitives";
+import { componentToneClass, type ComponentTone } from "./tone";
 
-export type ActivityStatusTone = "accent" | "danger" | "muted" | "success";
-
-const toneClass: Record<ActivityStatusTone, string> = {
-  accent: "bg-accent",
-  danger: "bg-danger-primary",
-  muted: "bg-muted",
-  success: "bg-success-primary",
-};
+export type ActivityStatusTone = Exclude<ComponentTone, "neutral"> | "muted";
 
 export interface ActivityStatusIndicatorProps {
   animated?: boolean;
@@ -25,7 +19,10 @@ export function ActivityStatusIndicator(
   const className = () =>
     mergeClasses(
       "w-1.5 h-1.5 flex-none rounded-full",
-      toneClass[props.tone ?? "accent"],
+      componentToneClass(
+        props.tone === "muted" ? "neutral" : (props.tone ?? "accent"),
+        "indicator",
+      ),
       props.class,
     );
   return (

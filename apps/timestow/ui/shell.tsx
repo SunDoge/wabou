@@ -124,7 +124,13 @@ export function TimestowSidebar(props: TimestowSidebarProps) {
         class="w-56 border-r border-subtle bg-surface-muted"
       >
         <SidebarHeader class="h-16 px-4 flex items-center gap-3 border-0 bg-surface-muted">
-          <IconFrame source={archive} size="sm" iconSize={18} variant="solid" />
+          <IconFrame
+            source={archive}
+            size="sm"
+            iconSize={18}
+            variant="solid"
+            tone="accent"
+          />
           <View class="min-w-0 flex flex-col">
             <Text class="truncate text-sm font-semibold">Timestow</Text>
             <Text class="truncate text-xs text-muted">Backup workspace</Text>

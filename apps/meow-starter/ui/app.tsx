@@ -9,6 +9,7 @@ import {
   createTransition,
   createWindowMatch,
   Icon,
+  IconFrame,
   PageViewport,
   Sidebar,
   SidebarContent,
@@ -84,6 +85,29 @@ const capabilities = [
     tone: "coral",
   },
 ] as const;
+
+const capabilityTone = {
+  teal: {
+    frame: "border-success-primary bg-success-surface",
+    foreground: "text-success-primary",
+    badge: "border-success-primary bg-success-surface text-success-primary",
+  },
+  indigo: {
+    frame: "border-indigo-primary bg-indigo-surface",
+    foreground: "text-indigo-primary",
+    badge: "border-indigo-primary bg-indigo-surface text-indigo-primary",
+  },
+  blue: {
+    frame: "border-blue-primary bg-blue-surface",
+    foreground: "text-blue-primary",
+    badge: "border-blue-primary bg-blue-surface text-blue-primary",
+  },
+  coral: {
+    frame: "border-coral-primary bg-coral-surface",
+    foreground: "text-coral-primary",
+    badge: "border-coral-primary bg-coral-surface text-coral-primary",
+  },
+} as const;
 
 function WindowControls(): JSX.Element {
   const window = useWindow();
@@ -216,6 +240,7 @@ function AppSidebar(props: {
 }
 
 function CapabilityCard(props: (typeof capabilities)[number]): JSX.Element {
+  const tone = () => capabilityTone[props.tone];
   return (
     <Card
       role="group"
@@ -225,46 +250,20 @@ function CapabilityCard(props: (typeof capabilities)[number]): JSX.Element {
       class="min-w-0 h-44"
     >
       <CardContent class="h-full items-center justify-between text-center">
-        <View
-          class="w-14 h-14 flex-none flex items-center justify-center rounded-2xl"
-          classList={{
-            "bg-success-surface": props.tone === "teal",
-            "bg-indigo-surface": props.tone === "indigo",
-            "bg-blue-surface": props.tone === "blue",
-            "bg-coral-surface": props.tone === "coral",
-          }}
-        >
-          <Icon
-            source={props.icon}
-            size={26}
-            classList={{
-              "text-success-primary": props.tone === "teal",
-              "text-indigo-primary": props.tone === "indigo",
-              "text-blue-primary": props.tone === "blue",
-              "text-coral-primary": props.tone === "coral",
-            }}
-          />
-        </View>
+        <IconFrame
+          source={props.icon}
+          size="xl"
+          variant="soft"
+          class={tone().frame}
+          iconClass={tone().foreground}
+        />
         <View class="min-w-0 w-full flex flex-col items-center gap-1">
           <Text class="w-full truncate text-base font-semibold text-primary">
             {props.title}
           </Text>
           <Text class="w-full truncate text-xs text-muted">{props.detail}</Text>
         </View>
-        <Badge
-          variant="outline"
-          weight="normal"
-          classList={{
-            "border-success-primary bg-success-surface text-success-primary":
-              props.tone === "teal",
-            "border-indigo-primary bg-indigo-surface text-indigo-primary":
-              props.tone === "indigo",
-            "border-blue-primary bg-blue-surface text-blue-primary":
-              props.tone === "blue",
-            "border-coral-primary bg-coral-surface text-coral-primary":
-              props.tone === "coral",
-          }}
-        >
+        <Badge variant="outline" weight="normal" class={tone().badge}>
           {props.status}
         </Badge>
       </CardContent>

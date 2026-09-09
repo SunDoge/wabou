@@ -3,6 +3,13 @@ import { mount, writer } from "@wabou/core/renderer";
 import { createComponent, flush } from "solid-js";
 // Exercise the Solid-transformed public artifact.
 import { Fps } from "../../dist/index.mjs";
+import { badgeClass } from "./badge";
+
+test("semantic badges consume the shared component tone contract", () => {
+  expect(badgeClass("info")).toContain("bg-selected");
+  expect(badgeClass("success")).toContain("bg-success-surface");
+  expect(badgeClass("destructive")).toContain("bg-danger-surface");
+});
 
 test("monospace FPS badges select one explicit font weight", () => {
   const classes: string[] = [];

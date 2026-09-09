@@ -2,6 +2,7 @@ import { mergeClasses } from "@wabou/core/style";
 import { type JSX, omit } from "solid-js";
 import { match } from "ts-pattern";
 import { Text, type TextProps } from "../primitives";
+import { componentToneClass } from "./tone";
 
 export type BadgeVariant =
   | "default"
@@ -9,6 +10,7 @@ export type BadgeVariant =
   | "outline"
   | "ghost"
   | "link"
+  | "info"
   | "success"
   | "destructive";
 export type BadgeSize = "sm" | "default" | "lg";
@@ -33,14 +35,9 @@ export function badgeClass(
     .with("outline", () => "bg-transparent border-strong text-secondary")
     .with("ghost", () => "bg-transparent border-transparent text-secondary")
     .with("link", () => "bg-transparent border-transparent text-accent")
-    .with(
-      "success",
-      () => "bg-success-surface border-success-primary text-success-primary",
-    )
-    .with(
-      "destructive",
-      () => "bg-danger-surface border-danger text-danger-primary",
-    )
+    .with("info", () => componentToneClass("accent", "surface"))
+    .with("success", () => componentToneClass("success", "surface"))
+    .with("destructive", () => componentToneClass("danger", "surface"))
     .exhaustive();
   return mergeClasses(
     "flex-none overflow-hidden whitespace-nowrap flex items-center justify-center rounded-full border",

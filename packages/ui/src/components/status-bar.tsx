@@ -1,6 +1,7 @@
 import { mergeClasses } from "@wabou/core/style";
 import { type JSX, omit } from "solid-js";
 import { Text, type TextProps, View, type ViewProps } from "../primitives";
+import { componentToneClass, type ComponentTone } from "./tone";
 
 export interface StatusBarProps extends Omit<ViewProps, "class"> {
   class?: string;
@@ -76,19 +77,14 @@ export function StatusBarGroup(props: StatusBarGroupProps): JSX.Element {
   );
 }
 
-export type StatusBarIndicatorTone = "accent" | "danger" | "muted" | "success";
+export type StatusBarIndicatorTone =
+  | Exclude<ComponentTone, "neutral">
+  | "muted";
 
 export interface StatusBarIndicatorProps {
   tone?: StatusBarIndicatorTone;
   class?: string;
 }
-
-const indicatorToneClass: Record<StatusBarIndicatorTone, string> = {
-  accent: "bg-accent",
-  danger: "bg-danger-primary",
-  muted: "bg-muted",
-  success: "bg-success-primary",
-};
 
 /** Compact, decorative state indicator with a theme-aware semantic tone. */
 export function StatusBarIndicator(
@@ -99,7 +95,10 @@ export function StatusBarIndicator(
       aria-hidden="true"
       class={mergeClasses(
         "w-1.5 h-1.5 flex-none rounded-full",
-        indicatorToneClass[props.tone ?? "muted"],
+        componentToneClass(
+          props.tone === "muted" ? "neutral" : (props.tone ?? "neutral"),
+          "indicator",
+        ),
         props.class,
       )}
     />

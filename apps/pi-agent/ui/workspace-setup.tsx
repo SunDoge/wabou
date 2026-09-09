@@ -73,7 +73,7 @@ export function WorkspaceSetup(props: WorkspaceSetupProps) {
   return (
     <Onboarding aria-label={i18n.message(m.setup_welcome, {})}>
       <OnboardingHeader>
-        <IconFrame source={bot} size="default" variant="muted" iconSize={21} />
+        <IconFrame source={bot} size="default" variant="soft" iconSize={21} />
         <OnboardingHeading>
           <OnboardingTitle>{i18n.message(m.setup_welcome, {})}</OnboardingTitle>
           <OnboardingDescription>
@@ -85,12 +85,7 @@ export function WorkspaceSetup(props: WorkspaceSetupProps) {
       <Card class="w-full">
         <CardContent class="gap-3 px-4 pt-4 pb-4">
           <View class="min-w-0 flex flex-row items-center gap-3">
-            <IconFrame
-              source={folder}
-              size="sm"
-              variant="muted"
-              iconSize={17}
-            />
+            <IconFrame source={folder} size="sm" variant="soft" iconSize={17} />
             <View class="min-w-0 flex-1 gap-0">
               <Text class="text-sm font-medium">
                 {i18n.message(m.setup_title, {})}

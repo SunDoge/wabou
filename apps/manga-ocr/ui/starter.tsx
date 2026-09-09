@@ -53,7 +53,12 @@ export function Starter() {
               onClick={() => void openFiles()}
             >
               <CardContent class="p-6 flex flex-row items-center gap-4">
-                <IconFrame source={fileImage} size="lg" variant="selected" />
+                <IconFrame
+                  source={fileImage}
+                  size="lg"
+                  variant="soft"
+                  tone="accent"
+                />
                 <View class="min-w-0 flex flex-col gap-1">
                   <Text class="font-semibold">Open pages</Text>
                   <Text class="text-sm text-muted">
@@ -68,7 +73,12 @@ export function Starter() {
               onClick={() => void openFolder()}
             >
               <CardContent class="p-6 flex flex-row items-center gap-4">
-                <IconFrame source={folderOpen} size="lg" variant="selected" />
+                <IconFrame
+                  source={folderOpen}
+                  size="lg"
+                  variant="soft"
+                  tone="accent"
+                />
                 <View class="min-w-0 flex flex-col gap-1">
                   <Text class="font-semibold">Open directory</Text>
                   <Text class="text-sm text-muted">

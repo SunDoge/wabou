@@ -577,7 +577,8 @@ export function IconFrameLayoutFixture() {
       <IconFrame
         source={imageIcon}
         size="lg"
-        variant="selected"
+        variant="soft"
+        tone="accent"
         label="Fixture framed icon"
         aria-label="Fixture icon frame"
       />
@@ -1327,7 +1328,7 @@ export function OnboardingLayoutFixture() {
           <IconFrame
             source={imageIcon}
             size="default"
-            variant="muted"
+            variant="soft"
             aria-label="Fixture onboarding icon"
           />
           <OnboardingHeading>

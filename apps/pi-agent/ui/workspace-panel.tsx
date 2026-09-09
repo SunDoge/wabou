@@ -138,7 +138,7 @@ export function WorkspacePanel(props: WorkspacePanelProps) {
             onRetry={selected() ? () => void preview.refresh() : undefined}
             class="p-0"
             renderEmptyMedia={() => (
-              <IconFrame source={file} variant="muted" iconSize={18} />
+              <IconFrame source={file} variant="soft" iconSize={18} />
             )}
             renderContent={() => {
               const value = preview.value();
