@@ -132,6 +132,26 @@ impl HybridWindowRenderer {
         };
         let capabilities = surface.get_capabilities(&device.adapter);
         let alpha_mode = select_alpha_mode(requested_alpha_mode, &capabilities.alpha_modes);
+        if self.transparent
+            && !matches!(
+                alpha_mode,
+                CompositeAlphaMode::PreMultiplied | CompositeAlphaMode::PostMultiplied
+            )
+        {
+            tracing::warn!(
+                ?requested_alpha_mode,
+                ?alpha_mode,
+                supported_alpha_modes = ?capabilities.alpha_modes,
+                "surface does not expose a guaranteed transparency-preserving alpha mode"
+            );
+        }
+        tracing::debug!(
+            transparent = self.transparent,
+            ?requested_alpha_mode,
+            ?alpha_mode,
+            supported_alpha_modes = ?capabilities.alpha_modes,
+            "configured window surface alpha mode"
+        );
         #[cfg(not(target_vendor = "apple"))]
         let intermediate_texture =
             (alpha_mode == CompositeAlphaMode::PostMultiplied).then_some(TextureConfiguration {
@@ -279,9 +299,9 @@ fn select_alpha_mode(
         .min_by_key(|mode| match mode {
             CompositeAlphaMode::PreMultiplied => 0,
             CompositeAlphaMode::PostMultiplied => 1,
-            CompositeAlphaMode::Opaque | CompositeAlphaMode::Inherit | CompositeAlphaMode::Auto => {
-                2
-            }
+            CompositeAlphaMode::Inherit => 2,
+            CompositeAlphaMode::Auto => 3,
+            CompositeAlphaMode::Opaque => 4,
         })
         .unwrap_or(CompositeAlphaMode::Auto)
 }
@@ -680,6 +700,17 @@ mod tests {
                 ],
             ),
             CompositeAlphaMode::Opaque,
+        );
+    }
+
+    #[test]
+    fn transparent_alpha_fallback_avoids_opaque_when_auto_is_available() {
+        assert_eq!(
+            select_alpha_mode(
+                CompositeAlphaMode::PreMultiplied,
+                &[CompositeAlphaMode::Opaque, CompositeAlphaMode::Auto],
+            ),
+            CompositeAlphaMode::Auto,
         );
     }
 

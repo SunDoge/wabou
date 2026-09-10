@@ -45,6 +45,15 @@ impl Shell {
         options: &WindowOptions,
     ) -> crate::Result<Shell> {
         let transparent = options.background != WindowBackground::Opaque;
+        if matches!(
+            options.background,
+            WindowBackground::Blurred | WindowBackground::Mica | WindowBackground::MicaAlt
+        ) {
+            tracing::warn!(
+                background = ?options.background,
+                "native compositor material is not implemented; using a transparent surface"
+            );
+        }
         let mut attrs = WindowAttributes::default()
             .with_title(options.title.clone())
             .with_visible(false)
