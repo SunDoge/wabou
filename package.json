@@ -81,6 +81,6 @@
     "valibot": "^1.4.2",
     "vite": "^8.2.2",
     "@solidjs/vite-plugin": "3.0.0-next.40",
-    "vitest": "2.1.9"
+    "vitest": "5.0.0"
   }
 }
