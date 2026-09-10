@@ -24,6 +24,7 @@ const FONT_SIZE: f32 = 14.0;
 const LINE_HEIGHT: f32 = 22.0;
 const FALLBACK_CELL_WIDTH: f32 = 8.4;
 const GUTTER_WIDTH: f32 = 58.0;
+const DIFF_GUTTER_WIDTH: f32 = 88.0;
 const TEXT_INSET: f32 = 10.0;
 const TAB_WIDTH: usize = 2;
 const CONTENT_CHANGED: wabou_shell::WidgetChanges =
@@ -145,6 +146,30 @@ struct VisualLine {
     cells: Vec<VisualCell>,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum DiffLineKind {
+    Context,
+    Added,
+    Removed,
+    Meta,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct DiffLine {
+    old: Option<usize>,
+    new: Option<usize>,
+    kind: DiffLineKind,
+}
+
+fn hunk_start(line: &str, marker: char) -> Option<usize> {
+    let start = line.find(marker)? + marker.len_utf8();
+    let digits: String = line[start..]
+        .chars()
+        .take_while(char::is_ascii_digit)
+        .collect();
+    (!digits.is_empty()).then(|| digits.parse().ok()).flatten()
+}
+
 impl VisualLine {
     fn display_text(&self) -> String {
         self.cells.iter().map(|cell| cell.ch).collect()
@@ -185,6 +210,7 @@ pub struct EditorViewport {
     selection_kind: WidgetTextSelectionKind,
     composition: Option<CompositionConfig>,
     highlight_ranges: Vec<HighlightRange>,
+    diff_mode: bool,
     scroll_row: usize,
     viewport: [f32; 2],
     geometry: EditorGeometry,
@@ -207,6 +233,7 @@ impl EditorViewport {
             selection_kind: WidgetTextSelectionKind::Simple,
             composition: None,
             highlight_ranges: Vec::new(),
+            diff_mode: false,
             scroll_row: 0,
             viewport: [0.0, 0.0],
             geometry: EditorGeometry::default(),
@@ -223,6 +250,63 @@ impl EditorViewport {
 
     fn document_len(&self) -> usize {
         self.value.encode_utf16().count()
+    }
+
+    fn diff_lines(&self) -> Vec<DiffLine> {
+        let mut old = None;
+        let mut new = None;
+        self.value
+            .lines()
+            .map(|line| {
+                if line.starts_with("@@") {
+                    old = hunk_start(line, '-');
+                    new = hunk_start(line, '+');
+                    return DiffLine {
+                        old: None,
+                        new: None,
+                        kind: DiffLineKind::Meta,
+                    };
+                }
+                if line.starts_with("+++") || line.starts_with("---") {
+                    return DiffLine {
+                        old: None,
+                        new: None,
+                        kind: DiffLineKind::Meta,
+                    };
+                }
+                if line.starts_with('+') {
+                    let result = DiffLine {
+                        old: None,
+                        new,
+                        kind: DiffLineKind::Added,
+                    };
+                    new = new.map(|number| number + 1);
+                    return result;
+                }
+                if line.starts_with('-') {
+                    let result = DiffLine {
+                        old,
+                        new: None,
+                        kind: DiffLineKind::Removed,
+                    };
+                    old = old.map(|number| number + 1);
+                    return result;
+                }
+                let result = DiffLine {
+                    old,
+                    new,
+                    kind: DiffLineKind::Context,
+                };
+                old = old.map(|number| number + 1);
+                new = new.map(|number| number + 1);
+                result
+            })
+            .collect()
+    }
+
+    fn uses_light_surface(&self) -> bool {
+        let [red, green, blue, _] = self.text_color.to_rgba8().to_u8_array();
+        u16::from(red) + u16::from(green) + u16::from(blue) < 384
     }
 
     fn visual_lines(&self) -> Vec<VisualLine> {
@@ -397,8 +481,7 @@ impl EditorViewport {
             .highlight_ranges
             .get(index)
             .and_then(|range| (range.from <= offset && offset < range.to).then_some(range.kind));
-        let [red, green, blue, _] = self.text_color.to_rgba8().to_u8_array();
-        let light_surface = u16::from(red) + u16::from(green) + u16::from(blue) < 384;
+        let light_surface = self.uses_light_surface();
         match (light_surface, kind) {
             (true, Some(HighlightKind::Property | HighlightKind::Meta)) => {
                 Color::from_rgb8(0x05, 0x50, 0xae)
@@ -488,9 +571,11 @@ impl EditorViewport {
         &self,
         scene: &mut Scene,
         paint: &mut PaintContext<'_>,
-        number: usize,
+        number: Option<usize>,
+        column: usize,
         y: f64,
     ) {
+        let Some(number) = number else { return };
         let scale = paint.device_scale();
         let layout = layout_text_styled(
             paint.text(),
@@ -500,7 +585,11 @@ impl EditorViewport {
             self.font_italic,
             Some((self.geometry.line_height, false)),
             TextAlign::Start,
-            brush_for_color(Color::from_rgb8(0x68, 0x6f, 0x86)),
+            brush_for_color(if self.uses_light_surface() {
+                Color::from_rgb8(0x57, 0x60, 0x6a)
+            } else {
+                Color::from_rgb8(0x68, 0x6f, 0x86)
+            }),
             Arc::from([]),
             self.font_family.as_ref(),
             None,
@@ -508,7 +597,7 @@ impl EditorViewport {
         let glyphs = paint.text().glyph_scene_scaled(&layout, scale);
         scene.append_scene(
             (*glyphs).clone(),
-            Affine::translate((10.0, y)) * Affine::scale(scale.recip()),
+            Affine::translate((8.0 + column as f64 * 42.0, y)) * Affine::scale(scale.recip()),
         );
     }
 
@@ -578,6 +667,7 @@ impl Widget for EditorViewport {
         self.geometry.cell_width = metrics.width().max(f32::EPSILON);
         self.clamp_scroll_row();
         let lines = self.visual_lines();
+        let diff_lines = self.diff_mode.then(|| self.diff_lines());
         let rows = self.visible_rows();
         let mut scene = Scene::new();
         scene.push_clip_layer(
@@ -589,10 +679,15 @@ impl Widget for EditorViewport {
                 f64::from(self.viewport[1]),
             ),
         );
+        let gutter_background = if self.uses_light_surface() {
+            Color::from_rgb8(0xf6, 0xf8, 0xfa)
+        } else {
+            Color::from_rgb8(0x14, 0x17, 0x1c)
+        };
         scene.fill(
             Fill::NonZero,
             Affine::IDENTITY,
-            Color::from_rgb8(0x14, 0x17, 0x1c),
+            gutter_background,
             None,
             &Rect::new(
                 0.0,
@@ -611,8 +706,41 @@ impl Widget for EditorViewport {
             .enumerate()
         {
             let y = f64::from(self.geometry.y_for_row(visible_index));
+            let diff_line = diff_lines
+                .as_ref()
+                .and_then(|lines| lines.get(line.logical_line));
+            if let Some(diff_line) = diff_line {
+                let background = match (self.uses_light_surface(), diff_line.kind) {
+                    (true, DiffLineKind::Added) => Some(Color::from_rgb8(0xe6, 0xff, 0xec)),
+                    (true, DiffLineKind::Removed) => Some(Color::from_rgb8(0xff, 0xeb, 0xe9)),
+                    (true, DiffLineKind::Meta) => Some(Color::from_rgb8(0xdd, 0xf4, 0xff)),
+                    (false, DiffLineKind::Added) => Some(Color::from_rgb8(0x12, 0x26, 0x1b)),
+                    (false, DiffLineKind::Removed) => Some(Color::from_rgb8(0x30, 0x18, 0x1c)),
+                    (false, DiffLineKind::Meta) => Some(Color::from_rgb8(0x17, 0x22, 0x35)),
+                    (_, DiffLineKind::Context) => None,
+                };
+                if let Some(background) = background {
+                    scene.fill(
+                        Fill::NonZero,
+                        Affine::IDENTITY,
+                        background,
+                        None,
+                        &Rect::new(
+                            0.0,
+                            y,
+                            f64::from(self.viewport[0]),
+                            y + f64::from(self.geometry.line_height),
+                        ),
+                    );
+                }
+            }
             if !line.wrapped {
-                self.paint_line_number(&mut scene, paint, line.logical_line + 1, y);
+                if let Some(diff_line) = diff_line {
+                    self.paint_line_number(&mut scene, paint, diff_line.old, 0, y);
+                    self.paint_line_number(&mut scene, paint, diff_line.new, 1, y);
+                } else {
+                    self.paint_line_number(&mut scene, paint, Some(line.logical_line + 1), 0, y);
+                }
             }
             let from = selected_from.max(line.start);
             let to = selected_to.min(line.end);
@@ -633,6 +761,23 @@ impl Widget for EditorViewport {
                 );
             }
             self.paint_text_line(&mut scene, paint, line, y);
+        }
+
+        if self.diff_mode {
+            let separator = if self.uses_light_surface() {
+                Color::from_rgb8(0xd0, 0xd7, 0xde)
+            } else {
+                Color::from_rgb8(0x30, 0x36, 0x3d)
+            };
+            for x in [42.0, f64::from(self.geometry.gutter_width)] {
+                scene.fill(
+                    Fill::NonZero,
+                    Affine::IDENTITY,
+                    separator,
+                    None,
+                    &Rect::new(x, 0.0, x + 1.0, f64::from(self.viewport[1])),
+                );
+            }
         }
 
         if self.focused
@@ -900,6 +1045,15 @@ impl Widget for EditorViewport {
                 return Err("Editor viewport highlight ranges overlap or are not sorted".into());
             }
         }
+        self.diff_mode = config
+            .syntax
+            .as_ref()
+            .is_some_and(|syntax| syntax.language == "diff");
+        self.geometry.gutter_width = if self.diff_mode {
+            DIFF_GUTTER_WIDTH
+        } else {
+            GUTTER_WIDTH
+        };
         self.selection = config.selection;
         self.composition = config.composition;
         self.highlight_ranges = config.syntax.map_or_else(Vec::new, |syntax| syntax.ranges);
@@ -908,6 +1062,8 @@ impl Widget for EditorViewport {
 
     fn config_removed(&mut self) -> wabou_shell::WidgetChanges {
         self.highlight_ranges.clear();
+        self.diff_mode = false;
+        self.geometry.gutter_width = GUTTER_WIDTH;
         self.composition = None;
         wabou_shell::WidgetChanges::REDRAW
     }
@@ -1148,6 +1304,8 @@ mod tests {
 
         assert!(changes.contains(wabou_shell::WidgetChanges::REDRAW));
         assert_eq!(editor.highlight_ranges.len(), 3);
+        assert!(editor.diff_mode);
+        assert_eq!(editor.geometry.gutter_width, DIFF_GUTTER_WIDTH);
         assert_eq!(
             editor.color_at_offset(17),
             Color::from_rgb8(0xa6, 0xe3, 0xa1)
@@ -1156,6 +1314,46 @@ mod tests {
         assert_eq!(
             editor.color_at_offset(17),
             Color::from_rgb8(0x11, 0x63, 0x29)
+        );
+    }
+
+    #[test]
+    fn derives_unified_diff_gutter_numbers() {
+        let mut editor = EditorViewport::new();
+        editor.attribute_changed(
+            "value",
+            "@@ -42,2 +42,3 @@\n context\n-removed\n+added\n+extra",
+        );
+
+        assert_eq!(
+            editor.diff_lines(),
+            vec![
+                DiffLine {
+                    old: None,
+                    new: None,
+                    kind: DiffLineKind::Meta,
+                },
+                DiffLine {
+                    old: Some(42),
+                    new: Some(42),
+                    kind: DiffLineKind::Context,
+                },
+                DiffLine {
+                    old: Some(43),
+                    new: None,
+                    kind: DiffLineKind::Removed,
+                },
+                DiffLine {
+                    old: None,
+                    new: Some(43),
+                    kind: DiffLineKind::Added,
+                },
+                DiffLine {
+                    old: None,
+                    new: Some(44),
+                    kind: DiffLineKind::Added,
+                },
+            ]
         );
     }
 
