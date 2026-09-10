@@ -26,7 +26,7 @@ test("animates and retains a polite toast by default", async () => {
   const toast = screen.getByRole("status", { name: "Saved" });
   expect(toast.text).toContain("Changes are on disk.");
   expect(toast.children[0]?.className).toContain("rounded-lg");
-  expect(toast.children[0]?.className).toContain("border-subtle");
+  expect(toast.children[0]?.className).toContain("border-strong");
   expect(toast.children[0]?.className).toContain("py-3.5");
   expect(toast.attribute("__wabou_native_transition")).toBeNull();
   expect(toast.transform).toEqual([1, 0, 0, 1, 0, 12]);

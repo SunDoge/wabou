@@ -321,7 +321,7 @@ fn text_change_updates_the_exact_control_and_dispatches_once() {
 }
 
 #[test]
-fn native_editor_drag_selection_survives_pointer_routing_and_replaces_text() {
+fn native_editor_drag_selection_survives_pointer_routing_without_owning_text() {
     let js = JsRuntime::new().expect("runtime");
     install_host_frame_test_hook(&js);
     js.with(|ctx| {
@@ -384,15 +384,15 @@ fn native_editor_drag_selection_survives_pointer_routing_and_replaces_text() {
     assert_eq!(payload["text"], "abcdef");
 
     assert!(
-        applier.handle_event(UiEvent::TextInput("X".into())).handled,
-        "the native editor owns text mutation after pointer selection"
+        !applier.handle_event(UiEvent::TextInput("X".into())).handled,
+        "the editor viewport must leave document mutation to CodeMirror"
     );
     applier.build_frame(&mut tcx, 800, 600);
 
     let node = applier.document.node_store.solid_to_node[&NodeKey::new(2, 1)];
     assert_eq!(
         applier.document.widget_manager.widgets[&node].current_value(),
-        Some("X")
+        Some("abcdef")
     );
 }
 

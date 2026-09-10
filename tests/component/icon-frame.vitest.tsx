@@ -9,7 +9,8 @@ test("IconFrame owns square sizing and centering", () => {
     <IconFrame
       source={icon}
       size="lg"
-      variant="selected"
+      variant="soft"
+      tone="accent"
       label="Preview image"
     />
   ));
