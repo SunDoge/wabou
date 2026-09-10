@@ -13,13 +13,13 @@
     "@wabou/ui": "workspace:*",
     "d3-scale": "4.0.2",
     "d3-shape": "3.2.0",
-    "lucide-static": "1.31.0",
+    "lucide-static": "1.41.0",
     "solid-js": "2.0.0-rc.7"
   },
   "devDependencies": {
     "@inlang/paraglide-js": "^2.24.1",
     "@types/d3-scale": "4.0.9",
-    "@types/d3-shape": "3.1.7",
+    "@types/d3-shape": "3.2.0",
     "@types/node": "^26.1.1",
     "@wabou/test": "workspace:*",
     "@wabou/vite": "workspace:*",
