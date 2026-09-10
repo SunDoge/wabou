@@ -377,7 +377,7 @@ export function GithubDesktopReference(props: { class?: string }) {
                     <Text
                       aria-label={`Change marker, diff row ${index() + 1}`}
                       class={mergeClasses(
-                        "w-6 flex-none py-1 text-center font-mono text-xs",
+                        "w-6 flex-none pl-2 py-1 font-mono text-xs",
                         row.kind === "added"
                           ? "text-success-primary"
                           : row.kind === "removed"

@@ -1510,6 +1510,12 @@ const assertGithubDesktopReferenceLayout = (snapshot: LayoutSnapshot) => {
   const removedCode = getLayoutNode(snapshot, {
     name: "Code, diff row 2",
   });
+  const addedNewLine = getLayoutNode(snapshot, {
+    name: "New line 43, diff row 3",
+  });
+  const addedMarker = getLayoutNode(snapshot, {
+    name: "Change marker, diff row 3",
+  });
 
   for (const [label, node] of [
     ["repository toolbar", toolbar],
@@ -1546,6 +1552,19 @@ const assertGithubDesktopReferenceLayout = (snapshot: LayoutSnapshot) => {
     )
   )
     throw new Error("diff gutters are not ordered old/new/marker/code");
+  for (const [label, lineNumber, marker] of [
+    ["removed", removedNewLine, removedMarker],
+    ["added", addedNewLine, addedMarker],
+  ] as const) {
+    if (!marker.textMetrics)
+      throw new Error(`${label} diff marker has no text metrics`);
+    const gutterGap =
+      marker.textMetrics.lineBox.x - layoutRectRight(lineNumber.rect);
+    if (gutterGap < 6)
+      throw new Error(
+        `${label} diff marker is only ${gutterGap}px from the line-number divider`,
+      );
+  }
 };
 
 const overrides: Readonly<Record<string, Omit<LayoutFixtureCase, "id">>> = {
