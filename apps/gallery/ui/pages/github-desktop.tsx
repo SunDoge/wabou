@@ -60,21 +60,53 @@ const diffRows = [
     old: "42",
     next: "42",
     kind: "context",
-    text: "  const selected = state.value;",
+    marker: "",
+    text: "const selected = state.value;",
   },
-  { old: "43", next: "", kind: "removed", text: "- const paneWidth = 280;" },
-  { old: "", next: "43", kind: "added", text: "+ const paneWidth = 320;" },
-  { old: "44", next: "44", kind: "context", text: "  return (" },
-  { old: "45", next: "45", kind: "context", text: "    <Workbench>" },
-  { old: "", next: "46", kind: "added", text: "+     <RepositoryToolbar />" },
-  { old: "46", next: "47", kind: "context", text: "      <ChangesPane" },
+  {
+    old: "43",
+    next: "",
+    kind: "removed",
+    marker: "−",
+    text: "const paneWidth = 280;",
+  },
+  {
+    old: "",
+    next: "43",
+    kind: "added",
+    marker: "+",
+    text: "const paneWidth = 320;",
+  },
+  { old: "44", next: "44", kind: "context", marker: "", text: "return (" },
+  {
+    old: "45",
+    next: "45",
+    kind: "context",
+    marker: "",
+    text: "  <Workbench>",
+  },
+  {
+    old: "",
+    next: "46",
+    kind: "added",
+    marker: "+",
+    text: "    <RepositoryToolbar />",
+  },
+  {
+    old: "46",
+    next: "47",
+    kind: "context",
+    marker: "",
+    text: "    <ChangesPane",
+  },
   {
     old: "47",
     next: "48",
     kind: "context",
-    text: "        selected={selected}",
+    marker: "",
+    text: "      selected={selected}",
   },
-  { old: "48", next: "49", kind: "context", text: "      />" },
+  { old: "48", next: "49", kind: "context", marker: "", text: "    />" },
 ] as const;
 
 const includedByDefault = new Set(changedFiles.map((file) => file.path));
@@ -319,7 +351,7 @@ export function GithubDesktopReference(props: { class?: string }) {
                 <Text class="text-xs text-secondary">Git workbench layout</Text>
               </View>
               <ForValue each={diffRows}>
-                {(row) => (
+                {(row, index) => (
                   <View
                     class={mergeClasses(
                       "min-w-0 min-h-6 flex flex-row items-stretch",
@@ -330,13 +362,35 @@ export function GithubDesktopReference(props: { class?: string }) {
                           : "bg-surface",
                     )}
                   >
-                    <Text class="w-10 flex-none px-2 py-1 text-right font-mono text-xs text-muted border-r border-subtle">
+                    <Text
+                      aria-label={`Old line ${row.old || "empty"}, diff row ${index() + 1}`}
+                      class="w-10 flex-none px-2 py-1 text-right font-mono text-xs text-muted border-r border-subtle"
+                    >
                       {row.old}
                     </Text>
-                    <Text class="w-10 flex-none px-2 py-1 text-right font-mono text-xs text-muted border-r border-subtle">
+                    <Text
+                      aria-label={`New line ${row.next || "empty"}, diff row ${index() + 1}`}
+                      class="w-10 flex-none px-2 py-1 text-right font-mono text-xs text-muted border-r border-subtle"
+                    >
                       {row.next}
                     </Text>
-                    <Text class="min-w-0 flex-1 px-3 py-1 whitespace-nowrap font-mono text-xs text-primary">
+                    <Text
+                      aria-label={`Change marker, diff row ${index() + 1}`}
+                      class={mergeClasses(
+                        "w-6 flex-none py-1 text-center font-mono text-xs",
+                        row.kind === "added"
+                          ? "text-success-primary"
+                          : row.kind === "removed"
+                            ? "text-danger-primary"
+                            : "text-muted",
+                      )}
+                    >
+                      {row.marker}
+                    </Text>
+                    <Text
+                      aria-label={`Code, diff row ${index() + 1}`}
+                      class="min-w-0 flex-1 pr-3 py-1 whitespace-nowrap font-mono text-xs text-primary"
+                    >
                       {row.text}
                     </Text>
                   </View>

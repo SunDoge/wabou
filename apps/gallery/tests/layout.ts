@@ -1498,6 +1498,18 @@ const assertGithubDesktopReferenceLayout = (snapshot: LayoutSnapshot) => {
     role: "button",
     name: "Open github-desktop.tsx",
   });
+  const removedOldLine = getLayoutNode(snapshot, {
+    name: "Old line 43, diff row 2",
+  });
+  const removedNewLine = getLayoutNode(snapshot, {
+    name: "New line empty, diff row 2",
+  });
+  const removedMarker = getLayoutNode(snapshot, {
+    name: "Change marker, diff row 2",
+  });
+  const removedCode = getLayoutNode(snapshot, {
+    name: "Code, diff row 2",
+  });
 
   for (const [label, node] of [
     ["repository toolbar", toolbar],
@@ -1515,6 +1527,25 @@ const assertGithubDesktopReferenceLayout = (snapshot: LayoutSnapshot) => {
     );
   if (layoutRectBottom(files.rect) > commit.rect.y + 1)
     throw new Error("changed file list overlapped the fixed commit controls");
+  const removedRowY = removedOldLine.rect.y;
+  for (const [label, node] of [
+    ["new line number", removedNewLine],
+    ["change marker", removedMarker],
+    ["code", removedCode],
+  ] as const) {
+    if (Math.abs(node.rect.y - removedRowY) > 0.5)
+      throw new Error(
+        `diff ${label} is vertically offset by ${node.rect.y - removedRowY}px`,
+      );
+  }
+  if (
+    !(
+      removedOldLine.rect.x < removedNewLine.rect.x &&
+      removedNewLine.rect.x < removedMarker.rect.x &&
+      removedMarker.rect.x < removedCode.rect.x
+    )
+  )
+    throw new Error("diff gutters are not ordered old/new/marker/code");
 };
 
 const overrides: Readonly<Record<string, Omit<LayoutFixtureCase, "id">>> = {
