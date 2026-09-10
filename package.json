@@ -65,7 +65,7 @@
     "apps/vlist"
   ],
   "devDependencies": {
-    "@biomejs/biome": "2.5.3",
+    "@biomejs/biome": "2.5.12",
     "@changesets/cli": "^2.29.8",
     "@solidjs/web": "2.0.0-rc.7",
     "@types/bun": "^1.4.0",
@@ -74,7 +74,7 @@
     "@wabou/ui": "workspace:*",
     "@wabou/vite": "workspace:*",
     "solid-js": "2.0.0-rc.7",
-    "tsdown": "0.22.14",
+    "tsdown": "0.23.0",
     "turbo": "^2.10.11",
     "typescript": "^5.9.0",
     "unocss": "^66.7.5",
