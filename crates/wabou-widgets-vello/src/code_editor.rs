@@ -171,10 +171,11 @@ impl VisualLine {
     }
 }
 
-/// Controlled native viewport for CodeMirror and future Rust document models.
+/// Native multiline editor used by Wabou's general-purpose `Editor` primitive.
 ///
-/// It deliberately does not edit text. JavaScript owns CodeMirror transactions;
-/// this widget owns paint, scrolling, pointer hit testing and clipboard requests.
+/// The widget owns text editing, UTF-16 selection, IME state, scrolling,
+/// pointer hit testing, clipboard requests, highlighting, and paint. Solid
+/// receives complete controlled-value updates through the widget bridge.
 pub struct CodeEditor {
     value: String,
     selection: SelectionConfig,

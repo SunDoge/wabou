@@ -447,7 +447,7 @@ export function PasswordInput(props: PasswordInputProps): JSX.Element {
   return editorPrimitive("password-input", props);
 }
 
-/** General-purpose editor whose document and input lifecycle are owned by GPUI. */
+/** General-purpose editor whose document and input lifecycle are owned natively. */
 export function Editor(props: EditorProps): JSX.Element {
   return editorPrimitive("editor", props);
 }

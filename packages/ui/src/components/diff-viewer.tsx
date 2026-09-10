@@ -60,8 +60,8 @@ const statusLabels: Record<DiffFileStatus, string> = {
  * A progressive-disclosure code change viewer.
  *
  * The summary and file metadata are ordinary Wabou components. Unified patch
- * text is mounted only after disclosure and uses the DOM-free CodeMirror
- * document/native editor viewport for selection, copying, and large documents.
+ * text is mounted only after disclosure and uses Wabou's native editor viewport
+ * for selection, copying, and large documents.
  */
 export function DiffViewer(props: DiffViewerProps) {
   const labels = (): DiffViewerLabels => ({
