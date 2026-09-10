@@ -177,7 +177,7 @@ export interface EditorProps extends Omit<PrimitiveProps, "children"> {
 function editorLanguage(
   language: string | undefined,
 ): CodeEditorLanguage | undefined {
-  return language === "json" ? language : undefined;
+  return language === "json" || language === "diff" ? language : undefined;
 }
 
 export type NativeWidgetConfig = object | readonly unknown[];

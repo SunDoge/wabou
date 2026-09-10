@@ -5,11 +5,17 @@ import { GithubDesktopReference } from "../../apps/gallery/ui/pages/github-deskt
 test("coordinates changed-file selection with the visible diff", () => {
   const screen = renderComponent(() => <GithubDesktopReference />);
 
+  const initialEditor = screen.getByRole("textbox", {
+    name: "Diff editor: github-desktop.tsx",
+  });
+
   expect(
     screen.getByRole("region", {
       name: "Selected file diff: github-desktop.tsx",
     }),
   ).not.toBeNull();
+  expect(initialEditor.readOnly).toBe(true);
+  expect(initialEditor.value).toContain("GithubDesktopReference");
 
   screen.getByRole("button", { name: "Open layout-fixture-pages.tsx" }).click();
 
@@ -18,6 +24,11 @@ test("coordinates changed-file selection with the visible diff", () => {
       name: "Selected file diff: layout-fixture-pages.tsx",
     }),
   ).not.toBeNull();
+  const updatedEditor = screen.getByRole("textbox", {
+    name: "Diff editor: layout-fixture-pages.tsx",
+  });
+  expect(updatedEditor.identity).toStrictEqual(initialEditor.identity);
+  expect(updatedEditor.value).toContain("paneWidth = 320");
 });
 
 test("requires a summary and at least one included file before commit", () => {

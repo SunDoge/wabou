@@ -33,6 +33,22 @@ describe("headless CodeEditor document", () => {
     ).toBe(true);
   });
 
+  test("projects unified diff lines into semantic highlight ranges", () => {
+    const value = "@@ -1 +1 @@\n-old\n+new\n context";
+    const config = new CodeEditorDocument(value, "diff").config();
+
+    expect(config.syntax).toEqual({
+      language: "diff",
+      offsetEncoding: "utf16",
+      documentLength: value.length,
+      ranges: [
+        { from: 0, to: 11, kind: "meta" },
+        { from: 12, to: 16, kind: "removed" },
+        { from: 17, to: 21, kind: "added" },
+      ],
+    });
+  });
+
   test("owns editing, grapheme movement, selection and undo in CodeMirror", () => {
     const document = new CodeEditorDocument("A😀B", "json");
     document.setSelection(1, 3);

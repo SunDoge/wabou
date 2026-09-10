@@ -1,6 +1,7 @@
 import {
   Button,
   Checkbox,
+  Editor,
   Icon,
   Input,
   mergeClasses,
@@ -16,11 +17,11 @@ import { Button as PrimitiveButton } from "@wabou/ui/primitives";
 import chevronDown from "lucide-static/icons/chevron-down.svg?raw";
 import cloudDownload from "lucide-static/icons/cloud-download.svg?raw";
 import code from "lucide-static/icons/code-2.svg?raw";
-import fileCode from "lucide-static/icons/file-code-2.svg?raw";
-import gitBranch from "lucide-static/icons/git-branch.svg?raw";
-import repository from "lucide-static/icons/folder-git-2.svg?raw";
-import listFilter from "lucide-static/icons/list-filter.svg?raw";
 import moreHorizontal from "lucide-static/icons/ellipsis.svg?raw";
+import fileCode from "lucide-static/icons/file-code-2.svg?raw";
+import repository from "lucide-static/icons/folder-git-2.svg?raw";
+import gitBranch from "lucide-static/icons/git-branch.svg?raw";
+import listFilter from "lucide-static/icons/list-filter.svg?raw";
 import { createSignal, For as ForValue, Show } from "solid-js";
 
 interface ChangedFile {
@@ -29,6 +30,7 @@ interface ChangedFile {
   status: "M" | "A";
   additions: number;
   deletions: number;
+  patch: string;
 }
 
 const changedFiles: readonly ChangedFile[] = [
@@ -38,6 +40,16 @@ const changedFiles: readonly ChangedFile[] = [
     status: "A",
     additions: 214,
     deletions: 0,
+    patch: `@@ -0,0 +1,8 @@
++import { Editor, View } from "@wabou/ui";
++
++export function GithubDesktopReference() {
++  return (
++    <View class="h-full">
++      <Editor readOnly language="diff" value={patch} />
++    </View>
++  );
++}`,
   },
   {
     path: "layout-fixture-pages.tsx",
@@ -45,6 +57,14 @@ const changedFiles: readonly ChangedFile[] = [
     status: "M",
     additions: 12,
     deletions: 2,
+    patch: `@@ -42,7 +42,8 @@
+ const selected = state.value;
+-const paneWidth = 280;
++const paneWidth = 320;
+ return (
+   <Workbench>
++    <RepositoryToolbar />
+     <ChangesPane selected={selected} />`,
   },
   {
     path: "ui-reference-apps.md",
@@ -52,55 +72,13 @@ const changedFiles: readonly ChangedFile[] = [
     status: "M",
     additions: 9,
     deletions: 1,
+    patch: `@@ -18,4 +18,6 @@ Native examples
+-The gallery includes component examples.
++The gallery includes complete native application references.
++Git workbench demonstrates the shared read-only Editor.
+ Headless layout fixtures protect their geometry.`,
   },
 ];
-
-const diffRows = [
-  {
-    old: "42",
-    next: "42",
-    kind: "context",
-    text: "  const selected = state.value;",
-  },
-  {
-    old: "43",
-    next: "",
-    kind: "removed",
-    text: "- const paneWidth = 280;",
-  },
-  {
-    old: "",
-    next: "43",
-    kind: "added",
-    text: "+ const paneWidth = 320;",
-  },
-  { old: "44", next: "44", kind: "context", text: "  return (" },
-  {
-    old: "45",
-    next: "45",
-    kind: "context",
-    text: "    <Workbench>",
-  },
-  {
-    old: "",
-    next: "46",
-    kind: "added",
-    text: "+     <RepositoryToolbar />",
-  },
-  {
-    old: "46",
-    next: "47",
-    kind: "context",
-    text: "      <ChangesPane",
-  },
-  {
-    old: "47",
-    next: "48",
-    kind: "context",
-    text: "        selected={selected}",
-  },
-  { old: "48", next: "49", kind: "context", text: "      />" },
-] as const;
 
 const includedByDefault = new Set(changedFiles.map((file) => file.path));
 
@@ -330,65 +308,19 @@ export function GithubDesktopReference(props: { class?: string }) {
               </Button>
             </View>
           </View>
-          <ScrollArea
+          <View
             role="region"
             aria-label={`Selected file diff: ${selectedFile()?.path ?? "none"}`}
-            class="min-w-0 min-h-0 flex-1"
-            contentClass="py-5"
+            class="min-w-0 min-h-0 flex-1 p-5"
           >
-            <View class="mx-5 min-w-0 overflow-hidden rounded-md border border-subtle bg-surface shadow-xs">
-              <View class="h-9 px-3 flex flex-row items-center gap-3 border-b border-subtle bg-surface-muted">
-                <Text class="font-mono text-xs text-muted">
-                  @@ -42,7 +42,8 @@
-                </Text>
-                <Text class="text-xs text-secondary">Git workbench layout</Text>
-              </View>
-              <ForValue each={diffRows}>
-                {(row, index) => (
-                  <View
-                    class={mergeClasses(
-                      "min-w-0 min-h-6 flex flex-row items-stretch",
-                      row.kind === "added"
-                        ? "bg-success-surface"
-                        : row.kind === "removed"
-                          ? "bg-danger-surface"
-                          : "bg-surface",
-                    )}
-                  >
-                    <View
-                      aria-label={`Old line number gutter, diff row ${index() + 1}`}
-                      class="w-[62.5px] flex-none flex flex-row items-stretch justify-end border-r border-subtle bg-surface-muted"
-                    >
-                      <Text
-                        aria-label={`Old line ${row.old || "empty"}, diff row ${index() + 1}`}
-                        class="px-2 py-1 font-mono text-xs text-muted"
-                      >
-                        {row.old}
-                      </Text>
-                    </View>
-                    <View
-                      aria-label={`New line number gutter, diff row ${index() + 1}`}
-                      class="w-[62.5px] flex-none flex flex-row items-stretch justify-end border-r border-subtle bg-surface-muted"
-                      style={{ "border-right-width": "4px" }}
-                    >
-                      <Text
-                        aria-label={`New line ${row.next || "empty"}, diff row ${index() + 1}`}
-                        class="px-2 py-1 font-mono text-xs text-muted"
-                      >
-                        {row.next}
-                      </Text>
-                    </View>
-                    <Text
-                      aria-label={`Code, diff row ${index() + 1}`}
-                      class="min-w-0 flex-1 px-2 py-1 whitespace-nowrap font-mono text-xs text-primary"
-                    >
-                      {row.text}
-                    </Text>
-                  </View>
-                )}
-              </ForValue>
-            </View>
-          </ScrollArea>
+            <Editor
+              readOnly
+              language="diff"
+              value={selectedFile()?.patch ?? ""}
+              aria-label={`Diff editor: ${selectedFile()?.path ?? "none"}`}
+              class="w-full h-full min-w-0 min-h-0 rounded-lg border border-strong bg-input text-primary shadow-xs"
+            />
+          </View>
         </View>
       </View>
     </View>

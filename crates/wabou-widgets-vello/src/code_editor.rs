@@ -37,6 +37,9 @@ enum HighlightKind {
     Number,
     Boolean,
     Null,
+    Added,
+    Removed,
+    Meta,
 }
 
 #[derive(Clone, Debug, Deserialize)]
@@ -390,17 +393,34 @@ impl EditorViewport {
         let index = self
             .highlight_ranges
             .partition_point(|range| range.to <= offset);
-        match self
+        let kind = self
             .highlight_ranges
             .get(index)
-            .and_then(|range| (range.from <= offset && offset < range.to).then_some(range.kind))
-        {
-            Some(HighlightKind::Property) => Color::from_rgb8(0x89, 0xb4, 0xfa),
-            Some(HighlightKind::String) => Color::from_rgb8(0xa6, 0xe3, 0xa1),
-            Some(HighlightKind::Number) => Color::from_rgb8(0xfa, 0xb3, 0x87),
-            Some(HighlightKind::Boolean) => Color::from_rgb8(0xc6, 0x9d, 0xf7),
-            Some(HighlightKind::Null) => Color::from_rgb8(0x7f, 0x84, 0x9c),
-            None => self.text_color,
+            .and_then(|range| (range.from <= offset && offset < range.to).then_some(range.kind));
+        let [red, green, blue, _] = self.text_color.to_rgba8().to_u8_array();
+        let light_surface = u16::from(red) + u16::from(green) + u16::from(blue) < 384;
+        match (light_surface, kind) {
+            (true, Some(HighlightKind::Property | HighlightKind::Meta)) => {
+                Color::from_rgb8(0x05, 0x50, 0xae)
+            }
+            (true, Some(HighlightKind::String | HighlightKind::Added)) => {
+                Color::from_rgb8(0x11, 0x63, 0x29)
+            }
+            (true, Some(HighlightKind::Number)) => Color::from_rgb8(0x95, 0x38, 0x00),
+            (true, Some(HighlightKind::Boolean)) => Color::from_rgb8(0x82, 0x50, 0xdf),
+            (true, Some(HighlightKind::Null)) => Color::from_rgb8(0x57, 0x60, 0x6a),
+            (true, Some(HighlightKind::Removed)) => Color::from_rgb8(0xcf, 0x22, 0x2e),
+            (false, Some(HighlightKind::Property | HighlightKind::Meta)) => {
+                Color::from_rgb8(0x89, 0xb4, 0xfa)
+            }
+            (false, Some(HighlightKind::String | HighlightKind::Added)) => {
+                Color::from_rgb8(0xa6, 0xe3, 0xa1)
+            }
+            (false, Some(HighlightKind::Number)) => Color::from_rgb8(0xfa, 0xb3, 0x87),
+            (false, Some(HighlightKind::Boolean)) => Color::from_rgb8(0xc6, 0x9d, 0xf7),
+            (false, Some(HighlightKind::Null)) => Color::from_rgb8(0x7f, 0x84, 0x9c),
+            (false, Some(HighlightKind::Removed)) => Color::from_rgb8(0xf3, 0x8b, 0xa8),
+            (_, None) => self.text_color,
         }
     }
 
@@ -850,7 +870,7 @@ impl Widget for EditorViewport {
             return Err("Editor viewport selection lies outside the document".into());
         }
         if let Some(syntax) = &config.syntax {
-            if syntax.language != "json" {
+            if syntax.language != "json" && syntax.language != "diff" {
                 return Err(format!(
                     "unsupported Editor viewport language `{}`",
                     syntax.language
@@ -1114,6 +1134,29 @@ mod tests {
         editor.attribute_changed("value", "true");
         let error = editor.config_changed(r#"{"selection":{"anchor":0,"head":0},"composition":null,"syntax":{"language":"json","offsetEncoding":"utf16","documentLength":5,"ranges":[]}}"#).unwrap_err();
         assert!(error.contains("length"));
+    }
+
+    #[test]
+    fn accepts_semantic_diff_highlights() {
+        let mut editor = EditorViewport::new();
+        editor.attribute_changed("value", "@@ -1 +1 @@\n-old\n+new");
+        let changes = editor
+            .config_changed(
+                r#"{"selection":{"anchor":0,"head":0},"composition":null,"syntax":{"language":"diff","offsetEncoding":"utf16","documentLength":21,"ranges":[{"from":0,"to":11,"kind":"meta"},{"from":12,"to":16,"kind":"removed"},{"from":17,"to":21,"kind":"added"}]}}"#,
+            )
+            .expect("valid diff syntax config");
+
+        assert!(changes.contains(wabou_shell::WidgetChanges::REDRAW));
+        assert_eq!(editor.highlight_ranges.len(), 3);
+        assert_eq!(
+            editor.color_at_offset(17),
+            Color::from_rgb8(0xa6, 0xe3, 0xa1)
+        );
+        editor.text_color = Color::from_rgb8(0x1f, 0x23, 0x2b);
+        assert_eq!(
+            editor.color_at_offset(17),
+            Color::from_rgb8(0x11, 0x63, 0x29)
+        );
     }
 
     #[test]

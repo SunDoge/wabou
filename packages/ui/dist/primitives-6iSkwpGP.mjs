@@ -439,6 +439,22 @@ const jsonHighlighter = tagHighlighter([
 		class: "null"
 	}
 ]);
+function diffHighlightRanges(state) {
+	const ranges = [];
+	for (let number = 1; number <= state.doc.lines; number += 1) {
+		const line = state.doc.line(number);
+		let kind;
+		if (line.text.startsWith("@@") || line.text.startsWith("+++") || line.text.startsWith("---")) kind = "meta";
+		else if (line.text.startsWith("+")) kind = "added";
+		else if (line.text.startsWith("-")) kind = "removed";
+		if (kind && line.from < line.to) ranges.push({
+			from: line.from,
+			to: line.to,
+			kind
+		});
+	}
+	return ranges;
+}
 function changedRange(previous, next) {
 	let prefix = 0;
 	const shared = Math.min(previous.length, next.length);
@@ -456,7 +472,7 @@ function changedRange(previous, next) {
 	};
 }
 /**
-* DOM-free CodeMirror document used by Wabou's config/Markdown editor.
+* DOM-free CodeMirror document used by Wabou's native Editor component.
 *
 * CodeMirror owns text, selection, transactions and undo. The Rust widget is
 * only a controlled native viewport. A future Helix frontend deliberately
@@ -639,12 +655,13 @@ var CodeEditorDocument = class {
 			selection: this.selection,
 			composition: this.#composition
 		};
-		if (!this.#tree || !this.#language) return {
+		if (!this.#language) return {
 			...base,
 			syntax: null
 		};
 		const ranges = [];
-		highlightTree(this.#tree, jsonHighlighter, (from, to, kind) => {
+		if (this.#language === "diff") ranges.push(...diffHighlightRanges(this.#state));
+		else if (this.#tree) highlightTree(this.#tree, jsonHighlighter, (from, to, kind) => {
 			ranges.push({
 				from,
 				to,
@@ -756,7 +773,7 @@ function applyIconFill(source, fill) {
 	return source.replace(/fill=(["'])none\1/, `fill="${fill}"`);
 }
 function editorLanguage(language) {
-	return language === "json" ? language : void 0;
+	return language === "json" || language === "diff" ? language : void 0;
 }
 /** @internal Host tags are renderer details, not public JSX elements. */
 function createInternalPrimitive(tag, props) {
@@ -2892,4 +2909,4 @@ var primitives_exports = /* @__PURE__ */ __exportAll({
 //#endregion
 export { View as $, createOwnedImageResource as A, Icon as B, createKeyedSelection as C, createFormDraft as D, FORM_ERROR as E, createMeasuredSize as F, PathBuilder as G, NativeWidget as H, Button as I, RichTextSpan as J, ProjectionBoundary as K, Link as L, CollapsiblePresence as M, createPresence as N, createFileImageResource as O, createContainerMatch as P, TextInput as Q, createButton as R, Row as S, toggleSelection as T, PasswordInput as U, Image as V, Path as W, Text as X, Svg as Y, TextArea as Z, OverlayPlaneProvider as _, createTransition as _t, ScrollArea as a, createFocus as at, Center as b, useMotionConfig as bt, floatingFromPoint as c, animate as ct, createRetainedItems as d, createKeyframeAnimation as dt, rotate2d$1 as et, Pulse as f, createLoop as ft, createTransitionPresence as g, createSweep as gt, Modal as h, createRotation as ht, createScrollReset as i, createHover as it, releaseImageResource as j, createNetworkImageResource as k, NotificationRegion as l, animateKeyframes as lt, Spin as m, createPulse as mt, createTabs as n, createActive as nt, Popover as o, createFocusWithin as ot, Ripple as p, createNativeLoopAnimation as pt, RichText as q, createShortcuts as r, createPress as rt, floatingFromNode as s, createAnimationFrame as st, primitives_exports as t, translate2d$1 as tt, createNotifications as u, createInterpolation as ut, createOverlayLayer as v, normalizeSweepGeometry as vt, isSelected as w, Column as x, useReducedMotion as xt, useOverlayPlane as y, MotionConfigProvider as yt, Editor as z };
 
-//# sourceMappingURL=primitives-BwSksZ4I.mjs.map
+//# sourceMappingURL=primitives-6iSkwpGP.mjs.map

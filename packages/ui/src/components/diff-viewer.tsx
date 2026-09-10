@@ -149,6 +149,7 @@ export function DiffViewer(props: DiffViewerProps) {
                 <AccordionContent class="min-w-0">
                   <Editor
                     readOnly
+                    language="diff"
                     value={file.patch}
                     aria-label={`${labels().technicalDetails}: ${file.path}`}
                     class="h-64 w-full rounded-lg border border-strong bg-input text-primary"

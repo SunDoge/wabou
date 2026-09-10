@@ -4,17 +4,20 @@ import {
   findClusterBreak,
   type TransactionSpec,
 } from "@codemirror/state";
-import { TreeFragment, type Tree } from "@lezer/common";
+import { type Tree, TreeFragment } from "@lezer/common";
 import { highlightTree, tagHighlighter, tags } from "@lezer/highlight";
 import { parser as jsonParser } from "@lezer/json";
 
-export type CodeEditorLanguage = "json";
+export type CodeEditorLanguage = "json" | "diff";
 export type CodeEditorHighlightKind =
   | "property"
   | "string"
   | "number"
   | "boolean"
-  | "null";
+  | "null"
+  | "added"
+  | "removed"
+  | "meta";
 
 export interface CodeEditorHighlightRange {
   /** CodeMirror document offsets are UTF-16 code-unit offsets. */
@@ -59,6 +62,25 @@ const jsonHighlighter = tagHighlighter([
   { tag: tags.null, class: "null" },
 ]);
 
+function diffHighlightRanges(state: EditorState): CodeEditorHighlightRange[] {
+  const ranges: CodeEditorHighlightRange[] = [];
+  for (let number = 1; number <= state.doc.lines; number += 1) {
+    const line = state.doc.line(number);
+    let kind: CodeEditorHighlightKind | undefined;
+    if (
+      line.text.startsWith("@@") ||
+      line.text.startsWith("+++") ||
+      line.text.startsWith("---")
+    )
+      kind = "meta";
+    else if (line.text.startsWith("+")) kind = "added";
+    else if (line.text.startsWith("-")) kind = "removed";
+    if (kind && line.from < line.to)
+      ranges.push({ from: line.from, to: line.to, kind });
+  }
+  return ranges;
+}
+
 function changedRange(previous: string, next: string) {
   let prefix = 0;
   const shared = Math.min(previous.length, next.length);
@@ -81,7 +103,7 @@ function changedRange(previous: string, next: string) {
 }
 
 /**
- * DOM-free CodeMirror document used by Wabou's config/Markdown editor.
+ * DOM-free CodeMirror document used by Wabou's native Editor component.
  *
  * CodeMirror owns text, selection, transactions and undo. The Rust widget is
  * only a controlled native viewport. A future Helix frontend deliberately
@@ -261,11 +283,14 @@ export class CodeEditorDocument {
   config(language = this.#language): CodeEditorWidgetConfig {
     this.setLanguage(language);
     const base = { selection: this.selection, composition: this.#composition };
-    if (!this.#tree || !this.#language) return { ...base, syntax: null };
+    if (!this.#language) return { ...base, syntax: null };
     const ranges: CodeEditorHighlightRange[] = [];
-    highlightTree(this.#tree, jsonHighlighter, (from, to, kind) => {
-      ranges.push({ from, to, kind: kind as CodeEditorHighlightKind });
-    });
+    if (this.#language === "diff")
+      ranges.push(...diffHighlightRanges(this.#state));
+    else if (this.#tree)
+      highlightTree(this.#tree, jsonHighlighter, (from, to, kind) => {
+        ranges.push({ from, to, kind: kind as CodeEditorHighlightKind });
+      });
     return {
       ...base,
       syntax: {
