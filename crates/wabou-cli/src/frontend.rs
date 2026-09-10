@@ -106,7 +106,10 @@ pub(super) fn build_test_script(
     fs::write(
         &config_path,
         format!(
-            r#"export default {{
+            r#"import solid from "@solidjs/vite-plugin";
+
+export default {{
+  plugins: [solid({{ solid: {{ generate: "universal", moduleName: "@wabou/core/renderer" }} }})],
   resolve: {{ conditions: {conditions} }},
   build: {{
     emptyOutDir: false,
