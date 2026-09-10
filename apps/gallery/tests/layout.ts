@@ -1498,14 +1498,23 @@ const assertGithubDesktopReferenceLayout = (snapshot: LayoutSnapshot) => {
     role: "button",
     name: "Open github-desktop.tsx",
   });
+  const contextOldGutter = getLayoutNode(snapshot, {
+    name: "Old line number gutter, diff row 1",
+  });
+  const contextNewGutter = getLayoutNode(snapshot, {
+    name: "New line number gutter, diff row 1",
+  });
+  const contextOldLine = getLayoutNode(snapshot, {
+    name: "Old line 42, diff row 1",
+  });
+  const contextNewLine = getLayoutNode(snapshot, {
+    name: "New line 42, diff row 1",
+  });
+  const contextCode = getLayoutNode(snapshot, {
+    name: "Code, diff row 1",
+  });
   const removedOldLine = getLayoutNode(snapshot, {
     name: "Old line 43, diff row 2",
-  });
-  const removedNewLine = getLayoutNode(snapshot, {
-    name: "New line empty, diff row 2",
-  });
-  const removedMarker = getLayoutNode(snapshot, {
-    name: "Change marker, diff row 2",
   });
   const removedCode = getLayoutNode(snapshot, {
     name: "Code, diff row 2",
@@ -1513,8 +1522,8 @@ const assertGithubDesktopReferenceLayout = (snapshot: LayoutSnapshot) => {
   const addedNewLine = getLayoutNode(snapshot, {
     name: "New line 43, diff row 3",
   });
-  const addedMarker = getLayoutNode(snapshot, {
-    name: "Change marker, diff row 3",
+  const addedCode = getLayoutNode(snapshot, {
+    name: "Code, diff row 3",
   });
 
   for (const [label, node] of [
@@ -1533,38 +1542,55 @@ const assertGithubDesktopReferenceLayout = (snapshot: LayoutSnapshot) => {
     );
   if (layoutRectBottom(files.rect) > commit.rect.y + 1)
     throw new Error("changed file list overlapped the fixed commit controls");
-  const removedRowY = removedOldLine.rect.y;
-  for (const [label, node] of [
-    ["new line number", removedNewLine],
-    ["change marker", removedMarker],
-    ["code", removedCode],
-  ] as const) {
-    if (Math.abs(node.rect.y - removedRowY) > 0.5)
-      throw new Error(
-        `diff ${label} is vertically offset by ${node.rect.y - removedRowY}px`,
-      );
-  }
+  assertClose(contextOldGutter.rect.width, 62.5, "old line-number gutter");
+  assertClose(contextNewGutter.rect.width, 62.5, "new line-number gutter");
+  assertClose(
+    layoutRectRight(contextNewGutter.rect) - contextOldGutter.rect.x,
+    125,
+    "combined line-number gutter",
+  );
   if (
-    !(
-      removedOldLine.rect.x < removedNewLine.rect.x &&
-      removedNewLine.rect.x < removedMarker.rect.x &&
-      removedMarker.rect.x < removedCode.rect.x
-    )
+    !contextOldLine.textMetrics ||
+    !contextNewLine.textMetrics ||
+    !contextCode.textMetrics ||
+    !removedOldLine.textMetrics ||
+    !removedCode.textMetrics ||
+    !addedNewLine.textMetrics ||
+    !addedCode.textMetrics
   )
-    throw new Error("diff gutters are not ordered old/new/marker/code");
-  for (const [label, lineNumber, marker] of [
-    ["removed", removedNewLine, removedMarker],
-    ["added", addedNewLine, addedMarker],
+    throw new Error("diff rows are missing text metrics");
+  for (const [label, lineNumber, gutter] of [
+    ["old", contextOldLine, contextOldGutter],
+    ["new", contextNewLine, contextNewGutter],
   ] as const) {
-    if (!marker.textMetrics)
-      throw new Error(`${label} diff marker has no text metrics`);
-    const gutterGap =
-      marker.textMetrics.lineBox.x - layoutRectRight(lineNumber.rect);
-    if (gutterGap < 6)
-      throw new Error(
-        `${label} diff marker is only ${gutterGap}px from the line-number divider`,
-      );
+    if (!lineNumber.textMetrics)
+      throw new Error(`${label} line number has no text metrics`);
+    const inset =
+      layoutRectRight(gutter.contentRect) -
+      layoutRectRight(lineNumber.textMetrics.lineBox);
+    if (inset < 7 || inset > 9)
+      throw new Error(`${label} line number has ${inset}px trailing inset`);
   }
+  assertClose(
+    contextOldLine.textMetrics.baseline,
+    contextNewLine.textMetrics.baseline,
+    "context line-number baselines",
+  );
+  assertClose(
+    contextNewLine.textMetrics.baseline,
+    contextCode.textMetrics.baseline,
+    "context code baseline",
+  );
+  assertClose(
+    removedOldLine.textMetrics.baseline,
+    removedCode.textMetrics.baseline,
+    "removed code baseline",
+  );
+  assertClose(
+    addedNewLine.textMetrics.baseline,
+    addedCode.textMetrics.baseline,
+    "added code baseline",
+  );
 };
 
 const overrides: Readonly<Record<string, Omit<LayoutFixtureCase, "id">>> = {

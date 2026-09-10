@@ -60,53 +60,46 @@ const diffRows = [
     old: "42",
     next: "42",
     kind: "context",
-    marker: "",
-    text: "const selected = state.value;",
+    text: "  const selected = state.value;",
   },
   {
     old: "43",
     next: "",
     kind: "removed",
-    marker: "−",
-    text: "const paneWidth = 280;",
+    text: "- const paneWidth = 280;",
   },
   {
     old: "",
     next: "43",
     kind: "added",
-    marker: "+",
-    text: "const paneWidth = 320;",
+    text: "+ const paneWidth = 320;",
   },
-  { old: "44", next: "44", kind: "context", marker: "", text: "return (" },
+  { old: "44", next: "44", kind: "context", text: "  return (" },
   {
     old: "45",
     next: "45",
     kind: "context",
-    marker: "",
-    text: "  <Workbench>",
+    text: "    <Workbench>",
   },
   {
     old: "",
     next: "46",
     kind: "added",
-    marker: "+",
-    text: "    <RepositoryToolbar />",
+    text: "+     <RepositoryToolbar />",
   },
   {
     old: "46",
     next: "47",
     kind: "context",
-    marker: "",
-    text: "    <ChangesPane",
+    text: "      <ChangesPane",
   },
   {
     old: "47",
     next: "48",
     kind: "context",
-    marker: "",
-    text: "      selected={selected}",
+    text: "        selected={selected}",
   },
-  { old: "48", next: "49", kind: "context", marker: "", text: "    />" },
+  { old: "48", next: "49", kind: "context", text: "      />" },
 ] as const;
 
 const includedByDefault = new Set(changedFiles.map((file) => file.path));
@@ -362,34 +355,32 @@ export function GithubDesktopReference(props: { class?: string }) {
                           : "bg-surface",
                     )}
                   >
-                    <Text
-                      aria-label={`Old line ${row.old || "empty"}, diff row ${index() + 1}`}
-                      class="w-10 flex-none px-2 py-1 text-right font-mono text-xs text-muted"
+                    <View
+                      aria-label={`Old line number gutter, diff row ${index() + 1}`}
+                      class="w-[62.5px] flex-none flex flex-row items-stretch justify-end border-r border-subtle bg-surface-muted"
                     >
-                      {row.old}
-                    </Text>
-                    <Text
-                      aria-label={`New line ${row.next || "empty"}, diff row ${index() + 1}`}
-                      class="w-10 flex-none px-2 py-1 text-right font-mono text-xs text-muted"
+                      <Text
+                        aria-label={`Old line ${row.old || "empty"}, diff row ${index() + 1}`}
+                        class="px-2 py-1 font-mono text-xs text-muted"
+                      >
+                        {row.old}
+                      </Text>
+                    </View>
+                    <View
+                      aria-label={`New line number gutter, diff row ${index() + 1}`}
+                      class="w-[62.5px] flex-none flex flex-row items-stretch justify-end border-r border-subtle bg-surface-muted"
+                      style={{ "border-right-width": "4px" }}
                     >
-                      {row.next}
-                    </Text>
-                    <Text
-                      aria-label={`Change marker, diff row ${index() + 1}`}
-                      class={mergeClasses(
-                        "w-6 flex-none pl-2 py-1 font-mono text-xs border-r border-subtle",
-                        row.kind === "added"
-                          ? "text-success-primary"
-                          : row.kind === "removed"
-                            ? "text-danger-primary"
-                            : "text-muted",
-                      )}
-                    >
-                      {row.marker}
-                    </Text>
+                      <Text
+                        aria-label={`New line ${row.next || "empty"}, diff row ${index() + 1}`}
+                        class="px-2 py-1 font-mono text-xs text-muted"
+                      >
+                        {row.next}
+                      </Text>
+                    </View>
                     <Text
                       aria-label={`Code, diff row ${index() + 1}`}
-                      class="min-w-0 flex-1 px-3 py-1 whitespace-nowrap font-mono text-xs text-primary"
+                      class="min-w-0 flex-1 px-2 py-1 whitespace-nowrap font-mono text-xs text-primary"
                     >
                       {row.text}
                     </Text>
