@@ -503,8 +503,8 @@ pub struct WidgetNodeEvent {
 
 /// Selection owned by a native widget but synchronized to its JavaScript owner.
 ///
-/// Offsets use UTF-16 code units so JavaScript document models such as
-/// CodeMirror can apply them without converting through Rust byte offsets.
+/// Offsets use UTF-16 code units so JavaScript can consume them without
+/// converting from Rust byte offsets.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct WidgetTextSelection {
     /// Fixed end of the selection in UTF-16 code units.

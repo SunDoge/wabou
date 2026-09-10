@@ -1,0 +1,20 @@
+{
+  "name": "@wabou/meow-starter",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 127.0.0.1 --port 5180 --strictPort",
+    "build": "vite build"
+  },
+  "dependencies": {
+    "@wabou/ui": "workspace:*",
+    "lucide-static": "1.31.0",
+    "solid-js": "2.0.0-rc.7"
+  },
+  "devDependencies": {
+    "@wabou/test": "workspace:*",
+    "@wabou/vite": "workspace:*",
+    "vite": "^8.2.2"
+  }
+}

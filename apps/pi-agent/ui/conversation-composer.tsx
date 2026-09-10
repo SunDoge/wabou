@@ -204,7 +204,7 @@ export function ConversationComposer(props: ConversationComposerProps) {
     <WorkbenchFooter class="border-0 bg-canvas px-5 pt-3 pb-3 gap-1">
       <PromptComposer
         aria-label={i18n.message(m.prompt_placeholder, {})}
-        class="max-w-4xl mx-auto"
+        class="max-w-[920px] mx-auto"
       >
         <PromptComposerStatus>
           <SessionUsage stats={props.stats} />

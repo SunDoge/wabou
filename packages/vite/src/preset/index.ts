@@ -270,7 +270,7 @@ function parseCandidate(
       const opacity = Number(opacityToken);
       rgba =
         Number.isFinite(opacity) && opacity >= 0 && opacity <= 100
-          ? ((rgba & 0xffffff00) | Math.round(opacity * 2.55)) >>> 0
+          ? ((rgba & 0xffffff00) | Math.round((opacity / 100) * 255)) >>> 0
           : undefined;
     }
     if (rgba === undefined)
@@ -442,36 +442,58 @@ function cssValue(value: WabouStyleValue): string | number {
       return `${value.value.unit === "percent" ? value.value.value * 100 : value.value.value}${value.value.unit === "percent" ? "%" : "px"}`;
     case "color":
       return `#${value.value.rgba.toString(16).padStart(8, "0")}`;
-    case "list":
-      return value.values
-        .map((item) => {
-          if (item.type !== "record") return cssValue(item);
-          const kind = item.fields.kind;
-          const argument = item.fields.value;
-          if (kind?.type !== "keyword") return "";
-          if (kind.value === "repeat") {
-            const count = item.fields.count;
-            const tracks = item.fields.values;
-            if (count?.type !== "number" || tracks?.type !== "list") return "";
-            return `repeat(${count.value}, ${tracks.values.map(cssValue).join(" ")})`;
-          }
-          if (!argument) return "";
-          if (kind.value === "breadth") return cssValue(argument);
-          if (kind.value === "flex") return `${cssValue(argument)}fr`;
-          const text =
-            argument.type === "list"
-              ? argument.values.map(cssValue).join(", ")
-              : cssValue(argument);
-          return `${kind.value}(${text})`;
-        })
-        .join(" ");
+    case "list": {
+      const shadows = value.values.every(
+        (item) => item.type === "record" && item.fields.stdDev !== undefined,
+      );
+      return value.values.map(cssValue).join(shadows ? ", " : " ");
+    }
     case "record": {
+      const shadowX = value.fields.x;
+      const shadowY = value.fields.y;
+      const shadowStdDev = value.fields.stdDev;
+      const shadowSpread = value.fields.spread;
+      const shadowColor = value.fields.color;
+      if (
+        shadowX?.type === "length" &&
+        shadowY?.type === "length" &&
+        shadowStdDev?.type === "length" &&
+        shadowStdDev.value.unit !== "auto" &&
+        shadowSpread?.type === "length" &&
+        shadowColor?.type === "color"
+      ) {
+        // CSS blur radius is twice the Gaussian standard deviation used by
+        // Wabou's native shadow contract.
+        const blur: WabouStyleValue = {
+          type: "length",
+          value: {
+            ...shadowStdDev.value,
+            value: shadowStdDev.value.value * 2,
+          },
+        };
+        return [shadowX, shadowY, blur, shadowSpread, shadowColor]
+          .map(cssValue)
+          .join(" ");
+      }
       const kind = value.fields.kind;
       const argument = value.fields.value;
+      if (kind?.type === "keyword" && kind.value === "repeat") {
+        const count = value.fields.count;
+        const tracks = value.fields.values;
+        if (count?.type !== "number" || tracks?.type !== "list") return "";
+        return `repeat(${count.value}, ${tracks.values.map(cssValue).join(" ")})`;
+      }
       if (kind?.type !== "keyword" || !argument) return "";
       if (kind.value === "breadth") return cssValue(argument);
       if (kind.value === "flex") return `${cssValue(argument)}fr`;
-      return "";
+      if (kind.value === "rotate" && argument.type === "number") {
+        return `rotate(${argument.value}rad)`;
+      }
+      const text =
+        argument.type === "list"
+          ? argument.values.map(cssValue).join(", ")
+          : cssValue(argument);
+      return `${kind.value}(${text})`;
     }
   }
 }
@@ -533,6 +555,12 @@ export function presetWabou(options: WabouPresetOptions = {}): Preset {
   const semanticColors = presetSemanticColors(options);
   return {
     name: "@wabou/vite/preset",
+    preflights: [
+      {
+        getCSS: () =>
+          "*,::before,::after{box-sizing:border-box;border-width:0;border-style:solid;border-color:currentColor}",
+      },
+    ],
     rules: [semanticColorRule(new Set(semanticColors)), unoRule()],
     theme: {
       colors: {

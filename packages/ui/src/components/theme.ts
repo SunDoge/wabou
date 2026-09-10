@@ -93,8 +93,15 @@ export function componentsControlSize(size: ComponentsControlSize): string {
  * Shared native panel chrome. Component composition owns padding and layout;
  * this contract owns the edge geometry that must not drift between surfaces.
  */
-export function componentsSurfaceClass(_surface: ComponentsSurface): string {
-  return "rounded-lg border border-subtle bg-surface";
+export function componentsSurfaceClass(surface: ComponentsSurface): string {
+  switch (surface) {
+    case "raised":
+      return "rounded-lg border border-subtle bg-surface";
+    case "floating":
+      return "rounded-lg border border-strong bg-surface";
+    case "modal":
+      return "rounded-xl border border-strong bg-surface";
+  }
 }
 
 /**
@@ -109,9 +116,9 @@ export function componentsElevation(
 ): Shadow[] {
   if (elevation === "raised") {
     return [
-      shadow({ spread: 1, stdDev: 0, color: 0x0000000d }),
-      shadow({ offsetY: 1, stdDev: 2, color: 0x0000001f }),
-      shadow({ offsetY: 4, stdDev: 7, spread: -4, color: 0x00000014 }),
+      shadow({ spread: 1, stdDev: 0, color: 0x0000000a }),
+      shadow({ offsetY: 1, stdDev: 1, color: 0x00000014 }),
+      shadow({ offsetY: 4, stdDev: 5, spread: -2, color: 0x00000010 }),
     ];
   }
   if (elevation === "floating") {

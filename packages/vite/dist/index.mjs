@@ -1,4 +1,4 @@
-import { a as defaultWabouColorThemes, i as wabouUtilityManifest, n as resolveWabouUtility, o as defaultWabouSemanticColorTokens, r as validateWabouUtility, t as presetWabou } from "./preset-CrC4UNv4.mjs";
+import { a as defaultWabouColorThemes, i as wabouUtilityManifest, n as resolveWabouUtility, o as defaultWabouSemanticColorTokens, r as validateWabouUtility, t as presetWabou } from "./preset-CGzgoEVG.mjs";
 import { existsSync, readFileSync } from "node:fs";
 import { dirname, join, parse, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -25,6 +25,8 @@ const TEXT_CONTRAST_PAIRS = [
 	["muted", "canvas"],
 	["muted", "surface"],
 	["on-accent", "accent"],
+	["on-danger", "danger"],
+	["on-success", "success-primary"],
 	["danger-primary", "danger-surface"],
 	["success-primary", "success-surface"]
 ];
@@ -256,7 +258,14 @@ async function findWorkspacePackages(root) {
 	for (;;) {
 		try {
 			const manifest = JSON.parse(await readFile(join(directory, "package.json"), "utf8"));
-			if (Array.isArray(manifest.workspaces)) return join(directory, "packages");
+			if (Array.isArray(manifest.workspaces)) {
+				const packageWorkspace = manifest.workspaces.find((workspace) => typeof workspace === "string" && workspace.split(/[\\/]/).includes("packages"));
+				if (packageWorkspace) {
+					const segments = packageWorkspace.split(/[\\/]/);
+					const packages = segments.lastIndexOf("packages");
+					return resolve(directory, ...segments.slice(0, packages + 1));
+				}
+			}
 		} catch {}
 		const parent = dirname(directory);
 		if (parent === directory || directory === parse(directory).root) return;

@@ -238,9 +238,9 @@ export function Sidebar(props: SidebarProps) {
   const projectName = (agentId: string) =>
     props.agents.find((agent) => agent.id === agentId)?.name ?? agentId;
   return (
-    <SidebarRoot class="w-60 border-r border-subtle bg-surface-muted">
+    <SidebarRoot class="w-72 border-r border-subtle bg-surface-muted">
       <SidebarHeader class="h-12 border-0 bg-surface-muted flex items-center gap-2 px-4">
-        <IconFrame source={bot} size="sm" variant="selected" />
+        <IconFrame source={bot} size="sm" variant="soft" tone="accent" />
         <Text class="min-w-0 flex-1 text-sm font-semibold text-primary">
           {i18n.message(m.app_name, {})}
         </Text>

@@ -48,6 +48,7 @@ export function AppShell(props: { children?: JSX.Element }) {
               size="sm"
               iconSize={18}
               variant="solid"
+              tone="accent"
             />
             <View class="flex flex-col mr-3">
               <Text class="font-semibold">Manga OCR</Text>

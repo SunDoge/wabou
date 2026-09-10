@@ -45,7 +45,11 @@ export function About() {
             {features.map((feature) => (
               <Card class="min-w-0">
                 <CardContent class="p-5 flex flex-col gap-3">
-                  <IconFrame source={feature.icon} variant="selected" />
+                  <IconFrame
+                    source={feature.icon}
+                    variant="soft"
+                    tone="accent"
+                  />
                   <Text class="font-semibold">{feature.title}</Text>
                   <Text maxLines={4} class="text-sm text-muted">
                     {feature.detail}

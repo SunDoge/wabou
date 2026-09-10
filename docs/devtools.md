@@ -110,39 +110,6 @@ Screenshots are rendered only on request into atomically reserved mode `0600`
 PNG files inside a private mode `0700` runtime directory. The latest 16
 completed captures are retained; normal frames do not perform a GPU readback.
 
-## MCP
-
-`wabou-mcp` is a thin stdio adapter over the same socket protocol:
-
-```bash
-mise exec -- cargo build -p wabou-devtools --bin wabou-mcp
-```
-
-Configure Codex, Claude or another MCP client to launch:
-
-```text
-/home/me/code/projects/wabou/target/debug/wabou-mcp
-```
-
-Optionally provide `WABOU_DEVTOOLS_SOCKET=/run/user/1000/wabou-<pid>.sock`.
-The server exposes:
-
-- `wabou_status`
-- `wabou_query_nodes`
-- `wabou_inspect_node`
-- `wabou_inspect_at_point`
-- `wabou_recent_frames`
-- `wabou_validate_snapshot`
-- `wabou_set_layout_overlay`
-- `wabou_capture_screenshot`
-- `wabou_capture_case`
-
-The screenshot and capture-case tools return standard MCP `image` content
-(`image/png`) plus structured JSON, so multimodal clients can inspect pixels
-and frame-matched runtime evidence in one call. The MCP server uses the
-official Rust `rmcp` SDK; tool schemas come from the serde/schemars parameter
-types rather than hand-maintained JSON.
-
 ## Headless screenshots
 
 `wabou render` defaults to the offscreen Vello Hybrid renderer with the same

@@ -106,6 +106,7 @@ function BadgePage() {
         <Badge>Default</Badge>
         <Badge variant="secondary">Secondary</Badge>
         <Badge variant="outline">Outline</Badge>
+        <Badge variant="info">Info</Badge>
         <Badge variant="success">Ready</Badge>
         <Badge variant="destructive">Failed</Badge>
       </Preview>
@@ -123,7 +124,7 @@ function BadgePage() {
       </Preview>
       <PropertyRow
         name="variant"
-        value="default | secondary | outline | success | destructive"
+        value="default | secondary | outline | info | success | destructive"
       />
     </View>
   );

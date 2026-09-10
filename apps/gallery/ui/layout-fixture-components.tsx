@@ -209,7 +209,7 @@ export function ToolLayoutFixture() {
     <View class="w-full h-full min-w-0 p-5 bg-canvas">
       <Tool defaultOpen reducedMotion role="group" aria-label="Tool fixture">
         <ToolHeader
-          title="mcp__workspace__read_repository_file"
+          title="workspace.read_repository_file"
           summary="crates/wabou-runtime/src/gpui_projection_boundary.rs"
           status="running"
         />
@@ -577,7 +577,8 @@ export function IconFrameLayoutFixture() {
       <IconFrame
         source={imageIcon}
         size="lg"
-        variant="selected"
+        variant="soft"
+        tone="accent"
         label="Fixture framed icon"
         aria-label="Fixture icon frame"
       />
@@ -1327,7 +1328,7 @@ export function OnboardingLayoutFixture() {
           <IconFrame
             source={imageIcon}
             size="default"
-            variant="muted"
+            variant="soft"
             aria-label="Fixture onboarding icon"
           />
           <OnboardingHeading>

@@ -12,6 +12,7 @@ default-members = [
   "apps/gallery",
   "apps/hackernews",
   "apps/manga-ocr",
+  "apps/meow-starter",
   "apps/motrix",
   "apps/pi-agent",
   "apps/stress",

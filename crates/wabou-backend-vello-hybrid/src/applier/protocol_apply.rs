@@ -146,6 +146,12 @@ impl Applier {
     }
 
     pub(super) fn apply_protocol_bytes(&mut self, bytes: &[u8]) {
+        // Module evaluation and host-event dispatch can publish Style IR and
+        // Solid mutations together, before the first render frame. Make all
+        // protocol entry points observe the same stylesheet-first ordering.
+        self.drain_pending_stylesheet();
+        self.drain_pending_color_theme();
+        self.drain_pending_color_palette();
         let decoded = {
             #[cfg(feature = "profiling")]
             let span = tracing::trace_span!(

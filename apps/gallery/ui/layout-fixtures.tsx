@@ -13,6 +13,7 @@ import { ModelControls } from "../../pi-agent/ui/model-controls";
 import { Sidebar as PiAgentSidebar } from "../../pi-agent/ui/sidebar";
 import { galleryLayoutFixtures } from "./layout-fixture-pages";
 import { OverviewPage } from "./pages/overview";
+import { CrossRenderFixture } from "../../../tests/render-reference/cross-render-fixture";
 
 let activeOwners = 0;
 
@@ -43,9 +44,7 @@ function EffectFixture() {
 }
 
 declare global {
-  var __wabou_projection_probe_set_left:
-    | ((value: string) => void)
-    | undefined;
+  var __wabou_projection_probe_set_left: ((value: string) => void) | undefined;
 }
 
 function ProjectionBoundaryProbeFixture() {
@@ -135,6 +134,11 @@ function PiAgentToolbarFixture() {
 }
 
 defineLayoutFixtures({
+  "foundations/paint-reference": {
+    width: 960,
+    height: 720,
+    render: CrossRenderFixture,
+  },
   "foundations/muted-contrast": {
     width: 480,
     height: 180,
@@ -172,7 +176,9 @@ defineLayoutFixtures({
         <Icon
           label="Layout fixture icon"
           size={18}
-          source={'<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/></svg>'}
+          source={
+            '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/></svg>'
+          }
         />
       </View>
     ),
@@ -181,7 +187,11 @@ defineLayoutFixtures({
     width: 1280,
     height: 1200,
     render: () => (
-      <OverviewPage theme="light" onCycleTheme={() => {}} onExplore={() => {}} />
+      <OverviewPage
+        theme="light"
+        onCycleTheme={() => {}}
+        onExplore={() => {}}
+      />
     ),
   },
   "component/DirectoryPicker": {

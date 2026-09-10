@@ -192,6 +192,8 @@ const defaultWabouColorThemes = {
 				"accent-hover": "#6aa1ff",
 				"accent-pressed": "#397ce8",
 				"on-accent": "#121418",
+				"on-danger": "#121418",
+				"on-success": "#121418",
 				danger: "#ef4444",
 				"danger-hover": "#dc2626",
 				"danger-pressed": "#b91c1c",
@@ -207,7 +209,7 @@ const defaultWabouColorThemes = {
 			colors: {
 				canvas: "#ffffff",
 				surface: "#ffffff",
-				"surface-muted": "#f0f2f5",
+				"surface-muted": "#f7f8fa",
 				input: "#ffffff",
 				control: "#f1f3f6",
 				"control-hover": "#e8ebef",
@@ -222,6 +224,8 @@ const defaultWabouColorThemes = {
 				"accent-hover": "#1d4ed8",
 				"accent-pressed": "#1e40af",
 				"on-accent": "#ffffff",
+				"on-danger": "#ffffff",
+				"on-success": "#ffffff",
 				danger: "#dc2626",
 				"danger-hover": "#b91c1c",
 				"danger-pressed": "#991b1b",
@@ -418,7 +422,7 @@ function parseCandidate(candidate) {
 		}
 		if (rgba !== void 0 && opacityToken !== void 0) {
 			const opacity = Number(opacityToken);
-			rgba = Number.isFinite(opacity) && opacity >= 0 && opacity <= 100 ? (rgba & 4294967040 | Math.round(opacity * 2.55)) >>> 0 : void 0;
+			rgba = Number.isFinite(opacity) && opacity >= 0 && opacity <= 100 ? (rgba & 4294967040 | Math.round(opacity / 100 * 255)) >>> 0 : void 0;
 		}
 		if (rgba === void 0) return {
 			candidate,
@@ -577,30 +581,43 @@ function cssValue(value) {
 			if (value.value.unit === "auto") return "auto";
 			return `${value.value.unit === "percent" ? value.value.value * 100 : value.value.value}${value.value.unit === "percent" ? "%" : "px"}`;
 		case "color": return `#${value.value.rgba.toString(16).padStart(8, "0")}`;
-		case "list": return value.values.map((item) => {
-			if (item.type !== "record") return cssValue(item);
-			const kind = item.fields.kind;
-			const argument = item.fields.value;
-			if (kind?.type !== "keyword") return "";
-			if (kind.value === "repeat") {
-				const count = item.fields.count;
-				const tracks = item.fields.values;
+		case "list": {
+			const shadows = value.values.every((item) => item.type === "record" && item.fields.stdDev !== void 0);
+			return value.values.map(cssValue).join(shadows ? ", " : " ");
+		}
+		case "record": {
+			const shadowX = value.fields.x;
+			const shadowY = value.fields.y;
+			const shadowStdDev = value.fields.stdDev;
+			const shadowSpread = value.fields.spread;
+			const shadowColor = value.fields.color;
+			if (shadowX?.type === "length" && shadowY?.type === "length" && shadowStdDev?.type === "length" && shadowStdDev.value.unit !== "auto" && shadowSpread?.type === "length" && shadowColor?.type === "color") return [
+				shadowX,
+				shadowY,
+				{
+					type: "length",
+					value: {
+						...shadowStdDev.value,
+						value: shadowStdDev.value.value * 2
+					}
+				},
+				shadowSpread,
+				shadowColor
+			].map(cssValue).join(" ");
+			const kind = value.fields.kind;
+			const argument = value.fields.value;
+			if (kind?.type === "keyword" && kind.value === "repeat") {
+				const count = value.fields.count;
+				const tracks = value.fields.values;
 				if (count?.type !== "number" || tracks?.type !== "list") return "";
 				return `repeat(${count.value}, ${tracks.values.map(cssValue).join(" ")})`;
 			}
-			if (!argument) return "";
-			if (kind.value === "breadth") return cssValue(argument);
-			if (kind.value === "flex") return `${cssValue(argument)}fr`;
-			const text = argument.type === "list" ? argument.values.map(cssValue).join(", ") : cssValue(argument);
-			return `${kind.value}(${text})`;
-		}).join(" ");
-		case "record": {
-			const kind = value.fields.kind;
-			const argument = value.fields.value;
 			if (kind?.type !== "keyword" || !argument) return "";
 			if (kind.value === "breadth") return cssValue(argument);
 			if (kind.value === "flex") return `${cssValue(argument)}fr`;
-			return "";
+			if (kind.value === "rotate" && argument.type === "number") return `rotate(${argument.value}rad)`;
+			const text = argument.type === "list" ? argument.values.map(cssValue).join(", ") : cssValue(argument);
+			return `${kind.value}(${text})`;
 		}
 	}
 }
@@ -630,6 +647,7 @@ function presetWabou(options = {}) {
 	const semanticColors = presetSemanticColors(options);
 	return {
 		name: "@wabou/vite/preset",
+		preflights: [{ getCSS: () => "*,::before,::after{box-sizing:border-box;border-width:0;border-style:solid;border-color:currentColor}" }],
 		rules: [semanticColorRule(new Set(semanticColors)), unoRule()],
 		theme: { colors: {
 			...Object.fromEntries(Object.entries(wabouUtilityManifest.colors).map(([token, rgba]) => [token, `#${rgba.toString(16).padStart(8, "0")}`])),
@@ -652,4 +670,4 @@ function presetWabou(options = {}) {
 //#endregion
 export { defaultWabouColorThemes as a, wabouUtilityManifest as i, resolveWabouUtility as n, defaultWabouSemanticColorTokens as o, validateWabouUtility as r, presetWabou as t };
 
-//# sourceMappingURL=preset-CrC4UNv4.mjs.map
+//# sourceMappingURL=preset-CGzgoEVG.mjs.map

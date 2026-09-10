@@ -12,7 +12,7 @@ const files = [
   },
 ];
 
-test("diff viewer keeps technical CodeMirror details collapsed by default", () => {
+test("diff viewer keeps technical details collapsed by default", () => {
   const screen = renderComponent(() => <DiffViewer files={files} />);
   const file = screen.getByRole("button", { name: "src/main.ts" });
 

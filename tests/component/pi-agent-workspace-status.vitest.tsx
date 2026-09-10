@@ -14,7 +14,7 @@ test("presents active workspace metadata through status bar groups", () => {
   ));
 
   const status = screen.getByRole("status", { name: "Workspace status" });
-  expect(status.className).toContain("max-w-4xl");
+  expect(status.className).toContain("max-w-[920px]");
   expect(status.text).toContain("Wabou");
   expect(status.text).toContain("feat/gpui");
   expect(status.text).toContain("Runtime connected");

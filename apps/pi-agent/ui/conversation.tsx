@@ -437,7 +437,7 @@ export function ConversationItem(props: {
   const messageVariant = () =>
     match(props.item)
       .with({ kind: "assistant" }, () => "ghost" as const)
-      .with({ kind: "user" }, () => "secondary" as const)
+      .with({ kind: "user" }, () => "outline" as const)
       .with({ kind: "notice", tone: "error" }, () => "destructive" as const)
       .otherwise(() => "outline" as const);
   return (

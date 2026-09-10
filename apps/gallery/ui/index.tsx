@@ -106,12 +106,17 @@ type ComponentId =
   | "image-viewport"
   | "direction"
   | "typography"
-  | "i18n";
+  | "i18n"
+  | "github-desktop";
 
 const groups: Array<{
   label: string;
   items: Array<{ id: ComponentId; name: string }>;
 }> = [
+  {
+    label: "Showcases",
+    items: [{ id: "github-desktop", name: "Git workbench" }],
+  },
   {
     label: "Actions",
     items: [
@@ -337,6 +342,8 @@ const descriptions: Record<ComponentId, string> = {
   typography:
     "Composable heading, paragraph, list, quote and inline-code treatments.",
   i18n: "Tree-shakeable typed messages compiled by Paraglide and driven by Solid locale state.",
+  "github-desktop":
+    "Recreates GitHub Desktop's changes, diff and commit workflow with native Wabou components.",
 };
 
 const history = createMemoryHistory();
@@ -374,6 +381,7 @@ import { DataTablePage } from "./pages/data-table";
 import { ColorsPage, LayoutStylesPage, ShadowsPage } from "./pages/foundations";
 import { I18nPage } from "./pages/i18n";
 import { ImageViewportPage } from "./pages/image-viewport";
+import { GithubDesktopReferencePage } from "./pages/github-desktop";
 import { MarkdownPage } from "./pages/markdown";
 import { MenubarPage } from "./pages/menubar";
 import { OverviewPage } from "./pages/overview";
@@ -558,6 +566,9 @@ function App() {
                   </Match>
                   <Match when={selected() === "button"}>
                     <ButtonPage />
+                  </Match>
+                  <Match when={selected() === "github-desktop"}>
+                    <GithubDesktopReferencePage />
                   </Match>
                   <Match when={selected() === "badge"}>
                     <BadgePage />

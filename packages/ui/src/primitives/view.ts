@@ -7,6 +7,11 @@ import {
   spread,
   TEXT_BEHAVIOR,
   type WabouElementProps,
+  type WabouImeDeleteSurroundingEvent,
+  type WabouImePreeditEvent,
+  type WabouInputEvent,
+  type WabouKeyEvent,
+  type WabouTextCommitEvent,
   type WabouTextSelectionChangeEvent,
 } from "@wabou/core/renderer";
 import {
@@ -19,7 +24,19 @@ import {
 export type { VectorPath, VectorPathPaint } from "@wabou/core";
 export { PathBuilder } from "@wabou/core";
 
-import { type JSX, omit, untrack } from "solid-js";
+import {
+  createEffect,
+  createMemo,
+  createSignal,
+  type JSX,
+  omit,
+  untrack,
+} from "solid-js";
+
+import {
+  CodeEditorDocument,
+  type CodeEditorLanguage,
+} from "./code-editor-state";
 
 export type { Affine2D, WabouStyle } from "@wabou/core/style";
 export { rotate2d, translate2d } from "@wabou/core/style";
@@ -147,7 +164,7 @@ export interface PasswordInputProps extends Omit<PrimitiveProps, "children"> {
 
 export interface EditorProps extends Omit<PrimitiveProps, "children"> {
   value?: string;
-  /** Optional language identifier consumed by the native editor highlighter. */
+  /** Optional language identifier consumed by the DOM-free CodeMirror service. */
   language?: string;
   disabled?: boolean;
   readOnly?: boolean;
@@ -155,6 +172,12 @@ export interface EditorProps extends Omit<PrimitiveProps, "children"> {
   submitOnEnter?: boolean;
   "aria-label": string;
   onInput?: (event: { currentTarget: { value: string } }) => void;
+}
+
+function editorLanguage(
+  language: string | undefined,
+): CodeEditorLanguage | undefined {
+  return language === "json" || language === "diff" ? language : undefined;
 }
 
 export type NativeWidgetConfig = object | readonly unknown[];
@@ -447,9 +470,133 @@ export function PasswordInput(props: PasswordInputProps): JSX.Element {
   return editorPrimitive("password-input", props);
 }
 
-/** General-purpose editor whose document and input lifecycle are owned by GPUI. */
+/**
+ * General-purpose native editor viewport backed by a DOM-free CodeMirror
+ * document. CodeMirror owns transactions, selection and history; Rust owns
+ * painting, pointer hit testing, scrolling and the platform IME bridge.
+ */
 export function Editor(props: EditorProps): JSX.Element {
-  return editorPrimitive("editor", props);
+  const initialValue = untrack(() => props.value ?? "");
+  const initialLanguage = untrack(() => editorLanguage(props.language));
+  const document = new CodeEditorDocument(initialValue, initialLanguage);
+  const [revision, setRevision] = createSignal(0);
+  const invalidate = () => setRevision((value) => value + 1);
+  const emitInput = () =>
+    props.onInput?.({ currentTarget: { value: document.value } });
+
+  createEffect(
+    () => props.value,
+    (controlledValue) => {
+      if (controlledValue !== undefined && controlledValue !== document.value) {
+        document.sync(controlledValue, editorLanguage(props.language));
+        invalidate();
+      }
+    },
+  );
+
+  const widgetConfig = createMemo(() => {
+    revision();
+    return document.config(editorLanguage(props.language));
+  });
+  const nativeProps = omit(
+    props,
+    "language",
+    "onInput",
+    "onKeyDown",
+    "onImePreedit",
+    "onImeCommit",
+    "onImeDeleteSurrounding",
+    "onImeDisabled",
+    "onTextSelectionChange",
+  );
+
+  return editorPrimitive(
+    "editor",
+    mergeProps(nativeProps, {
+      get value() {
+        revision();
+        return document.value;
+      },
+      get widgetConfig() {
+        return widgetConfig();
+      },
+      onKeyDown(event: WabouKeyEvent) {
+        if (!props.disabled) {
+          const result = document.handleKey({
+            key: event.key,
+            shift: (event.mods & 1) !== 0,
+            primary: event.primary,
+            readOnly: props.readOnly,
+          });
+          if (result.handled) {
+            event.preventDefault();
+            invalidate();
+            if (result.changed && !props.readOnly) emitInput();
+          }
+        }
+        props.onKeyDown?.(event);
+      },
+      onInput(event: WabouInputEvent) {
+        if (!props.disabled && !props.readOnly) {
+          document.sync(
+            event.currentTarget.value,
+            editorLanguage(props.language),
+          );
+          invalidate();
+        }
+        props.onInput?.(event);
+      },
+      onImePreedit(event: WabouImePreeditEvent) {
+        if (!props.disabled && !props.readOnly) {
+          document.setComposition(
+            event.data,
+            event.cursorStart,
+            event.cursorEnd,
+          );
+          event.preventDefault();
+          invalidate();
+        }
+        props.onImePreedit?.(event);
+      },
+      onImeCommit(event: WabouTextCommitEvent) {
+        if (!props.disabled && !props.readOnly) {
+          const changed = document.commitText(event.data);
+          event.preventDefault();
+          invalidate();
+          if (changed) emitInput();
+        }
+        props.onImeCommit?.(event);
+      },
+      onImeDeleteSurrounding(event: WabouImeDeleteSurroundingEvent) {
+        if (!props.disabled && !props.readOnly) {
+          const changed = document.deleteSurrounding(
+            event.beforeBytes,
+            event.afterBytes,
+          );
+          event.preventDefault();
+          invalidate();
+          if (changed) emitInput();
+        }
+        props.onImeDeleteSurrounding?.(event);
+      },
+      onImeDisabled(
+        event: Parameters<NonNullable<PrimitiveProps["onImeDisabled"]>>[0],
+      ) {
+        if (document.setComposition("", null, null)) invalidate();
+        props.onImeDisabled?.(event);
+      },
+      onTextSelectionChange(event: TextSelectionChangeEvent) {
+        if (
+          event.anchor !== undefined &&
+          event.head !== undefined &&
+          document.setSelection(event.anchor, event.head)
+        ) {
+          invalidate();
+        }
+        props.onTextSelectionChange?.(event);
+      },
+    }) as EditorProps,
+  );
 }
 
 /** Mount an explicitly registered Rust/GPUI widget without web-element semantics. */

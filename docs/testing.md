@@ -244,9 +244,10 @@ expect(slider.numericValue).toBe(45);
 ```
 
 `input(value)` first focuses the editor and then dispatches Wabou's authored
-input event. It rejects disabled and read-only editors. Native editing details
-such as selection, clipboard paste, and IME composition remain behavior-test
-responsibilities because the Rust editor owns them.
+input event. It rejects disabled and read-only editors. The general `Editor`
+applies this through its CodeMirror document; native behavior tests remain
+responsible for proving that selection, clipboard paste, and IME events cross
+the platform bridge correctly.
 
 Components that subscribe to native measurement can still mount in their
 explicit unmeasured state without requiring a window.
@@ -794,3 +795,47 @@ test("minimum window layout", async ({ page, window }) => {
 Use `expect.poll(() => value).toBe(expected)` for state that settles across
 asynchronous host turns. DevTools remains a diagnostic interface; behavior
 assertions belong in scenarios.
+
+## Solid cross-render comparison
+
+Use the cross-render comparison when Wabou layout or paint should be checked
+against Chromium:
+
+```bash
+bun run test:render-compare
+```
+
+Unlike two hand-maintained reference pages, this command compiles
+`tests/render-reference/cross-render-fixture.tsx` twice. The native build maps
+its Solid JSX to Wabou primitives; the browser build aliases the same primitive
+imports to a small DOM adapter and generates CSS from the same Wabou UnoCSS
+preset. Nodes with an `aria-label` beginning with `compare/` are checked for:
+
+- exact background and text color values;
+- x/y/width/height drift beyond 0.51 logical pixels;
+- text baseline drift after resolving the same explicit font;
+- missing nodes on either backend;
+- per-node pixel RMSE with explicit tolerances for renderer-specific edges.
+
+The checked fixture is a matrix rather than a single card: it covers flex,
+grid, gaps, box sizing, fractional widths, alignment, clipping, opacity,
+transforms, corner radii, layered shadows and text metrics. Text geometry and
+color are gated, but glyph pixels are diagnostic-only because Chromium and
+Wabou deliberately use different font rasterizers. The JSON report includes a
+ranked `largestPixelDifferences` list so the next investigation starts at the
+largest mismatch instead of relying on visual guesswork.
+
+The command writes the native and Chromium PNGs, their visual difference,
+side-by-side comparison, native tree and JSON report under
+`target/render-reference`. Use `--out`, `--width`, `--height`,
+`--layout-tolerance`, `--pixel-tolerance`, and `--region-tolerance` to override
+defaults. Pass `--report-only` while expanding the matrix to collect every
+difference without weakening the normal regression gate. Set `CHROME`,
+`MAGICK`, or `WABOU_RENDER_COMMAND` when those executables are not on `PATH`.
+`test:paint-reference` remains as a compatibility alias.
+
+This is a renderer comparison, not a browser-compatibility promise. Do not add
+browser-only DOM behavior to the shared fixture. The current adapter
+deliberately covers the common `View` and `Text` subset. Chromium and Wabou
+intentionally use different font resolution and glyph rasterization paths, so
+text quality still requires the focused text and HiDPI checks described above.

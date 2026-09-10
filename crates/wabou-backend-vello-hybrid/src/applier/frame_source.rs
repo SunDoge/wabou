@@ -10,7 +10,7 @@ impl Applier {
         }
     }
 
-    fn drain_pending_stylesheet(&mut self) {
+    pub(super) fn drain_pending_stylesheet(&mut self) {
         let Some(update) = self
             .runtime
             .pending_css
@@ -84,7 +84,7 @@ impl Applier {
         self.recompute_all();
     }
 
-    fn drain_pending_color_theme(&mut self) {
+    pub(super) fn drain_pending_color_theme(&mut self) {
         let Some(name) = self
             .runtime
             .pending_color_theme
@@ -112,7 +112,7 @@ impl Applier {
         }
     }
 
-    fn drain_pending_color_palette(&mut self) {
+    pub(super) fn drain_pending_color_palette(&mut self) {
         let Some(colors) = self
             .runtime
             .pending_color_palette
@@ -177,62 +177,9 @@ impl Applier {
         let elapsed_ms = started.elapsed().as_secs_f64() * 1000.0;
         self.frame.js_tick_ema = self.frame.js_tick_ema * 0.9 + elapsed_ms * 0.1;
         self.frame.last_viewport = (width, height);
+
         if !bytes.is_empty() {
-            let decoded = {
-                #[cfg(feature = "profiling")]
-                let span = tracing::trace_span!(
-                    target: "wabou::perf",
-                    "quick.protocol.decode",
-                    bytes = bytes.len() as u64,
-                );
-                #[cfg(feature = "profiling")]
-                let _guard = span.enter();
-                decode_frame(&bytes)
-            };
-            match decoded {
-                Ok(frame) => {
-                    self.runtime.protocol_revision = self.runtime.protocol_revision.wrapping_add(1);
-                    #[cfg(any(feature = "devtools", test))]
-                    if let Some(state) = &self.frame.projections.debug_state
-                        && let Ok(mut state) = state.write()
-                    {
-                        state.push_frame(wabou_devtools::DebugFrame {
-                            direction: "jsToHost".into(),
-                            sequence: u64::from(frame.seq),
-                            byte_len: bytes.len(),
-                            record_count: frame.ops.len(),
-                            bytes_hex: Some(wabou_devtools::bytes_hex(&bytes, 4096)),
-                        });
-                    }
-                    {
-                        #[cfg(feature = "profiling")]
-                        let span = tracing::trace_span!(
-                            target: "wabou::perf",
-                            "quick.protocol.apply",
-                            ops = frame.ops.len() as u64,
-                            class_cache_hits = tracing::field::Empty,
-                            class_cache_misses = tracing::field::Empty,
-                            runtime_utility_fallbacks = tracing::field::Empty,
-                        );
-                        #[cfg(feature = "profiling")]
-                        let _guard = span.enter();
-                        self.apply_frame(&frame);
-                        #[cfg(feature = "profiling")]
-                        {
-                            span.record("class_cache_hits", self.frame.profile_class_cache_hits);
-                            span.record(
-                                "class_cache_misses",
-                                self.frame.profile_class_cache_misses,
-                            );
-                            span.record(
-                                "runtime_utility_fallbacks",
-                                self.frame.profile_runtime_utility_fallbacks,
-                            );
-                        }
-                    }
-                }
-                Err(error) => tracing::error!(target: "bridge", "decode frame failed: {error}"),
-            }
+            self.apply_protocol_bytes(&bytes);
         }
         self.runtime.js.poll_async_runtime();
         true

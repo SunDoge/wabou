@@ -1,5 +1,7 @@
 import { describe, expect, test } from "bun:test";
-import { resolve } from "node:path";
+import { mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join, resolve } from "node:path";
 import {
   assertSupportedWabouCandidates,
   auditColorThemeContrast,
@@ -289,5 +291,21 @@ describe("utility source extraction", () => {
     expect(
       await findWorkspacePackages(resolve(workspace, "apps/gallery")),
     ).toBe(resolve(workspace, "packages"));
+  });
+
+  test("discovers packages in a vendored workspace", async () => {
+    const workspace = await mkdtemp(join(tmpdir(), "wabou-vite-workspace-"));
+    try {
+      await mkdir(resolve(workspace, "app/ui"), { recursive: true });
+      await writeFile(
+        resolve(workspace, "package.json"),
+        JSON.stringify({ workspaces: ["vendor/wabou/packages/*"] }),
+      );
+      expect(await findWorkspacePackages(resolve(workspace, "app/ui"))).toBe(
+        resolve(workspace, "vendor/wabou/packages"),
+      );
+    } finally {
+      await rm(workspace, { recursive: true, force: true });
+    }
   });
 });

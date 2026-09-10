@@ -636,7 +636,7 @@ await renderLayoutFixtures({
           role: "button",
           name: "Open preview",
         });
-        getLayoutNode(fixture, { role: "button", name: "Extract…" });
+        getLayoutNode(fixture, { role: "button", name: "Restore…" });
       },
     },
     {

@@ -19,7 +19,7 @@ mod shader_layer;
 mod text_input;
 
 pub use canvas::Canvas;
-pub use code_editor::CodeEditor;
+pub use code_editor::EditorViewport;
 pub use controls::{IndeterminateProgress, Slider, Spinner};
 pub use image::ImageWidget;
 pub use password_input::{PasswordInput, SecretStore};
@@ -30,7 +30,10 @@ pub use text_input::TextInput;
 pub fn builtin_factories() -> HashMap<String, WidgetFactory> {
     let mut factories: HashMap<String, WidgetFactory> = HashMap::new();
     factories.insert("canvas".into(), Arc::new(|| Box::new(Canvas)));
-    factories.insert("editor".into(), Arc::new(|| Box::new(CodeEditor::new())));
+    factories.insert(
+        "editor".into(),
+        Arc::new(|| Box::new(EditorViewport::new())),
+    );
     factories.insert("img".into(), Arc::new(|| Box::new(ImageWidget::new())));
     factories.insert("input".into(), Arc::new(|| Box::new(TextInput::new())));
     factories.insert("spinner".into(), Arc::new(|| Box::new(Spinner::new())));

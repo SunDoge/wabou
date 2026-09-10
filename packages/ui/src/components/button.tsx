@@ -73,15 +73,15 @@ function buttonColors(
     )
     .with({ variant: "destructive", pressed: true }, () =>
       mergeClasses(
-        "bg-danger-pressed border-transparent text-on-accent",
+        "bg-danger-pressed border-transparent text-on-danger",
         focus,
       ),
     )
     .with({ variant: "destructive", hovered: true }, () =>
-      mergeClasses("bg-danger-hover border-transparent text-on-accent", focus),
+      mergeClasses("bg-danger-hover border-transparent text-on-danger", focus),
     )
     .with({ variant: "destructive" }, () =>
-      mergeClasses("bg-danger border-transparent text-on-accent", focus),
+      mergeClasses("bg-danger border-transparent text-on-danger", focus),
     )
     .with({ variant: "secondary", pressed: true }, () =>
       mergeClasses("bg-control-pressed border-transparent text-primary", focus),
@@ -124,7 +124,8 @@ function buttonSize(size: ButtonSize, grouped: boolean): string {
 
 function buttonSpinnerColor(variant: ButtonVariant): string {
   return match(variant)
-    .with("default", "destructive", () => "text-on-accent")
+    .with("default", () => "text-on-accent")
+    .with("destructive", () => "text-on-danger")
     .with("secondary", () => "text-primary")
     .with("outline", "ghost", () => "text-secondary")
     .exhaustive();

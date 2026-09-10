@@ -34,6 +34,23 @@ test("Button clips every visual state to its control radius", () => {
   expect(button.className).toContain("rounded-md");
   expect(button.className).toContain("overflow-hidden");
   expect(button.className).toContain("bg-danger");
+  expect(button.className).toContain("text-on-danger");
+  expect(button.className).not.toContain("text-on-accent");
+});
+
+test("Button keeps destructive loading content on the danger foreground", () => {
+  const screen = renderComponent(() => (
+    <Button
+      aria-label="Deleting"
+      variant="destructive"
+      loading
+      loadingLabel="Deleting…"
+    />
+  ));
+
+  expect(screen.getByRole("status", { name: "Deleting…" }).className).toContain(
+    "text-on-danger",
+  );
 });
 
 test("Button keeps a selected control on its active palette", () => {
