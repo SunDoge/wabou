@@ -468,16 +468,12 @@ describe("host primitives", () => {
     expect(focusOrders).toEqual([0, 0, 4, -1]);
   });
 
-  test("projects generic editor state and accepts native text commits", () =>
+  test("feeds native selection and commits through CodeMirror syntax state", () =>
     createRoot((dispose) => {
-      const attributes: Array<[string, string]> = [];
+      const configs: string[] = [];
       const values: string[] = [];
-      const setAttribute = writer.setAttribute.bind(writer);
-      writer.setAttribute = (_id, name, value) => {
-        if (name === "language" || name === "value") {
-          attributes.push([name, value]);
-        }
-      };
+      const setWidgetConfig = writer.setWidgetConfig.bind(writer);
+      writer.setWidgetConfig = (_id, json) => configs.push(json);
       try {
         const editor = Editor({
           "aria-label": "Source",
@@ -485,19 +481,40 @@ describe("host primitives", () => {
           language: "json",
           onInput: (event) => values.push(event.currentTarget.value),
         }) as unknown as import("@wabou/core/renderer").Handle;
+        flush();
         dispatchEvent(
           editor.id,
-          EVENT_CODE.input,
-          JSON.stringify({ value: "next" }),
+          EVENT_CODE.textselectionchange,
+          JSON.stringify({
+            anchor: 0,
+            head: '{"enabled":true}'.length,
+            text: '{"enabled":true}',
+            kind: "simple",
+          }),
         );
+        dispatchEvent(
+          editor.id,
+          EVENT_CODE.imecommit,
+          JSON.stringify({
+            data: '{"enabled":false,"port":9090}',
+            source: "keyboard",
+          }),
+        );
+        flush();
       } finally {
-        writer.setAttribute = setAttribute;
+        writer.setWidgetConfig = setWidgetConfig;
         dispose();
       }
 
-      expect(attributes).toContainEqual(["value", '{"enabled":true}']);
-      expect(attributes).toContainEqual(["language", "json"]);
-      expect(values).toEqual(["next"]);
+      const syntax = JSON.parse(configs.at(-1) ?? "null").syntax;
+      expect(syntax).toMatchObject({
+        language: "json",
+        offsetEncoding: "utf16",
+      });
+      expect(
+        syntax.ranges.map((range: { kind: string }) => range.kind),
+      ).toContain("number");
+      expect(values).toEqual(['{"enabled":false,"port":9090}']);
     }));
 
   test("projects typed native widget config and numeric changes", () =>

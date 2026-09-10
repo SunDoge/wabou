@@ -244,9 +244,10 @@ expect(slider.numericValue).toBe(45);
 ```
 
 `input(value)` first focuses the editor and then dispatches Wabou's authored
-input event. It rejects disabled and read-only editors. Native editing details
-such as selection, clipboard paste, and IME composition remain behavior-test
-responsibilities because the Rust editor owns them.
+input event. It rejects disabled and read-only editors. The general `Editor`
+applies this through its CodeMirror document; native behavior tests remain
+responsible for proving that selection, clipboard paste, and IME events cross
+the platform bridge correctly.
 
 Components that subscribe to native measurement can still mount in their
 explicit unmeasured state without requiring a window.

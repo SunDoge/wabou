@@ -73,7 +73,7 @@ struct CompositionConfig {
 
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
-struct CodeEditorConfig {
+struct EditorViewportConfig {
     selection: SelectionConfig,
     composition: Option<CompositionConfig>,
     syntax: Option<SyntaxConfig>,
@@ -171,12 +171,12 @@ impl VisualLine {
     }
 }
 
-/// Native multiline editor used by Wabou's general-purpose `Editor` primitive.
+/// Controlled native viewport for Wabou's general-purpose `Editor` primitive.
 ///
-/// The widget owns text editing, UTF-16 selection, IME state, scrolling,
-/// pointer hit testing, clipboard requests, highlighting, and paint. Solid
-/// receives complete controlled-value updates through the widget bridge.
-pub struct CodeEditor {
+/// It deliberately does not edit text. JavaScript owns CodeMirror transactions;
+/// this widget owns paint, scrolling, pointer hit testing, clipboard requests,
+/// and the platform IME projection.
+pub struct EditorViewport {
     value: String,
     selection: SelectionConfig,
     selection_kind: WidgetTextSelectionKind,
@@ -195,8 +195,8 @@ pub struct CodeEditor {
     font_italic: bool,
 }
 
-impl CodeEditor {
-    /// Construct an empty config-editor viewport.
+impl EditorViewport {
+    /// Construct an empty editor viewport.
     pub fn new() -> Self {
         Self {
             value: String::new(),
@@ -338,117 +338,6 @@ impl CodeEditor {
         let to = self.selection.anchor.max(self.selection.head);
         (from != to)
             .then(|| self.value[self.utf16_to_byte(from)..self.utf16_to_byte(to)].to_owned())
-    }
-
-    fn set_caret(&mut self, offset: usize, extend: bool) {
-        let offset = offset.min(self.document_len());
-        if extend {
-            self.selection.head = offset;
-        } else {
-            self.selection = SelectionConfig {
-                anchor: offset,
-                head: offset,
-            };
-        }
-        self.selection_kind = WidgetTextSelectionKind::Simple;
-    }
-
-    fn replace_selection(&mut self, text: &str) {
-        let from = self.selection.anchor.min(self.selection.head);
-        let to = self.selection.anchor.max(self.selection.head);
-        let from_byte = self.utf16_to_byte(from);
-        let to_byte = self.utf16_to_byte(to);
-        self.value.replace_range(from_byte..to_byte, text);
-        self.set_caret(from + text.encode_utf16().count(), false);
-        self.composition = None;
-        self.clamp_scroll_row();
-    }
-
-    fn previous_offset(&self, offset: usize) -> usize {
-        let byte = self.utf16_to_byte(offset);
-        self.value[..byte]
-            .chars()
-            .next_back()
-            .map_or(0, |ch| offset.saturating_sub(ch.len_utf16()))
-    }
-
-    fn next_offset(&self, offset: usize) -> usize {
-        let byte = self.utf16_to_byte(offset);
-        self.value[byte..]
-            .chars()
-            .next()
-            .map_or(offset, |ch| offset + ch.len_utf16())
-    }
-
-    fn line_boundary(&self, offset: usize, end: bool) -> usize {
-        let byte = self.utf16_to_byte(offset);
-        let boundary = if end {
-            self.value[byte..]
-                .find('\n')
-                .map_or(self.value.len(), |index| byte + index)
-        } else {
-            self.value[..byte].rfind('\n').map_or(0, |index| index + 1)
-        };
-        self.value[..boundary].encode_utf16().count()
-    }
-
-    fn delete_backward(&mut self) -> bool {
-        if self.selection.anchor == self.selection.head {
-            let previous = self.previous_offset(self.selection.head);
-            if previous == self.selection.head {
-                return false;
-            }
-            self.selection.anchor = previous;
-        }
-        self.replace_selection("");
-        true
-    }
-
-    fn delete_forward(&mut self) -> bool {
-        if self.selection.anchor == self.selection.head {
-            let next = self.next_offset(self.selection.head);
-            if next == self.selection.head {
-                return false;
-            }
-            self.selection.head = next;
-        }
-        self.replace_selection("");
-        true
-    }
-
-    fn delete_surrounding(&mut self, before_bytes: usize, after_bytes: usize) -> bool {
-        let from = self.selection.anchor.min(self.selection.head);
-        let to = self.selection.anchor.max(self.selection.head);
-        let from_byte = self.utf16_to_byte(from);
-        let to_byte = self.utf16_to_byte(to);
-        let Some(before_start) = from_byte.checked_sub(before_bytes) else {
-            return false;
-        };
-        let Some(after_end) = to_byte.checked_add(after_bytes) else {
-            return false;
-        };
-        if after_end > self.value.len()
-            || !self.value.is_char_boundary(before_start)
-            || !self.value.is_char_boundary(after_end)
-        {
-            return false;
-        }
-        if before_bytes == 0 && after_bytes == 0 {
-            return false;
-        }
-
-        let removed_before_utf16 = self.value[before_start..from_byte].encode_utf16().count();
-        if after_bytes != 0 {
-            self.value.replace_range(to_byte..after_end, "");
-        }
-        if before_bytes != 0 {
-            self.value.replace_range(before_start..from_byte, "");
-        }
-        self.selection.anchor = self.selection.anchor.saturating_sub(removed_before_utf16);
-        self.selection.head = self.selection.head.saturating_sub(removed_before_utf16);
-        self.composition = None;
-        self.clamp_scroll_row();
-        true
     }
 
     fn select_word_at(&mut self, offset: usize) {
@@ -644,13 +533,13 @@ impl CodeEditor {
     }
 }
 
-impl Default for CodeEditor {
+impl Default for EditorViewport {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl Widget for CodeEditor {
+impl Widget for EditorViewport {
     fn paint(&mut self, paint: &mut PaintContext<'_>) {
         self.viewport = paint.size();
         let metrics = layout_text_styled(
@@ -873,75 +762,12 @@ impl Widget for CodeEditor {
             {
                 WidgetEventResult::paste()
             }
-            UiEvent::Key(event)
-                if event.phase == KeyPhase::Down
-                    && event.modifiers.primary_shortcut()
-                    && event.key.eq_ignore_ascii_case("a") =>
-            {
-                self.selection = SelectionConfig {
-                    anchor: 0,
-                    head: self.document_len(),
-                };
-                WidgetEventResult::selection_changed_result()
-            }
-            UiEvent::Key(event) if event.phase == KeyPhase::Down => {
-                let extend = event.modifiers.shift();
-                match event.key.as_str() {
-                    "ArrowLeft" => {
-                        let offset = if !extend && self.selection.anchor != self.selection.head {
-                            self.selection.anchor.min(self.selection.head)
-                        } else {
-                            self.previous_offset(self.selection.head)
-                        };
-                        self.set_caret(offset, extend);
-                        WidgetEventResult::selection_changed_result()
-                    }
-                    "ArrowRight" => {
-                        let offset = if !extend && self.selection.anchor != self.selection.head {
-                            self.selection.anchor.max(self.selection.head)
-                        } else {
-                            self.next_offset(self.selection.head)
-                        };
-                        self.set_caret(offset, extend);
-                        WidgetEventResult::selection_changed_result()
-                    }
-                    "Home" => {
-                        self.set_caret(self.line_boundary(self.selection.head, false), extend);
-                        WidgetEventResult::selection_changed_result()
-                    }
-                    "End" => {
-                        self.set_caret(self.line_boundary(self.selection.head, true), extend);
-                        WidgetEventResult::selection_changed_result()
-                    }
-                    "Backspace" if !self.read_only && self.delete_backward() => {
-                        WidgetEventResult::value_changed_consuming_key_text()
-                            .with_selection_changed()
-                    }
-                    "Delete" if !self.read_only && self.delete_forward() => {
-                        WidgetEventResult::value_changed_consuming_key_text()
-                            .with_selection_changed()
-                    }
-                    "Enter" if !self.read_only => {
-                        self.replace_selection("\n");
-                        WidgetEventResult::value_changed_consuming_key_text()
-                            .with_selection_changed()
-                    }
-                    "Tab" if !self.read_only => {
-                        self.replace_selection("\t");
-                        WidgetEventResult::value_changed_consuming_key_text()
-                            .with_selection_changed()
-                    }
-                    _ => WidgetEventResult::IGNORED,
-                }
-            }
-            UiEvent::TextInput(text) | UiEvent::Paste(text) if !self.read_only => {
-                self.replace_selection(text);
-                WidgetEventResult::VALUE_CHANGED.with_selection_changed()
-            }
-            UiEvent::Ime(wabou_shell::ImeEvent::Commit(text)) if !self.read_only => {
-                self.replace_selection(text);
-                WidgetEventResult::VALUE_CHANGED.with_selection_changed()
-            }
+            // CodeMirror receives editing keys, committed text and paste via
+            // the JS event bridge. This widget is a controlled viewport and
+            // must never mutate its mirrored document independently.
+            UiEvent::Key(event) if event.phase == KeyPhase::Down => WidgetEventResult::IGNORED,
+            UiEvent::TextInput(_) | UiEvent::Paste(_) => WidgetEventResult::IGNORED,
+            UiEvent::Ime(wabou_shell::ImeEvent::Commit(_)) => WidgetEventResult::IGNORED,
             UiEvent::Ime(wabou_shell::ImeEvent::Preedit { text, cursor }) if !self.read_only => {
                 self.composition = (!text.is_empty()).then(|| CompositionConfig {
                     text: text.clone(),
@@ -950,11 +776,8 @@ impl Widget for CodeEditor {
                 });
                 WidgetEventResult::HANDLED
             }
-            UiEvent::Ime(wabou_shell::ImeEvent::DeleteSurrounding {
-                before_bytes,
-                after_bytes,
-            }) if !self.read_only && self.delete_surrounding(*before_bytes, *after_bytes) => {
-                WidgetEventResult::VALUE_CHANGED.with_selection_changed()
+            UiEvent::Ime(wabou_shell::ImeEvent::DeleteSurrounding { .. }) => {
+                WidgetEventResult::IGNORED
             }
             UiEvent::Ime(wabou_shell::ImeEvent::Disabled) => {
                 self.composition = None;
@@ -1021,40 +844,40 @@ impl Widget for CodeEditor {
     }
 
     fn config_changed(&mut self, json: &str) -> Result<wabou_shell::WidgetChanges, String> {
-        let config: CodeEditorConfig = decode_widget_config(json)?;
+        let config: EditorViewportConfig = decode_widget_config(json)?;
         let length = self.document_len();
         if config.selection.anchor > length || config.selection.head > length {
-            return Err("CodeEditor selection lies outside the document".into());
+            return Err("Editor viewport selection lies outside the document".into());
         }
         if let Some(syntax) = &config.syntax {
             if syntax.language != "json" {
                 return Err(format!(
-                    "unsupported CodeEditor language `{}`",
+                    "unsupported Editor viewport language `{}`",
                     syntax.language
                 ));
             }
             if syntax.offset_encoding != "utf16" {
                 return Err(format!(
-                    "unsupported CodeEditor offset encoding `{}`",
+                    "unsupported Editor viewport offset encoding `{}`",
                     syntax.offset_encoding
                 ));
             }
             if syntax.document_length != length {
-                return Err("CodeEditor syntax length does not match its value".into());
+                return Err("Editor viewport syntax length does not match its value".into());
             }
             if syntax
                 .ranges
                 .iter()
                 .any(|range| range.from > range.to || range.to > length)
             {
-                return Err("CodeEditor highlight range lies outside the document".into());
+                return Err("Editor viewport highlight range lies outside the document".into());
             }
             if syntax
                 .ranges
                 .windows(2)
                 .any(|pair| pair[0].to > pair[1].from)
             {
-                return Err("CodeEditor highlight ranges overlap or are not sorted".into());
+                return Err("Editor viewport highlight ranges overlap or are not sorted".into());
             }
         }
         self.selection = config.selection;
@@ -1198,10 +1021,7 @@ impl Widget for CodeEditor {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use wabou_shell::{
-        GesturePhase, KeyEvent, KeyLocation, Modifiers, Point, PointerButton, PointerEvent,
-        WheelEvent,
-    };
+    use wabou_shell::{GesturePhase, Modifiers, Point, PointerButton, PointerEvent, WheelEvent};
 
     fn pointer(phase: PointerPhase, x: f64, y: f64, buttons: u32) -> UiEvent {
         UiEvent::Pointer(PointerEvent {
@@ -1214,7 +1034,7 @@ mod tests {
         })
     }
 
-    fn configure(editor: &mut CodeEditor, anchor: usize, head: usize) {
+    fn configure(editor: &mut EditorViewport, anchor: usize, head: usize) {
         editor
             .config_changed(&format!(
                 r#"{{"selection":{{"anchor":{anchor},"head":{head}}},"composition":null,"syntax":null}}"#
@@ -1222,48 +1042,33 @@ mod tests {
             .unwrap();
     }
 
-    fn key(name: &str) -> UiEvent {
-        UiEvent::Key(KeyEvent {
-            phase: KeyPhase::Down,
-            key: name.into(),
-            key_without_modifiers: name.into(),
-            code: name.into(),
-            text: None,
-            text_with_all_modifiers: None,
-            location: KeyLocation::Standard,
-            modifiers: Modifiers::default(),
-            repeat: false,
-            synthetic: false,
-        })
-    }
-
     #[test]
-    fn native_text_events_edit_and_report_the_complete_value() {
-        let mut editor = CodeEditor::new();
+    fn native_text_events_do_not_mutate_the_controlled_document() {
+        let mut editor = EditorViewport::new();
         editor.attribute_changed("value", "{\n  \"enabled\": true\n}");
         configure(&mut editor, 0, 0);
 
-        assert!(editor.handle_event(&key("End")).selection_changed());
         assert!(
-            editor
+            !editor
                 .handle_event(&UiEvent::TextInput(" ".into()))
-                .value_changed()
+                .is_handled()
         );
         assert!(
-            editor
+            !editor
                 .handle_event(&UiEvent::Paste("// edited".into()))
-                .value_changed()
+                .is_handled()
         );
-
-        assert_eq!(
-            editor.current_value(),
-            Some("{ // edited\n  \"enabled\": true\n}")
+        assert!(
+            !editor
+                .handle_event(&UiEvent::Ime(wabou_shell::ImeEvent::Commit("中文".into())))
+                .is_handled()
         );
+        assert_eq!(editor.current_value(), Some("{\n  \"enabled\": true\n}"));
     }
 
     #[test]
     fn native_pointer_reports_selection_without_editing_document() {
-        let mut editor = CodeEditor::new();
+        let mut editor = EditorViewport::new();
         editor.attribute_changed("value", "one\ntwo");
         editor.layout_changed(WidgetGeometry {
             content_size: [640.0, 420.0],
@@ -1277,7 +1082,7 @@ mod tests {
 
     #[test]
     fn clipboard_uses_controlled_utf16_selection() {
-        let mut editor = CodeEditor::new();
+        let mut editor = EditorViewport::new();
         editor.attribute_changed("value", "A😀B");
         configure(&mut editor, 1, 3);
         assert_eq!(editor.selected_text().as_deref(), Some("😀"));
@@ -1285,7 +1090,7 @@ mod tests {
 
     #[test]
     fn short_documents_do_not_scroll() {
-        let mut editor = CodeEditor::new();
+        let mut editor = EditorViewport::new();
         editor.attribute_changed("value", "one\ntwo");
         editor.layout_changed(WidgetGeometry {
             content_size: [640.0, 420.0],
@@ -1305,7 +1110,7 @@ mod tests {
 
     #[test]
     fn rejects_syntax_for_a_different_document() {
-        let mut editor = CodeEditor::new();
+        let mut editor = EditorViewport::new();
         editor.attribute_changed("value", "true");
         let error = editor.config_changed(r#"{"selection":{"anchor":0,"head":0},"composition":null,"syntax":{"language":"json","offsetEncoding":"utf16","documentLength":5,"ranges":[]}}"#).unwrap_err();
         assert!(error.contains("length"));
@@ -1313,7 +1118,7 @@ mod tests {
 
     #[test]
     fn ime_snapshot_preserves_utf8_surrounding_selection_and_tracks_preedit() {
-        let mut editor = CodeEditor::new();
+        let mut editor = EditorViewport::new();
         editor.attribute_changed("value", "A😀日本B");
         editor.layout_changed(WidgetGeometry {
             content_size: [640.0, 420.0],
@@ -1344,7 +1149,7 @@ mod tests {
 
     #[test]
     fn empty_preedit_and_focus_loss_clear_editor_composition() {
-        let mut editor = CodeEditor::new();
+        let mut editor = EditorViewport::new();
         editor.attribute_changed("value", "text");
         configure(&mut editor, 4, 4);
         editor.focus_changed(true);
@@ -1371,7 +1176,7 @@ mod tests {
 
     #[test]
     fn ime_range_queries_use_utf16_and_scroll_relative_geometry() {
-        let mut editor = CodeEditor::new();
+        let mut editor = EditorViewport::new();
         editor.attribute_changed("value", "first\nA😀B\nlast");
         editor.layout_changed(WidgetGeometry {
             content_size: [640.0, LINE_HEIGHT],
@@ -1396,8 +1201,8 @@ mod tests {
     }
 
     #[test]
-    fn ime_delete_surrounding_uses_utf8_bytes_without_deleting_the_selection() {
-        let mut editor = CodeEditor::new();
+    fn ime_delete_surrounding_is_forwarded_without_mutating_the_viewport() {
+        let mut editor = EditorViewport::new();
         editor.attribute_changed("value", "前A😀選択B後");
         configure(&mut editor, 4, 6);
 
@@ -1405,21 +1210,9 @@ mod tests {
             before_bytes: "A😀".len(),
             after_bytes: "B".len(),
         }));
-        assert!(result.value_changed());
-        assert!(result.selection_changed());
-        assert_eq!(editor.current_value(), Some("前選択後"));
-        assert_eq!(editor.selection.anchor, 1);
-        assert_eq!(editor.selection.head, 3);
-
-        let unchanged = editor.value.clone();
-        let result = editor.handle_event(&UiEvent::Ime(wabou_shell::ImeEvent::DeleteSurrounding {
-            before_bytes: 1,
-            after_bytes: 0,
-        }));
         assert!(!result.is_handled());
-        assert_eq!(
-            editor.value, unchanged,
-            "split UTF-8 deletion must be rejected"
-        );
+        assert_eq!(editor.current_value(), Some("前A😀選択B後"));
+        assert_eq!(editor.selection.anchor, 4);
+        assert_eq!(editor.selection.head, 6);
     }
 }

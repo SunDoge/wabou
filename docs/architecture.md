@@ -38,8 +38,10 @@ Wabou keeps one authoritative owner for each kind of state:
   partially decoded frame is never observable.
 - Taffy owns completed layout. The shell owns clipping, hit testing, focus,
   window integration, and accessibility publication.
-- A focused native editor owns transient selection and IME composition. Solid
-  receives committed values and remains the owner of durable application data.
+- Native `TextInput` and `TextArea` widgets own their small text documents. The
+  general `Editor` instead uses a DOM-free CodeMirror document as its source of
+  truth and projects selection, IME composition, and syntax ranges into a
+  controlled native viewport.
 - Native widget instances own only their local measurement, paint, and
   interaction state.
 
