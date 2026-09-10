@@ -364,20 +364,20 @@ export function GithubDesktopReference(props: { class?: string }) {
                   >
                     <Text
                       aria-label={`Old line ${row.old || "empty"}, diff row ${index() + 1}`}
-                      class="w-10 flex-none px-2 py-1 text-right font-mono text-xs text-muted border-r border-subtle"
+                      class="w-10 flex-none px-2 py-1 text-right font-mono text-xs text-muted"
                     >
                       {row.old}
                     </Text>
                     <Text
                       aria-label={`New line ${row.next || "empty"}, diff row ${index() + 1}`}
-                      class="w-10 flex-none px-2 py-1 text-right font-mono text-xs text-muted border-r border-subtle"
+                      class="w-10 flex-none px-2 py-1 text-right font-mono text-xs text-muted"
                     >
                       {row.next}
                     </Text>
                     <Text
                       aria-label={`Change marker, diff row ${index() + 1}`}
                       class={mergeClasses(
-                        "w-6 flex-none pl-2 py-1 font-mono text-xs",
+                        "w-6 flex-none pl-2 py-1 font-mono text-xs border-r border-subtle",
                         row.kind === "added"
                           ? "text-success-primary"
                           : row.kind === "removed"
@@ -389,7 +389,7 @@ export function GithubDesktopReference(props: { class?: string }) {
                     </Text>
                     <Text
                       aria-label={`Code, diff row ${index() + 1}`}
-                      class="min-w-0 flex-1 pr-3 py-1 whitespace-nowrap font-mono text-xs text-primary"
+                      class="min-w-0 flex-1 px-3 py-1 whitespace-nowrap font-mono text-xs text-primary"
                     >
                       {row.text}
                     </Text>
