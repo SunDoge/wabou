@@ -16,10 +16,9 @@ use vello_hybrid::{
     Scene as HybridScene, TextureBindings,
 };
 use wgpu::{CommandEncoderDescriptor, CompositeAlphaMode, Features, PresentMode, TextureFormat};
-use wgpu_context::{
-    AlphaConversion, DeviceHandle, SurfaceRenderer, SurfaceRendererConfiguration,
-    TextureConfiguration, WGPUContext,
-};
+#[cfg(not(target_vendor = "apple"))]
+use wgpu_context::{AlphaConversion, TextureConfiguration};
+use wgpu_context::{DeviceHandle, SurfaceRenderer, SurfaceRendererConfiguration, WGPUContext};
 use winit::window::Window;
 
 use crate::{Glyph, NormalizedCoord, PaintScene, Scene, ShaderEffect, shader::ShaderRenderer};
@@ -102,11 +101,19 @@ impl HybridWindowRenderer {
     }
 
     pub(crate) fn resume(&mut self, window: Arc<dyn Window>, width: u32, height: u32) {
+        tracing::debug!(
+            target: "wabou::renderer",
+            transparent = self.transparent,
+            width,
+            height,
+            "creating window render surface"
+        );
         let owned: Arc<SharedWindow> = Arc::new(SharedWindow(window));
         let surface = self
             .context
             .create_surface(owned)
             .expect("failed to create Vello Hybrid surface");
+        tracing::debug!(target: "wabou::renderer", "selecting compatible render device");
         let existing_device = self.context.find_compatible_device_handle(Some(&surface));
         let created_device = existing_device.is_none();
         let device = existing_device.unwrap_or_else(|| {
@@ -179,6 +186,7 @@ impl HybridWindowRenderer {
             device.clone(),
         )
         .expect("failed to configure Vello Hybrid surface");
+        tracing::debug!(target: "wabou::renderer", "window render surface configured");
         let (renderer, resources) = Renderer::new_with(
             surface_renderer.device(),
             &RenderTargetConfig {

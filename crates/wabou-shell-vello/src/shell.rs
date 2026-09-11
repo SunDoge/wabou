@@ -85,11 +85,12 @@ impl Shell {
         {
             tracing::warn!(?error, "pointer passthrough is unavailable for this window");
         }
-        window.set_visible(true);
         let surface_width = physical_size.width.max(1);
         let surface_height = physical_size.height.max(1);
         let mut renderer = HybridWindowRenderer::new(transparent)?;
         renderer.resume(window.clone(), surface_width, surface_height);
+        // Expose the window after its rendering resources are ready.
+        window.set_visible(true);
 
         Ok(Shell {
             window,
@@ -118,6 +119,48 @@ impl Shell {
     /// Current physical-pixels-per-logical-pixel scale reported by the window.
     pub fn scale_factor(&self) -> f64 {
         self.window.scale_factor().max(f64::EPSILON)
+    }
+
+    /// Query maximize state without changing native window styles.
+    pub fn is_maximized(&self) -> bool {
+        #[cfg(target_os = "macos")]
+        {
+            use objc2_app_kit::{NSView, NSWindowStyleMask};
+            use raw_window_handle::{HasWindowHandle, RawWindowHandle};
+
+            // winit 0.31 beta's is_maximized temporarily adds a title bar to
+            // borderless/non-resizable windows. That emits resize events; when
+            // queried while publishing metrics it creates an endless event loop.
+            let Ok(handle) = self.window.window_handle() else {
+                return false;
+            };
+            let RawWindowHandle::AppKit(handle) = handle.as_raw() else {
+                return false;
+            };
+            // SAFETY: Shell owns the live window, and metrics are queried on
+            // the AppKit event-loop thread. The borrowed NSView cannot outlive it.
+            let view = unsafe { handle.ns_view.cast::<NSView>().as_ref() };
+            let Some(window) = view.window() else {
+                return false;
+            };
+            let required = NSWindowStyleMask::Titled | NSWindowStyleMask::Resizable;
+            if window.styleMask().contains(required) {
+                return window.isZoomed();
+            }
+            // AppKit's isZoomed is unreliable for borderless windows. Compare
+            // their frame with the screen's work area, in logical coordinates.
+            let Some(screen) = window.screen() else {
+                return false;
+            };
+            let frame = window.frame();
+            let work = screen.visibleFrame();
+            return (frame.origin.x - work.origin.x).abs() <= 1.0
+                && (frame.origin.y - work.origin.y).abs() <= 1.0
+                && (frame.size.width - work.size.width).abs() <= 1.0
+                && (frame.size.height - work.size.height).abs() <= 1.0;
+        }
+        #[cfg(not(target_os = "macos"))]
+        self.window.is_maximized()
     }
 
     /// CSS/layout viewport in logical pixels; the surface remains physical.
