@@ -15,7 +15,7 @@
   "devDependencies": {
     "@wabou/test": "workspace:*",
     "@wabou/vite": "workspace:*",
-    "@types/node": "^26.1.1",
+    "@types/node": "^26.5.1",
     "vite": "^8.2.2"
   }
 }
