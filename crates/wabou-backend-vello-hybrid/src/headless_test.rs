@@ -149,7 +149,6 @@ impl NativeTestHost for HeadlessNativeHost<'_> {
 pub(super) fn run(
     controller: &TestController,
     sources: &mut [(Box<dyn FrameSource>, WindowOptions)],
-    base_color: Color,
     #[cfg(feature = "devtools")] debug_state: Option<&wabou_devtools::SharedDebugState>,
 ) -> crate::Result<()> {
     let viewport = HeadlessViewport::from_environment()?;
@@ -174,6 +173,7 @@ pub(super) fn run(
         for (index, (source, _)) in sources.iter_mut().enumerate() {
             let window_key = window_keys[index];
             let (width, height) = viewports[index];
+            let base_color = source.base_color();
             source.set_semantics_enabled(true);
             source.set_device_scale(viewport.scale_factor);
             source.handle_event(vello_shell::UiEvent::WindowMetrics(
@@ -231,6 +231,7 @@ pub(super) fn run(
             })?;
     let (width, height) = viewports[viewport.window_index];
     last_nodes[viewport.window_index] = capture_source.build_frame(&mut text, width, height);
+    let base_color = capture_source.base_color();
 
     if controller.report_passed() == Some(false) {
         render_failure(

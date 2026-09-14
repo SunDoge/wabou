@@ -104,6 +104,12 @@ mod tests {
     }
 
     #[test]
+    fn direct_hybrid_renderer_preserves_a_transparent_clear() {
+        let image = render_to_image(&Scene::new(), 8, 8, Color::TRANSPARENT).unwrap();
+        assert_eq!(image.get_pixel(4, 4).0, [0, 0, 0, 0]);
+    }
+
+    #[test]
     fn direct_hybrid_renderer_draws_public_raster_images() {
         let raster =
             crate::WidgetRasterImage::from_rgba8(2, 2, [240, 20, 60, 255].repeat(4)).unwrap();

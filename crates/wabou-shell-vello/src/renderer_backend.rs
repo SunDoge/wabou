@@ -16,10 +16,9 @@ use vello_hybrid::{
     Scene as HybridScene, TextureBindings,
 };
 use wgpu::{CommandEncoderDescriptor, CompositeAlphaMode, Features, PresentMode, TextureFormat};
-use wgpu_context::{
-    AlphaConversion, DeviceHandle, SurfaceRenderer, SurfaceRendererConfiguration,
-    TextureConfiguration, WGPUContext,
-};
+#[cfg(not(target_vendor = "apple"))]
+use wgpu_context::{AlphaConversion, TextureConfiguration};
+use wgpu_context::{DeviceHandle, SurfaceRenderer, SurfaceRendererConfiguration, WGPUContext};
 use winit::window::Window;
 
 use crate::{Glyph, NormalizedCoord, PaintScene, Scene, ShaderEffect, shader::ShaderRenderer};
@@ -102,11 +101,19 @@ impl HybridWindowRenderer {
     }
 
     pub(crate) fn resume(&mut self, window: Arc<dyn Window>, width: u32, height: u32) {
+        tracing::debug!(
+            target: "wabou::renderer",
+            transparent = self.transparent,
+            width,
+            height,
+            "creating window render surface"
+        );
         let owned: Arc<SharedWindow> = Arc::new(SharedWindow(window));
         let surface = self
             .context
             .create_surface(owned)
             .expect("failed to create Vello Hybrid surface");
+        tracing::debug!(target: "wabou::renderer", "selecting compatible render device");
         let existing_device = self.context.find_compatible_device_handle(Some(&surface));
         let created_device = existing_device.is_none();
         let device = existing_device.unwrap_or_else(|| {
@@ -132,6 +139,26 @@ impl HybridWindowRenderer {
         };
         let capabilities = surface.get_capabilities(&device.adapter);
         let alpha_mode = select_alpha_mode(requested_alpha_mode, &capabilities.alpha_modes);
+        if self.transparent
+            && !matches!(
+                alpha_mode,
+                CompositeAlphaMode::PreMultiplied | CompositeAlphaMode::PostMultiplied
+            )
+        {
+            tracing::warn!(
+                ?requested_alpha_mode,
+                ?alpha_mode,
+                supported_alpha_modes = ?capabilities.alpha_modes,
+                "surface does not expose a guaranteed transparency-preserving alpha mode"
+            );
+        }
+        tracing::debug!(
+            transparent = self.transparent,
+            ?requested_alpha_mode,
+            ?alpha_mode,
+            supported_alpha_modes = ?capabilities.alpha_modes,
+            "configured window surface alpha mode"
+        );
         #[cfg(not(target_vendor = "apple"))]
         let intermediate_texture =
             (alpha_mode == CompositeAlphaMode::PostMultiplied).then_some(TextureConfiguration {
@@ -159,6 +186,7 @@ impl HybridWindowRenderer {
             device.clone(),
         )
         .expect("failed to configure Vello Hybrid surface");
+        tracing::debug!(target: "wabou::renderer", "window render surface configured");
         let (renderer, resources) = Renderer::new_with(
             surface_renderer.device(),
             &RenderTargetConfig {
@@ -279,9 +307,9 @@ fn select_alpha_mode(
         .min_by_key(|mode| match mode {
             CompositeAlphaMode::PreMultiplied => 0,
             CompositeAlphaMode::PostMultiplied => 1,
-            CompositeAlphaMode::Opaque | CompositeAlphaMode::Inherit | CompositeAlphaMode::Auto => {
-                2
-            }
+            CompositeAlphaMode::Inherit => 2,
+            CompositeAlphaMode::Auto => 3,
+            CompositeAlphaMode::Opaque => 4,
         })
         .unwrap_or(CompositeAlphaMode::Auto)
 }
@@ -680,6 +708,17 @@ mod tests {
                 ],
             ),
             CompositeAlphaMode::Opaque,
+        );
+    }
+
+    #[test]
+    fn transparent_alpha_fallback_avoids_opaque_when_auto_is_available() {
+        assert_eq!(
+            select_alpha_mode(
+                CompositeAlphaMode::PreMultiplied,
+                &[CompositeAlphaMode::Opaque, CompositeAlphaMode::Auto],
+            ),
+            CompositeAlphaMode::Auto,
         );
     }
 

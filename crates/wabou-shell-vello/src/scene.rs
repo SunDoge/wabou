@@ -495,7 +495,9 @@ pub fn build_scene_scaled(
 
     let bg = Rect::new(0.0, 0.0, width as f64, height as f64);
     let viewport = bg;
-    scene.fill(Fill::NonZero, device, base_color, None, &bg);
+    if base_color != Color::TRANSPARENT {
+        scene.fill(Fill::NonZero, device, base_color, None, &bg);
+    }
 
     let mut transforms = HashMap::new();
     let mut layers = Vec::new();
@@ -836,6 +838,23 @@ mod tests {
             assert_eq!(image.get_pixel(50 * scale, 50 * scale).0[..3], [0, 0, 0]);
             std::fs::remove_file(path).expect("remove owned test png");
         }
+    }
+
+    #[test]
+    fn transparent_scene_background_preserves_zero_alpha() {
+        let mut scene = Scene::new();
+        build_scene_scaled(
+            &mut scene,
+            &[],
+            &mut TextContext::new(),
+            16,
+            16,
+            Color::TRANSPARENT,
+            1.0,
+        );
+        let image = crate::renderer::render_to_image(&scene, 16, 16, Color::TRANSPARENT)
+            .expect("render transparent scene");
+        assert_eq!(image.get_pixel(8, 8).0, [0, 0, 0, 0]);
     }
 
     #[test]

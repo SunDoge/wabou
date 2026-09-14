@@ -14,6 +14,7 @@ use serde::{Deserialize, Serialize};
 use snafu::ResultExt;
 use vello_common::peniko::Color;
 use wabou_bindgen::{CapabilityContract, JsonMethod};
+use wabou_shell_api::WindowBackground;
 
 use crate::{Applier, ImageResourceStore, JsRuntime, JsRuntimeOptions};
 use vello_shell::{FrameSource, Widget, WidgetFactory, WindowOptions};
@@ -146,10 +147,11 @@ impl RuntimeSourceConfig {
         .context(crate::error::JavaScriptSnafu {
             operation: "install native window creation options",
         })?;
+        let base_color = window_base_color(self.base_color, options.background);
         let mut controller = Applier::from_runtime_with_factories_and_window(
             js,
             self.widget_factories.clone(),
-            self.base_color,
+            base_color,
             window_key,
         );
         controller.set_image_resource_store(self.image_resources.clone());
@@ -216,6 +218,16 @@ impl RuntimeSourceConfig {
             }
         }
         Ok(controller)
+    }
+}
+
+fn window_base_color(configured: Color, background: WindowBackground) -> Color {
+    match background {
+        WindowBackground::Opaque => configured,
+        WindowBackground::Transparent
+        | WindowBackground::Blurred
+        | WindowBackground::Mica
+        | WindowBackground::MicaAlt => Color::TRANSPARENT,
     }
 }
 
@@ -741,7 +753,6 @@ impl VelloHybridHostBuilder {
                     .as_ref()
                     .expect("headless test requires a controller"),
                 &mut sources,
-                self.base_color,
                 #[cfg(feature = "devtools")]
                 debug_state.as_ref(),
             )?;
@@ -783,6 +794,26 @@ mod tests {
     #[derive(Serialize)]
     struct DoubleResponse {
         value: u32,
+    }
+
+    #[test]
+    fn transparent_window_materials_do_not_inherit_the_opaque_host_clear_color() {
+        let configured = Color::from_rgb8(0x0f, 0x17, 0x2a);
+        assert_eq!(
+            window_base_color(configured, WindowBackground::Opaque),
+            configured
+        );
+        for background in [
+            WindowBackground::Transparent,
+            WindowBackground::Blurred,
+            WindowBackground::Mica,
+            WindowBackground::MicaAlt,
+        ] {
+            assert_eq!(
+                window_base_color(configured, background),
+                Color::TRANSPARENT
+            );
+        }
     }
 
     #[test]
