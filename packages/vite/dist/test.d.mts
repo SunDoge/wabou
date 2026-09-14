@@ -8,6 +8,11 @@ type ComponentTestUserConfig = UserConfig & {
   test?: {
     environment?: string;
     setupFiles?: string[];
+    server?: {
+      deps?: {
+        inline?: (string | RegExp)[];
+      };
+    };
   };
 };
 /** Configure Vitest to compile Wabou TSX through Solid's universal renderer. */
