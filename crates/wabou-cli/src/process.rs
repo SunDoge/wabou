@@ -65,7 +65,7 @@ pub(super) fn configure_test_backend(command: &mut Command, native: bool) {
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, unix))]
 pub(super) fn wait_for_managed_child(
     command: Command,
     timeout: Duration,
@@ -236,7 +236,9 @@ pub(super) fn supervise(
 
 #[cfg(test)]
 mod tests {
-    use super::{behavior_runtime_diagnostic, ensure_host_exit};
+    use super::behavior_runtime_diagnostic;
+    #[cfg(unix)]
+    use super::ensure_host_exit;
 
     #[test]
     fn behavior_diagnostics_reject_reactivity_and_runtime_style_failures() {
