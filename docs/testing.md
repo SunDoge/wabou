@@ -189,7 +189,10 @@ export default defineWabouTestConfig();
 
 The configuration also cleans up the mounted component after each test and
 deduplicates Solid so application components and the test renderer share one
-reactive graph. Locators are strict: duplicate role/name matches fail unless an
+reactive graph. Solid dependencies are inlined through Vite so their transitive
+imports also use the client runtime; externalizing the universal renderer can
+load Solid's server runtime under Node and break context and reactive updates.
+Locators are strict: duplicate role/name matches fail unless an
 explicit zero-based `index` is supplied. Prefer `getAllByRole` for intentional
 collections and query within a structural locator when names repeat across
 independent composed components:
