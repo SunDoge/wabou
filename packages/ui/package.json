@@ -53,7 +53,7 @@
     "@lezer/json": "^1.0.3",
     "@tanstack/history": "1.162.1",
     "@tanstack/router-core": "1.171.24",
-    "@tanstack/table-core": "^8.21.3",
+    "@tanstack/table-core": "^9.2.4",
     "@wabou/core": "workspace:*",
     "lucide-static": "1.31.0",
     "marked": "18.0.11",
