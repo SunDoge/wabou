@@ -33,6 +33,7 @@
     "packages:check": "bun run scripts/check-package-boundaries.ts && tsc -p tests/package-consumer/tsconfig.json && bun run scripts/check-ui-tarball.ts",
     "size:report": "bun run scripts/report-artifact-sizes.ts",
     "perf:report": "bun run scripts/report-performance.ts",
+    "perf:memory": "bun run scripts/measure-memory.ts",
     "changeset": "changeset",
     "version-packages": "changeset version",
     "release:prepare": "bun run scripts/prepare-release.ts",

@@ -1,0 +1,84 @@
+name: Bug report
+description: Report a reproducible problem with Wabou.
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Please identify the exact build you tested. A report against an alpha release
+        or commit is more useful than "latest" or "main". Keep observed behavior
+        separate from a suspected cause.
+  - type: textarea
+    id: version
+    attributes:
+      label: Wabou versions and source revision
+      description: |
+        Include the CLI/Rust version and relevant @wabou/* package versions.
+        For a source checkout, paste `git rev-parse HEAD` and `git status --short`.
+        Include local dependency overrides or patches. If you cannot determine a
+        version, explain how you obtained the build.
+      placeholder: |
+        CLI / Rust crates:
+        @wabou/core, @wabou/ui, @wabou/vite:
+        Commit SHA (source builds):
+        Local changes / dependency overrides:
+      render: text
+    validations:
+      required: true
+  - type: dropdown
+    id: installation
+    attributes:
+      label: Installation method
+      options:
+        - Source checkout with workspace packages
+        - Published npm packages
+        - Packaged application or downloaded binary
+        - Mixed source and published packages
+        - Other (describe below)
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment and launch command
+      description: |
+        Include OS/architecture, `rustc --version`, `bun --version`, the application
+        path and exact launch command. For rendering bugs, include GPU/backend,
+        window dimensions and display scale. State whether this is dev, release,
+        or a packaged build.
+      render: text
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Minimal reproduction
+      description: |
+        Provide a runnable example or reproduction repository, setup commands and
+        ordered steps. Include the relevant lockfile or exact dependency versions.
+        Method names alone do not reproduce a failure.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior and evidence
+      description: |
+        Include the full error and relevant logs. For native crashes, include a
+        debugger backtrace when available, not only the exit code. For visual
+        problems, include a screenshot and the platform/scale that produced it.
+        Remove secrets from logs before posting.
+    validations:
+      required: true
+  - type: textarea
+    id: investigation
+    attributes:
+      label: Investigation (optional)
+      description: |
+        List versions or commits compared, isolation experiments and their results.
+        Clearly mark suspected causes as hypotheses unless independently verified.

@@ -1,5 +1,43 @@
 use super::*;
 
+#[test]
+fn mounted_stateful_capability_releases_capture_on_runtime_drop() {
+    for mode in ["uninvoked", "invoked", "invalid_global"] {
+        let runtime = JsRuntime::new_with_options(JsRuntimeOptions::default()).expect("runtime");
+        let state = Arc::new(Mutex::new(0_u32));
+        let weak = Arc::downgrade(&state);
+        runtime
+            .mount_capability("host", move |ctx, capability| {
+                capability.set(
+                    "tick",
+                    Function::new(ctx, move || -> JsResult<()> {
+                        *state.lock().unwrap() += 1;
+                        Ok(())
+                    })?,
+                )
+            })
+            .expect("mount stateful capability");
+        assert!(
+            weak.upgrade().is_some(),
+            "mounted function retains its capture"
+        );
+        if mode == "invoked" {
+            runtime
+                .with(|ctx| ctx.eval::<(), _>("__wabou_capabilities.host.tick()"))
+                .expect("invoke capability");
+            assert_eq!(*weak.upgrade().unwrap().lock().unwrap(), 1);
+        } else if mode == "invalid_global" {
+            assert!(runtime.eval_string("host.tick()").is_err());
+            assert_eq!(*weak.upgrade().unwrap().lock().unwrap(), 0);
+        }
+        drop(runtime);
+        assert!(
+            weak.upgrade().is_none(),
+            "runtime teardown finalizes the capture"
+        );
+    }
+}
+
 #[derive(Default)]
 struct TestClock(std::sync::atomic::AtomicU64);
 
