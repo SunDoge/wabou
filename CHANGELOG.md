@@ -13,6 +13,11 @@ tags.
 - Update Valibot to 1.5.0, Bun type definitions to 1.4.2, and Node type
   definitions to 26.5.1.
 
+### Fixed
+
+- Component tests share Solid's client runtime when using Vitest 5, preserving
+  reactive context and updates through the universal renderer.
+
 ## 0.1.0-alpha.3 - 2026-08-27
 
 ### Changed

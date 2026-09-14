@@ -12,6 +12,7 @@ type ComponentTestUserConfig = UserConfig & {
   test?: {
     environment?: string;
     setupFiles?: string[];
+    server?: { deps?: { inline?: (string | RegExp)[] } };
   };
 };
 
@@ -50,6 +51,13 @@ export function defineWabouTestConfig(
       },
       test: {
         environment: "node",
+        server: {
+          deps: {
+            // Apply the client alias to transitive Solid imports too. Native
+            // Node imports select the server runtime and split reactive roots.
+            inline: ["solid-js", /@solidjs\//],
+          },
+        },
       },
     },
     options.vite ?? {},
