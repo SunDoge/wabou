@@ -24,9 +24,8 @@ updates:
         patterns:
           - "*"
 
-  # Dependabot's npm ecosystem supports Bun's text-based bun.lock and follows
-  # the workspace declarations from the root package.json.
-  - package-ecosystem: npm
+  # Use Bun's updater to keep workspace package.json files and bun.lock in sync.
+  - package-ecosystem: bun
     directory: /
     schedule:
       interval: weekly
