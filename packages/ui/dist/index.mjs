@@ -37,7 +37,8 @@ import search from "lucide-static/icons/search.svg?raw";
 import ellipsisCircle from "lucide-static/icons/circle-ellipsis.svg?raw";
 import clock from "lucide-static/icons/clock-3.svg?raw";
 import wrench from "lucide-static/icons/wrench.svg?raw";
-import { createTable, functionalUpdate, getCoreRowModel, getFilteredRowModel, getSortedRowModel } from "@tanstack/table-core";
+import { columnFilteringFeature, columnVisibilityFeature, constructTable, createCoreRowModel, createFilteredRowModel, createSortedRowModel, filterFns, functionalUpdate, globalFilteringFeature, rowSelectionFeature, rowSortingFeature, sortFns, tableFeatures } from "@tanstack/table-core";
+import { storeReactivityBindings } from "@tanstack/table-core/store-reactivity-bindings";
 import { createMemoryHistory, createMemoryHistory as createMemoryHistory$1 } from "@tanstack/history";
 import { BaseRootRoute, BaseRoute, RouterCore, notFound, redirect } from "@tanstack/router-core";
 export * from "@wabou/core";
@@ -13261,6 +13262,19 @@ function createStandardSchemaValidator(schema) {
 }
 //#endregion
 //#region src/integrations/tanstack-table.ts
+const dataTableFeatures = tableFeatures({
+	coreReactivityFeature: storeReactivityBindings(),
+	columnFilteringFeature,
+	columnVisibilityFeature,
+	globalFilteringFeature,
+	rowSelectionFeature,
+	rowSortingFeature,
+	coreRowModel: createCoreRowModel(),
+	filteredRowModel: createFilteredRowModel(),
+	sortedRowModel: createSortedRowModel(),
+	filterFns,
+	sortFns
+});
 function access(value) {
 	return typeof value === "function" ? value() : value;
 }
@@ -13275,17 +13289,14 @@ function createTanStackDataTable(options) {
 	const [sorting, setSorting] = createSignal(options.initialSorting ?? []);
 	const [globalFilter, setGlobalFilter] = createSignal(options.initialGlobalFilter ?? "");
 	const [rowSelection, setRowSelection] = createSignal(options.initialRowSelection ?? {});
-	const table = createTable({
+	const table = constructTable({
+		features: dataTableFeatures,
 		data: [...untrack(() => access(options.data))],
 		columns: [...options.columns],
 		state: {},
-		onStateChange: () => {},
 		renderFallbackValue: "—",
 		getRowId: options.getRowId,
 		enableRowSelection: options.enableRowSelection,
-		getCoreRowModel: getCoreRowModel(),
-		getFilteredRowModel: getFilteredRowModel(),
-		getSortedRowModel: getSortedRowModel(),
 		onSortingChange: (updater) => setSorting((value) => functionalUpdate(updater, value)),
 		onGlobalFilterChange: (updater) => setGlobalFilter((value) => functionalUpdate(updater, value)),
 		onRowSelectionChange: (updater) => setRowSelection((value) => functionalUpdate(updater, value))

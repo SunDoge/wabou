@@ -6,6 +6,11 @@ tags.
 
 ## Unreleased
 
+### Changed
+
+- Migrate the DataTable integration to TanStack Table v9 while preserving
+  Solid-controlled filtering, sorting, selection, and reactive data updates.
+
 ## 0.1.0-alpha.3 - 2026-08-27
 
 ### Changed
