@@ -72,10 +72,10 @@
   "dependencies": {
     "@solidjs/universal": "2.0.0-rc.7",
     "@stardazed/streams-text-encoding": "1.0.2",
-    "@tanstack/virtual-core": "3.17.7",
+    "@tanstack/virtual-core": "3.17.10",
     "abort-controller": "3.0.0",
     "solid-js": "2.0.0-rc.7",
     "web-streams-polyfill": "4.3.0",
-    "whatwg-url": "^17.1.0"
+    "whatwg-url": "^17.1.1"
   }
 }

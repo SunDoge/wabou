@@ -10,11 +10,11 @@
   "dependencies": {
     "@wabou/ui": "workspace:*",
     "@wabou/terminal": "workspace:*",
-    "lucide-static": "1.31.0",
+    "lucide-static": "1.45.0",
     "solid-js": "2.0.0-rc.7"
   },
   "devDependencies": {
     "@wabou/vite": "workspace:*",
-    "vite": "^8.2.2"
+    "vite": "^8.3.0"
   }
 }
