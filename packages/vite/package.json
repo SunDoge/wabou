@@ -54,7 +54,7 @@
     "@formatjs/intl-pluralrules": "^6.3.13",
     "@unocss/core": "^66.7.5",
     "@wabou/core": "workspace:*",
-    "magic-string": "^0.30.21",
+    "magic-string": "^1.4.1",
     "smol-toml": "^1.3.1",
     "vite": "^8.2.2",
     "@solidjs/vite-plugin": "3.0.0-next.40"
