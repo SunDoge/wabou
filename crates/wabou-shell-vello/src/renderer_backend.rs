@@ -7,6 +7,7 @@ use raw_window_handle::{
     DisplayHandle, HandleError, HasDisplayHandle, HasWindowHandle, WindowHandle,
 };
 use rustc_hash::FxHashMap;
+use skrifa::raw::TableProvider;
 use vello_common::geometry::RectU16;
 use vello_common::kurbo::{Affine, Diagonal2, Shape};
 use vello_common::paint::{ImageId, ImageSource, PaintType};
@@ -470,6 +471,10 @@ impl PaintScene for HybridPainter<'_> {
         glyph_transform: Option<Affine>,
         glyphs: impl Iterator<Item = Glyph> + Clone,
     ) {
+        // Hybrid cannot consume uncached bitmap Pixmaps. Only bitmap fonts need
+        // glyph-atlas uploads; ordinary outline runs keep their existing path.
+        let bitmap_font = skrifa::FontRef::from_index(font.data.data(), font.index)
+            .is_ok_and(|font| font.cbdt().is_ok() || font.sbix().is_ok());
         let brush = brush.into().to_owned().multiply_alpha(brush_alpha);
         let paint = self.paint((&brush).into());
         self.scene.set_paint(paint);
@@ -479,6 +484,7 @@ impl PaintScene for HybridPainter<'_> {
                 self.scene.set_fill_rule(fill);
                 self.scene
                     .glyph_run(self.resources, font)
+                    .atlas_cache(bitmap_font)
                     .font_size(font_size)
                     .hint(hint)
                     .normalized_coords(normalized_coords)
@@ -494,6 +500,7 @@ impl PaintScene for HybridPainter<'_> {
                 self.scene.set_stroke(stroke.clone());
                 self.scene
                     .glyph_run(self.resources, font)
+                    .atlas_cache(bitmap_font)
                     .font_size(font_size)
                     .hint(hint)
                     .normalized_coords(normalized_coords)
