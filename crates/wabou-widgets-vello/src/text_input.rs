@@ -904,7 +904,22 @@ impl Widget for TextInput {
                 // input event. Preserve the live selection/caret for that
                 // no-op; only external value changes replace the buffer.
                 if self.editor.text() != value {
+                    let selection = self.editor.raw_selection();
+                    let boundary = |index: usize| {
+                        let mut index = index.min(value.len());
+                        while !value.is_char_boundary(index) {
+                            index -= 1;
+                        }
+                        index
+                    };
+                    let anchor = boundary(selection.anchor().index());
+                    let head = boundary(selection.focus().index());
                     self.editor.set_text(value);
+                    // Parley set_text preserves byte cursors. Apply valid cursors
+                    // before any subsequent input can use the replacement buffer.
+                    self.pending.clear();
+                    self.pending
+                        .push(PendingEdit::SelectByteRange(anchor, head));
                     self.cached_value = value.to_owned();
                     self.needs_refresh = true;
                 }
@@ -971,8 +986,15 @@ impl Widget for TextInput {
     fn text_selection(&self) -> Option<WidgetTextSelection> {
         let raw = self.editor.raw_text();
         let selection = self.editor.raw_selection();
-        let anchor_byte = selection.anchor().index().min(raw.len());
-        let head_byte = selection.focus().index().min(raw.len());
+        let boundary = |index: usize| {
+            let mut index = index.min(raw.len());
+            while !raw.is_char_boundary(index) {
+                index -= 1;
+            }
+            index
+        };
+        let anchor_byte = boundary(selection.anchor().index());
+        let head_byte = boundary(selection.focus().index());
         let range = selection.text_range();
         Some(WidgetTextSelection {
             anchor: raw[..anchor_byte].encode_utf16().count(),
@@ -1719,6 +1741,25 @@ mod tests {
         assert!(input.read_only);
 
         assert!(input.attribute_changed("type", "password").is_empty());
+    }
+
+    #[test]
+    fn controlled_replacement_clamps_cursors_before_immediate_input() {
+        let mut input = TextInput::new();
+        let mut tcx = TextContext::new();
+        input.attribute_changed("value", "a");
+        input.paint(200.0, 32.0, &mut tcx);
+        input.queue(PendingEdit::MoveToEnd);
+        input.paint(200.0, 32.0, &mut tcx);
+        input.attribute_changed("value", "é");
+        assert_eq!(input.text_selection().unwrap().head, 0);
+        input.queue(PendingEdit::Insert("x".into()));
+        input.prepare_for_event(&mut tcx);
+        assert_eq!(input.current_value(), Some("xé"));
+        input.attribute_changed("value", "");
+        input.queue(PendingEdit::Insert("=A1*3".into()));
+        input.prepare_for_event(&mut tcx);
+        assert_eq!(input.current_value(), Some("=A1*3"));
     }
 
     #[test]
