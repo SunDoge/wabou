@@ -180,6 +180,7 @@ fn accesskit_node(
         | SemanticRole::Slider
         | SemanticRole::SpinButton
         | SemanticRole::Tab
+        | SemanticRole::GridCell
             if !semantic.disabled =>
         {
             node.add_action(Action::Click);
@@ -466,6 +467,37 @@ mod tests {
         assert_eq!(update.nodes[1].1.value(), Some("complete"));
         assert_eq!(update.nodes[2].1.role(), Role::Alert);
         assert_eq!(update.nodes[2].1.label(), Some("Connection lost"));
+    }
+
+    #[test]
+    fn interactive_grid_cells_expose_actions_but_static_cells_do_not() {
+        let mut semantic = crate::SemanticNode {
+            id: 2,
+            role: SemanticRole::GridCell,
+            label: Some("B1 6".into()),
+            value: None,
+            numeric_value: None,
+            min_numeric_value: None,
+            max_numeric_value: None,
+            bounds: [0.0, 0.0, 120.0, 44.0],
+            children: vec![],
+            controls: vec![],
+            active_descendant: None,
+            disabled: false,
+            states: crate::SemanticStates::default(),
+        };
+        let node = accesskit_node(&semantic, 1.0, None);
+        assert!(node.supports_action(Action::Click));
+        assert!(node.supports_action(Action::Focus));
+        semantic.disabled = true;
+        let disabled = accesskit_node(&semantic, 1.0, None);
+        assert!(!disabled.supports_action(Action::Click));
+        assert!(!disabled.supports_action(Action::Focus));
+        semantic.disabled = false;
+        semantic.role = SemanticRole::Cell;
+        let static_cell = accesskit_node(&semantic, 1.0, None);
+        assert!(!static_cell.supports_action(Action::Click));
+        assert!(!static_cell.supports_action(Action::Focus));
     }
 
     #[test]
