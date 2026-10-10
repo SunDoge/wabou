@@ -11,5 +11,5 @@ mod model;
 
 pub use model::{
     SemanticAction, SemanticCurrent, SemanticNode, SemanticPopup, SemanticRole, SemanticSnapshot,
-    SemanticStates, SemanticToggleState,
+    SemanticSortDirection, SemanticStates, SemanticToggleState,
 };

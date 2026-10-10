@@ -33,6 +33,12 @@ pub use wabou_database::{
     KvStore, Versionstamp as KvVersionstamp,
 };
 pub use wabou_runtime::RgbaColor as Color;
+#[cfg(feature = "capability-modules")]
+pub use wabou_runtime::capability_development::{
+    CapabilityDevelopment, DevelopmentStatus, ModuleProject,
+};
+#[cfg(feature = "capability-modules")]
+pub use wabou_runtime::capability_module::{CapabilityModule, HostOperations, ModuleInvocation};
 pub use wabou_runtime::rquickjs;
 pub use wabou_runtime::{
     AppDirectories, AppDirectoryConfig, HostMessage, HostMessageContext, HostMessageError,

@@ -1,0 +1,15 @@
+[package]
+name = "blockui"
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+[dependencies]
+ui-contract = { path = "../ui-contract", default-features = false }
+blockui-abi = { path = "../blockui-abi" }
+blockui-macros = { path = "../blockui-macros", optional = true }
+derive_setters = "0.1.9"
+
+[features]
+macros = ["dep:blockui-macros"]
+rsx = ["macros", "blockui-macros/rsx"]

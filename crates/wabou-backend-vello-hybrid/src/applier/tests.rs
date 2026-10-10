@@ -1730,6 +1730,125 @@ fn accessibility_attributes_do_not_create_or_remove_focus_behavior() {
 }
 
 #[test]
+fn accessible_descriptions_resolve_current_visible_targets() {
+    let js = JsRuntime::new().expect("runtime");
+    install_host_frame_test_hook(&js);
+    js.with(|ctx| {
+        ctx.eval::<(), _>(
+            "globalThis.__wabou_tick = () => false; globalThis.__wabou_has_raf = () => false;",
+        )
+    })
+    .unwrap();
+    let mut applier = Applier::from_runtime(js, Color::BLACK);
+    let (view, role, id_attr, described, hidden, width, height) = {
+        let mut atoms = applier.document.atoms.borrow_mut();
+        (
+            atoms.intern("view"),
+            atoms.intern("role"),
+            atoms.intern("id"),
+            atoms.intern("aria-describedby"),
+            atoms.intern("aria-hidden"),
+            atoms.intern("width"),
+            atoms.intern("height"),
+        )
+    };
+    for id in 2..=5 {
+        applier.apply_op(&Op::CreateElement {
+            id: nk(id),
+            tag: view,
+        });
+        applier.apply_op(&Op::AppendChild {
+            parent: nk(1),
+            child: nk(id),
+        });
+        applier.apply_op(&Op::SetStyle {
+            id: nk(id),
+            prop: width,
+            value: "100px",
+        });
+        applier.apply_op(&Op::SetStyle {
+            id: nk(id),
+            prop: height,
+            value: "20px",
+        });
+        applier.apply_op(&Op::SetAttribute {
+            id: nk(id),
+            name: role,
+            value: if id == 2 { "button" } else { "tooltip" },
+        });
+    }
+    for (id, name) in [(3, "hint"), (4, "hidden-hint"), (5, "detail")] {
+        applier.apply_op(&Op::SetAttribute {
+            id: nk(id),
+            name: id_attr,
+            value: name,
+        });
+    }
+    applier.apply_op(&Op::SetAttribute {
+        id: nk(4),
+        name: hidden,
+        value: "true",
+    });
+    applier.apply_op(&Op::SetAttribute {
+        id: nk(2),
+        name: described,
+        value: "hint missing hidden-hint detail",
+    });
+    set_focus_order(&mut applier, 2, 0);
+    let mut tcx = TextContext::new();
+    let placed = FrameSource::build_frame(&mut applier, &mut tcx, 800, 600);
+    applier.rebuild_semantic_snapshot(&placed);
+    let control = applier
+        .frame
+        .projections
+        .semantic_snapshot
+        .nodes
+        .iter()
+        .find(|n| n.id == u64::from(nk(2)))
+        .unwrap();
+    assert_eq!(
+        control.described_by,
+        vec![u64::from(nk(3)), u64::from(nk(5))]
+    );
+    assert_eq!(applier.interaction.input.focus_order, [nk(2)]);
+    applier.apply_op(&Op::SetAttribute {
+        id: nk(3),
+        name: hidden,
+        value: "true",
+    });
+    let placed = FrameSource::build_frame(&mut applier, &mut tcx, 800, 600);
+    applier.rebuild_semantic_snapshot(&placed);
+    let control = applier
+        .frame
+        .projections
+        .semantic_snapshot
+        .nodes
+        .iter()
+        .find(|n| n.id == u64::from(nk(2)))
+        .unwrap();
+    assert_eq!(control.described_by, vec![u64::from(nk(5))]);
+    applier.apply_op(&Op::SetAttribute {
+        id: nk(5),
+        name: id_attr,
+        value: "renamed-detail",
+    });
+    let placed = FrameSource::build_frame(&mut applier, &mut tcx, 800, 600);
+    applier.rebuild_semantic_snapshot(&placed);
+    let control = applier
+        .frame
+        .projections
+        .semantic_snapshot
+        .nodes
+        .iter()
+        .find(|n| n.id == u64::from(nk(2)))
+        .unwrap();
+    assert!(
+        control.described_by.is_empty(),
+        "replaced semantic IDs must not retain stale description links"
+    );
+}
+
+#[test]
 fn interaction_blocking_isolates_an_entire_subtree() {
     let js = JsRuntime::new().expect("runtime");
     let mut applier = Applier::from_runtime(js, Color::BLACK);

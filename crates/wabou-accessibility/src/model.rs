@@ -89,6 +89,10 @@ semantic_roles! {
     MenuBar => "menubar",
     /// One activatable command in a menu.
     MenuItem => "menuitem",
+    /// Toggleable command in a menu.
+    MenuItemCheckBox => "menuitemcheckbox",
+    /// Mutually exclusive setting in a menu.
+    MenuItemRadio => "menuitemradio",
     /// Hierarchical collection of expandable items.
     Tree => "tree",
     /// One item in a hierarchical tree.
@@ -206,9 +210,22 @@ impl SemanticPopup {
     }
 }
 
+/// Ordering associated with a table header.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SemanticSortDirection {
+    /// Values increase from the first row to the last.
+    Ascending,
+    /// Values decrease from the first row to the last.
+    Descending,
+    /// An ordering other than ascending or descending.
+    Other,
+}
+
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 /// Optional interaction states attached to one semantic node.
 pub struct SemanticStates {
+    /// Active ordering for a row or column header.
+    pub sort_direction: Option<SemanticSortDirection>,
     /// Checkbox, radio, or switch state when applicable.
     pub checked: Option<SemanticToggleState>,
     /// Toggle-button state when applicable.
@@ -248,6 +265,8 @@ pub struct SemanticNode {
     pub children: Vec<u64>,
     /// Semantic nodes controlled by this node through `aria-controls`.
     pub controls: Vec<u64>,
+    /// Nodes providing an accessible description, independent of the name.
+    pub described_by: Vec<u64>,
     /// Current composite-widget item referenced by `aria-activedescendant`.
     pub active_descendant: Option<u64>,
     /// Whether assistive technology should expose the node as disabled.
@@ -373,6 +392,7 @@ mod tests {
             bounds: [0.0; 4],
             children: children.to_vec(),
             controls: Vec::new(),
+            described_by: Vec::new(),
             active_descendant: None,
             disabled: false,
             states: SemanticStates::default(),

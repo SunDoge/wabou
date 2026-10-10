@@ -141,111 +141,81 @@ impl<'js> NativeCapability<'js> {
         .method(method, handler)
     }
 
-    /// Install a JSON-coded method whose function body can be hot-patched.
-    ///
-    /// This is the JSON codec counterpart of [`Self::hot_method`]. The
-    /// capability namespace remains the same; only this method's request and
-    /// response use JSON text on the QuickJS boundary.
-    pub fn json_hot_method<Request, Response, Error, HandlerFuture>(
+    /// Install an existing JSON-coded JS contract over a replaceable module.
+    #[cfg(feature = "capability-modules")]
+    pub fn json_module_method<Request, Response>(
         &self,
         method: JsonMethod<Request, Response>,
-        handler: fn(Request) -> HandlerFuture,
+        module: crate::capability_module::CapabilityModule,
     ) -> rquickjs::Result<()>
     where
-        Request: DeserializeOwned + 'static,
-        Response: Serialize + 'static,
-        Error: Display + 'static,
-        HandlerFuture: Future<Output = Result<Response, Error>> + 'static,
+        Request: DeserializeOwned + Serialize + 'static,
+        Response: DeserializeOwned + Serialize + 'static,
     {
-        JsonCapability {
-            ctx: self.ctx.clone(),
-            object: self.object.clone(),
-        }
-        .hot_method(method, handler)
+        let name = method.name();
+        self.json_method(method, move |request| {
+            let module = module.clone();
+            async move {
+                let request = serde_json::to_vec(&request).map_err(|e| e.to_string())?;
+                let response = module.call(name, &request).await?;
+                serde_json::from_slice::<Response>(&response).map_err(|e| e.to_string())
+            }
+        })
     }
 
-    /// Install a hot JSON-coded method whose state remains owned by the host.
-    pub fn json_hot_method_with<State, Request, Response, Error, HandlerFuture>(
-        &self,
-        method: JsonMethod<Request, Response>,
-        state: State,
-        handler: fn(State, Request) -> HandlerFuture,
-    ) -> rquickjs::Result<()>
-    where
-        State: Clone + rquickjs::markers::ParallelSend + 'static,
-        Request: DeserializeOwned + 'static,
-        Response: Serialize + 'static,
-        Error: Display + 'static,
-        HandlerFuture: Future<Output = Result<Response, Error>> + 'static,
-    {
-        JsonCapability {
-            ctx: self.ctx.clone(),
-            object: self.object.clone(),
-        }
-        .hot_method_with(method, state, handler)
-    }
-
-    /// Install a typed method whose function body can be replaced by
-    /// Subsecond without restarting the Wabou host.
-    ///
-    /// Only function pointers are accepted so long-lived state remains owned
-    /// by the stable host instead of a replaceable closure environment.
-    pub fn hot_method<Request, Response, Error, HandlerFuture>(
+    /// Install a stable JS entry backed by a replaceable capability module.
+    /// Requests/responses use JSON bytes only inside the native module boundary.
+    /// The QuickJS function is mounted once; each call selects current code.
+    #[cfg(feature = "capability-modules")]
+    pub fn module_method<Request, Response>(
         &self,
         method: HostMethod<Request, Response>,
-        handler: fn(Request) -> HandlerFuture,
+        module: crate::capability_module::CapabilityModule,
     ) -> rquickjs::Result<()>
     where
-        Request: DeserializeOwned + 'static,
-        Response: Serialize + 'static,
-        Error: Display + 'static,
-        HandlerFuture: Future<Output = Result<Response, Error>> + 'static,
+        Request: DeserializeOwned + Serialize + 'static,
+        Response: DeserializeOwned + Serialize + 'static,
     {
-        #[cfg(not(feature = "rust-hot-reload"))]
-        return self.method(method, handler);
-
-        #[cfg(feature = "rust-hot-reload")]
-        {
-            let handler = std::sync::Arc::new(std::sync::Mutex::new(
-                dioxus_devtools::subsecond::HotFn::current(handler),
-            ));
-            self.method(method, move |request| {
-                handler
-                    .lock()
-                    .unwrap_or_else(std::sync::PoisonError::into_inner)
-                    .call((request,))
-            })
-        }
+        let name = method.name();
+        self.method(method, move |request| {
+            let module = module.clone();
+            async move {
+                let request = serde_json::to_vec(&request).map_err(|e| e.to_string())?;
+                let response = module.call(name, &request).await?;
+                serde_json::from_slice::<Response>(&response).map_err(|e| e.to_string())
+            }
+        })
     }
 
-    /// Install a hot typed method with state retained by the stable host.
-    pub fn hot_method_with<State, Request, Response, Error, HandlerFuture>(
+    /// Mount a configured module export without leaking dynamically loaded names.
+    /// Intended for the separately distributed runtime's configuration adapter.
+    #[doc(hidden)]
+    #[cfg(feature = "capability-modules")]
+    pub fn module_method_by_name(
         &self,
-        method: HostMethod<Request, Response>,
-        state: State,
-        handler: fn(State, Request) -> HandlerFuture,
-    ) -> rquickjs::Result<()>
-    where
-        State: Clone + rquickjs::markers::ParallelSend + 'static,
-        Request: DeserializeOwned + 'static,
-        Response: Serialize + 'static,
-        Error: Display + 'static,
-        HandlerFuture: Future<Output = Result<Response, Error>> + 'static,
-    {
-        #[cfg(not(feature = "rust-hot-reload"))]
-        return self.method(method, move |request| handler(state.clone(), request));
-
-        #[cfg(feature = "rust-hot-reload")]
-        {
-            let handler = std::sync::Arc::new(std::sync::Mutex::new(
-                dioxus_devtools::subsecond::HotFn::current(handler),
-            ));
-            self.method(method, move |request| {
-                handler
-                    .lock()
-                    .unwrap_or_else(std::sync::PoisonError::into_inner)
-                    .call((state.clone(), request))
-            })
+        name: &str,
+        has_request: bool,
+        json: bool,
+        module: crate::capability_module::CapabilityModule,
+    ) -> rquickjs::Result<()> {
+        let selected = name.to_owned();
+        let handler = move |request: serde_json::Value| {
+            let module = module.clone();
+            let name = selected.clone();
+            async move {
+                let request = serde_json::to_vec(&request).map_err(|e| e.to_string())?;
+                let bytes = module.call(&name, &request).await?;
+                serde_json::from_slice::<serde_json::Value>(&bytes).map_err(|e| e.to_string())
+            }
+        };
+        if json {
+            JsonCapability {
+                ctx: self.ctx.clone(),
+                object: self.object.clone(),
+            }
+            .install(name, has_request, handler)
+        } else {
+            self.install(name, has_request, handler)
         }
     }
 
@@ -262,20 +232,36 @@ impl<'js> NativeCapability<'js> {
         Handler: Fn(Request) -> HandlerFuture + Clone + rquickjs::markers::ParallelSend + 'static,
         HandlerFuture: Future<Output = Result<Response, Error>> + 'static,
     {
-        if !wabou_bindgen::is_contract_identifier(method.name()) {
+        self.install(method.name(), method.has_request(), handler)
+    }
+
+    fn install<Request, Response, Error, Handler, HandlerFuture>(
+        &self,
+        name: &str,
+        has_request: bool,
+        handler: Handler,
+    ) -> rquickjs::Result<()>
+    where
+        Request: DeserializeOwned + 'static,
+        Response: Serialize + 'static,
+        Error: Display + 'static,
+        Handler: Fn(Request) -> HandlerFuture + Clone + rquickjs::markers::ParallelSend + 'static,
+        HandlerFuture: Future<Output = Result<Response, Error>> + 'static,
+    {
+        if !wabou_bindgen::is_contract_identifier(name) {
             return Err(rquickjs::Exception::throw_type(
                 &self.ctx,
-                &format!("invalid native method identifier `{}`", method.name()),
+                &format!("invalid native method identifier `{}`", name),
             ));
         }
-        if self.object.contains_key(method.name())? {
+        if self.object.contains_key(name)? {
             return Err(rquickjs::Exception::throw_type(
                 &self.ctx,
-                &format!("duplicate native method `{}`", method.name()),
+                &format!("duplicate native method `{}`", name),
             ));
         }
 
-        if method.has_request() {
+        if has_request {
             let function = rquickjs::Function::new(
                 self.ctx.clone(),
                 rquickjs::prelude::Async(move |SerdeValue(request): SerdeValue<Request>| {
@@ -283,7 +269,7 @@ impl<'js> NativeCapability<'js> {
                     async move { invoke(handler, request).await }
                 }),
             )?;
-            self.object.set(method.name(), function)
+            self.object.set(name, function)
         } else {
             let function = rquickjs::Function::new(
                 self.ctx.clone(),
@@ -304,7 +290,7 @@ impl<'js> NativeCapability<'js> {
                     }
                 }),
             )?;
-            self.object.set(method.name(), function)
+            self.object.set(name, function)
         }
     }
 }

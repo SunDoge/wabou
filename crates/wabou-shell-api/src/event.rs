@@ -4,7 +4,7 @@ use std::{ops::Range, path::PathBuf, sync::Arc};
 
 pub use wabou_accessibility::{
     SemanticAction, SemanticCurrent, SemanticNode, SemanticPopup, SemanticRole, SemanticSnapshot,
-    SemanticStates, SemanticToggleState,
+    SemanticSortDirection, SemanticStates, SemanticToggleState,
 };
 
 /// Logical pixel delta emitted for one discrete mouse-wheel line.

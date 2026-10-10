@@ -291,7 +291,8 @@ impl JsRuntime {
             // __wabou_flush(Uint8Array) -> copy the frame bytes out.
             let out = out.clone();
             let f = Function::new(ctx.clone(), move |buf: TypedArray<u8>| -> JsResult<()> {
-                if let Some(bytes) = buf.as_bytes() {
+                // SAFETY: the bytes are copied immediately without executing JS.
+                if let Some(bytes) = unsafe { buf.as_bytes() } {
                     *out.borrow_mut() = bytes.to_vec();
                 }
                 Ok(())
@@ -549,7 +550,8 @@ impl JsRuntime {
             rquickjs::Function::new(
                 ctx.clone(),
                 move |colors: TypedArray<u32>| -> JsResult<()> {
-                    let bytes = colors.as_bytes().ok_or(rquickjs::Error::Unknown)?;
+                    // SAFETY: decoding completes before notifying the host; no JS runs here.
+                    let bytes = unsafe { colors.as_bytes() }.ok_or(rquickjs::Error::Unknown)?;
                     let (chunks, _) = bytes.as_chunks::<{ std::mem::size_of::<u32>() }>();
                     let values = chunks
                         .iter()
@@ -647,7 +649,8 @@ impl JsRuntime {
                 ctx.clone(),
                 move |ids: TypedArray<u32>, output: Option<TypedArray<f64>>| -> JsResult<u32> {
                     let snapshot = metrics.borrow();
-                    let requested = ids.as_bytes().map_or(&[][..], |bytes| bytes);
+                    // SAFETY: IDs are decoded synchronously without executing JS.
+                    let requested = unsafe { ids.as_bytes() }.map_or(&[][..], |bytes| bytes);
                     let (chunks, remainder) =
                         requested.as_chunks::<{ std::mem::size_of::<u32>() * 2 }>();
                     if !remainder.is_empty() {
@@ -686,38 +689,43 @@ impl JsRuntime {
                         return Ok(required_u32);
                     }
 
-                    crate::host_ffi::with_typed_array_prefix_mut(&output, required, |packed| {
-                        packed[..LAYOUT_SNAPSHOT_HEADER_LEN].copy_from_slice(&[
-                            LAYOUT_SNAPSHOT_VERSION,
-                            snapshot.revision as u32 as f64,
-                            (snapshot.revision >> 32) as u32 as f64,
-                            snapshot.viewport.x as f64,
-                            snapshot.viewport.y as f64,
-                            snapshot.viewport.width as f64,
-                            snapshot.viewport.height as f64,
-                            nodes.len() as f64,
-                        ]);
-                        for (index, (id, node)) in nodes.into_iter().enumerate() {
-                            let offset =
-                                LAYOUT_SNAPSHOT_HEADER_LEN + index * LAYOUT_SNAPSHOT_NODE_LEN;
-                            packed[offset..offset + LAYOUT_SNAPSHOT_NODE_LEN].copy_from_slice(&[
-                                id.lo as f64,
-                                id.hi as f64,
-                                node.rect.x as f64,
-                                node.rect.y as f64,
-                                node.rect.width as f64,
-                                node.rect.height as f64,
-                                node.clip.x as f64,
-                                node.clip.y as f64,
-                                node.clip.width as f64,
-                                node.clip.height as f64,
-                                node.scroll.offset_x as f64,
-                                node.scroll.offset_y as f64,
-                                node.scroll.range_x as f64,
-                                node.scroll.range_y as f64,
+                    // SAFETY: the encoder only writes owned layout data; it never executes JS.
+                    unsafe {
+                        crate::host_ffi::with_typed_array_prefix_mut(&output, required, |packed| {
+                            packed[..LAYOUT_SNAPSHOT_HEADER_LEN].copy_from_slice(&[
+                                LAYOUT_SNAPSHOT_VERSION,
+                                snapshot.revision as u32 as f64,
+                                (snapshot.revision >> 32) as u32 as f64,
+                                snapshot.viewport.x as f64,
+                                snapshot.viewport.y as f64,
+                                snapshot.viewport.width as f64,
+                                snapshot.viewport.height as f64,
+                                nodes.len() as f64,
                             ]);
-                        }
-                    })?;
+                            for (index, (id, node)) in nodes.into_iter().enumerate() {
+                                let offset =
+                                    LAYOUT_SNAPSHOT_HEADER_LEN + index * LAYOUT_SNAPSHOT_NODE_LEN;
+                                packed[offset..offset + LAYOUT_SNAPSHOT_NODE_LEN].copy_from_slice(
+                                    &[
+                                        id.lo as f64,
+                                        id.hi as f64,
+                                        node.rect.x as f64,
+                                        node.rect.y as f64,
+                                        node.rect.width as f64,
+                                        node.rect.height as f64,
+                                        node.clip.x as f64,
+                                        node.clip.y as f64,
+                                        node.clip.width as f64,
+                                        node.clip.height as f64,
+                                        node.scroll.offset_x as f64,
+                                        node.scroll.offset_y as f64,
+                                        node.scroll.range_x as f64,
+                                        node.scroll.range_y as f64,
+                                    ],
+                                );
+                            }
+                        })
+                    }?;
                     Ok(required_u32)
                 },
             )?
@@ -733,9 +741,12 @@ impl JsRuntime {
                         "requested byte length exceeds 65536",
                     ));
                 }
-                crate::host_ffi::with_typed_array_prefix_mut(&output, output.len(), |bytes| {
-                    getrandom::fill(bytes)
-                })?
+                // SAFETY: getrandom writes the slice without executing JS or accessing aliases.
+                unsafe {
+                    crate::host_ffi::with_typed_array_prefix_mut(&output, output.len(), |bytes| {
+                        getrandom::fill(bytes)
+                    })
+                }?
                 .map_err(|error| {
                     rquickjs::Error::new_from_js_message(
                         "system random source",
@@ -751,7 +762,8 @@ impl JsRuntime {
             rquickjs::Function::new(
                 ctx.clone(),
                 rquickjs::prelude::Async(|algorithm: u8, input: TypedArray<u8>| -> _ {
-                    let bytes = input.as_bytes().map(<[u8]>::to_vec);
+                    // SAFETY: copy before constructing the future; no JS or await while borrowed.
+                    let bytes = unsafe { input.as_bytes() }.map(<[u8]>::to_vec);
                     async move {
                         let bytes = bytes.ok_or(rquickjs::Error::Unknown)?;
                         tokio::task::spawn_blocking(move || digest_bytes(algorithm, &bytes))
@@ -1198,12 +1210,18 @@ impl JsRuntime {
             let prevented_event_ids = result
                 .get::<_, TypedArray<u32>>("preventedEventIds")
                 .ok()
-                .map(|values| AsRef::<[u32]>::as_ref(&values).to_vec())
+                .map(|values| {
+                    // SAFETY: copy immediately; no JS executes while the slice is borrowed.
+                    unsafe { values.as_slice() }.to_vec()
+                })
                 .unwrap_or_default();
             let protocol_frame = result
                 .get::<_, TypedArray<u8>>("protocolFrame")
                 .ok()
-                .map(|values| AsRef::<[u8]>::as_ref(&values).to_vec())
+                .map(|values| {
+                    // SAFETY: copy immediately; no JS executes while the slice is borrowed.
+                    unsafe { values.as_slice() }.to_vec()
+                })
                 .unwrap_or_default();
             Ok(HostFrameDisposition {
                 prevented_event_ids,

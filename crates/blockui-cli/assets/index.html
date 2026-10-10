@@ -1,0 +1,16 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>BlockUI · Wasm</title>
+<link rel="icon" href="data:,">
+<link rel="stylesheet" href="./style.css">
+<main id="app" aria-label="BlockUI application"></main>
+<p id="error" role="alert" hidden></p>
+<script type="module">
+import init, { ReleaseApp } from './pkg/web_demo.js';
+import { mount } from './renderer.js';
+try { await init(); window.blockui = mount(new ReleaseApp(), document.querySelector('#app')); }
+catch (e) { document.querySelector('#error').hidden = false; document.querySelector('#error').textContent = String(e); throw e; }
+</script>
+</html>

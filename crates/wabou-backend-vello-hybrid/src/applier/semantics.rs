@@ -150,6 +150,8 @@ fn infer_descendant_labels(nodes: &mut [SemanticNode]) {
                         | SemanticRole::ComboBox
                         | SemanticRole::Option
                         | SemanticRole::MenuItem
+                        | SemanticRole::MenuItemCheckBox
+                        | SemanticRole::MenuItemRadio
                         | SemanticRole::TreeItem
                         | SemanticRole::Row
                         | SemanticRole::Cell
@@ -509,6 +511,15 @@ pub(super) fn rebuild(applier: &mut Applier, placed: &[PlacedNode]) {
                     .collect::<Vec<_>>()
             })
             .unwrap_or_default();
+        let described_by = declared
+            .attribute(&atoms, "aria-describedby")
+            .map(|value| {
+                value
+                    .split_whitespace()
+                    .filter_map(|id| semantic_ids.get(id).copied())
+                    .collect::<Vec<_>>()
+            })
+            .unwrap_or_default();
         let active_descendant = declared
             .attribute(&atoms, "aria-activedescendant")
             .and_then(|value| semantic_ids.get(value.trim()).copied());
@@ -524,11 +535,18 @@ pub(super) fn rebuild(applier: &mut Applier, placed: &[PlacedNode]) {
             bounds,
             children,
             controls,
+            described_by,
             active_descendant,
             disabled: subtree_blocks_interaction(&applier.document.node_store, placed_node.node_id)
                 || declared.attribute(&atoms, "aria-disabled").as_deref() == Some("true")
                 || widget_semantics.disabled.unwrap_or(false),
             states: SemanticStates {
+                sort_direction: match declared.attribute(&atoms, "aria-sort").as_deref() {
+                    Some("ascending") => Some(vello_shell::SemanticSortDirection::Ascending),
+                    Some("descending") => Some(vello_shell::SemanticSortDirection::Descending),
+                    Some("other") => Some(vello_shell::SemanticSortDirection::Other),
+                    _ => None,
+                },
                 checked: semantic_toggle(declared.attribute(&atoms, "aria-checked")),
                 pressed: semantic_toggle(declared.attribute(&atoms, "aria-pressed")),
                 selected: semantic_bool(declared.attribute(&atoms, "aria-selected")),
@@ -578,6 +596,8 @@ mod tests {
         for (name, expected) in [
             ("menu", SemanticRole::Menu),
             ("menuitem", SemanticRole::MenuItem),
+            ("menuitemcheckbox", SemanticRole::MenuItemCheckBox),
+            ("menuitemradio", SemanticRole::MenuItemRadio),
             ("tree", SemanticRole::Tree),
             ("treeitem", SemanticRole::TreeItem),
             ("grid", SemanticRole::Grid),

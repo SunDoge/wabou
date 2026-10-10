@@ -687,6 +687,20 @@ fn messages(payload: VitePayload) -> Vec<ViteMessage> {
 mod tests {
     use super::*;
 
+    /// Exercises the actual Vite graph from issue #29 without a window or GPU.
+    #[test]
+    #[ignore = "requires a running Vite server; set WABOU_TEST_VITE_URL and optionally WABOU_TEST_VITE_ENTRY"]
+    fn real_vite_graph_boots_and_runtime_drops() {
+        let url = std::env::var("WABOU_TEST_VITE_URL").expect("set WABOU_TEST_VITE_URL");
+        let entry =
+            std::env::var("WABOU_TEST_VITE_ENTRY").unwrap_or_else(|_| "/ui/index.tsx".to_owned());
+        let mut runtime = crate::JsRuntime::new_vite(&url).expect("create Vite runtime");
+        runtime
+            .boot_vite(&entry)
+            .expect("boot actual Vite module graph");
+        drop(runtime);
+    }
+
     #[test]
     fn generated_hmr_client_is_a_valid_quickjs_module() {
         let runtime = rquickjs::AsyncRuntime::new().unwrap();
@@ -697,6 +711,104 @@ mod tests {
             Module::declare(ctx, "/@vite/client", HMR_CLIENT)
                 .expect("generated HMR client should compile");
         }));
+    }
+
+    #[test]
+    fn ui_hmr_preserves_state_and_native_function_identity() {
+        let runtime = rquickjs::AsyncRuntime::new().unwrap();
+        let context =
+            futures_lite::future::block_on(rquickjs::AsyncContext::full(&runtime)).unwrap();
+        let vite = ViteState::new(Url::parse("http://127.0.0.1:5173/").unwrap());
+        vite.install_loader(&runtime).unwrap();
+        futures_lite::future::block_on(context.with(|ctx| {
+            let native = Function::new(ctx.clone(), || 42u32)?;
+            ctx.globals().set("nativeFunction", native)?;
+            Module::evaluate(
+                ctx.clone(),
+                "http://127.0.0.1:5173/Counter.js",
+                r#"
+                import { createHotContext } from '/@vite/client';
+                const hot = createHotContext('/Counter.js');
+                hot.data.state = { count: 7, text: 'unsaved document' };
+                globalThis.savedState = hot.data.state;
+                globalThis.savedNative = nativeFunction;
+                globalThis.rendered = 'old';
+                hot.accept(module => globalThis.rendered = module.view(hot.data.state));
+            "#,
+            )?
+            .finish::<()>()?;
+            let accepted = vite.apply_hmr(
+                &ctx,
+                "/Counter.js",
+                "/Counter.js",
+                42,
+                r#"
+                import { createHotContext } from '/@vite/client';
+                const hot = createHotContext('/Counter.js');
+                hot.accept(() => {});
+                export function view(state) { return `new:${state.count}:${nativeFunction()}`; }
+            "#
+                .into(),
+            )?;
+            assert!(accepted);
+            assert_eq!(ctx.eval::<String, _>("rendered")?, "new:7:42");
+            assert!(ctx.eval::<bool, _>("savedNative === nativeFunction")?);
+            assert!(ctx.eval::<bool, _>(
+                "savedState === __wabou_hmr_records.get('/Counter.js').data.state"
+            )?);
+            assert_eq!(
+                ctx.eval::<String, _>("savedState.text")?,
+                "unsaved document"
+            );
+            Ok::<_, rquickjs::Error>(())
+        }))
+        .unwrap();
+    }
+
+    #[test]
+    fn failed_hmr_evaluation_keeps_the_boundary_and_recovers_on_next_edit() {
+        let runtime = rquickjs::AsyncRuntime::new().unwrap();
+        let context =
+            futures_lite::future::block_on(rquickjs::AsyncContext::full(&runtime)).unwrap();
+        let vite = ViteState::new(Url::parse("http://127.0.0.1:5173/").unwrap());
+        vite.install_loader(&runtime).unwrap();
+        futures_lite::future::block_on(context.with(|ctx| {
+            ctx.eval::<(), _>("globalThis.console = {error() {}, warn() {}};")?;
+            let native = Function::new(ctx.clone(), || 42u32)?;
+            ctx.globals().set("nativeFunction", native)?;
+            Module::evaluate(ctx.clone(), "http://127.0.0.1:5173/Recover.js", r#"
+                import { createHotContext } from '/@vite/client';
+                const hot = createHotContext('/Recover.js');
+                hot.data.state = { count: 7, text: 'unsaved input' };
+                globalThis.savedState = hot.data.state;
+                globalThis.savedContext = hot;
+                globalThis.disposals = 0;
+                globalThis.rendered = 'old';
+                hot.dispose(() => disposals++);
+                hot.accept(module => globalThis.rendered = module.view(hot.data.state));
+            "#)?.finish::<()>()?;
+            // Evaluation fails after registering a replacement hot context. The
+            // old context must still own disposal and acceptance for the fix.
+            assert!(!vite.apply_hmr(&ctx, "/Recover.js", "/Recover.js", 41, r#"
+                import { createHotContext } from '/@vite/client';
+                createHotContext('/Recover.js').accept(() => {});
+                throw new Error('broken implementation');
+            "#.into())?);
+            assert!(ctx.eval::<bool, _>(
+                "rendered === 'old' && disposals === 0 && __wabou_hmr_records.get('/Recover.js').current === savedContext"
+            )?);
+            assert!(vite.apply_hmr(&ctx, "/Recover.js", "/Recover.js", 42, r#"
+                import { createHotContext } from '/@vite/client';
+                createHotContext('/Recover.js').accept(() => {});
+                export function view(state) { return `fixed:${state.count}:${state.text}:${nativeFunction()}`; }
+            "#.into())?);
+            assert_eq!(ctx.eval::<String, _>("rendered")?, "fixed:7:unsaved input:42");
+            assert_eq!(ctx.eval::<u32, _>("disposals")?, 1);
+            assert!(ctx.eval::<bool, _>(
+                "savedState === __wabou_hmr_records.get('/Recover.js').data.state"
+            )?);
+            Ok::<_, rquickjs::Error>(())
+        })).unwrap();
     }
 
     #[test]

@@ -83,44 +83,54 @@ socket. `--devtools` additionally opens the visual inspector; it is not needed
 for the socket. No JavaScript production build is required before Rust
 compilation. Ctrl-C terminates Vite, the host, and the optional inspector.
 
-Rust capability hot reload is an experimental, explicit opt-in. Install the
-matching patch builder once:
+Rust capability hot reload is an experimental, explicit opt-in:
 
 ```bash
-cargo binstall dioxus-cli@0.7.10
+wabou dev apps/gallery --rust-hot-reload
 ```
 
-Then use `--rust-hot-reload`. The CLI enables Wabou's development-only runtime
-feature, starts `dx` as the Rust build/patch worker, and continues to own Vite
-and child-process cleanup. Application code marks replaceable methods with
-`capability.hot_method(...)` or `capability.hot_method_with(...)`; the latter
-keeps state in the stable host and passes it to the replaceable function.
+The CLI launches the stable host through PATH `cargo` and sets
+`WABOU_RUST_HOT_RELOAD=1`. An opted-in application registers a
+`CapabilityDevelopment` service and mounts a `CapabilityModule` through
+`module_method` or `json_module_method`. The service builds/watches an independent
+application cdylib; QuickJS keeps the same host-owned entry across replacements.
+Dioxus CLI and Subsecond are no longer required.
 
-```rust
-async fn read_workspace(
-    workspace: Arc<Workspace>,
-    request: ReadRequest,
-) -> Result<ReadResponse, String> {
-    workspace.read(request).await
-}
+Gallery demonstrates this split: `gallery-api` owns the shared DTO contract,
+`gallery-functions` owns palette behavior, and Gallery's host chooses the module
+service when the environment flag is present. Ordinary development and packaged
+runs use the same application implementation linked normally into the executable.
+Other applications must register their own module service; this flag does not
+make arbitrary linked Rust functions replaceable.
 
-HostBuilder::new().capability(WORKSPACE, move |capability| {
-    capability.json_hot_method_with(READ, workspace.clone(), read_workspace)
-});
+To use a local precompiled runtime instead of compiling the linked application
+host, supply both a runtime library and its launch configuration:
+
+```bash
+wabou launch app.json --runtime /path/to/libwabou_runtime_library.so
+wabou dev apps/gallery --runtime-library /path/to/libwabou_runtime_library.so --runtime-config app.json --rust-hot-reload
 ```
 
-Only the explicitly registered function body is replaceable. Existing async
-calls finish using the implementation that created their future; subsequent
-calls use the patch. Capability state and the window/event loop remain alive.
-Changing DTO/state layouts, Cargo dependencies, initial window options,
-decorations, widget types, or runtime internals still requires restarting
-`wabou dev`. Ordinary `wabou dev` retains its existing Cargo-based behavior and
-does not require Dioxus CLI.
+A CLI built with `cargo build -p wabou-cli --no-default-features` can use this
+path without linking QuickJS or the native renderer. The frontend can be a
+`package.json` + `ui/index.tsx` directory without a Cargo host manifest. The
+ordinary CLI build keeps embedded render/layout and experimental native UI
+commands enabled.
 
-The current implementation intentionally uses Dioxus CLI as an external worker
-because its ThinLink patch builder is not exposed as a stable library API. This
-keeps the experimental dependency out of release applications and leaves Wabou
-free to replace the worker later without changing the capability API.
+The configuration declares windows, capabilities and library/project sources.
+`dev` replaces its UI source with the application's Vite entry and supervises
+Vite plus the runtime process. Use Project implementations for Rust hot reload;
+module Cargo features are configured there. Paths in the JSON are relative to
+that file. Runtime downloads and shared-runtime packaging are not integrated.
+See [runtime distribution](runtime-distribution.md) for the configuration format
+and the current limits on application-specific native widgets.
+
+Pending calls retain their original library until completion or cancellation.
+Host state/resources remain resident. A failed subsequent compilation leaves the
+working implementation installed. Initial module compilation failure prevents
+startup. Changing runtime, windows or widget implementations requires restarting;
+a DTO contract version mismatch rejects replacement. See
+[capability modules](capability-modules.md) for ABI, watching and async constraints.
 
 The CLI invokes the project-local Vite executable directly. An application
 does not need specially named `build` or `dev` package scripts; those scripts

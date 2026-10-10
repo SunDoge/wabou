@@ -1,0 +1,13 @@
+[package]
+name = "blockui-test"
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+[dependencies]
+blockui = { path = "../blockui" }
+blockui-runtime = { path = "../blockui-runtime", features = ["static-app", "testing"] }
+
+[dev-dependencies]
+blockui = { path = "../blockui", features = ["macros", "rsx"] }
+ui-contract = { path = "../ui-contract" }

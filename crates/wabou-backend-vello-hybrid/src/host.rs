@@ -266,6 +266,7 @@ struct ImageResourceDescriptor {
 /// It consumes a JavaScript bundle and projects its binary mutation protocol
 /// into the native Vello Hybrid document.
 pub struct VelloHybridHostBuilder {
+    source: Option<ApplicationSource>,
     window: WindowOptions,
     additional_windows: Vec<WindowOptions>,
     base_color: Color,
@@ -298,6 +299,7 @@ impl VelloHybridHostBuilder {
     /// Construct a host whose Rust code shares ownership of image resources.
     pub fn with_image_resources(image_resources: ImageResourceStore) -> Self {
         let builder = Self {
+            source: None,
             window: WindowOptions::default(),
             additional_windows: Vec::new(),
             base_color: Color::from_rgb8(0x0f, 0x17, 0x2a),
@@ -369,6 +371,25 @@ impl VelloHybridHostBuilder {
         self
     }
 
+    /// Supply bundled JavaScript directly without changing process environment.
+    pub fn javascript_source(mut self, code: impl Into<String>) -> Self {
+        self.source = Some(ApplicationSource::Bundle {
+            code: code.into(),
+            source_map: None,
+        });
+        self
+    }
+
+    /// Supply a Vite entry directly for an independently loaded runtime.
+    #[cfg(feature = "vite")]
+    pub fn vite_source(mut self, url: impl Into<String>, entry: impl Into<String>) -> Self {
+        self.source = Some(ApplicationSource::Vite {
+            url: url.into(),
+            entry: entry.into(),
+        });
+        self
+    }
+
     /// Add another native window running an independent copy of the bundle.
     pub fn additional_window(mut self, options: WindowOptions) -> Self {
         self.additional_windows.push(options);
@@ -402,7 +423,7 @@ impl VelloHybridHostBuilder {
     ///
     /// Direct structured methods and opt-in JSON methods use the same generated
     /// capability contracts.
-    pub fn capability<F>(mut self, contract: CapabilityContract, mount: F) -> Self
+    pub fn capability<F>(self, contract: CapabilityContract, mount: F) -> Self
     where
         F: for<'js> Fn(runtime_api::NativeCapability<'js>) -> rquickjs::Result<()>
             + rquickjs::markers::ParallelSend
@@ -410,8 +431,19 @@ impl VelloHybridHostBuilder {
             + Sync
             + 'static,
     {
-        let name = contract.name().to_owned();
-        let version = contract.version();
+        self.capability_named(contract.name().to_owned(), contract.version(), mount)
+    }
+
+    /// Install a runtime-configured capability without requiring leaked names.
+    #[doc(hidden)]
+    pub fn capability_named<F>(mut self, name: String, version: u32, mount: F) -> Self
+    where
+        F: for<'js> Fn(runtime_api::NativeCapability<'js>) -> rquickjs::Result<()>
+            + rquickjs::markers::ParallelSend
+            + Send
+            + Sync
+            + 'static,
+    {
         let mount = Arc::new(mount);
         self.capabilities.push(Arc::new(move |js| {
             let mount = mount.clone();
@@ -611,23 +643,28 @@ impl VelloHybridHostBuilder {
             );
         }
 
-        #[cfg(feature = "vite")]
-        let source = if let Ok(url) = std::env::var("WABOU_VITE_URL") {
-            ApplicationSource::Vite {
-                url,
-                entry: std::env::var("WABOU_VITE_ENTRY")
-                    .unwrap_or_else(|_| "src/index.tsx".to_owned()),
-            }
+        let source = if let Some(source) = self.source {
+            source
         } else {
-            ApplicationSource::Bundle {
+            #[cfg(feature = "vite")]
+            let source = if let Ok(url) = std::env::var("WABOU_VITE_URL") {
+                ApplicationSource::Vite {
+                    url,
+                    entry: std::env::var("WABOU_VITE_ENTRY")
+                        .unwrap_or_else(|_| "src/index.tsx".to_owned()),
+                }
+            } else {
+                ApplicationSource::Bundle {
+                    code: crate::bundle::load()?,
+                    source_map: crate::bundle::load_source_map()?,
+                }
+            };
+            #[cfg(not(feature = "vite"))]
+            let source = ApplicationSource::Bundle {
                 code: crate::bundle::load()?,
                 source_map: crate::bundle::load_source_map()?,
-            }
-        };
-        #[cfg(not(feature = "vite"))]
-        let source = ApplicationSource::Bundle {
-            code: crate::bundle::load()?,
-            source_map: crate::bundle::load_source_map()?,
+            };
+            source
         };
         let app_directories = self
             .app_directory_config

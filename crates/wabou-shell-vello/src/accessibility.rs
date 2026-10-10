@@ -71,6 +71,8 @@ fn accesskit_node(
         SemanticRole::Menu => Role::Menu,
         SemanticRole::MenuBar => Role::MenuBar,
         SemanticRole::MenuItem => Role::MenuItem,
+        SemanticRole::MenuItemCheckBox => Role::MenuItemCheckBox,
+        SemanticRole::MenuItemRadio => Role::MenuItemRadio,
         SemanticRole::Tree => Role::Tree,
         SemanticRole::TreeItem => Role::TreeItem,
         SemanticRole::Toolbar => Role::Toolbar,
@@ -125,6 +127,15 @@ fn accesskit_node(
             .map(NodeId)
             .collect::<Vec<_>>(),
     );
+    node.set_described_by(
+        semantic
+            .described_by
+            .iter()
+            .filter(|id| relation_is_exposed(id))
+            .copied()
+            .map(NodeId)
+            .collect::<Vec<_>>(),
+    );
     if let Some(active) = semantic.active_descendant.filter(relation_is_exposed) {
         node.set_active_descendant(NodeId(active));
     }
@@ -136,6 +147,13 @@ fn accesskit_node(
             SemanticToggleState::Off => Toggled::False,
             SemanticToggleState::On => Toggled::True,
             SemanticToggleState::Mixed => Toggled::Mixed,
+        });
+    }
+    if let Some(direction) = semantic.states.sort_direction {
+        node.set_sort_direction(match direction {
+            crate::SemanticSortDirection::Ascending => accesskit::SortDirection::Ascending,
+            crate::SemanticSortDirection::Descending => accesskit::SortDirection::Descending,
+            crate::SemanticSortDirection::Other => accesskit::SortDirection::Other,
         });
     }
     if let Some(selected) = semantic.states.selected {
@@ -176,6 +194,8 @@ fn accesskit_node(
         | SemanticRole::ComboBox
         | SemanticRole::Option
         | SemanticRole::MenuItem
+        | SemanticRole::MenuItemCheckBox
+        | SemanticRole::MenuItemRadio
         | SemanticRole::TreeItem
         | SemanticRole::Slider
         | SemanticRole::SpinButton
@@ -438,6 +458,7 @@ mod tests {
                     bounds: [0.0, 0.0, 100.0, 20.0],
                     children: vec![],
                     controls: vec![],
+                    described_by: Vec::new(),
                     active_descendant: None,
                     disabled: false,
                     states: crate::SemanticStates::default(),
@@ -453,6 +474,7 @@ mod tests {
                     bounds: [0.0, 20.0, 100.0, 40.0],
                     children: vec![],
                     controls: vec![],
+                    described_by: Vec::new(),
                     active_descendant: None,
                     disabled: false,
                     states: crate::SemanticStates::default(),
@@ -482,10 +504,35 @@ mod tests {
             bounds: [0.0, 0.0, 120.0, 44.0],
             children: vec![],
             controls: vec![],
+            described_by: Vec::new(),
             active_descendant: None,
             disabled: false,
             states: crate::SemanticStates::default(),
         };
+        for (direction, expected) in [
+            (
+                crate::SemanticSortDirection::Ascending,
+                accesskit::SortDirection::Ascending,
+            ),
+            (
+                crate::SemanticSortDirection::Descending,
+                accesskit::SortDirection::Descending,
+            ),
+            (
+                crate::SemanticSortDirection::Other,
+                accesskit::SortDirection::Other,
+            ),
+        ] {
+            let mut header = semantic.clone();
+            header.role = SemanticRole::ColumnHeader;
+            header.states.sort_direction = Some(direction);
+            assert_eq!(
+                accesskit_node(&header, 1.0, None).sort_direction(),
+                Some(expected)
+            );
+            header.states.sort_direction = None;
+            assert_eq!(accesskit_node(&header, 1.0, None).sort_direction(), None);
+        }
         let node = accesskit_node(&semantic, 1.0, None);
         assert!(node.supports_action(Action::Click));
         assert!(node.supports_action(Action::Focus));
@@ -513,6 +560,7 @@ mod tests {
             bounds: [0.0, 0.0, 100.0, 20.0],
             children: vec![],
             controls: vec![],
+            described_by: Vec::new(),
             active_descendant: None,
             disabled: false,
             states: crate::SemanticStates {
@@ -548,6 +596,7 @@ mod tests {
             bounds: [0.0, 0.0, 100.0, 8.0],
             children: vec![],
             controls: vec![],
+            described_by: Vec::new(),
             active_descendant: None,
             disabled: false,
             states: crate::SemanticStates::default(),
@@ -574,6 +623,7 @@ mod tests {
             bounds: [0.0, 0.0, 100.0, 20.0],
             children: vec![],
             controls: vec![3, 9],
+            described_by: vec![3, 9],
             active_descendant: Some(4),
             disabled: false,
             states: crate::SemanticStates::default(),
@@ -581,12 +631,92 @@ mod tests {
 
         let node = accesskit_node(&semantic, 1.0, None);
         assert_eq!(node.controls(), &[NodeId(3), NodeId(9)]);
+        assert_eq!(node.described_by(), &[NodeId(3), NodeId(9)]);
         assert_eq!(node.active_descendant(), Some(NodeId(4)));
 
         let exposed = [2, 3].into_iter().collect();
         let filtered = accesskit_node(&semantic, 1.0, Some(&exposed));
         assert_eq!(filtered.controls(), &[NodeId(3)]);
+        assert_eq!(filtered.described_by(), &[NodeId(3)]);
         assert_eq!(filtered.active_descendant(), None);
+    }
+
+    #[test]
+    fn tooltip_description_tree_updates_keep_names_and_remove_closed_links() {
+        let semantic = |id, role, label: &str| crate::SemanticNode {
+            id,
+            role,
+            label: Some(label.into()),
+            value: None,
+            numeric_value: None,
+            min_numeric_value: None,
+            max_numeric_value: None,
+            bounds: [0.0, 0.0, 100.0, 20.0],
+            children: Vec::new(),
+            controls: Vec::new(),
+            described_by: Vec::new(),
+            active_descendant: None,
+            disabled: false,
+            states: Default::default(),
+        };
+        let mut snapshot = SemanticSnapshot {
+            revision: 1,
+            nodes: vec![
+                semantic(2, SemanticRole::Button, "Invite"),
+                semantic(3, SemanticRole::Tooltip, "Invite a teammate"),
+            ],
+            root_children: vec![2, 3],
+            focus: Some(2),
+            modal_root: None,
+        };
+        snapshot.nodes[0].described_by = vec![3];
+        let opened = root_update("Gallery".into(), 600.0, 400.0, 2.0, true, Some(&snapshot));
+        let control = &opened
+            .nodes
+            .iter()
+            .find(|(id, _)| *id == NodeId(2))
+            .unwrap()
+            .1;
+        assert_eq!(control.label(), Some("Invite"));
+        assert_eq!(control.described_by(), &[NodeId(3)]);
+        assert_eq!(opened.focus, NodeId(2));
+        let hint = &opened
+            .nodes
+            .iter()
+            .find(|(id, _)| *id == NodeId(3))
+            .unwrap()
+            .1;
+        assert_eq!(hint.role(), Role::Tooltip);
+        assert_eq!(hint.label(), Some("Invite a teammate"));
+        assert!(!hint.supports_action(Action::Focus));
+        snapshot.revision += 1;
+        snapshot.nodes[1].label = Some("邀请团队成员 🦀".into());
+        let updated = root_update("Gallery".into(), 600.0, 400.0, 2.0, false, Some(&snapshot));
+        assert_eq!(
+            updated
+                .nodes
+                .iter()
+                .find(|(id, _)| *id == NodeId(3))
+                .unwrap()
+                .1
+                .label(),
+            Some("邀请团队成员 🦀")
+        );
+        // Even an author retaining a stale link cannot publish a missing target.
+        snapshot.nodes.pop();
+        snapshot.root_children.pop();
+        snapshot.revision += 1;
+        let closed = root_update("Gallery".into(), 600.0, 400.0, 2.0, false, Some(&snapshot));
+        let control = &closed
+            .nodes
+            .iter()
+            .find(|(id, _)| *id == NodeId(2))
+            .unwrap()
+            .1;
+        assert_eq!(control.label(), Some("Invite"));
+        assert!(control.described_by().is_empty());
+        assert!(!closed.nodes.iter().any(|(id, _)| *id == NodeId(3)));
+        assert_eq!(closed.focus, NodeId(2));
     }
 
     #[test]
@@ -603,6 +733,8 @@ mod tests {
             (SemanticRole::Menu, Role::Menu),
             (SemanticRole::MenuBar, Role::MenuBar),
             (SemanticRole::MenuItem, Role::MenuItem),
+            (SemanticRole::MenuItemCheckBox, Role::MenuItemCheckBox),
+            (SemanticRole::MenuItemRadio, Role::MenuItemRadio),
             (SemanticRole::Tree, Role::Tree),
             (SemanticRole::TreeItem, Role::TreeItem),
             (SemanticRole::Toolbar, Role::Toolbar),
@@ -634,6 +766,7 @@ mod tests {
                 bounds: [0.0, index as f32 * 20.0, 100.0, index as f32 * 20.0 + 20.0],
                 children: vec![],
                 controls: vec![],
+                described_by: Vec::new(),
                 active_descendant: None,
                 disabled: false,
                 states: crate::SemanticStates::default(),
@@ -658,6 +791,7 @@ mod tests {
                     bounds: [0.0, 0.0, 50.0, 20.0],
                     children: vec![],
                     controls: vec![],
+                    described_by: Vec::new(),
                     active_descendant: None,
                     disabled: false,
                     states: crate::SemanticStates::default(),
@@ -673,6 +807,7 @@ mod tests {
                     bounds: [10.0, 10.0, 90.0, 90.0],
                     children: vec![4],
                     controls: vec![],
+                    described_by: Vec::new(),
                     active_descendant: None,
                     disabled: false,
                     states: crate::SemanticStates::default(),
@@ -688,6 +823,7 @@ mod tests {
                     bounds: [60.0, 60.0, 80.0, 75.0],
                     children: vec![],
                     controls: vec![],
+                    described_by: Vec::new(),
                     active_descendant: None,
                     disabled: false,
                     states: crate::SemanticStates::default(),

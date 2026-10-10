@@ -21,7 +21,18 @@ serde_json = { workspace = true }
 tempfile = "3"
 toml = "0.9"
 wabou-devtools = { workspace = true }
-wabou-backend-vello-hybrid = { workspace = true, features = ["devtools"] }
-wabou-shell-vello.workspace = true
-wabou-widgets-vello.workspace = true
+wabou-launch = { path = "../wabou-launch" }
+wabou-backend-vello-hybrid = { workspace = true, features = ["devtools"], optional = true }
+wabou-shell-vello = { workspace = true, optional = true }
+wabou-widgets-vello = { workspace = true, optional = true }
 wabou-shell-api.workspace = true
+
+# Transitional native Rust frontend command adapter.
+blockui-cli = { path = "../blockui-cli", optional = true }
+
+[features]
+# Existing source-checkout tooling keeps its commands. Distribution launchers
+# can use --no-default-features without compiling either renderer implementation.
+default = ["embedded-renderer", "native-ui"]
+embedded-renderer = ["dep:wabou-backend-vello-hybrid", "dep:wabou-shell-vello", "dep:wabou-widgets-vello"]
+native-ui = ["dep:blockui-cli"]

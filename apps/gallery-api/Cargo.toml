@@ -1,0 +1,10 @@
+[package]
+name = "gallery-api"
+version = "0.1.0"
+edition = "2024"
+license.workspace = true
+publish = false
+
+[dependencies]
+serde = { workspace = true, features = ["derive"] }
+wabou-bindgen = { workspace = true, features = ["generate"] }

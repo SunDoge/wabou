@@ -78,6 +78,7 @@ pub(super) fn build(
     build_unlocked(workspace, app, args, profile, source_map)
 }
 
+#[cfg_attr(not(feature = "embedded-renderer"), allow(dead_code))]
 pub(super) fn lock(workspace: &Path, app: &App) -> Result<fs::File> {
     build_lock(workspace, app)
 }
