@@ -33,8 +33,8 @@ blockui-cli = { path = "../blockui-cli", optional = true }
 wabou-runtime-library = { path = "../wabou-runtime-library", optional = true }
 
 [features]
-# Existing source-checkout tooling keeps its commands. Distribution launchers
-# can use --no-default-features without compiling either renderer implementation.
-default = ["embedded-renderer", "native-ui"]
+# QuickJS GUI tooling is the default. Experimental Rust UI is opt-in.
+# External-runtime launchers can use --no-default-features.
+default = ["embedded-renderer"]
 embedded-renderer = ["dep:wabou-backend-vello-hybrid", "dep:wabou-shell-vello", "dep:wabou-widgets-vello", "dep:wabou-runtime-library"]
 native-ui = ["dep:blockui-cli"]

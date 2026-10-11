@@ -15,16 +15,14 @@ use wabou_runtime::{
 /// Native library loading is trusted; callers must honor wabou-launch's contract.
 #[stabby::export]
 pub extern "C" fn wabou_runtime_launch(config: stabby::string::String) -> LaunchResult {
-    let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| run(&config)))
-        .unwrap_or_else(|_| Err("runtime startup panicked".into()));
+    let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        run_config(serde_json::from_str(&config).map_err(|e| e.to_string())?)
+    }))
+    .unwrap_or_else(|_| Err("runtime startup panicked".into()));
     result
         .map_err(|error| stabby::string::String::from(error.as_str()))
         .into()
 }
-fn run(config: &str) -> Result<(), String> {
-    run_config(serde_json::from_str(config).map_err(|e| e.to_string())?)
-}
-
 /// Run a trusted application on the main thread using the linked resident runtime.
 pub fn run_config(config: LaunchConfig) -> Result<(), String> {
     unsafe { run_linked(config, &[]) }

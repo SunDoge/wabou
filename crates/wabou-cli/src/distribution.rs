@@ -31,7 +31,9 @@ pub(super) fn bundle(
             .unwrap_or(Path::new("."));
         fs::create_dir_all(parent)?;
         let staging = tempfile::tempdir_in(parent)?;
-        fs::create_dir(staging.path().join("modules"))?;
+        if !static_link {
+            fs::create_dir(staging.path().join("modules"))?;
+        }
         let linked_executable = if static_link {
             Some(build_linked(workspace, &config)?)
         } else {
@@ -84,11 +86,8 @@ pub(super) fn bundle(
             path: PathBuf::from("resources")
                 .join(ui_bundle.file_name().ok_or("bundle has no filename")?),
         };
-        fs::create_dir(staging.path().join("resources"))?;
         copy_tree(
-            bundle_path(workspace, app, BuildProfile::Release)?
-                .parent()
-                .ok_or("bundle has no directory")?,
+            ui_bundle.parent().ok_or("bundle has no directory")?,
             &staging.path().join("resources"),
         )?;
         config.resource_directory = Some("resources".into());

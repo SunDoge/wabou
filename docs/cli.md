@@ -511,3 +511,6 @@ the runtime's development support code; it does not yet produce a minimal runtim
 Compilation uses the PATH Cargo and reuses the workspace target directory.
 Existing Rust-host applications can continue using `wabou build --release` and
 `wabou package` for application-owned registration and native installers.
+
+The default CLI excludes the experimental BlockUI adapter. Build with
+`cargo build -p wabou-cli --features native-ui` when working on that experiment.

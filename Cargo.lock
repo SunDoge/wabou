@@ -3185,7 +3185,6 @@ version = "0.1.0"
 dependencies = [
  "gallery-api",
  "gallery-functions",
- "serde",
  "snafu",
  "wabou",
 ]
@@ -3203,7 +3202,6 @@ name = "gallery-functions"
 version = "0.1.0"
 dependencies = [
  "gallery-api",
- "serde_json",
  "wabou-capability-sdk",
 ]
 
@@ -12338,7 +12336,6 @@ dependencies = [
  "stabby",
  "tokio",
  "wabou-backend-vello-hybrid",
- "wabou-bindgen",
  "wabou-capability-abi",
  "wabou-launch",
  "wabou-runtime",

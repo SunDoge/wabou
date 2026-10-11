@@ -10,5 +10,4 @@ crate-type = ["rlib", "cdylib"]
 
 [dependencies]
 gallery-api = { path = "../gallery-api" }
-serde_json = { workspace = true }
 wabou-capability-sdk = { path = "../../crates/wabou-capability-sdk" }

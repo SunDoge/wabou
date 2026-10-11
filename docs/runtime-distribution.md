@@ -1,3 +1,9 @@
+The default `wabou` CLI now embeds the QuickJS GUI runtime. For normal development,
+use `[dev] runtime-config = "app.json"` and `wabou dev`; no separate runtime dylib
+is needed. `wabou bundle` and `wabou bundle --static` provide distribution paths.
+See [CLI documentation](cli.md#embedded-runtime-development-and-distribution).
+The external-runtime launcher below remains an optional deployment mode.
+
 # Precompiled runtime distribution (experimental)
 
 Applications can now launch a resident runtime shared library through the lightweight
@@ -169,7 +175,7 @@ This CLI supports launching a local prebuilt runtime and supervising Vite/Rust
 capability development. Its normal dependency graph contains no QuickJS, Vello,
 wgpu, winit or runtime implementation. `embedded-renderer` enables the CLI's
 internal render/layout backend; `native-ui` enables the experimental Rust UI
-commands. The default source-checkout CLI still enables both for compatibility.
+commands. The default CLI enables `embedded-renderer`; `native-ui` is opt-in.
 Disabled commands return an explicit feature error. Packaging dependencies remain
 in the lightweight CLI; it is not yet a minimal launch-only executable.
 

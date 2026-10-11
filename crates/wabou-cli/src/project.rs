@@ -25,7 +25,7 @@ pub(super) fn find_workspace(start: &Path) -> Result<PathBuf> {
 pub(super) fn load_app(workspace: &Path, cwd: &Path, app_path: Option<&Path>) -> Result<App> {
     let app = load_frontend_app(workspace, cwd, app_path)?;
     if !app.root.join("Cargo.toml").is_file() {
-        return Err(format!("{} is not a linked Wabou app: Cargo.toml is missing; use --runtime-library and --runtime-config for a frontend-only app", app.root.display()).into());
+        return Err(format!("{} is not a linked Wabou app: Cargo.toml is missing; use dev --runtime-config for a frontend-only app", app.root.display()).into());
     }
     Ok(app)
 }
