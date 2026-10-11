@@ -13,62 +13,6 @@ pub struct CapabilityFiles {
     tasks: CapabilityTasks,
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use wabou_host_api::TaskKey;
-    async fn result<T: serde::de::DeserializeOwned>(tasks: &CapabilityTasks, key: TaskKey) -> T {
-        let request = serde_json::to_vec(&key).unwrap();
-        tokio::time::timeout(std::time::Duration::from_secs(3), async {
-            loop {
-                let value: serde_json::Value =
-                    serde_json::from_slice(&tasks.call("task.poll", &request).unwrap()).unwrap();
-                match value["status"].as_str().unwrap() {
-                    "ready" => {
-                        tasks.call("task.release", &request).unwrap();
-                        return serde_json::from_value(value["value"].clone()).unwrap();
-                    }
-                    "failed" => panic!("file task failed: {value}"),
-                    _ => tokio::task::yield_now().await,
-                }
-            }
-        })
-        .await
-        .unwrap()
-    }
-    #[tokio::test]
-    async fn resident_file_cursor_and_inflight_read_survive_handle_close() {
-        let root = tempfile::tempdir().unwrap();
-        std::fs::write(root.path().join("document.txt"), b"AB").unwrap();
-        let tasks = CapabilityTasks::new(tokio::runtime::Handle::current());
-        let files = CapabilityFiles::new(root.path().to_owned(), tasks.clone());
-        let open = serde_json::from_slice(&files.call("file.open", br#""document.txt""#).unwrap())
-            .unwrap();
-        let file: FileKey = result(&tasks, open).await;
-        let read = serde_json::to_vec(&serde_json::json!({"resource":file,"request":1})).unwrap();
-        let task = serde_json::from_slice(&files.call("file.read", &read).unwrap()).unwrap();
-        assert_eq!(result::<Vec<u8>>(&tasks, task).await, b"A");
-        let second = serde_json::from_slice(&files.call("file.read", &read).unwrap()).unwrap();
-        files
-            .call("file.close", &serde_json::to_vec(&file).unwrap())
-            .unwrap();
-        assert_eq!(result::<Vec<u8>>(&tasks, second).await, b"B");
-        assert!(files.call("file.read", &read).is_err());
-        assert!(
-            files
-                .call("file.close", &serde_json::to_vec(&file).unwrap())
-                .is_err()
-        );
-        let too_large =
-            serde_json::to_vec(&serde_json::json!({"resource":file,"request":65537})).unwrap();
-        assert!(
-            files
-                .call("file.read", &too_large)
-                .unwrap_err()
-                .contains("64 KiB")
-        );
-    }
-}
 impl CapabilityFiles {
     /// Use the same resident task service that modules poll for results.
     pub fn new(base: PathBuf, tasks: CapabilityTasks) -> Self {
@@ -132,5 +76,62 @@ impl CapabilityFiles {
             _ => return Err(format!("unknown file operation: {operation}")),
         };
         serde_json::to_vec(&response).map_err(|e| e.to_string())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use wabou_host_api::TaskKey;
+    async fn result<T: serde::de::DeserializeOwned>(tasks: &CapabilityTasks, key: TaskKey) -> T {
+        let request = serde_json::to_vec(&key).unwrap();
+        tokio::time::timeout(std::time::Duration::from_secs(3), async {
+            loop {
+                let value: serde_json::Value =
+                    serde_json::from_slice(&tasks.call("task.poll", &request).unwrap()).unwrap();
+                match value["status"].as_str().unwrap() {
+                    "ready" => {
+                        tasks.call("task.release", &request).unwrap();
+                        return serde_json::from_value(value["value"].clone()).unwrap();
+                    }
+                    "failed" => panic!("file task failed: {value}"),
+                    _ => tokio::task::yield_now().await,
+                }
+            }
+        })
+        .await
+        .unwrap()
+    }
+    #[tokio::test]
+    async fn resident_file_cursor_and_inflight_read_survive_handle_close() {
+        let root = tempfile::tempdir().unwrap();
+        std::fs::write(root.path().join("document.txt"), b"AB").unwrap();
+        let tasks = CapabilityTasks::new(tokio::runtime::Handle::current());
+        let files = CapabilityFiles::new(root.path().to_owned(), tasks.clone());
+        let open = serde_json::from_slice(&files.call("file.open", br#""document.txt""#).unwrap())
+            .unwrap();
+        let file: FileKey = result(&tasks, open).await;
+        let read = serde_json::to_vec(&serde_json::json!({"resource":file,"request":1})).unwrap();
+        let task = serde_json::from_slice(&files.call("file.read", &read).unwrap()).unwrap();
+        assert_eq!(result::<Vec<u8>>(&tasks, task).await, b"A");
+        let second = serde_json::from_slice(&files.call("file.read", &read).unwrap()).unwrap();
+        files
+            .call("file.close", &serde_json::to_vec(&file).unwrap())
+            .unwrap();
+        assert_eq!(result::<Vec<u8>>(&tasks, second).await, b"B");
+        assert!(files.call("file.read", &read).is_err());
+        assert!(
+            files
+                .call("file.close", &serde_json::to_vec(&file).unwrap())
+                .is_err()
+        );
+        let too_large =
+            serde_json::to_vec(&serde_json::json!({"resource":file,"request":65537})).unwrap();
+        assert!(
+            files
+                .call("file.read", &too_large)
+                .unwrap_err()
+                .contains("64 KiB")
+        );
     }
 }
