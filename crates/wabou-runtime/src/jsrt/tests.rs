@@ -496,18 +496,21 @@ fn sleep_uses_rquickjs_async_scheduler_and_wakes_host() {
         "the async sleep should still park after its initial scheduler work"
     );
 
+    // Scheduler notifications can be stale/coalesced: a wake requests a poll,
+    // but does not promise that the timer is ready or that a JS job will run.
+    // Inject such a notification so this contract is exercised deterministically.
+    runtime.runtime_wake.notify();
     let deadline = std::time::Instant::now() + std::time::Duration::from_secs(2);
     loop {
-        if runtime.take_async_wake() {
-            assert!(
-                runtime.poll_async_runtime(),
-                "settling a Promise must report JS progress so the shell schedules a frame"
-            );
-        }
+        let progressed = runtime.take_async_wake() && runtime.poll_async_runtime();
         let done = runtime
             .with(|ctx| ctx.eval::<bool, _>("globalThis.sleepDone"))
             .expect("read sleep state");
         if done {
+            assert!(
+                progressed,
+                "settling a Promise must report JS progress so the shell schedules a frame"
+            );
             break;
         }
         assert!(std::time::Instant::now() < deadline, "sleep timed out");
