@@ -216,7 +216,7 @@
       "name": "@wabou/core",
       "version": "0.1.0-alpha.3",
       "dependencies": {
-        "@solidjs/universal": "2.0.0-rc.7",
+        "@solidjs/universal": "2.0.0-rc.14",
         "@tanstack/virtual-core": "3.17.7",
         "abort-controller": "3.0.0",
         "solid-js": "2.0.0-rc.7",
@@ -552,7 +552,7 @@
 
     "@solidjs/signals": ["@solidjs/signals@2.0.0-rc.7", "", {}, "sha512-JY0OJ5nGeqxGKOAqCtuoHkFBkaWQYxmf+yBQE8vw/o9C7yUF+Kan9PwcrL0ZHR6+MgyixBUtTfBigwou5hwW5w=="],
 
-    "@solidjs/universal": ["@solidjs/universal@2.0.0-rc.7", "", { "peerDependencies": { "solid-js": "^2.0.0-rc.7" } }, "sha512-3Nocy3P2pdj+reMLKJF05hcSSMFBRdnxj7WRz4XlqSzqh0MbVjclUIKbgem+rzt0tUfBGRhWI2IkOwIKOJgKwA=="],
+    "@solidjs/universal": ["@solidjs/universal@2.0.0-rc.14", "", { "peerDependencies": { "solid-js": "^2.0.0-rc.14" } }, "sha512-FEcstwKs/2fW5G0QSWUsDZaSTlGhpCnLUVvZSOpNEdXZpL8yDZ7oq+AYetHmrW7HIaQa/ZD6jal7xDHJ3MJa5w=="],
 
     "@solidjs/vite-plugin": ["@solidjs/vite-plugin@3.0.0-next.43", "", { "dependencies": { "@ampproject/remapping": "^2.3.0", "@babel/core": "^7.23.3", "@solidjs/babel-plugin": "^2.0.0-rc.8", "@solidjs/compiler": "^2.0.0-rc.8", "@types/babel__core": "^7.20.4", "merge-anything": "^5.1.7", "vitefu": "^1.0.4" }, "peerDependencies": { "@solidjs/start-devtools": "^1.0.0-next.2", "@solidjs/web": "^2.0.0-rc.7", "@testing-library/jest-dom": "^5.16.6 || ^5.17.0 || ^6.0.0 || ^7.0.0", "solid-js": "^2.0.0-rc.7", "vite": "^8.0.0 || ^9.0.0" }, "optionalPeers": ["@solidjs/start-devtools", "@testing-library/jest-dom"] }, "sha512-7RNL9O3gzblgrGUJU5snRzC9AYAq285qoaSpi47kIXGDkKLDgIsjXfdElXM40w4SdP7mWLterhXYnA6M8CPXkg=="],
 
