@@ -115,7 +115,16 @@ export default async () => ({ window: { title: 'Configured', width: 900, decorat
         else {
             panic!("expected project")
         };
-        assert_eq!(manifest, &directory.path().join("functions/Cargo.toml"));
+        // prepare resolves paths relative to the canonical authored config path.
+        // On Windows this also expands short names and adds the verbatim prefix.
+        assert_eq!(
+            manifest,
+            &directory
+                .path()
+                .canonicalize()
+                .unwrap()
+                .join("functions/Cargo.toml")
+        );
     }
     #[test]
     fn rejects_non_data_configuration_values() {
