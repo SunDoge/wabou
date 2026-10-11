@@ -33,13 +33,13 @@ the generation until that invocation object is dropped.
 
 ## ABI and asynchronous work
 
-`wabou-capability-abi` is dependency-free and defines the initial C-compatible
-function table. ABI version and application contract version are separate. Payloads
+`wabou-capability-abi` uses stabby 72.1.16 to define and report the stable
+layout of buffers, callbacks and the module function table. ABI version and application contract version are separate. Payloads
 are currently JSON at the native module boundary; JS still receives structured
 values through `module_method`. Changing a DTO contract requires a new contract
 version and is rejected by a dispatcher expecting the old version.
 
-Modules export `wabou_capability_v1` returning `ModuleApi`. Its `start`, `poll` and
+Modules export `wabou_capability_v2` returning `ModuleApi`. Its `start`, `poll` and
 `drop_task` functions create, advance and destroy an opaque module-owned invocation.
 All byte slices, output callbacks and host contexts are borrowed for that single
 ABI call. They must not be retained. Rust allocation ownership, futures, trait
@@ -308,3 +308,10 @@ Development status retains rustc's rendered error diagnostics, including source
 locations, when a capability compilation fails. The watcher keeps the old
 implementation installed and retries after the next source edit. Cargo stderr
 remains the fallback for failures outside rustc (for example dependency resolution).
+
+The loader checks stabby's complete entry signature before calling the candidate.
+ABI v2 removes the manual table-size field; the application contract version
+is still checked separately. ABI v1 libraries must be rebuilt. The SDK generates
+the pinned stabby checked-export protocol hygienically, so applications do not
+need a direct stabby dependency to expand `export_module!`. Static linking uses
+the same table through ordinary Rust calls and needs no dynamic signature lookup.

@@ -16,8 +16,8 @@ The launch symbol is exported with stabby 72.1.16 and loaded through its checked
 signature API. Configuration and errors use ABI-stable strings/results; ordinary
 Rust String, trait objects and futures do not cross this launch boundary. The startup
 payload is versioned JSON, parsed once inside the runtime. Capability invocations
-still use the existing versioned C ABI behind the capability SDK. Adopting stabby
-for that second boundary is separate work; this prototype does not claim it is done.
+also use stabby-checked function tables behind the capability SDK. Task polling,
+host-owned resources and generation lifetime rules remain unchanged.
 
 ## Build and launch
 

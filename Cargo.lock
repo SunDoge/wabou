@@ -12174,6 +12174,9 @@ dependencies = [
 [[package]]
 name = "wabou-capability-abi"
 version = "0.1.0-alpha.3"
+dependencies = [
+ "stabby",
+]
 
 [[package]]
 name = "wabou-capability-sdk"
@@ -12310,6 +12313,7 @@ dependencies = [
  "slotmap",
  "snafu",
  "sourcemap",
+ "stabby",
  "sys-locale",
  "tempfile",
  "tokio",

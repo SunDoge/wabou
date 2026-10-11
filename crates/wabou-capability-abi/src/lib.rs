@@ -8,10 +8,13 @@
 #![no_std]
 use core::ffi::c_void;
 
-/// Initial module ABI revision, independent of application contract versions.
-pub const ABI_VERSION: u32 = 1;
+/// ABI tooling re-exported for SDK-generated exports.
+pub use stabby;
+
+/// Module ABI revision, independent of application contract versions.
+pub const ABI_VERSION: u32 = 2;
 /// Symbol exported by capability libraries.
-pub const ENTRY_SYMBOL: &[u8] = b"wabou_capability_v1\0";
+pub const ENTRY_SYMBOL: &[u8] = b"wabou_capability_v2";
 /// A call completed successfully.
 pub const READY: i32 = 0;
 /// A task needs a subsequent host poll.
@@ -20,7 +23,7 @@ pub const PENDING: i32 = 1;
 pub const FAILED: i32 = -1;
 
 /// A borrowed byte buffer, never an owned Rust allocation.
-#[repr(C)]
+#[stabby::stabby]
 #[derive(Clone, Copy)]
 pub struct Bytes {
     /// Buffer address; may be null only when length is zero.
@@ -39,7 +42,7 @@ impl Bytes {
 }
 
 /// Output is copied by the receiver during each write callback.
-#[repr(C)]
+#[stabby::stabby]
 #[derive(Clone, Copy)]
 pub struct Output {
     /// Receiver-owned context, never dereferenced by the writer.
@@ -49,7 +52,7 @@ pub struct Output {
 }
 
 /// Access to stable host operations during a start/poll/drop call.
-#[repr(C)]
+#[stabby::stabby]
 #[derive(Clone, Copy)]
 pub struct HostApi {
     /// Borrowed host context. It must not escape an ABI call.
@@ -59,13 +62,11 @@ pub struct HostApi {
 }
 
 /// A replaceable module's function table; contains no plugin-owned state.
-#[repr(C)]
+#[stabby::stabby]
 #[derive(Clone, Copy)]
 pub struct ModuleApi {
     /// Must equal ABI_VERSION.
     pub abi_version: u32,
-    /// Must equal the host's size_of::<ModuleApi>().
-    pub size: usize,
     /// Application contract revision; mismatches reject replacement.
     pub contract_version: u32,
     /// Begin an invocation. Copy borrowed arguments before returning. Null
@@ -78,3 +79,6 @@ pub struct ModuleApi {
     /// Native threads/callbacks must not outlive this call. Host-owned tasks may.
     pub drop_task: unsafe extern "C" fn(*mut c_void, HostApi),
 }
+
+/// Signature validated by stabby before calling a dynamically loaded entry.
+pub type ModuleEntry = extern "C" fn() -> ModuleApi;

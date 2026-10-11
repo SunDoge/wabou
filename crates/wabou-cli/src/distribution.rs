@@ -256,7 +256,7 @@ fn build_linked(
         );
         dependencies.insert(alias.clone(), toml::Value::Table(dependency));
         registrations.push_str(&format!(
-            "({}, {alias}::wabou_capability_v1()),",
+            "({}, {alias}::wabou_capability_v2()),",
             serde_json::to_string(&capability.name)? + ".to_string()"
         ));
     }

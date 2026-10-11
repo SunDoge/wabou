@@ -12,7 +12,8 @@ path = "src/lib.rs"
 [dependencies]
 arc-swap = { workspace = true }
 flume = { workspace = true }
-libloading = { version = "0.8.9", optional = true }
+libloading = { version = ">=0.7.3, <0.10", optional = true }
+stabby = { version = "=72.1.16", features = ["libloading"], optional = true }
 wabou-capability-abi = { path = "../wabou-capability-abi", optional = true }
 futures-lite = "2"
 getrandom = { workspace = true }
@@ -65,7 +66,7 @@ default = []
 devtools = ["dep:wabou-devtools"]
 profiling = []
 rust-hot-reload = ["capability-modules"]
-capability-modules = ["dep:libloading", "dep:wabou-capability-abi"]
+capability-modules = ["dep:libloading", "dep:stabby", "dep:wabou-capability-abi"]
 # Shared deterministic mode used by backend-owned headless harnesses.
 headless = []
 # Live vite dev-server integration (module fetching + HMR). Step 2.

@@ -4,6 +4,7 @@
 //! An invocation pins its generation until completion or cancellation. Plugins
 //! must not leave their own threads/callbacks running after drop_task; long-lived
 //! work belongs to the stable host. This API accepts trusted local plugins only.
+use stabby::libloading::StabbyLibrary;
 use std::{
     ffi::c_void,
     marker::PhantomData,
@@ -63,11 +64,10 @@ impl CapabilityModule {
         std::fs::copy(path, &destination).map_err(|e| e.to_string())?;
         let library =
             unsafe { libloading::Library::new(&destination) }.map_err(|e| e.to_string())?;
-        let entry =
-            unsafe { library.get::<unsafe extern "C" fn() -> ModuleApi>(abi::ENTRY_SYMBOL) }
-                .map_err(|e| e.to_string())?;
-        let api = unsafe { entry() };
-        if api.abi_version != abi::ABI_VERSION || api.size != std::mem::size_of::<ModuleApi>() {
+        let entry = unsafe { library.get_stabbied::<abi::ModuleEntry>(abi::ENTRY_SYMBOL) }
+            .map_err(|e| e.to_string())?;
+        let api = entry();
+        if api.abi_version != abi::ABI_VERSION {
             return Err("incompatible capability module ABI".into());
         }
         if api.contract_version != self.contract_version {
@@ -90,7 +90,7 @@ impl CapabilityModule {
     /// The table must honor the capability ABI and all function pointers must
     /// remain valid for the process lifetime.
     pub unsafe fn install_linked(&self, api: ModuleApi) -> Result<(), String> {
-        if api.abi_version != abi::ABI_VERSION || api.size != std::mem::size_of::<ModuleApi>() {
+        if api.abi_version != abi::ABI_VERSION {
             return Err("incompatible capability module ABI".into());
         }
         if api.contract_version != self.contract_version {

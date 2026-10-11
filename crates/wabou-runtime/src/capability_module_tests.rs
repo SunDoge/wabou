@@ -5,13 +5,19 @@ fn build(directory: &Path, version: u32, contract: u32) -> std::path::PathBuf {
     build_gated(directory, version, contract, false)
 }
 fn build_gated(directory: &Path, version: u32, contract: u32, gated: bool) -> std::path::PathBuf {
-    // A tiny actual shared library, with no Cargo dependencies or target cache.
-    let abi = include_str!("../../wabou-capability-abi/src/lib.rs")
-        .replace("//!", "//")
-        .replace("#![no_std]", "");
-    let source = format!(
-        r#"#[allow(dead_code)] mod abi {{ {abi} }}
+    build_fixture(directory, version, contract, gated, false)
+}
+fn build_fixture(
+    directory: &Path,
+    version: u32,
+    contract: u32,
+    gated: bool,
+    wrong_layout: bool,
+) -> std::path::PathBuf {
+    let mut source = format!(
+        r#"use wabou_capability_abi as abi;
 use abi::*;
+use abi::stabby;
 use std::ffi::c_void;
 struct Task {{ pending: bool }}
 unsafe extern "C" fn start(host: HostApi, _: Bytes, _: Bytes, _: Output) -> *mut c_void {{
@@ -37,30 +43,62 @@ unsafe extern "C" fn read_ready(context: *mut c_void, bytes: Bytes) -> i32 {{
     unsafe {{ *context.cast::<bool>() = bytes.len == 1 && *bytes.data == b'1'; }}
     READY
 }}
-#[unsafe(no_mangle)]
-pub extern "C" fn wabou_capability_v1() -> ModuleApi {{
-    ModuleApi {{ abi_version: ABI_VERSION, size: std::mem::size_of::<ModuleApi>(), contract_version: {contract}, start, poll, drop_task }}
+#[stabby::export]
+pub extern "C" fn wabou_capability_v2() -> ModuleApi {{
+    ModuleApi {{ abi_version: ABI_VERSION, contract_version: {contract}, start, poll, drop_task }}
 }}
 "#
     );
-    let file = directory.join(format!("fixture_{version}_{contract}.rs"));
-    std::fs::write(&file, source).unwrap();
-    let library = directory.join(format!(
-        "{}fixture_{version}_{contract}{}",
+    if wrong_layout {
+        source = source
+            .replace(
+                "fn wabou_capability_v2() -> ModuleApi",
+                "fn wabou_capability_v2() -> DifferentApi",
+            )
+            .replace(
+                "    ModuleApi { abi_version:",
+                "    DifferentApi { abi_version:",
+            );
+        // Same size and field types, different semantic type identity. Size-only
+        // checks would accept this; stabby's report must reject it before entry.
+        source.push_str(
+            r#"
+#[stabby::stabby]
+#[derive(Clone, Copy)]
+pub struct DifferentApi {
+    pub abi_version: u32,
+    pub contract_version: u32,
+    pub start: unsafe extern "C" fn(HostApi, Bytes, Bytes, Output) -> *mut c_void,
+    pub poll: unsafe extern "C" fn(*mut c_void, HostApi, Output) -> i32,
+    pub drop_task: unsafe extern "C" fn(*mut c_void, HostApi),
+}
+const _: () = assert!(std::mem::size_of::<DifferentApi>() == std::mem::size_of::<ModuleApi>());
+"#,
+        );
+        source = source.replace("    DifferentApi { abi_version: ABI_VERSION, contract_version:", "    panic!(\"incompatible entry must never be called\");\n    #[allow(unreachable_code)] DifferentApi { abi_version: ABI_VERSION, contract_version:");
+    }
+    let name = format!("fixture_{version}_{contract}_{gated}_{wrong_layout}");
+    let project = directory.join(&name);
+    std::fs::create_dir_all(project.join("src")).unwrap();
+    std::fs::write(project.join("src/lib.rs"), source).unwrap();
+    let abi = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../wabou-capability-abi")
+        .canonicalize()
+        .unwrap();
+    std::fs::write(project.join("Cargo.toml"), format!(
+        "[package]\nname = {name:?}\nversion = \"0.0.0\"\nedition = \"2024\"\n[workspace]\n[lib]\ncrate-type = [\"cdylib\"]\n[dependencies]\nstabby = \"=72.1.16\"\nwabou-capability-abi = {{ path = {abi:?} }}\n[profile.dev]\ndebug = 0\n"
+    )).unwrap();
+    let target = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../target/capability-fixtures");
+    let library = target.join("debug").join(format!(
+        "{}{name}{}",
         std::env::consts::DLL_PREFIX,
         std::env::consts::DLL_SUFFIX
     ));
-    let result = std::process::Command::new("rustc")
-        .args([
-            "--crate-type",
-            "cdylib",
-            "--edition=2024",
-            "-C",
-            "debuginfo=0",
-        ])
-        .arg(&file)
-        .arg("-o")
-        .arg(&library)
+    let result = std::process::Command::new("cargo")
+        .args(["build", "--offline", "--manifest-path"])
+        .arg(project.join("Cargo.toml"))
+        .arg("--target-dir")
+        .arg(&target)
         .output()
         .unwrap();
     assert!(
@@ -274,12 +312,11 @@ fn cargo_watcher_retains_working_code_after_broken_edit_and_recovers() {
     };
     let project = tempfile::tempdir().unwrap();
     build(project.path(), 1, 7);
-    let source = project.path().join("fixture_1_7.rs");
+    let fixture = project.path().join("fixture_1_7_false_false");
+    let source = fixture.join("src/lib.rs");
     let original = std::fs::read_to_string(&source).unwrap();
-    std::fs::write(project.path().join("Cargo.toml"),
-        "[package]\nname = \"module-watcher-test\"\nversion = \"0.0.0\"\nedition = \"2024\"\n[lib]\ncrate-type = [\"cdylib\"]\npath = \"fixture_1_7.rs\"\n[workspace]\n").unwrap();
     let module = CapabilityModule::new(7, Arc::new(|_, bytes| Ok(bytes.to_vec())));
-    let mut config = ModuleProject::new(project.path().join("Cargo.toml"));
+    let mut config = ModuleProject::new(fixture.join("Cargo.toml"));
     config.target_directory = Some(project.path().join("target"));
     // Restrict the test to authored input rather than rustc outputs/build logs.
     config.watch = vec![source.clone()];
@@ -309,7 +346,7 @@ fn cargo_watcher_retains_working_code_after_broken_edit_and_recovers() {
             .error
             .as_deref()
             .unwrap()
-            .contains("fixture_1_7.rs"),
+            .contains("src/lib.rs"),
         "compiler source location must reach development status"
     );
     assert_eq!(value(), b"1");
@@ -765,7 +802,6 @@ fn linked_implementation_checks_contract_and_executes_without_a_library() {
     }
     let api = ModuleApi {
         abi_version: abi::ABI_VERSION,
-        size: std::mem::size_of::<ModuleApi>(),
         contract_version: 7,
         start,
         poll,
@@ -784,4 +820,20 @@ fn linked_implementation_checks_contract_and_executes_without_a_library() {
         module.start("test", b"").unwrap().poll().unwrap(),
         Some(b"linked result".to_vec())
     );
+}
+
+#[test]
+fn stabby_rejects_same_size_different_type_before_entry_and_keeps_current_generation() {
+    let fixtures = tempfile::tempdir().unwrap();
+    let good = build(fixtures.path(), 1, 7);
+    let wrong = build_fixture(fixtures.path(), 100, 7, false, true);
+    let module = CapabilityModule::new(7, Arc::new(|_, _| Ok(b"current".to_vec())));
+    unsafe {
+        module.reload(&good).unwrap();
+    }
+    let error = unsafe { module.reload(&wrong) }.unwrap_err();
+    assert!(error.contains("Report mismatch"), "{error}");
+    let mut invocation = module.start("increment", b"").unwrap();
+    assert!(invocation.poll().unwrap().is_none());
+    assert_eq!(invocation.poll().unwrap(), Some(b"current".to_vec()));
 }

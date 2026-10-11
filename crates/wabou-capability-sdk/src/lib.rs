@@ -263,8 +263,22 @@ macro_rules! export_handlers {
 macro_rules! export_module {
     ($module:ty) => {
         #[unsafe(no_mangle)]
-        pub extern "C" fn wabou_capability_v1() -> $crate::abi::ModuleApi {
+        pub extern "C" fn wabou_capability_v2() -> $crate::abi::ModuleApi {
             $crate::module_api::<$module>()
+        }
+        // Same checked-export protocol as stabby::export for the pinned stabby
+        // version. Macro hygiene keeps applications from needing a direct
+        // stabby dependency solely to expand this SDK macro.
+        #[unsafe(no_mangle)]
+        pub extern "C" fn wabou_capability_v2_stabbied_v3(
+            report: &$crate::abi::stabby::abi::report::TypeReport,
+        ) -> Option<$crate::abi::ModuleEntry> {
+            $crate::checked_entry(wabou_capability_v2, report)
+        }
+        #[unsafe(no_mangle)]
+        pub extern "C" fn wabou_capability_v2_stabbied_v3_report()
+        -> &'static $crate::abi::stabby::abi::report::TypeReport {
+            $crate::entry_report()
         }
     };
 }
@@ -274,10 +288,23 @@ macro_rules! export_module {
 #[macro_export]
 macro_rules! export_module {
     ($module:ty) => {
-        pub fn wabou_capability_v1() -> $crate::abi::ModuleApi {
+        pub fn wabou_capability_v2() -> $crate::abi::ModuleApi {
             $crate::module_api::<$module>()
         }
     };
+}
+
+/// SDK implementation of stabby's checked export protocol.
+#[doc(hidden)]
+pub fn entry_report() -> &'static abi::stabby::abi::report::TypeReport {
+    <abi::ModuleEntry as abi::stabby::abi::IStable>::REPORT
+}
+#[doc(hidden)]
+pub fn checked_entry(
+    entry: abi::ModuleEntry,
+    report: &abi::stabby::abi::report::TypeReport,
+) -> Option<abi::ModuleEntry> {
+    entry_report().is_compatible(report).then_some(entry)
 }
 
 /// Function table used by export_module; native consumers must honor the ABI.
@@ -285,7 +312,6 @@ macro_rules! export_module {
 pub fn module_api<M: Module>() -> ModuleApi {
     ModuleApi {
         abi_version: abi::ABI_VERSION,
-        size: std::mem::size_of::<ModuleApi>(),
         contract_version: M::CONTRACT_VERSION,
         start: start::<M>,
         poll,
