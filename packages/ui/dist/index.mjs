@@ -1,4 +1,4 @@
-import { $ as View, A as createOwnedImageResource, B as Icon, C as createKeyedSelection, D as createFormDraft, E as FORM_ERROR, F as createMeasuredSize, G as PathBuilder, H as NativeWidget, I as Button$1, J as RichTextSpan, K as ProjectionBoundary, M as CollapsiblePresence, N as createPresence, O as createFileImageResource, P as createContainerMatch, Q as TextInput, R as createButton, S as Row, T as toggleSelection, U as PasswordInput$1, V as Image, W as Path, X as Text, Y as Svg, Z as TextArea$1, _ as OverlayPlaneProvider, _t as createTransition, a as ScrollArea, at as createFocus, b as Center, bt as useMotionConfig, ct as animate, d as createRetainedItems, dt as createKeyframeAnimation, et as rotate2d$1, f as Pulse, ft as createLoop, g as createTransitionPresence, gt as createSweep, h as Modal, ht as createRotation, i as createScrollReset, it as createHover, j as releaseImageResource, k as createNetworkImageResource, l as NotificationRegion, lt as animateKeyframes, m as Spin, mt as createPulse, n as createTabs, nt as createActive, o as Popover$1, ot as createFocusWithin, p as Ripple, pt as createNativeLoopAnimation, q as RichText, r as createShortcuts, rt as createPress, st as createAnimationFrame, t as primitives_exports, tt as translate2d$1, u as createNotifications, ut as createInterpolation, v as createOverlayLayer, vt as normalizeSweepGeometry, w as isSelected, x as Column, xt as useReducedMotion, yt as MotionConfigProvider, z as Editor } from "./primitives-6iSkwpGP.mjs";
+import { $ as View, A as createOwnedImageResource, B as Icon, C as createKeyedSelection, D as createFormDraft, E as FORM_ERROR, F as createMeasuredSize, G as PathBuilder, H as NativeWidget, I as Button$1, J as RichTextSpan, K as ProjectionBoundary, M as CollapsiblePresence, N as createPresence, O as createFileImageResource, P as createContainerMatch, Q as TextInput, R as createButton, S as Row, T as toggleSelection, U as PasswordInput$1, V as Image, W as Path, X as Text, Y as Svg, Z as TextArea$1, _ as OverlayPlaneProvider, _t as createTransition, a as ScrollArea, at as createFocus, b as Center, bt as useMotionConfig, ct as animate, d as createRetainedItems, dt as createKeyframeAnimation, et as rotate2d$1, f as Pulse, ft as createLoop, g as createTransitionPresence, gt as createSweep, h as Modal, ht as createRotation, i as createScrollReset, it as createHover, j as releaseImageResource, k as createNetworkImageResource, l as NotificationRegion, lt as animateKeyframes, m as Spin, mt as createPulse, n as createTabs, nt as createActive, o as Popover$1, ot as createFocusWithin, p as Ripple, pt as createNativeLoopAnimation, q as RichText, r as createShortcuts, rt as createPress, st as createAnimationFrame, t as primitives_exports, tt as translate2d$1, u as createNotifications, ut as createInterpolation, v as createOverlayLayer, vt as normalizeSweepGeometry, w as isSelected, x as Column, xt as useReducedMotion, yt as MotionConfigProvider, z as Editor } from "./primitives-BgBPNB9w.mjs";
 import { createAsyncAction, rgba, subscribeHostMessages, subscribeJsonHostMessages, useClipboard, useDialog, useFileDrop, useHost, useWindow } from "@wabou/core";
 import { mergeClasses, rgba as rgba$1, scale2d, shadow } from "@wabou/core/style";
 import { For, Match, Show, Switch as Switch$1, children, createComponent, createContext, createEffect, createMemo, createSignal, createUniqueId, flush, getOwner, omit, onCleanup, untrack, useContext } from "solid-js";
@@ -114,7 +114,7 @@ function badgeClass(variant = "default", weight = "medium", className, size = "d
 function Badge(props) {
 	const rest = omit(props, "variant", "size", "weight", "class", "children");
 	return createComponent$1(Text, mergeProps(rest, {
-		get ["class"]() {
+		get "class"() {
 			return badgeClass(props.variant, props.weight, props.class, props.size);
 		},
 		get children() {
@@ -135,7 +135,7 @@ function ActivityStatusIndicator(props) {
 		get fallback() {
 			return createComponent$1(View, {
 				"aria-hidden": "true",
-				get ["class"]() {
+				get "class"() {
 					return className();
 				}
 			});
@@ -143,7 +143,7 @@ function ActivityStatusIndicator(props) {
 		get children() {
 			return createComponent$1(Pulse, {
 				"aria-hidden": "true",
-				get ["class"]() {
+				get "class"() {
 					return className();
 				},
 				from: .3,
@@ -160,10 +160,10 @@ function ActivityStatus(props) {
 		get role() {
 			return props.role ?? "status";
 		},
-		get ["aria-label"]() {
+		get "aria-label"() {
 			return props["aria-label"] ?? props.label;
 		},
-		get ["class"]() {
+		get "class"() {
 			return mergeClasses("min-w-0 max-w-full flex flex-row items-center gap-1.5", props.class);
 		},
 		get children() {
@@ -175,7 +175,7 @@ function ActivityStatus(props) {
 					return props.tone;
 				}
 			}), createComponent$1(Text, {
-				get ["class"]() {
+				get "class"() {
 					return mergeClasses("min-w-0 truncate text-xs text-muted", props.textClass);
 				},
 				get children() {
@@ -244,7 +244,7 @@ function Skeleton(props) {
 			typeof _ref$ === "function" || Array.isArray(_ref$) ? applyRef(_ref$, r$) : measured.ref = r$;
 		},
 		"aria-hidden": "true",
-		get ["class"]() {
+		get "class"() {
 			return mergeClasses("overflow-hidden rounded-md bg-control", props.class);
 		},
 		get children() {
@@ -273,15 +273,15 @@ function Spinner(props) {
 		get role() {
 			return props.decorative ? void 0 : "status";
 		},
-		get ["aria-hidden"]() {
+		get "aria-hidden"() {
 			return props.decorative ? true : void 0;
 		},
-		get ["aria-label"]() {
+		get "aria-label"() {
 			return memo(() => {
 				return !!props.decorative;
 			})() ? void 0 : props.label ?? "Loading";
 		},
-		get ["class"]() {
+		get "class"() {
 			return mergeClasses("w-4 h-4 flex-none text-accent", props.class);
 		},
 		get config() {
@@ -295,7 +295,7 @@ function Kbd(props) {
 		get role() {
 			return props.role ?? "label";
 		},
-		get ["class"]() {
+		get "class"() {
 			return mergeClasses("h-5 min-w-5 px-1 inline-flex items-center justify-center flex-none rounded bg-control text-xs font-medium text-muted", props.class);
 		},
 		get style() {
@@ -319,7 +319,7 @@ function Kbd(props) {
 function KbdGroup(props) {
 	const forwarded = omit(props, "class", "children");
 	return createComponent$1(View, mergeProps(forwarded, {
-		get ["class"]() {
+		get "class"() {
 			return mergeClasses("inline-flex items-center gap-1", props.class);
 		},
 		get children() {
@@ -328,13 +328,63 @@ function KbdGroup(props) {
 	}));
 }
 //#endregion
-//#region src/components/dev-server-error.tsx
-function decodeDiagnostic(value) {
-	if (!value || typeof value !== "object") throw new TypeError("Vite diagnostic must be an object");
-	const source = value;
-	if (typeof source.message !== "string") throw new TypeError("Vite diagnostic must contain a message");
-	return source;
+//#region src/components/development-diagnostics.ts
+/** Errors survive unrelated successful reloads and disappear on their own recovery. */
+function useDevelopmentDiagnostics() {
+	const errors = /* @__PURE__ */ new Map();
+	const [diagnostic, setDiagnostic] = createSignal();
+	const refresh = () => setDiagnostic([...errors.values()].at(-1));
+	const onError = (error) => console.error("[wabou-hmr] invalid development diagnostic", error);
+	const unsubscribeError = subscribeJsonHostMessages("wabou:dev-server-error", (value) => {
+		errors.set("js:Vite", value);
+		refresh();
+	}, {
+		decode(value) {
+			if (!value || typeof value !== "object" || typeof value.message !== "string") throw new TypeError("diagnostic must contain a message");
+			return value;
+		},
+		onError
+	});
+	const unsubscribeReady = subscribeHostMessages("wabou:dev-server-ready", () => {
+		for (const key of errors.keys()) if (key.startsWith("js:")) errors.delete(key);
+		refresh();
+	});
+	const unsubscribeStatus = subscribeJsonHostMessages("wabou:reload-status", (status) => {
+		const key = `${status.source}:${status.target}`;
+		if (status.phase === "error") errors.set(key, {
+			message: status.error ?? "Replacement failed",
+			id: status.target,
+			plugin: status.source === "rust" ? "Rust" : "JavaScript"
+		});
+		else if (status.phase === "ready") errors.delete(key);
+		refresh();
+	}, {
+		decode(value) {
+			const status = value;
+			if (!status || !["rust", "js"].includes(status.source) || typeof status.target !== "string" || ![
+				"building",
+				"ready",
+				"error"
+			].includes(status.phase) || status.error != null && typeof status.error !== "string") throw new TypeError("invalid reload status");
+			return status;
+		},
+		onError
+	});
+	onCleanup(() => {
+		unsubscribeError();
+		unsubscribeReady();
+		unsubscribeStatus();
+	});
+	return {
+		diagnostic,
+		dismiss: () => {
+			errors.clear();
+			refresh();
+		}
+	};
 }
+//#endregion
+//#region src/components/dev-server-error.tsx
 function diagnosticLocation(diagnostic) {
 	const file = diagnostic.loc?.file ?? diagnostic.id;
 	if (!file) return diagnostic.plugin ?? "Vite";
@@ -344,22 +394,13 @@ function diagnosticLocation(diagnostic) {
 }
 /** Native equivalent of Vite's browser error overlay. */
 function DevServerErrorOverlay() {
-	const [diagnostic, setDiagnostic] = createSignal();
-	const unsubscribeError = subscribeJsonHostMessages("wabou:dev-server-error", setDiagnostic, {
-		decode: decodeDiagnostic,
-		onError: (error) => console.error("[wabou-hmr] invalid Vite diagnostic", error)
-	});
-	const unsubscribeReady = subscribeHostMessages("wabou:dev-server-ready", () => setDiagnostic(void 0));
-	onCleanup(() => {
-		unsubscribeError();
-		unsubscribeReady();
-	});
+	const { diagnostic, dismiss } = useDevelopmentDiagnostics();
 	return createComponent$1(Modal, {
 		get open() {
 			return diagnostic() !== void 0;
 		},
 		onOpenChange: (open) => {
-			if (!open) setDiagnostic(void 0);
+			if (!open) dismiss();
 		},
 		"aria-label": "Development build failed",
 		contentRole: "alertdialog",
@@ -380,7 +421,9 @@ function DevServerErrorOverlay() {
 						get children() {
 							return [createComponent$1(Text, {
 								class: "text-lg font-semibold text-danger-primary",
-								children: "Vite could not update the app"
+								get children() {
+									return error.plugin === "Rust" ? "Rust could not update the app" : "JavaScript could not update the app";
+								}
 							}), createComponent$1(Text, {
 								class: "text-xs text-muted whitespace-normal",
 								get children() {
@@ -419,7 +462,7 @@ function DevServerErrorOverlay() {
 							}), createComponent$1(Button$1, {
 								"aria-label": "Dismiss development error",
 								class: "flex-none h-8 px-3 rounded-lg bg-control text-sm text-primary",
-								onClick: () => setDiagnostic(void 0),
+								onClick: () => dismiss(),
 								children: "Dismiss"
 							})];
 						}
@@ -652,7 +695,7 @@ function Button(props) {
 		get disabled() {
 			return disabled();
 		},
-		get ["aria-busy"]() {
+		get "aria-busy"() {
 			return local.loading ?? false;
 		},
 		unstyled: true,
@@ -675,7 +718,7 @@ function Button(props) {
 						get label() {
 							return local.loadingLabel ?? "Loading";
 						},
-						get ["class"]() {
+						get "class"() {
 							return buttonSpinnerColor(variant());
 						}
 					}), memo(() => {
@@ -738,10 +781,10 @@ function Alert(props) {
 		get children() {
 			return createComponent$1(View, mergeProps(forwarded, {
 				role: "alert",
-				get ["aria-label"]() {
+				get "aria-label"() {
 					return props["aria-label"] ?? props.title;
 				},
-				get ["class"]() {
+				get "class"() {
 					return mergeClasses("w-full min-w-0 flex flex-row items-start", alertGeometry(size()), componentsSurfaceClass("raised"), colors().container, props.banner && "rounded-none border-0", props.class);
 				},
 				get children() {
@@ -757,7 +800,7 @@ function Alert(props) {
 											return alertIcon(variant());
 										},
 										size: 16,
-										get ["class"]() {
+										get "class"() {
 											return colors().title;
 										}
 									});
@@ -776,7 +819,7 @@ function Alert(props) {
 							})() ? createComponent$1(Button, {
 								size: "icon",
 								variant: "ghost",
-								get ["aria-label"]() {
+								get "aria-label"() {
 									return `Dismiss ${props["aria-label"] ?? props.title ?? "alert"}`;
 								},
 								class: "w-7 h-7 flex-none",
@@ -799,13 +842,13 @@ function Alert(props) {
 }
 function AlertTitle(props) {
 	const context = useContext(AlertContext);
-	return createComponent$1(Text, mergeProps(props, { get ["class"]() {
+	return createComponent$1(Text, mergeProps(props, { get "class"() {
 		return mergeClasses("w-full min-w-0 text-sm font-semibold", alertColors(context.variant()).title, props.class);
 	} }));
 }
 function AlertDescription(props) {
 	const context = useContext(AlertContext);
-	return createComponent$1(Text, mergeProps(props, { get ["class"]() {
+	return createComponent$1(Text, mergeProps(props, { get "class"() {
 		return mergeClasses("w-full min-w-0 whitespace-normal text-sm", alertColors(context.variant()).description, props.class);
 	} }));
 }
@@ -815,7 +858,7 @@ function AlertActions(props) {
 		get role() {
 			return props.role ?? "group";
 		},
-		get ["class"]() {
+		get "class"() {
 			return mergeClasses("w-full min-w-0 mt-2 flex flex-row flex-wrap items-center gap-2", props.class);
 		},
 		get children() {
@@ -854,7 +897,7 @@ function Dialog(props) {
 }
 function DialogHeader(props) {
 	return createComponent$1(View, {
-		get ["class"]() {
+		get "class"() {
 			return mergeClasses("flex flex-col gap-1", props.class);
 		},
 		get children() {
@@ -864,7 +907,7 @@ function DialogHeader(props) {
 }
 function DialogFooter(props) {
 	return createComponent$1(View, {
-		get ["class"]() {
+		get "class"() {
 			return mergeClasses("flex items-center justify-end gap-2", props.class);
 		},
 		get children() {
@@ -874,7 +917,7 @@ function DialogFooter(props) {
 }
 function DialogScrollBody(props) {
 	return createComponent$1(ScrollArea, mergeProps(props, {
-		get ["class"]() {
+		get "class"() {
 			return mergeClasses("min-h-0 flex-1", props.class);
 		},
 		get contentClass() {
@@ -887,7 +930,7 @@ function DialogScrollBody(props) {
 }
 function DialogTitle(props) {
 	return createComponent$1(Text, {
-		get ["class"]() {
+		get "class"() {
 			return mergeClasses("text-lg font-semibold text-primary", props.class);
 		},
 		get children() {
@@ -897,7 +940,7 @@ function DialogTitle(props) {
 }
 function DialogDescription(props) {
 	return createComponent$1(Text, {
-		get ["class"]() {
+		get "class"() {
 			return mergeClasses("w-full min-w-0 whitespace-normal text-sm text-muted", props.class);
 		},
 		get children() {
@@ -973,7 +1016,7 @@ function AspectRatio(props) {
 	const rest = omit(props, "ratio", "style", "class", "children");
 	return createComponent$1(View, mergeProps(rest, {
 		"data-wabou-owns": "clip",
-		get ["class"]() {
+		get "class"() {
 			return mergeClasses("w-full min-w-0 overflow-hidden", props.class);
 		},
 		get style() {
@@ -1009,7 +1052,7 @@ function Attachment(props) {
 		value: context,
 		get children() {
 			return createComponent$1(View, mergeProps(forwarded, {
-				get ["class"]() {
+				get "class"() {
 					return attachmentClass({
 						state: context.state(),
 						size: context.size(),
@@ -1033,7 +1076,7 @@ function attachmentMediaClass(variant, context, className) {
 function AttachmentMedia(props) {
 	const context = useContext(AttachmentContext);
 	return createComponent$1(View, {
-		get ["class"]() {
+		get "class"() {
 			return attachmentMediaClass(props.variant ?? "icon", context, props.class);
 		},
 		get children() {
@@ -1043,7 +1086,7 @@ function AttachmentMedia(props) {
 }
 function AttachmentContent(props) {
 	return createComponent$1(View, mergeProps(props, {
-		get ["class"]() {
+		get "class"() {
 			return mergeClasses("max-w-full min-w-0 flex-1 flex flex-col gap-0.5", props.class);
 		},
 		get children() {
@@ -1056,7 +1099,7 @@ function AttachmentTitle(props) {
 		get maxLines() {
 			return props.maxLines ?? 1;
 		},
-		get ["class"]() {
+		get "class"() {
 			return mergeClasses("max-w-full min-w-0 font-medium text-primary", props.class);
 		},
 		get children() {
@@ -1070,7 +1113,7 @@ function AttachmentDescription(props) {
 		get maxLines() {
 			return props.maxLines ?? 1;
 		},
-		get ["class"]() {
+		get "class"() {
 			return mergeClasses("max-w-full min-w-0 text-xs", context.state() === "error" ? "text-danger-primary" : "text-muted", props.class);
 		},
 		get children() {
@@ -1080,7 +1123,7 @@ function AttachmentDescription(props) {
 }
 function AttachmentActions(props) {
 	return createComponent$1(View, mergeProps(props, {
-		get ["class"]() {
+		get "class"() {
 			return mergeClasses("flex-none flex items-center gap-1", props.class);
 		},
 		get children() {
@@ -1103,7 +1146,7 @@ function attachmentGroupClass(className) {
 }
 function AttachmentGroup(props) {
 	return createComponent$1(View, mergeProps(props, {
-		get ["class"]() {
+		get "class"() {
 			return attachmentGroupClass(props.class);
 		},
 		get scrollbar() {
@@ -1129,10 +1172,10 @@ function Avatar(props) {
 	const label = () => props.alt ?? props.name ?? props.fallback ?? "Avatar";
 	return createComponent$1(Center, mergeProps(forwarded, {
 		role: "img",
-		get ["aria-label"]() {
+		get "aria-label"() {
 			return label();
 		},
-		get ["class"]() {
+		get "class"() {
 			return mergeClasses("flex-none overflow-hidden rounded-full bg-control border border-subtle", size(), props.class);
 		},
 		get children() {
@@ -1159,7 +1202,7 @@ function AvatarGroup(props) {
 		get role() {
 			return props.role ?? "group";
 		},
-		get ["class"]() {
+		get "class"() {
 			return mergeClasses("flex items-center gap-1", props.class);
 		}
 	}));
@@ -1167,7 +1210,7 @@ function AvatarGroup(props) {
 function AvatarGroupCount(props) {
 	const forwarded = omit(props, "class", "children");
 	return createComponent$1(Center, mergeProps(forwarded, {
-		get ["class"]() {
+		get "class"() {
 			return mergeClasses("w-10 h-10 flex-none rounded-full bg-control border border-subtle", props.class);
 		},
 		get children() {
@@ -1200,16 +1243,16 @@ function ButtonGroup(props) {
 		get children() {
 			return createComponent$1(View, mergeProps(forwarded, {
 				role: "group",
-				get ["aria-label"]() {
+				get "aria-label"() {
 					return props["aria-label"];
 				},
-				get ["aria-orientation"]() {
+				get "aria-orientation"() {
 					return orientation();
 				},
-				get ["aria-disabled"]() {
+				get "aria-disabled"() {
 					return disabled();
 				},
-				get ["class"]() {
+				get "class"() {
 					return mergeClasses("min-w-0 flex gap-0 rounded-lg border border-strong bg-surface shadow-xs", layout(), props.class);
 				},
 				get children() {
@@ -1223,7 +1266,7 @@ function ButtonGroupText(props) {
 	const groupItem = useButtonGroupItem();
 	const size = () => groupItem?.size() ?? "default";
 	return createComponent$1(Text, mergeProps(props, {
-		get ["class"]() {
+		get "class"() {
 			return mergeClasses("flex-none flex items-center whitespace-nowrap font-medium text-secondary bg-control", componentsControlContentSize(size()), groupItem?.disabled() && "bg-surface-muted text-muted", groupItem && buttonGroupItemCorners(groupItem), props.class, componentsDisabledInteractiveClass(groupItem?.disabled() ?? false));
 		},
 		get children() {
@@ -1235,7 +1278,7 @@ function ButtonGroupSeparator(props) {
 	return createComponent$1(View, {
 		role: "separator",
 		"aria-hidden": "true",
-		get ["class"]() {
+		get "class"() {
 			return mergeClasses("flex-none self-stretch bg-strong", match(props.orientation ?? "vertical").with("vertical", () => "w-px min-h-full").with("horizontal", () => "h-px min-w-full").exhaustive(), props.class);
 		}
 	});
@@ -1297,7 +1340,7 @@ function Card(props) {
 		value: { size },
 		get children() {
 			return createComponent$1(View, mergeProps(rest, {
-				get ["class"]() {
+				get "class"() {
 					return mergeClasses("min-w-0 min-h-0 flex-none flex flex-col overflow-hidden", cardChrome(variant()), props.class);
 				},
 				get shadows() {
@@ -1315,7 +1358,7 @@ function Card(props) {
 function CardHeader(props) {
 	const context = useContext(CardContext);
 	return createComponent$1(View, mergeProps(props, {
-		get ["class"]() {
+		get "class"() {
 			return mergeClasses("relative min-w-0 flex flex-col", cardGeometry("header", context.size()), props.class);
 		},
 		get children() {
@@ -1326,7 +1369,7 @@ function CardHeader(props) {
 function CardTitle(props) {
 	const context = useContext(CardContext);
 	return createComponent$1(Text, mergeProps(props, {
-		get ["class"]() {
+		get "class"() {
 			return mergeClasses("min-w-0 font-semibold text-primary", match(context.size()).with("sm", () => "text-sm").with("default", () => "text-base").with("lg", () => "text-lg").exhaustive(), props.class);
 		},
 		get children() {
@@ -1337,7 +1380,7 @@ function CardTitle(props) {
 function CardDescription(props) {
 	const context = useContext(CardContext);
 	return createComponent$1(Text, mergeProps(props, {
-		get ["class"]() {
+		get "class"() {
 			return mergeClasses("w-full min-w-0 whitespace-normal text-muted", match(context.size()).with("sm", () => "text-xs").with("default", () => "text-sm").with("lg", () => "text-base").exhaustive(), props.class);
 		},
 		get children() {
@@ -1349,7 +1392,7 @@ function CardDescription(props) {
 function CardAction(props) {
 	const context = useContext(CardContext);
 	return createComponent$1(View, mergeProps(props, {
-		get ["class"]() {
+		get "class"() {
 			return mergeClasses("absolute flex-none flex items-center justify-end", cardGeometry("action", context.size()), props.class);
 		},
 		get children() {
@@ -1360,7 +1403,7 @@ function CardAction(props) {
 function CardContent(props) {
 	const context = useContext(CardContext);
 	return createComponent$1(View, mergeProps(props, {
-		get ["class"]() {
+		get "class"() {
 			return mergeClasses("min-w-0 min-h-0 flex flex-col", cardGeometry("content", context.size()), props.class);
 		},
 		get children() {
@@ -1371,7 +1414,7 @@ function CardContent(props) {
 function CardFooter(props) {
 	const context = useContext(CardContext);
 	return createComponent$1(View, mergeProps(props, {
-		get ["class"]() {
+		get "class"() {
 			return mergeClasses("min-w-0 flex items-center", cardGeometry("footer", context.size()), props.class);
 		},
 		get children() {
@@ -1774,10 +1817,10 @@ function Carousel(props) {
 		get children() {
 			return createComponent$1(View, {
 				role: "group",
-				get ["aria-label"]() {
+				get "aria-label"() {
 					return props["aria-label"];
 				},
-				get ["class"]() {
+				get "class"() {
 					return mergeClasses("relative min-w-0 min-h-0", props.class);
 				},
 				onKeyDown: (event) => {
@@ -1870,7 +1913,7 @@ function CarouselContent(props) {
 			measured.ref(node);
 			props.ref?.(node);
 		},
-		get ["class"]() {
+		get "class"() {
 			return mergeClasses("min-w-0 min-h-0 overflow-hidden", props.class);
 		},
 		onPointerDown: (event) => {
@@ -1896,7 +1939,7 @@ function CarouselContent(props) {
 		},
 		get children() {
 			return createComponent$1(View, {
-				get ["class"]() {
+				get "class"() {
 					return mergeClasses("flex w-full h-full flex-none", carousel.orientation() === "horizontal" ? "flex-row" : "flex-col", props.trackClass);
 				},
 				get transform() {
@@ -1918,10 +1961,10 @@ function CarouselItem(props) {
 	onCleanup(unregister);
 	return createComponent$1(View, mergeProps(props, {
 		role: "group",
-		get ["aria-label"]() {
+		get "aria-label"() {
 			return props["aria-label"];
 		},
-		get ["class"]() {
+		get "class"() {
 			return mergeClasses("min-w-0 min-h-0 flex-none", carousel.orientation() === "horizontal" ? "w-full" : "h-full", props.class);
 		}
 	}));
@@ -1931,7 +1974,7 @@ function CarouselNavigationButton(props) {
 	const previous = props.direction === "previous";
 	const forwarded = omit(props, "direction", "children", "onClick");
 	return createComponent$1(Button, mergeProps(forwarded, {
-		get ["aria-label"]() {
+		get "aria-label"() {
 			return props["aria-label"] ?? (previous ? "Previous slide" : "Next slide");
 		},
 		get variant() {
@@ -1985,10 +2028,10 @@ function ChartContainer(props) {
 		get children() {
 			return createComponent$1(View, {
 				role: "img",
-				get ["aria-label"]() {
+				get "aria-label"() {
 					return props.label;
 				},
-				get ["class"]() {
+				get "class"() {
 					return mergeClasses("relative min-w-0", props.class);
 				},
 				get style() {
@@ -2007,7 +2050,7 @@ function useChartConfig() {
 function ChartLegend(props) {
 	const config = useChartConfig();
 	return createComponent$1(View, {
-		get ["class"]() {
+		get "class"() {
 			return mergeClasses("flex flex-row flex-wrap items-center gap-4", props.class);
 		},
 		get children() {
@@ -2020,7 +2063,7 @@ function ChartLegend(props) {
 					get children() {
 						return [createComponent$1(View, {
 							"aria-hidden": "true",
-							get ["class"]() {
+							get "class"() {
 								return mergeClasses("w-2.5 h-2.5 flex-none rounded-full", series.colorClass);
 							}
 						}), createComponent$1(Text, {
@@ -2037,7 +2080,7 @@ function ChartLegend(props) {
 }
 function ChartEmpty(props) {
 	return createComponent$1(View, {
-		get ["class"]() {
+		get "class"() {
 			return mergeClasses("h-48 items-center justify-center", props.class);
 		},
 		get children() {
@@ -2066,7 +2109,7 @@ function CopyButton(props) {
 		}
 	};
 	return createComponent$1(Button, mergeProps(forwarded, {
-		get ["aria-label"]() {
+		get "aria-label"() {
 			return props["aria-label"] ?? "Copy";
 		},
 		onClick: copy,
@@ -2082,10 +2125,10 @@ function CopyButton(props) {
 function CodeBlock(props) {
 	return createComponent$1(View, {
 		role: "group",
-		get ["aria-label"]() {
+		get "aria-label"() {
 			return props["aria-label"] ?? "Code block";
 		},
-		get ["class"]() {
+		get "class"() {
 			return mergeClasses("min-w-0 overflow-hidden rounded-xl border border-subtle bg-control", props.class);
 		},
 		get children() {
@@ -2113,7 +2156,7 @@ function CodeBlock(props) {
 							get copiedLabel() {
 								return props.copiedLabel;
 							},
-							get ["aria-label"]() {
+							get "aria-label"() {
 								return props.copyLabel;
 							},
 							get copiedChildren() {
@@ -2172,27 +2215,27 @@ function reconcileCommandHighlight(items, highlighted) {
 function Input(props) {
 	const forwarded = omit(props, "chrome", "surfaceClass");
 	return createComponent$1(TextInput, mergeProps(forwarded, {
-		get ["data-wabou-owns"]() {
+		get "data-wabou-owns"() {
 			return (props.chrome ?? "default") === "default" ? "surface native-editor" : "native-editor";
 		},
-		get ["class"]() {
+		get "class"() {
 			return mergeClasses("w-full flex items-center py-1 text-primary", (props.chrome ?? "default") === "default" ? componentsControlSize("default") : componentsControlContentSize("default"), (props.chrome ?? "default") === "default" && mergeClasses("border border-subtle shadow-xs", props.surfaceClass ?? "bg-input"), props.class, (props.chrome ?? "default") === "default" ? componentsDisabledControlClass(props.disabled ?? false) : componentsDisabledContentClass(props.disabled ?? false));
 		}
 	}));
 }
 /** A native secret input whose value never crosses into JavaScript. */
 function PasswordInput(props) {
-	return createComponent$1(PasswordInput$1, mergeProps(props, { get ["class"]() {
+	return createComponent$1(PasswordInput$1, mergeProps(props, { get "class"() {
 		return mergeClasses("w-full flex items-center py-1 border shadow-xs", componentsControlSize("default"), "border-subtle bg-input text-primary", props.class, componentsDisabledControlClass(props.disabled ?? false));
 	} }));
 }
 function TextArea(props) {
 	const forwarded = omit(props, "chrome", "surfaceClass");
 	return createComponent$1(TextArea$1, mergeProps(forwarded, {
-		get ["data-wabou-owns"]() {
+		get "data-wabou-owns"() {
 			return (props.chrome ?? "default") === "default" ? "surface native-editor" : "native-editor";
 		},
-		get ["class"]() {
+		get "class"() {
 			return mergeClasses("h-24 w-full px-2.5 py-2 text-sm leading-normal text-primary", (props.chrome ?? "default") === "default" && mergeClasses("rounded-md border border-subtle shadow-xs", props.surfaceClass ?? "bg-input"), props.class, (props.chrome ?? "default") === "default" ? componentsDisabledControlClass(props.disabled ?? false) : componentsDisabledContentClass(props.disabled ?? false));
 		}
 	}));
@@ -2221,13 +2264,13 @@ function pickerOptionClass(disabled, highlighted) {
 function CommandList(props) {
 	return createComponent$1(View, {
 		role: "listbox",
-		get ["aria-label"]() {
+		get "aria-label"() {
 			return props["aria-label"];
 		},
-		get ["aria-activedescendant"]() {
+		get "aria-activedescendant"() {
 			return props.highlighted;
 		},
-		get ["class"]() {
+		get "class"() {
 			return mergeClasses("min-w-0 flex flex-col gap-1", props.class);
 		},
 		get children() {
@@ -2256,7 +2299,7 @@ function CommandList(props) {
 						get children() {
 							return createComponent$1(View, {
 								role: "alert",
-								get ["aria-label"]() {
+								get "aria-label"() {
 									return props.errorText ?? "Could not load results";
 								},
 								class: "px-3 py-3 flex flex-col items-center gap-2 text-center",
@@ -2280,7 +2323,7 @@ function CommandList(props) {
 											})() ? createComponent$1(Button, {
 												size: "sm",
 												variant: "outline",
-												get ["aria-label"]() {
+												get "aria-label"() {
 													return props.retryLabel ?? "Try again";
 												},
 												get onClick() {
@@ -2323,16 +2366,16 @@ function CommandList(props) {
 										return item().id;
 									},
 									role: "option",
-									get ["aria-label"]() {
+									get "aria-label"() {
 										return item().label;
 									},
-									get ["aria-selected"]() {
+									get "aria-selected"() {
 										return props.highlighted === item().id;
 									},
-									get ["aria-disabled"]() {
+									get "aria-disabled"() {
 										return item().disabled;
 									},
-									get ["class"]() {
+									get "class"() {
 										return mergeClasses("min-h-8 px-2 py-1 flex flex-row items-center gap-2 rounded-md", pickerOptionClass(item().disabled ?? false, props.highlighted === item().id), props.itemClass);
 									},
 									onPointerMove: () => !item().disabled && props.onHighlightChange?.(item().id),
@@ -2441,12 +2484,12 @@ function Command(props) {
 		onDismiss: props.onDismiss
 	});
 	return createComponent$1(View, {
-		get ["class"]() {
+		get "class"() {
 			return mergeClasses("min-w-0 flex flex-col gap-2", props.class);
 		},
 		get children() {
 			return [createComponent$1(Input, {
-				get ["aria-label"]() {
+				get "aria-label"() {
 					return props["aria-label"];
 				},
 				get value() {
@@ -2464,7 +2507,7 @@ function Command(props) {
 					return navigation.handleKeyDown;
 				}
 			}), createComponent$1(CommandList, {
-				get ["aria-label"]() {
+				get "aria-label"() {
 					return `${props["aria-label"]} results`;
 				},
 				get items() {
@@ -2494,7 +2537,7 @@ function Command(props) {
 				get onRetry() {
 					return props.onRetry;
 				},
-				get ["class"]() {
+				get "class"() {
 					return props.listClass;
 				},
 				get onHighlightChange() {
@@ -2561,14 +2604,14 @@ function Combobox(props) {
 			get disabled() {
 				return props.disabled;
 			},
-			get ["aria-label"]() {
+			get "aria-label"() {
 				return props["aria-label"];
 			},
 			"aria-haspopup": "listbox",
-			get ["aria-expanded"]() {
+			get "aria-expanded"() {
 				return open();
 			},
-			get ["aria-valuetext"]() {
+			get "aria-valuetext"() {
 				return selected()?.label;
 			},
 			ref: (node) => {
@@ -2584,7 +2627,7 @@ function Combobox(props) {
 			},
 			get children() {
 				return [createComponent$1(Text, {
-					get ["class"]() {
+					get "class"() {
 						return mergeClasses("min-w-0 flex-1 text-left truncate", selected() ? "text-primary" : "text-muted");
 					},
 					get children() {
@@ -2599,7 +2642,7 @@ function Combobox(props) {
 		}),
 		get children() {
 			return createComponent$1(Command, {
-				get ["aria-label"]() {
+				get "aria-label"() {
 					return `${props["aria-label"]} search`;
 				},
 				get query() {
@@ -2632,10 +2675,10 @@ function ContentState(props) {
 		get role() {
 			return error() ? "alert" : "status";
 		},
-		get ["aria-label"]() {
+		get "aria-label"() {
 			return props["aria-label"] ?? props.title;
 		},
-		get ["class"]() {
+		get "class"() {
 			return mergeClasses("w-full h-full min-w-0 min-h-0 flex-1 p-6 flex flex-col items-center justify-center gap-3 text-center", error() ? "text-danger-primary" : "text-secondary", props.class);
 		},
 		get children() {
@@ -2648,7 +2691,7 @@ function ContentState(props) {
 					get children() {
 						return [createComponent$1(Text, {
 							role: "heading",
-							get ["class"]() {
+							get "class"() {
 								return mergeClasses("w-full min-w-0 whitespace-normal text-sm font-medium", error() ? "text-danger-primary" : "text-primary");
 							},
 							get children() {
@@ -2658,7 +2701,7 @@ function ContentState(props) {
 							return memo(() => {
 								return props.description === void 0;
 							})() ? null : createComponent$1(Text, {
-								get ["class"]() {
+								get "class"() {
 									return mergeClasses("w-full min-w-0 whitespace-normal text-xs", error() ? "text-danger-primary" : "text-muted");
 								},
 								get children() {
@@ -2672,7 +2715,7 @@ function ContentState(props) {
 					return props.renderAction?.() ?? (props.action ? createComponent$1(Button, {
 						size: "sm",
 						variant: "outline",
-						get ["aria-label"]() {
+						get "aria-label"() {
 							return props.action.label;
 						},
 						get onClick() {
@@ -2698,7 +2741,7 @@ function ResourceBoundary(props) {
 	const forwarded = omit(props, "loading", "error", "hasContent", "loadingTitle", "errorTitle", "emptyTitle", "loadingDescription", "emptyDescription", "retryLabel", "onRetry", "renderContent", "renderEmptyMedia", "renderErrorMedia", "class");
 	const failed = () => props.error !== void 0 && props.error !== null;
 	return createComponent$1(View, mergeProps(forwarded, {
-		get ["class"]() {
+		get "class"() {
 			return mergeClasses("w-full min-w-0 min-h-0 flex-1 flex flex-col", props.class);
 		},
 		get children() {
@@ -2894,7 +2937,7 @@ function DropdownMenu(props) {
 			return createComponent$1(View, {
 				ref: (node) => content = node,
 				role: "menu",
-				get ["aria-label"]() {
+				get "aria-label"() {
 					return props["aria-label"];
 				},
 				focusOrder: 0,
@@ -2915,16 +2958,16 @@ function DropdownMenu(props) {
 							}) : item().separatorBefore;
 						}), createComponent$1(View, {
 							role: "menuitem",
-							get ["aria-label"]() {
+							get "aria-label"() {
 								return item().label;
 							},
-							get ["aria-disabled"]() {
+							get "aria-disabled"() {
 								return item().disabled;
 							},
-							get ["aria-checked"]() {
+							get "aria-checked"() {
 								return item().checked;
 							},
-							get ["class"]() {
+							get "class"() {
 								return mergeClasses("w-full min-h-8 flex-none px-2 py-1.5 flex flex-row items-center gap-2 rounded-md", highlighted() === item().id && !item().disabled ? "bg-control-hover" : "bg-transparent", item().destructive ? "text-danger-primary" : "text-primary", componentsDisabledItemClass(item().disabled ?? false));
 							},
 							onPointerMove: () => !item().disabled && setHighlighted(item().id),
@@ -3002,7 +3045,7 @@ function ContextMenu(props) {
 	const [open, setOpen] = createSignal(false);
 	const [point, setPoint] = createSignal();
 	return createComponent$1(DropdownMenu, {
-		get ["aria-label"]() {
+		get "aria-label"() {
 			return props["aria-label"];
 		},
 		get items() {
@@ -3066,12 +3109,12 @@ function Table(props) {
 	const rest = omit(props, "class", "contentClass", "children");
 	return createComponent$1(View, mergeProps(rest, {
 		role: "table",
-		get ["class"]() {
+		get "class"() {
 			return mergeClasses("relative w-full min-w-0 overflow-x-auto overflow-y-hidden", props.class);
 		},
 		get children() {
 			return createComponent$1(View, {
-				get ["class"]() {
+				get "class"() {
 					return mergeClasses("w-full min-w-full flex-none flex flex-col text-sm", props.contentClass);
 				},
 				get children() {
@@ -3084,10 +3127,10 @@ function Table(props) {
 function TableHeader(props) {
 	return createComponent$1(View, mergeProps(props, {
 		role: "group",
-		get ["aria-label"]() {
+		get "aria-label"() {
 			return props["aria-label"] ?? "Table header";
 		},
-		get ["class"]() {
+		get "class"() {
 			return mergeClasses("w-full min-w-0 flex-none flex flex-col", props.class);
 		},
 		get children() {
@@ -3098,10 +3141,10 @@ function TableHeader(props) {
 function TableBody(props) {
 	return createComponent$1(View, mergeProps(props, {
 		role: "group",
-		get ["aria-label"]() {
+		get "aria-label"() {
 			return props["aria-label"] ?? "Table body";
 		},
-		get ["class"]() {
+		get "class"() {
 			return mergeClasses("w-full min-w-0 flex-none flex flex-col", props.class);
 		},
 		get children() {
@@ -3112,10 +3155,10 @@ function TableBody(props) {
 function TableFooter(props) {
 	return createComponent$1(View, mergeProps(props, {
 		role: "group",
-		get ["aria-label"]() {
+		get "aria-label"() {
 			return props["aria-label"] ?? "Table footer";
 		},
-		get ["class"]() {
+		get "class"() {
 			return mergeClasses("w-full min-w-0 flex-none flex flex-col border-t border-subtle bg-control", props.class);
 		},
 		get children() {
@@ -3128,10 +3171,10 @@ function TableRow(props) {
 	const rest = omit(props, "class", "selected", "children", "onPointerEnter", "onPointerLeave");
 	return createComponent$1(View, mergeProps(rest, {
 		role: "row",
-		get ["aria-selected"]() {
+		get "aria-selected"() {
 			return props.selected;
 		},
-		get ["class"]() {
+		get "class"() {
 			return mergeClasses("w-full min-w-0 min-h-11 flex-none flex flex-row items-stretch border-b border-subtle", props.selected ? "bg-selected" : "bg-surface", hover.hovered() && !props.selected ? "bg-control-hover" : void 0, props.class);
 		},
 		onPointerEnter: (event) => {
@@ -3150,7 +3193,7 @@ function TableRow(props) {
 function TableHead(props) {
 	return createComponent$1(Text, mergeProps(props, {
 		role: "columnheader",
-		get ["class"]() {
+		get "class"() {
 			return mergeClasses("min-w-32 flex-1 px-3 flex items-center whitespace-nowrap text-xs font-medium text-muted", props.class);
 		},
 		get children() {
@@ -3161,7 +3204,7 @@ function TableHead(props) {
 function TableCell(props) {
 	return createComponent$1(View, mergeProps(props, {
 		role: "cell",
-		get ["class"]() {
+		get "class"() {
 			return mergeClasses("min-w-32 flex-1 px-3 flex items-center text-sm text-primary", props.class);
 		},
 		get children() {
@@ -3174,7 +3217,7 @@ function TableCaption(props) {
 		get role() {
 			return props.role ?? "label";
 		},
-		get ["class"]() {
+		get "class"() {
 			return mergeClasses("w-full min-w-0 flex-none px-3 py-3 whitespace-normal text-sm text-muted", props.class);
 		},
 		get children() {
@@ -3193,7 +3236,7 @@ function TableSortIndicator(props) {
 			})() ? arrowUp : direction() === "desc" ? arrowDown : arrowUpDown;
 		},
 		size: 12,
-		get ["class"]() {
+		get "class"() {
 			return direction() ? "flex-none text-secondary" : "flex-none text-muted";
 		}
 	});
@@ -3201,7 +3244,7 @@ function TableSortIndicator(props) {
 /** Shadcn-style table anatomy backed by the framework-agnostic TanStack core. */
 function DataTable(props) {
 	return createComponent$1(Table, {
-		get ["aria-label"]() {
+		get "aria-label"() {
 			return props["aria-label"];
 		},
 		get children() {
@@ -3228,7 +3271,7 @@ function DataTable(props) {
 									return createComponent$1(Button$1, {
 										unstyled: true,
 										role: "columnheader",
-										get ["aria-label"]() {
+										get "aria-label"() {
 											return accessibleLabel();
 										},
 										class: "flex-1 min-w-0 px-4 justify-start gap-2 text-xs font-semibold text-secondary",
@@ -3286,7 +3329,7 @@ function DataTable(props) {
 							},
 							get fallback() {
 								return createComponent$1(TableRow, {
-									get ["aria-label"]() {
+									get "aria-label"() {
 										return `Row ${row.id}`;
 									},
 									get children() {
@@ -3298,16 +3341,16 @@ function DataTable(props) {
 								return createComponent$1(Button$1, {
 									unstyled: true,
 									role: "row",
-									get ["aria-label"]() {
+									get "aria-label"() {
 										return `Select row ${row.id}`;
 									},
-									get ["aria-selected"]() {
+									get "aria-selected"() {
 										return props.model.rowSelection()[row.id] === true;
 									},
 									get selected() {
 										return props.model.rowSelection()[row.id] === true;
 									},
-									get ["class"]() {
+									get "class"() {
 										return props.model.rowSelection()[row.id] === true ? "h-12 w-full flex border-b border-subtle bg-selected" : "h-12 w-full flex border-b border-subtle bg-surface";
 									},
 									onClick: () => row.toggleSelected(),
@@ -3468,7 +3511,7 @@ function Calendar(props) {
 		if (next) focusAvailable(next, step);
 	};
 	return createComponent$1(View, {
-		get ["aria-label"]() {
+		get "aria-label"() {
 			return props["aria-label"] ?? "Calendar";
 		},
 		class: "w-72 p-3 flex flex-col gap-3",
@@ -3480,7 +3523,7 @@ function Calendar(props) {
 						return [
 							createComponent$1(Button$1, {
 								unstyled: true,
-								get ["aria-label"]() {
+								get "aria-label"() {
 									return labels().previousMonth;
 								},
 								get disabled() {
@@ -3503,7 +3546,7 @@ function Calendar(props) {
 							}),
 							createComponent$1(Button$1, {
 								unstyled: true,
-								get ["aria-label"]() {
+								get "aria-label"() {
 									return labels().nextMonth;
 								},
 								get disabled() {
@@ -3544,13 +3587,13 @@ function Calendar(props) {
 								return createComponent$1(Button$1, {
 									ref: (node) => dayRefs.set(date().toString(), node),
 									unstyled: true,
-									get ["aria-label"]() {
+									get "aria-label"() {
 										return formatDate(date(), "full");
 									},
-									get ["aria-selected"]() {
+									get "aria-selected"() {
 										return selected();
 									},
-									get ["aria-current"]() {
+									get "aria-current"() {
 										return isSameDay(date(), systemToday()) ? "date" : void 0;
 									},
 									get focusOrder() {
@@ -3577,7 +3620,7 @@ function Calendar(props) {
 					get children() {
 						return createComponent$1(Button$1, {
 							unstyled: true,
-							get ["aria-label"]() {
+							get "aria-label"() {
 								return labels().selectToday;
 							},
 							class: "h-8 px-2 rounded-md text-sm text-accent",
@@ -3621,7 +3664,7 @@ function DatePicker(props) {
 		setOpen(false);
 	};
 	return createComponent$1(Popover$1, {
-		get ["aria-label"]() {
+		get "aria-label"() {
 			return props["aria-label"];
 		},
 		get open() {
@@ -3641,13 +3684,13 @@ function DatePicker(props) {
 			return props.motion;
 		},
 		trigger: (trigger) => createComponent$1(Button$1, mergeProps({ unstyled: true }, trigger, {
-			get ["aria-label"]() {
+			get "aria-label"() {
 				return props["aria-label"];
 			},
 			get disabled() {
 				return props.disabled;
 			},
-			get ["class"]() {
+			get "class"() {
 				return mergeClasses("w-72 justify-start border border-subtle bg-input shadow-xs", componentsControlSize("default"), props.class);
 			},
 			get children() {
@@ -3656,7 +3699,7 @@ function DatePicker(props) {
 					class: "flex-none text-muted",
 					size: 16
 				}), createComponent$1(Text, {
-					get ["class"]() {
+					get "class"() {
 						return value() ? "text-primary" : "text-muted";
 					},
 					get children() {
@@ -3670,7 +3713,7 @@ function DatePicker(props) {
 				get value() {
 					return value();
 				},
-				get ["aria-label"]() {
+				get "aria-label"() {
 					return props["aria-label"];
 				},
 				onValueChange: select
@@ -3720,7 +3763,7 @@ function Collapsible(props) {
 		value: context,
 		get children() {
 			return createComponent$1(View, mergeProps(rest, {
-				get ["class"]() {
+				get "class"() {
 					return mergeClasses("flex flex-col", props.class);
 				},
 				get children() {
@@ -3738,10 +3781,10 @@ function CollapsibleTrigger(props) {
 		get disabled() {
 			return context.disabled() || props.disabled;
 		},
-		get ["aria-expanded"]() {
+		get "aria-expanded"() {
 			return context.open();
 		},
-		get ["class"]() {
+		get "class"() {
 			return mergeClasses("w-full min-h-7 flex items-center justify-between gap-3", props.class);
 		},
 		onClick: (event) => {
@@ -3836,7 +3879,7 @@ function Accordion(props) {
 		value: context,
 		get children() {
 			return createComponent$1(View, mergeProps(rest, {
-				get ["class"]() {
+				get "class"() {
 					return mergeClasses("flex flex-col", props.class);
 				},
 				get children() {
@@ -3857,7 +3900,7 @@ function AccordionItem(props) {
 		},
 		get children() {
 			return createComponent$1(View, mergeProps(rest, {
-				get ["class"]() {
+				get "class"() {
 					return mergeClasses("flex flex-col border-b border-subtle", props.class);
 				},
 				get children() {
@@ -3879,10 +3922,10 @@ function AccordionTrigger(props) {
 		get disabled() {
 			return root.disabled() || item.disabled() || props.disabled;
 		},
-		get ["aria-expanded"]() {
+		get "aria-expanded"() {
 			return open();
 		},
-		get ["class"]() {
+		get "class"() {
 			return mergeClasses("w-full py-4 flex items-center justify-between gap-4", props.class);
 		},
 		ref: (node) => {
@@ -3968,10 +4011,10 @@ function DiffViewer(props) {
 	const deletions = () => props.files.reduce((total, file) => total + file.deletions, 0);
 	return createComponent$1(View, {
 		role: "region",
-		get ["aria-label"]() {
+		get "aria-label"() {
 			return labels().technicalDetails;
 		},
-		get ["class"]() {
+		get "class"() {
 			return mergeClasses("min-w-0 flex flex-col rounded-xl border border-subtle bg-surface overflow-hidden", props.class);
 		},
 		get children() {
@@ -4036,7 +4079,7 @@ function DiffViewer(props) {
 									class: "px-4",
 									get children() {
 										return [createComponent$1(AccordionTrigger, {
-											get ["aria-label"]() {
+											get "aria-label"() {
 												return file.path;
 											},
 											class: "py-3 gap-3",
@@ -4047,7 +4090,7 @@ function DiffViewer(props) {
 														return [
 															createComponent$1(View, {
 																"aria-hidden": "true",
-																get ["class"]() {
+																get "class"() {
 																	return mergeClasses("w-6 h-6 flex-none rounded flex items-center justify-center", statusClasses[file.status]);
 																},
 																get children() {
@@ -4086,7 +4129,7 @@ function DiffViewer(props) {
 																class: "flex-none flex flex-row items-center gap-2",
 																get children() {
 																	return [createComponent$1(Text, {
-																		get ["aria-label"]() {
+																		get "aria-label"() {
 																			return labels().additions(file.additions);
 																		},
 																		class: "text-xs text-success-primary",
@@ -4096,7 +4139,7 @@ function DiffViewer(props) {
 																			})];
 																		}
 																	}), createComponent$1(Text, {
-																		get ["aria-label"]() {
+																		get "aria-label"() {
 																			return labels().deletions(file.deletions);
 																		},
 																		class: "text-xs text-danger-primary",
@@ -4121,7 +4164,7 @@ function DiffViewer(props) {
 													get value() {
 														return file.patch;
 													},
-													get ["aria-label"]() {
+													get "aria-label"() {
 														return `${labels().technicalDetails}: ${file.path}`;
 													},
 													class: "h-64 w-full rounded-lg border border-strong bg-input text-primary"
@@ -4157,13 +4200,13 @@ function useDirection() {
 }
 function DirectionalRow(props) {
 	const direction = () => useDirection();
-	return createComponent$1(View, mergeProps(props, { get ["class"]() {
+	return createComponent$1(View, mergeProps(props, { get "class"() {
 		return mergeClasses("flex", direction() === "rtl" ? "flex-row-reverse" : "flex-row", props.class);
 	} }));
 }
 function DirectionalText(props) {
 	const direction = () => useDirection();
-	return createComponent$1(Text, mergeProps(props, { get ["class"]() {
+	return createComponent$1(Text, mergeProps(props, { get "class"() {
 		return mergeClasses(direction() === "rtl" ? "text-right" : "text-left", props.class);
 	} }));
 }
@@ -4185,10 +4228,10 @@ function Label(props) {
 	const rest = omit(props, "class", "children", "disabled", "control", "onClick");
 	return createComponent$1(Text, mergeProps(rest, {
 		role: "label",
-		get ["aria-disabled"]() {
+		get "aria-disabled"() {
 			return props.disabled;
 		},
-		get ["class"]() {
+		get "class"() {
 			return mergeClasses("min-w-0 text-sm font-medium text-primary", props.disabled ? "" : "cursor-pointer", props.class, componentsDisabledInteractiveClass(props.disabled ?? false));
 		},
 		onClick: (event) => {
@@ -4222,16 +4265,16 @@ function Field(props) {
 		get children() {
 			return createComponent$1(View, {
 				role: "group",
-				get ["aria-orientation"]() {
+				get "aria-orientation"() {
 					return context.orientation();
 				},
-				get ["aria-invalid"]() {
+				get "aria-invalid"() {
 					return context.invalid();
 				},
-				get ["aria-required"]() {
+				get "aria-required"() {
 					return context.required();
 				},
-				get ["class"]() {
+				get "class"() {
 					return fieldClass(context.orientation(), context.invalid(), props.class);
 				},
 				get children() {
@@ -4244,7 +4287,7 @@ function Field(props) {
 function FieldSet(props) {
 	return createComponent$1(View, {
 		role: "group",
-		get ["class"]() {
+		get "class"() {
 			return mergeClasses("w-full min-w-0 flex flex-col gap-6", props.class);
 		},
 		get children() {
@@ -4255,7 +4298,7 @@ function FieldSet(props) {
 function FieldLegend(props) {
 	return createComponent$1(Text, {
 		role: "heading",
-		get ["class"]() {
+		get "class"() {
 			return mergeClasses("mb-1 font-medium text-primary", props.variant === "label" ? "text-sm" : "text-base", props.class);
 		},
 		get children() {
@@ -4265,7 +4308,7 @@ function FieldLegend(props) {
 }
 function FieldGroup(props) {
 	return createComponent$1(View, {
-		get ["class"]() {
+		get "class"() {
 			return mergeClasses("flex flex-col gap-4", props.class);
 		},
 		get children() {
@@ -4277,12 +4320,12 @@ function FieldLabel(props) {
 	const field = useContext(FieldContext);
 	const forwarded = omit(props, "class", "children");
 	return createComponent$1(View, {
-		get ["class"]() {
+		get "class"() {
 			return mergeClasses("min-w-0 flex flex-row items-center gap-1", field.orientation() === "horizontal" ? "w-36 flex-none" : "w-full");
 		},
 		get children() {
 			return [createComponent$1(Label, mergeProps(forwarded, {
-				get ["class"]() {
+				get "class"() {
 					return mergeClasses("min-w-0 flex-1", field.invalid() && "text-danger-primary", props.class);
 				},
 				get children() {
@@ -4317,7 +4360,7 @@ function LabeledField(props) {
 		get required() {
 			return props.required;
 		},
-		get ["class"]() {
+		get "class"() {
 			return props.class;
 		},
 		get children() {
@@ -4365,7 +4408,7 @@ function LabeledField(props) {
 }
 function FieldTitle(props) {
 	return createComponent$1(Text, {
-		get ["class"]() {
+		get "class"() {
 			return mergeClasses("text-sm font-medium text-primary", props.class);
 		},
 		get children() {
@@ -4375,7 +4418,7 @@ function FieldTitle(props) {
 }
 function FieldContent(props) {
 	return createComponent$1(View, {
-		get ["class"]() {
+		get "class"() {
 			return mergeClasses("min-w-0 flex-1 flex flex-col gap-1", props.class);
 		},
 		get children() {
@@ -4385,7 +4428,7 @@ function FieldContent(props) {
 }
 function FieldDescription(props) {
 	return createComponent$1(Text, {
-		get ["class"]() {
+		get "class"() {
 			return mergeClasses("w-full min-w-0 whitespace-normal text-xs text-muted", props.class);
 		},
 		get children() {
@@ -4406,10 +4449,10 @@ function FieldError(props) {
 	const label = () => fieldErrorLabel(props["aria-label"], props.children, messages());
 	return createComponent$1(View, {
 		role: "alert",
-		get ["aria-label"]() {
+		get "aria-label"() {
 			return label();
 		},
-		get ["class"]() {
+		get "class"() {
 			return mergeClasses("w-full min-w-0 flex flex-col gap-1", props.class);
 		},
 		get children() {
@@ -4444,7 +4487,7 @@ function FieldError(props) {
 }
 function FieldSeparator(props) {
 	return createComponent$1(View, {
-		get ["class"]() {
+		get "class"() {
 			return mergeClasses("w-full min-w-0 h-5 flex items-center gap-2", props.class);
 		},
 		get children() {
@@ -4504,14 +4547,14 @@ function InputGroup(props) {
 				get role() {
 					return props.role ?? "group";
 				},
-				get ["aria-invalid"]() {
+				get "aria-invalid"() {
 					return props.invalid;
 				},
-				get ["aria-disabled"]() {
+				get "aria-disabled"() {
 					return props.disabled;
 				},
 				"data-wabou-owns": "surface focus-ring",
-				get ["class"]() {
+				get "class"() {
 					return mergeClasses(inputGroupClass(props.orientation ?? "horizontal", focus.focusWithin(), props.invalid ?? false, props.variant ?? "default"), props.surfaceClass ?? (props.variant === "quiet" ? "bg-transparent" : "bg-input"), props.class, componentsDisabledControlClass(props.disabled ?? false));
 				},
 				get children() {
@@ -4529,7 +4572,7 @@ function InputGroupInput(props) {
 			props.ref?.(node);
 		},
 		chrome: "none",
-		get ["class"]() {
+		get "class"() {
 			return mergeClasses("h-full flex-1 min-w-0", props.class);
 		}
 	}));
@@ -4544,7 +4587,7 @@ function InputGroupAddon(props) {
 		get role() {
 			return props.role ?? "group";
 		},
-		get ["class"]() {
+		get "class"() {
 			return mergeClasses(inputGroupAddonClass(props.align ?? "inline-start"), props.class);
 		},
 		onClick: (event) => {
@@ -4555,7 +4598,7 @@ function InputGroupAddon(props) {
 }
 function InputGroupText(props) {
 	return createComponent$1(Text, {
-		get ["class"]() {
+		get "class"() {
 			return mergeClasses("flex-none text-sm text-muted", props.class);
 		},
 		get children() {
@@ -4571,7 +4614,7 @@ function InputGroupButton(props) {
 		get variant() {
 			return props.variant ?? "ghost";
 		},
-		get ["class"]() {
+		get "class"() {
 			return mergeClasses("mx-1", props.class);
 		}
 	}));
@@ -4584,7 +4627,7 @@ function InputGroupTextArea(props) {
 			props.ref?.(node);
 		},
 		"data-wabou-owns": "native-editor",
-		get ["class"]() {
+		get "class"() {
 			return mergeClasses("w-full h-24 px-3 py-2 text-sm text-primary", props.class);
 		}
 	}));
@@ -4614,12 +4657,12 @@ function DirectoryPicker(props) {
 		get disabled() {
 			return Boolean(inputProps.disabled) || selection.pending();
 		},
-		get ["class"]() {
+		get "class"() {
 			return local.class;
 		},
 		get children() {
 			return [createComponent$1(InputGroupInput, mergeProps(inputProps, {
-				get ["class"]() {
+				get "class"() {
 					return local.inputClass;
 				},
 				get value() {
@@ -4627,13 +4670,13 @@ function DirectoryPicker(props) {
 				},
 				onInput: (event) => local.onValueChange(event.currentTarget.value)
 			})), createComponent$1(InputGroupButton, {
-				get ["class"]() {
+				get "class"() {
 					return mergeClasses("flex-none", local.buttonClass);
 				},
 				get disabled() {
 					return Boolean(inputProps.disabled) || selection.pending();
 				},
-				get ["aria-label"]() {
+				get "aria-label"() {
 					return local.browseAriaLabel ?? local.browseLabel ?? "Browse directory";
 				},
 				onClick: () => void browse(),
@@ -4824,13 +4867,13 @@ function DrawerHandle(props) {
 	const indicator = () => match(drawer.direction()).with("left", "right", () => "w-1.5 h-20").with("top", "bottom", () => "w-20 h-1.5").exhaustive();
 	return createComponent$1(View, mergeProps(forwarded, {
 		role: "button",
-		get ["aria-label"]() {
+		get "aria-label"() {
 			return props["aria-label"] ?? "Drag or click to close drawer";
 		},
 		get focusOrder() {
 			return props.focusOrder ?? 0;
 		},
-		get ["class"]() {
+		get "class"() {
 			return mergeClasses("flex flex-none items-center justify-center", hitArea(), props.class);
 		},
 		onPointerDown: (event) => {
@@ -4863,7 +4906,7 @@ function DrawerHandle(props) {
 		get children() {
 			return createComponent$1(View, {
 				"aria-hidden": "true",
-				get ["class"]() {
+				get "class"() {
 					return mergeClasses("pointer-events-none rounded-full bg-strong", indicator());
 				}
 			});
@@ -4871,22 +4914,22 @@ function DrawerHandle(props) {
 	}));
 }
 function DrawerHeader(props) {
-	return createComponent$1(View, mergeProps(props, { get ["class"]() {
+	return createComponent$1(View, mergeProps(props, { get "class"() {
 		return mergeClasses("flex flex-col gap-1 p-5", props.class);
 	} }));
 }
 function DrawerFooter(props) {
-	return createComponent$1(View, mergeProps(props, { get ["class"]() {
+	return createComponent$1(View, mergeProps(props, { get "class"() {
 		return mergeClasses("mt-auto flex flex-col gap-2 p-5", props.class);
 	} }));
 }
 function DrawerTitle(props) {
-	return createComponent$1(Text, mergeProps(props, { get ["class"]() {
+	return createComponent$1(Text, mergeProps(props, { get "class"() {
 		return mergeClasses("text-lg font-semibold text-primary", props.class);
 	} }));
 }
 function DrawerDescription(props) {
-	return createComponent$1(Text, mergeProps(props, { get ["class"]() {
+	return createComponent$1(Text, mergeProps(props, { get "class"() {
 		return mergeClasses("whitespace-normal text-sm text-muted", props.class);
 	} }));
 }
@@ -4950,19 +4993,19 @@ function DropZone(props) {
 			target = node;
 		},
 		role: "group",
-		get ["aria-label"]() {
+		get "aria-label"() {
 			return props.label ?? "Drop files";
 		},
-		get ["aria-disabled"]() {
+		get "aria-disabled"() {
 			return props.disabled ? "true" : void 0;
 		},
-		get ["class"]() {
+		get "class"() {
 			return mergeClasses("w-full min-w-0 min-h-36 px-6 py-5 flex flex-col items-center justify-center gap-3 rounded-xl border-2 text-center", isActive ? "border-accent bg-selected" : "border-strong bg-input", props.class, componentsDisabledControlClass(props.disabled ?? false));
 		},
 		get children() {
 			return [
 				createComponent$1(View, {
-					get ["class"]() {
+					get "class"() {
 						return mergeClasses("w-10 h-10 flex-none items-center justify-center rounded-lg", isActive ? "bg-accent text-on-accent" : "bg-control text-secondary");
 					},
 					get children() {
@@ -5010,7 +5053,7 @@ function emptyClass(variant = "surface", className) {
 function Empty(props) {
 	const rest = omit(props, "variant", "class", "children");
 	return createComponent$1(Column, mergeProps(rest, {
-		get ["class"]() {
+		get "class"() {
 			return emptyClass(props.variant, props.class);
 		},
 		get children() {
@@ -5020,7 +5063,7 @@ function Empty(props) {
 }
 function EmptyHeader(props) {
 	return createComponent$1(Column, mergeProps(props, {
-		get ["class"]() {
+		get "class"() {
 			return mergeClasses("w-full max-w-sm min-w-0 items-center gap-2", props.class);
 		},
 		get children() {
@@ -5034,7 +5077,7 @@ function emptyMediaClass(variant = "default", className) {
 function EmptyMedia(props) {
 	const rest = omit(props, "variant", "class", "children");
 	return createComponent$1(View, mergeProps(rest, {
-		get ["class"]() {
+		get "class"() {
 			return emptyMediaClass(props.variant, props.class);
 		},
 		get children() {
@@ -5047,7 +5090,7 @@ function EmptyTitle(props) {
 		get role() {
 			return props.role ?? "heading";
 		},
-		get ["class"]() {
+		get "class"() {
 			return mergeClasses("text-lg font-medium text-primary", props.class);
 		},
 		get children() {
@@ -5060,7 +5103,7 @@ function EmptyDescription(props) {
 		get maxLines() {
 			return props.maxLines ?? 2;
 		},
-		get ["class"]() {
+		get "class"() {
 			return mergeClasses("w-full min-h-10 min-w-0 whitespace-normal text-center text-sm text-muted", props.class);
 		},
 		get children() {
@@ -5070,7 +5113,7 @@ function EmptyDescription(props) {
 }
 function EmptyContent(props) {
 	return createComponent$1(View, mergeProps(props, {
-		get ["class"]() {
+		get "class"() {
 			return mergeClasses("w-full max-w-sm min-w-0 flex flex-col items-center gap-4 text-sm", props.class);
 		},
 		get children() {
@@ -5092,10 +5135,10 @@ function GroupBox(props) {
 		get role() {
 			return props.role ?? "group";
 		},
-		get ["aria-label"]() {
+		get "aria-label"() {
 			return label();
 		},
-		get ["class"]() {
+		get "class"() {
 			return mergeClasses("w-full min-w-0 flex flex-col", variant() === "normal" ? "gap-4" : "gap-3", props.class);
 		},
 		get children() {
@@ -5107,7 +5150,7 @@ function GroupBox(props) {
 				},
 				get children() {
 					return createComponent$1(View, {
-						get ["class"]() {
+						get "class"() {
 							return mergeClasses("w-full min-w-0 flex flex-col gap-1", props.headerClass);
 						},
 						get children() {
@@ -5145,7 +5188,7 @@ function GroupBox(props) {
 					});
 				}
 			}), createComponent$1(View, {
-				get ["class"]() {
+				get "class"() {
 					return groupBoxContentClass(variant(), props.contentClass);
 				},
 				get children() {
@@ -5215,7 +5258,7 @@ function HoverCard(props) {
 		onOpenChange: (next) => {
 			if (!next) delay.closeNow();
 		},
-		get ["aria-label"]() {
+		get "aria-label"() {
 			return props["aria-label"];
 		},
 		get placement() {
@@ -5287,7 +5330,7 @@ function IconFrame(props) {
 	const size = () => props.size ?? "default";
 	return createComponent$1(Center, mergeProps(rest, {
 		role: "presentation",
-		get ["class"]() {
+		get "class"() {
 			return mergeClasses("flex-none", frameSizeClass(size()), variantClass(props.variant ?? "plain", props.tone ?? "neutral"), props.class);
 		},
 		get children() {
@@ -5304,7 +5347,7 @@ function IconFrame(props) {
 				get label() {
 					return props.label;
 				},
-				get ["class"]() {
+				get "class"() {
 					return props.iconClass;
 				}
 			});
@@ -5343,7 +5386,7 @@ function ImageList(props) {
 		thumbnailHeight: finitePositive(props.thumbnailHeight ?? 72, "thumbnailHeight")
 	}));
 	return createComponent$1(View, {
-		get ["class"]() {
+		get "class"() {
 			return mergeClasses("min-w-0 min-h-0 overflow-hidden", config.class);
 		},
 		get style() {
@@ -5378,10 +5421,10 @@ function ImageList(props) {
 					return createComponent$1(Button$1, {
 						unstyled: true,
 						role: "option",
-						get ["aria-label"]() {
+						get "aria-label"() {
 							return label();
 						},
-						get ["aria-selected"]() {
+						get "aria-selected"() {
 							return selected();
 						},
 						get selected() {
@@ -5411,7 +5454,7 @@ function ImageList(props) {
 													get resource() {
 														return resource();
 													},
-													get ["aria-label"]() {
+													get "aria-label"() {
 														return label();
 													},
 													class: "w-full h-full",
@@ -5553,7 +5596,7 @@ function ImageViewport(props) {
 				get role() {
 					return props.role ?? "group";
 				},
-				get ["class"]() {
+				get "class"() {
 					return mergeClasses("relative min-w-0 min-h-0 overflow-hidden bg-control", props.class);
 				},
 				onPointerDown: (event) => {
@@ -5589,7 +5632,7 @@ function ImageViewport(props) {
 								get resource() {
 									return props.resource;
 								},
-								get ["aria-label"]() {
+								get "aria-label"() {
 									return props.imageLabel ?? "Image";
 								},
 								class: "w-full h-full",
@@ -5738,7 +5781,7 @@ function AnnotationLayer(props) {
 		get role() {
 			return props.role ?? "group";
 		},
-		get ["class"]() {
+		get "class"() {
 			return mergeClasses("absolute inset-0", props.class);
 		},
 		get classList() {
@@ -5766,14 +5809,14 @@ function AnnotationLayer(props) {
 				},
 				children: (region) => createComponent$1(View, {
 					role: "button",
-					get ["aria-label"]() {
+					get "aria-label"() {
 						return region.label ?? `Annotation ${region.id}`;
 					},
-					get ["aria-pressed"]() {
+					get "aria-pressed"() {
 						return selected() === region.id;
 					},
 					focusOrder: 0,
-					get ["class"]() {
+					get "class"() {
 						return mergeClasses("absolute border-2 bg-transparent cursor-move", selected() === region.id ? "border-accent" : "border-strong");
 					},
 					get style() {
@@ -5786,7 +5829,7 @@ function AnnotationLayer(props) {
 					get children() {
 						return createComponent$1(View, {
 							role: "button",
-							get ["aria-label"]() {
+							get "aria-label"() {
 								return `Resize ${region.label ?? region.id}`;
 							},
 							class: "absolute w-7 h-7 flex items-center justify-center bg-transparent cursor-pointer",
@@ -5841,7 +5884,7 @@ function ImageOverlayLayer(props) {
 	};
 	const rest = omit(props, "items", "children");
 	return createComponent$1(View, mergeProps(rest, {
-		get ["class"]() {
+		get "class"() {
 			return mergeClasses("absolute inset-0 pointer-events-none", props.class);
 		},
 		get children() {
@@ -5891,7 +5934,7 @@ function InlineEdit(props) {
 		props.onCancel?.();
 	};
 	return createComponent$1(View, {
-		get ["class"]() {
+		get "class"() {
 			return mergeClasses("min-w-0", props.class);
 		},
 		get children() {
@@ -5901,10 +5944,10 @@ function InlineEdit(props) {
 				ref: (node) => {
 					node.focus();
 				},
-				get ["aria-label"]() {
+				get "aria-label"() {
 					return props["aria-label"];
 				},
-				get ["class"]() {
+				get "class"() {
 					return mergeClasses("min-w-0", props.inputClass);
 				},
 				get value() {
@@ -5929,10 +5972,10 @@ function InlineEdit(props) {
 				get disabled() {
 					return props.disabled;
 				},
-				get ["aria-label"]() {
+				get "aria-label"() {
 					return `Edit ${props["aria-label"]}`;
 				},
-				get ["class"]() {
+				get "class"() {
 					return mergeClasses("h-8 max-w-full min-w-0 px-2 justify-start gap-2", props.displayClass);
 				},
 				onClick: begin,
@@ -5983,10 +6026,10 @@ function InputOTP(props) {
 		get children() {
 			return createComponent$1(View, {
 				role: "group",
-				get ["aria-label"]() {
+				get "aria-label"() {
 					return props["aria-label"];
 				},
-				get ["class"]() {
+				get "class"() {
 					return mergeClasses("relative inline-flex flex-none items-center gap-2", props.class, componentsDisabledInteractiveClass(props.disabled ?? false));
 				},
 				get children() {
@@ -5997,7 +6040,7 @@ function InputOTP(props) {
 							var _ref$ = props.ref;
 							typeof _ref$ === "function" || Array.isArray(_ref$) ? applyRef(_ref$, r$) : props.ref = r$;
 						},
-						get ["aria-label"]() {
+						get "aria-label"() {
 							return props["aria-label"];
 						},
 						get value() {
@@ -6009,7 +6052,7 @@ function InputOTP(props) {
 						get readOnly() {
 							return props.readOnly;
 						},
-						get ["class"]() {
+						get "class"() {
 							return mergeClasses("absolute inset-0 w-full h-full z-10 opacity-0", props.inputClass);
 						},
 						onFocus: () => setFocused(true),
@@ -6030,7 +6073,7 @@ function InputOTP(props) {
 function InputOTPGroup(props) {
 	return createComponent$1(View, mergeProps(props, {
 		"aria-hidden": "true",
-		get ["class"]() {
+		get "class"() {
 			return mergeClasses("flex flex-none items-center gap-1", props.class);
 		},
 		get children() {
@@ -6044,7 +6087,7 @@ function InputOTPSlot(props) {
 	const character = () => context.value()[props.index];
 	const active = () => context.focused() && props.index === Math.min(context.value().length, context.maxLength() - 1);
 	return createComponent$1(View, mergeProps(forwarded, {
-		get ["class"]() {
+		get "class"() {
 			return mergeClasses("relative w-9 h-9 flex-none flex items-center justify-center rounded-lg border bg-input text-sm text-primary shadow-xs", active() ? "border-focus" : "border-subtle", props.class);
 		},
 		get children() {
@@ -6076,7 +6119,7 @@ function InputOTPSlot(props) {
 function InputOTPSeparator(props) {
 	return createComponent$1(View, mergeProps(props, {
 		"aria-hidden": "true",
-		get ["class"]() {
+		get "class"() {
 			return mergeClasses("w-5 h-9 flex-none flex items-center justify-center", props.class);
 		},
 		get children() {
@@ -6102,13 +6145,13 @@ function Item(props) {
 		get role() {
 			return props.role ?? "listitem";
 		},
-		get ["aria-selected"]() {
+		get "aria-selected"() {
 			return props.selected;
 		},
 		get interactionBlocked() {
 			return props.disabled || props.interactionBlocked;
 		},
-		get ["class"]() {
+		get "class"() {
 			return itemClass(props.variant, props.size, mergeClasses(props.selected && "border-strong bg-selected", props.class, componentsDisabledInteractiveClass(props.disabled ?? false)));
 		},
 		get style() {
@@ -6124,7 +6167,7 @@ function ItemGroup(props) {
 		get role() {
 			return props.role ?? "list";
 		},
-		get ["class"]() {
+		get "class"() {
 			return mergeClasses("w-full min-w-0 flex flex-col", props.class);
 		},
 		get children() {
@@ -6135,7 +6178,7 @@ function ItemGroup(props) {
 function ItemSeparator(props) {
 	return createComponent$1(View, {
 		"aria-hidden": "true",
-		get ["class"]() {
+		get "class"() {
 			return mergeClasses("w-full h-px flex-none bg-subtle", props.class);
 		}
 	});
@@ -6145,7 +6188,7 @@ function itemMediaClass(variant = "default", className) {
 }
 function ItemMedia(props) {
 	return createComponent$1(View, {
-		get ["class"]() {
+		get "class"() {
 			return itemMediaClass(props.variant, props.class);
 		},
 		get children() {
@@ -6155,7 +6198,7 @@ function ItemMedia(props) {
 }
 function ItemContent(props) {
 	return createComponent$1(View, mergeProps(props, {
-		get ["class"]() {
+		get "class"() {
 			return mergeClasses("flex-1 min-w-0 flex flex-col gap-1", props.class);
 		},
 		get children() {
@@ -6168,7 +6211,7 @@ function ItemTitle(props) {
 		get maxLines() {
 			return props.maxLines ?? 1;
 		},
-		get ["class"]() {
+		get "class"() {
 			return mergeClasses("min-w-0 truncate text-sm font-medium text-primary", props.class);
 		},
 		get children() {
@@ -6181,7 +6224,7 @@ function ItemDescription(props) {
 		get maxLines() {
 			return props.maxLines ?? 2;
 		},
-		get ["class"]() {
+		get "class"() {
 			return mergeClasses("w-full min-w-0 whitespace-normal text-sm text-muted", props.class);
 		},
 		get children() {
@@ -6191,7 +6234,7 @@ function ItemDescription(props) {
 }
 function ItemActions(props) {
 	return createComponent$1(View, mergeProps(props, {
-		get ["class"]() {
+		get "class"() {
 			return mergeClasses("flex-none flex items-center gap-2", props.class);
 		},
 		get children() {
@@ -6201,7 +6244,7 @@ function ItemActions(props) {
 }
 function ItemHeader(props) {
 	return createComponent$1(View, mergeProps(props, {
-		get ["class"]() {
+		get "class"() {
 			return mergeClasses("w-full min-w-0 flex items-center justify-between gap-2", props.class);
 		},
 		get children() {
@@ -6271,7 +6314,7 @@ function ResponsiveGrid(props) {
 						...props.style
 					};
 				},
-				get ["class"]() {
+				get "class"() {
 					return mergeClasses("w-full min-w-0 grid", responsiveGridColumnClass(columns()), props.class);
 				},
 				get children() {
@@ -6291,7 +6334,7 @@ function ResponsiveGridRemainder(props) {
 		},
 		children: () => createComponent$1(View, {
 			"aria-hidden": true,
-			get ["class"]() {
+			get "class"() {
 				return mergeClasses("min-w-0", props.class);
 			}
 		})
@@ -6305,7 +6348,7 @@ function ResponsiveGridRemainder(props) {
 */
 function SplitPane(props) {
 	return createComponent$1(View, {
-		get ["class"]() {
+		get "class"() {
 			return mergeClasses("w-full min-w-0 flex flex-row overflow-hidden", props.class);
 		},
 		get children() {
@@ -6315,7 +6358,7 @@ function SplitPane(props) {
 }
 function SplitPaneMain(props) {
 	return createComponent$1(View, {
-		get ["class"]() {
+		get "class"() {
 			return mergeClasses("flex-1 min-w-0 overflow-hidden", props.class);
 		},
 		get children() {
@@ -6325,7 +6368,7 @@ function SplitPaneMain(props) {
 }
 function SplitPaneAside(props) {
 	return createComponent$1(View, {
-		get ["class"]() {
+		get "class"() {
 			return mergeClasses("flex-none min-w-0 overflow-hidden", props.class);
 		},
 		get children() {
@@ -6353,13 +6396,13 @@ function AdaptiveSplitPane(props) {
 					typeof _ref$ === "function" || Array.isArray(_ref$) ? applyRef(_ref$, r$) : measured.ref = r$;
 				},
 				role: "group",
-				get ["aria-label"]() {
+				get "aria-label"() {
 					return props["aria-label"];
 				},
 				class: "w-full h-full min-w-0 min-h-0",
 				get children() {
 					return createComponent$1(SplitPane, {
-						get ["class"]() {
+						get "class"() {
 							return mergeClasses("h-full", props.class);
 						},
 						get children() {
@@ -6373,7 +6416,7 @@ function AdaptiveSplitPane(props) {
 }
 function AdaptiveSplitPaneMain(props) {
 	return createComponent$1(SplitPaneMain, {
-		get ["class"]() {
+		get "class"() {
 			return props.class;
 		},
 		get children() {
@@ -6389,7 +6432,7 @@ function AdaptiveSplitPaneDetail(props) {
 		},
 		get fallback() {
 			return createComponent$1(SplitPaneAside, {
-				get ["class"]() {
+				get "class"() {
 					return props.class;
 				},
 				get children() {
@@ -6403,7 +6446,7 @@ function AdaptiveSplitPaneDetail(props) {
 					return props.open;
 				},
 				onOpenChange: (open) => props.onOpenChange(open),
-				get ["aria-label"]() {
+				get "aria-label"() {
 					return props["aria-label"];
 				},
 				get contentClass() {
@@ -6470,7 +6513,7 @@ function Listbox(props) {
 	const itemHeight = () => Math.max(24, props.itemHeight ?? 40);
 	const viewportHeight = () => Math.max(1, props.viewportHeight ?? visibleItems() * itemHeight());
 	return createComponent$1(ScrollArea, {
-		get ["class"]() {
+		get "class"() {
 			return mergeClasses("w-full", props.fill ? "min-h-0 flex-1" : "flex-none", props.class);
 		},
 		get contentClass() {
@@ -6488,10 +6531,10 @@ function Listbox(props) {
 					typeof _ref$ === "function" || Array.isArray(_ref$) ? applyRef(_ref$, r$) : props.ref = r$;
 				},
 				role: "listbox",
-				get ["aria-label"]() {
+				get "aria-label"() {
 					return props["aria-label"];
 				},
-				get ["aria-activedescendant"]() {
+				get "aria-activedescendant"() {
 					return highlighted();
 				},
 				focusOrder: 0,
@@ -6519,16 +6562,16 @@ function Listbox(props) {
 									return option().value;
 								},
 								role: "option",
-								get ["aria-label"]() {
+								get "aria-label"() {
 									return option().accessibilityLabel ?? option().label;
 								},
-								get ["aria-selected"]() {
+								get "aria-selected"() {
 									return selected();
 								},
-								get ["aria-disabled"]() {
+								get "aria-disabled"() {
 									return option().disabled;
 								},
-								get ["class"]() {
+								get "class"() {
 									return mergeClasses("w-full min-h-8 px-2 py-1 flex-none flex flex-row items-center gap-2 rounded-md", active() && !option().disabled ? "bg-control-hover text-primary" : "bg-transparent text-secondary", props.itemClass, componentsDisabledItemClass(option().disabled ?? false));
 								},
 								get style() {
@@ -6915,15 +6958,15 @@ function Separator(props) {
 		get role() {
 			return decorative() ? "presentation" : "separator";
 		},
-		get ["aria-hidden"]() {
+		get "aria-hidden"() {
 			return decorative() ? "true" : void 0;
 		},
-		get ["aria-orientation"]() {
+		get "aria-orientation"() {
 			return memo(() => {
 				return !!decorative();
 			})() ? void 0 : orientation();
 		},
-		get ["class"]() {
+		get "class"() {
 			return mergeClasses("flex-none bg-subtle", dimensions(), props.class);
 		}
 	}));
@@ -6937,7 +6980,7 @@ function Separator(props) {
 function LabeledSeparator(props) {
 	const rest = omit(props, "class", "children");
 	return createComponent$1(View, mergeProps(rest, {
-		get ["class"]() {
+		get "class"() {
 			return mergeClasses("w-full min-w-0 h-7 flex flex-row items-center gap-3", props.class);
 		},
 		get children() {
@@ -6961,7 +7004,7 @@ function runClass(run) {
 }
 function InlineMarkdown(props) {
 	return createComponent$1(RichText, {
-		get ["class"]() {
+		get "class"() {
 			return mergeClasses("min-w-0 whitespace-normal", props.variant === "conversation" ? "text-base leading-relaxed text-primary" : props.variant === "prompt" ? "text-sm leading-relaxed text-primary" : "text-base leading-relaxed text-secondary", props.class);
 		},
 		get children() {
@@ -6988,10 +7031,10 @@ function MarkdownSpan(props) {
 		reducedValue: 1
 	}).value : () => 1;
 	return createComponent$1(RichTextSpan, {
-		get ["class"]() {
+		get "class"() {
 			return runClass(props.run);
 		},
-		get ["data-motion"]() {
+		get "data-motion"() {
 			return props.reveal ? "markdown-stream-reveal" : void 0;
 		},
 		get style() {
@@ -7025,7 +7068,7 @@ function Heading(props) {
 		get variant() {
 			return props.variant;
 		},
-		get ["class"]() {
+		get "class"() {
 			return className();
 		},
 		get animateRun() {
@@ -7054,7 +7097,7 @@ function MarkdownBlocks(props) {
 }
 function MarkdownList(props) {
 	return createComponent$1(View, {
-		get ["class"]() {
+		get "class"() {
 			return props.variant === "conversation" || props.variant === "prompt" ? "flex flex-col gap-1.5" : "flex flex-col gap-2";
 		},
 		get children() {
@@ -7067,7 +7110,7 @@ function MarkdownList(props) {
 					get children() {
 						return [createComponent$1(Text, {
 							"aria-hidden": "true",
-							get ["class"]() {
+							get "class"() {
 								return mergeClasses("flex-none leading-relaxed text-secondary", props.variant === "prompt" ? "text-sm" : "text-base");
 							},
 							get children() {
@@ -7109,14 +7152,14 @@ function MarkdownTable(props) {
 					return rows();
 				},
 				children: (row, rowIndex) => createComponent$1(View, {
-					get ["class"]() {
+					get "class"() {
 						return mergeClasses("min-w-0 flex flex-row border-b border-subtle", rowIndex() === 0 ? "bg-control" : "bg-surface");
 					},
 					get children() {
 						return createComponent$1(For, {
 							each: row,
 							children: (runs, columnIndex) => createComponent$1(View, {
-								get ["class"]() {
+								get "class"() {
 									return mergeClasses("min-w-0 flex-1", props.variant === "document" ? "px-3 py-2" : "px-2 py-1.5", columnIndex() + 1 < row.length && "border-r border-subtle");
 								},
 								get children() {
@@ -7125,7 +7168,7 @@ function MarkdownTable(props) {
 										get variant() {
 											return props.variant;
 										},
-										get ["class"]() {
+										get "class"() {
 											return mergeClasses(props.block.align[columnIndex()] === "center" && "text-center", props.block.align[columnIndex()] === "right" && "text-right");
 										},
 										get animateRun() {
@@ -7328,10 +7371,10 @@ function Markdown(props) {
 	};
 	return createComponent$1(View, {
 		role: "region",
-		get ["aria-label"]() {
+		get "aria-label"() {
 			return props["aria-label"] ?? "Markdown";
 		},
-		get ["class"]() {
+		get "class"() {
 			return mergeClasses("min-w-0 flex flex-col", variant() === "conversation" && "w-full", variant() === "document" ? "gap-4" : variant() === "prompt" ? "gap-2" : "gap-2.5", props.class);
 		},
 		get children() {
@@ -7377,13 +7420,13 @@ function Toolbar(props) {
 				get role() {
 					return props.role ?? "toolbar";
 				},
-				get ["aria-label"]() {
+				get "aria-label"() {
 					return props["aria-label"];
 				},
-				get ["aria-orientation"]() {
+				get "aria-orientation"() {
 					return orientation();
 				},
-				get ["class"]() {
+				get "class"() {
 					return mergeClasses("flex-none flex items-center gap-1 rounded-lg border border-subtle bg-control p-1", match(orientation()).with("horizontal", () => "flex-row").with("vertical", () => "flex-col").exhaustive(), props.class);
 				},
 				get children() {
@@ -7435,7 +7478,7 @@ function ToolbarToggle(props) {
 	});
 	const forwarded = omit(props, "pressed", "defaultPressed", "onPressedChange");
 	return createComponent$1(ToolbarButton, mergeProps(forwarded, {
-		get ["aria-pressed"]() {
+		get "aria-pressed"() {
 			return state.value();
 		},
 		get variant() {
@@ -7449,10 +7492,10 @@ function ToolbarGroup(props) {
 	if (!toolbar) throw new Error("ToolbarGroup must be used inside Toolbar");
 	return createComponent$1(View, {
 		role: "group",
-		get ["aria-label"]() {
+		get "aria-label"() {
 			return props["aria-label"];
 		},
-		get ["class"]() {
+		get "class"() {
 			return mergeClasses("flex items-center gap-0.5", toolbar.orientation() === "horizontal" ? "flex-row" : "flex-col", props.class);
 		},
 		get children() {
@@ -7465,7 +7508,7 @@ function ToolbarSeparator(props) {
 	if (!toolbar) throw new Error("ToolbarSeparator must be used inside Toolbar");
 	return createComponent$1(View, {
 		"aria-hidden": "true",
-		get ["class"]() {
+		get "class"() {
 			return mergeClasses("flex-none bg-subtle", toolbar.orientation() === "horizontal" ? "w-px h-5" : "h-px w-5", props.class);
 		}
 	});
@@ -7508,13 +7551,13 @@ function Menubar(props) {
 		get children() {
 			return createComponent$1(Toolbar, {
 				role: "menubar",
-				get ["aria-label"]() {
+				get "aria-label"() {
 					return props["aria-label"];
 				},
 				get loop() {
 					return props.loop;
 				},
-				get ["class"]() {
+				get "class"() {
 					return props.class;
 				},
 				get children() {
@@ -7537,7 +7580,7 @@ function MenubarMenu(props) {
 		event.preventDefault();
 	};
 	return createComponent$1(DropdownMenu, {
-		get ["aria-label"]() {
+		get "aria-label"() {
 			return `${props.label} menu`;
 		},
 		get items() {
@@ -7561,7 +7604,7 @@ function MenubarMenu(props) {
 		onContentKeyDown: handleMenuKey,
 		trigger: (trigger) => createComponent$1(ToolbarButton, mergeProps(trigger, {
 			role: "menuitem",
-			get ["aria-label"]() {
+			get "aria-label"() {
 				return props.label;
 			},
 			get disabled() {
@@ -7620,7 +7663,7 @@ function MessageGroup(props) {
 		get role() {
 			return props.role ?? "group";
 		},
-		get ["class"]() {
+		get "class"() {
 			return mergeClasses("w-full min-w-0 flex flex-col gap-3", props.class);
 		},
 		get children() {
@@ -7646,7 +7689,7 @@ function Message(props) {
 				get role() {
 					return props.role ?? "group";
 				},
-				get ["class"]() {
+				get "class"() {
 					return messageClass(context.align(), props.class);
 				},
 				onPointerEnter: (event) => {
@@ -7674,7 +7717,7 @@ function Message(props) {
 }
 function MessageAvatar(props) {
 	return createComponent$1(View, mergeProps(props, {
-		get ["class"]() {
+		get "class"() {
 			return mergeClasses("w-8 h-8 flex-none self-end overflow-hidden rounded-full bg-control flex items-center justify-center", props.class);
 		},
 		get children() {
@@ -7685,7 +7728,7 @@ function MessageAvatar(props) {
 function MessageContent(props) {
 	const context = useContext(MessageContext);
 	return createComponent$1(View, mergeProps(props, {
-		get ["class"]() {
+		get "class"() {
 			return mergeClasses("flex-1 min-w-0 flex flex-col gap-2", context.align() === "end" ? "items-end" : "items-start", props.class);
 		},
 		get children() {
@@ -7696,7 +7739,7 @@ function MessageContent(props) {
 function MessageHeader(props) {
 	const context = useContext(MessageContext);
 	return createComponent$1(Text, mergeProps(props, {
-		get ["class"]() {
+		get "class"() {
 			return mergeClasses("max-w-full min-w-0 px-3 text-xs font-medium text-muted", context.align() === "end" && "text-right", props.class);
 		},
 		get children() {
@@ -7722,7 +7765,7 @@ function MessageActions(props) {
 		get role() {
 			return props.role ?? "toolbar";
 		},
-		get ["class"]() {
+		get "class"() {
 			return messageActionsClass(align(), mergeClasses(interactionClass(), props.class));
 		},
 		get children() {
@@ -7732,7 +7775,7 @@ function MessageActions(props) {
 }
 function BubbleGroup(props) {
 	return createComponent$1(View, mergeProps(props, {
-		get ["class"]() {
+		get "class"() {
 			return mergeClasses("w-full min-w-0 grid gap-2", props.class);
 		},
 		get children() {
@@ -7755,7 +7798,7 @@ function Bubble(props) {
 		value: context,
 		get children() {
 			return createComponent$1(View, mergeProps(forwarded, {
-				get ["class"]() {
+				get "class"() {
 					return bubbleClass(context.variant(), context.align(), props.class);
 				},
 				get children() {
@@ -7772,7 +7815,7 @@ function bubbleContentClass(variant, className) {
 function BubbleContent(props) {
 	const context = useContext(BubbleContext);
 	return createComponent$1(View, mergeProps(props, {
-		get ["class"]() {
+		get "class"() {
 			return bubbleContentClass(context.variant(), props.class);
 		},
 		get children() {
@@ -7785,7 +7828,7 @@ function BubbleReactions(props) {
 	const side = () => props.side ?? "bottom";
 	const align = () => props.align ?? bubble.align();
 	return createComponent$1(View, {
-		get ["class"]() {
+		get "class"() {
 			return mergeClasses("relative z-10 flex-none flex items-center justify-center gap-1 rounded-full bg-control px-1.5 py-0.5 text-sm", align() === "end" ? "self-end" : "self-start", props.class);
 		},
 		get transform() {
@@ -7799,7 +7842,7 @@ function BubbleReactions(props) {
 function Marker(props) {
 	const variant = () => props.variant ?? "default";
 	return createComponent$1(View, {
-		get ["class"]() {
+		get "class"() {
 			return mergeClasses("w-full min-w-0 min-h-4 flex items-center gap-2 text-sm text-muted", variant() === "border" && "border-b border-subtle pb-2", props.class);
 		},
 		get children() {
@@ -7836,7 +7879,7 @@ function Marker(props) {
 function MarkerIcon(props) {
 	return createComponent$1(View, mergeProps(props, {
 		"aria-hidden": "true",
-		get ["class"]() {
+		get "class"() {
 			return mergeClasses("w-4 h-4 flex-none", props.class);
 		},
 		get children() {
@@ -7846,7 +7889,7 @@ function MarkerIcon(props) {
 }
 function MarkerContent(props) {
 	return createComponent$1(Text, mergeProps(props, {
-		get ["class"]() {
+		get "class"() {
 			return mergeClasses("min-w-0 whitespace-nowrap text-sm text-muted", props.class);
 		},
 		get children() {
@@ -7859,7 +7902,7 @@ function MarkerContent(props) {
 /** Visual content shared by managed and explicitly composed tooltips. */
 function TooltipContent(props) {
 	return createComponent$1(View, {
-		get ["class"]() {
+		get "class"() {
 			return mergeClasses("min-w-0 flex flex-row items-center gap-3", props.class);
 		},
 		get children() {
@@ -7876,7 +7919,7 @@ function TooltipContent(props) {
 				return memo(() => {
 					return props.shortcut === void 0;
 				})() ? null : createComponent$1(Kbd, {
-					get ["aria-label"]() {
+					get "aria-label"() {
 						return `${props.shortcut} shortcut`;
 					},
 					get children() {
@@ -8141,7 +8184,7 @@ function MessageScroller(props) {
 		value: context,
 		get children() {
 			return createComponent$1(View, mergeProps(forwarded, {
-				get ["class"]() {
+				get "class"() {
 					return mergeClasses("relative w-full h-full min-w-0 min-h-0 flex flex-col overflow-hidden", props.class);
 				},
 				get transform() {
@@ -8162,7 +8205,7 @@ function MessageScrollerViewport(props) {
 			context.setViewport(node);
 			props.ref?.(node);
 		},
-		get ["class"]() {
+		get "class"() {
 			return mergeClasses("w-full min-w-0 min-h-0 flex-1 overflow-x-hidden overflow-y-auto", props.class);
 		},
 		get scrollbar() {
@@ -8185,7 +8228,7 @@ function MessageScrollerContent(props) {
 			context.setContent(node);
 			props.ref?.(node);
 		},
-		get ["class"]() {
+		get "class"() {
 			return mergeClasses("w-full min-w-0 min-h-full flex-none flex flex-col gap-4", props.class);
 		},
 		get children() {
@@ -8221,10 +8264,10 @@ function MessageScrollerItem(props) {
 			}
 			props.ref?.(handle);
 		},
-		get ["data-message-anchor"]() {
+		get "data-message-anchor"() {
 			return props.anchor;
 		},
-		get ["class"]() {
+		get "class"() {
 			return mergeClasses("w-full min-w-0 flex-none", props.class);
 		},
 		get children() {
@@ -8244,7 +8287,7 @@ function MessageScrollerButton(props) {
 		},
 		get children() {
 			return createComponent$1(Button, mergeProps(forwarded, {
-				get ["aria-label"]() {
+				get "aria-label"() {
 					return props["aria-label"] ?? label();
 				},
 				get variant() {
@@ -8253,7 +8296,7 @@ function MessageScrollerButton(props) {
 				get size() {
 					return props.size ?? "icon";
 				},
-				get ["class"]() {
+				get "class"() {
 					return mergeClasses("absolute z-10 left-1/2 flex-none rounded-full shadow-sm", direction() === "end" ? "bottom-3" : "top-3", props.class);
 				},
 				onClick: (event) => {
@@ -8292,16 +8335,16 @@ function MessageScrollerNavigator(props) {
 		},
 		get children() {
 			return createComponent$1(View, {
-				get ["class"]() {
+				get "class"() {
 					return mergeClasses("absolute z-20 right-2 top-4 bottom-14 w-8 flex flex-col items-center justify-center pointer-events-none", props.class);
 				},
 				get children() {
 					return createComponent$1(Toolbar, {
-						get ["aria-label"]() {
+						get "aria-label"() {
 							return props["aria-label"];
 						},
 						orientation: "vertical",
-						get ["class"]() {
+						get "class"() {
 							return mergeClasses("max-h-full p-0 py-1 gap-0 rounded-full bg-surface shadow-xs overflow-y-auto pointer-events-auto", props.railClass);
 						},
 						get children() {
@@ -8322,10 +8365,10 @@ function MessageScrollerNavigator(props) {
 										variant: "ghost",
 										size: "icon",
 										class: "w-7 h-7 p-0 rounded-full",
-										get ["aria-label"]() {
+										get "aria-label"() {
 											return props.itemAriaLabel(item(), index);
 										},
-										get ["aria-current"]() {
+										get "aria-current"() {
 											return currentAnchor() === item().id ? "step" : void 0;
 										},
 										get onPointerEnter() {
@@ -8347,7 +8390,7 @@ function MessageScrollerNavigator(props) {
 										get children() {
 											return createComponent$1(View, {
 												"aria-hidden": "true",
-												get ["class"]() {
+												get "class"() {
 													return currentAnchor() === item().id ? "w-4 h-1 rounded-full bg-accent" : "w-3 h-1 rounded-full bg-subtle";
 												}
 											});
@@ -8416,10 +8459,10 @@ function Breadcrumb(props) {
 	const rest = omit(props, "class", "children");
 	return createComponent$1(View, mergeProps(rest, {
 		role: "group",
-		get ["aria-label"]() {
+		get "aria-label"() {
 			return props["aria-label"] ?? "Breadcrumb";
 		},
-		get ["class"]() {
+		get "class"() {
 			return mergeClasses("min-w-0", props.class);
 		},
 		get children() {
@@ -8429,7 +8472,7 @@ function Breadcrumb(props) {
 }
 function BreadcrumbList(props) {
 	return createComponent$1(View, mergeProps(props, {
-		get ["class"]() {
+		get "class"() {
 			return mergeClasses("min-w-0 flex flex-wrap items-center gap-1.5 text-sm text-muted", props.class);
 		},
 		get children() {
@@ -8439,7 +8482,7 @@ function BreadcrumbList(props) {
 }
 function BreadcrumbItem(props) {
 	return createComponent$1(View, mergeProps(props, {
-		get ["class"]() {
+		get "class"() {
 			return mergeClasses("min-w-0 flex items-center gap-1.5", props.class);
 		},
 		get children() {
@@ -8460,7 +8503,7 @@ function BreadcrumbPage(props) {
 		role: "link",
 		"aria-disabled": "true",
 		"aria-current": "page",
-		get ["class"]() {
+		get "class"() {
 			return mergeClasses("min-w-0 text-sm font-medium text-primary", props.class);
 		},
 		get children() {
@@ -8473,7 +8516,7 @@ function BreadcrumbSeparator(props) {
 	return createComponent$1(View, mergeProps(rest, {
 		role: "presentation",
 		"aria-hidden": "true",
-		get ["class"]() {
+		get "class"() {
 			return mergeClasses("w-4 h-4 flex-none flex items-center justify-center text-muted", props.class);
 		},
 		get children() {
@@ -8489,7 +8532,7 @@ function BreadcrumbEllipsis(props) {
 	return createComponent$1(View, mergeProps(rest, {
 		role: "presentation",
 		"aria-hidden": "true",
-		get ["class"]() {
+		get "class"() {
 			return mergeClasses("w-8 h-8 flex-none flex items-center justify-center text-muted", props.class);
 		},
 		get children() {
@@ -8525,13 +8568,13 @@ function Pagination(props) {
 	};
 	const content = () => createComponent$1(View, {
 		role: "group",
-		get ["aria-label"]() {
+		get "aria-label"() {
 			return props["aria-label"] ?? "Pagination";
 		},
-		get ["aria-disabled"]() {
+		get "aria-disabled"() {
 			return context.disabled() || void 0;
 		},
-		get ["class"]() {
+		get "class"() {
 			return mergeClasses("flex items-center", props.class);
 		},
 		get children() {
@@ -8546,12 +8589,12 @@ function Pagination(props) {
 	});
 }
 function PaginationContent(props) {
-	return createComponent$1(View, mergeProps(props, { get ["class"]() {
+	return createComponent$1(View, mergeProps(props, { get "class"() {
 		return mergeClasses("flex items-center gap-1", props.class);
 	} }));
 }
 function PaginationItem(props) {
-	return createComponent$1(View, mergeProps(props, { get ["class"]() {
+	return createComponent$1(View, mergeProps(props, { get "class"() {
 		return mergeClasses("flex-none", props.class);
 	} }));
 }
@@ -8568,10 +8611,10 @@ function PaginationLink(props) {
 		get selected() {
 			return active();
 		},
-		get ["aria-current"]() {
+		get "aria-current"() {
 			return active() ? "page" : void 0;
 		},
-		get ["aria-label"]() {
+		get "aria-label"() {
 			return props["aria-label"] ?? (props.page === void 0 ? void 0 : `Page ${props.page}`);
 		},
 		get disabled() {
@@ -8586,7 +8629,7 @@ function PaginationLink(props) {
 function PaginationEllipsis(props) {
 	return createComponent$1(Text, {
 		"aria-hidden": true,
-		get ["class"]() {
+		get "class"() {
 			return mergeClasses("w-8 text-center text-muted", props.class);
 		},
 		children: "..."
@@ -8666,7 +8709,7 @@ function Popover(props) {
 }
 function PopoverHeader(props) {
 	return createComponent$1(View, {
-		get ["class"]() {
+		get "class"() {
 			return mergeClasses("min-w-0 flex flex-col gap-1", props.class);
 		},
 		get children() {
@@ -8677,7 +8720,7 @@ function PopoverHeader(props) {
 function PopoverTitle(props) {
 	return createComponent$1(Text, {
 		role: "heading",
-		get ["class"]() {
+		get "class"() {
 			return mergeClasses("whitespace-normal text-sm font-semibold text-primary", props.class);
 		},
 		get children() {
@@ -8687,7 +8730,7 @@ function PopoverTitle(props) {
 }
 function PopoverDescription(props) {
 	return createComponent$1(Text, {
-		get ["class"]() {
+		get "class"() {
 			return mergeClasses("min-w-0 whitespace-normal text-xs text-muted", props.class);
 		},
 		get children() {
@@ -8697,7 +8740,7 @@ function PopoverDescription(props) {
 }
 function PopoverFooter(props) {
 	return createComponent$1(View, {
-		get ["class"]() {
+		get "class"() {
 			return mergeClasses("min-w-0 flex items-center justify-end gap-2", props.class);
 		},
 		get children() {
@@ -8764,7 +8807,7 @@ function NavigationMenu(props) {
 		value: context,
 		get children() {
 			return createComponent$1(Popover, {
-				get ["aria-label"]() {
+				get "aria-label"() {
 					return props["aria-label"];
 				},
 				get open() {
@@ -8784,10 +8827,10 @@ function NavigationMenu(props) {
 						typeof _ref$ === "function" || Array.isArray(_ref$) ? applyRef(_ref$, r$) : trigger.ref = r$;
 					},
 					role: "group",
-					get ["aria-label"]() {
+					get "aria-label"() {
 						return props["aria-label"];
 					},
-					get ["class"]() {
+					get "class"() {
 						return mergeClasses("relative inline-flex flex-none items-center justify-center", props.class);
 					},
 					get children() {
@@ -8804,7 +8847,7 @@ function NavigationMenu(props) {
 function NavigationMenuList(props) {
 	return createComponent$1(View, {
 		role: "menubar",
-		get ["class"]() {
+		get "class"() {
 			return mergeClasses("flex flex-none items-center justify-center gap-1", props.class);
 		},
 		get children() {
@@ -8821,7 +8864,7 @@ function NavigationMenuItem(props) {
 		value: context,
 		get children() {
 			return createComponent$1(View, {
-				get ["class"]() {
+				get "class"() {
 					return mergeClasses("relative flex-none", props.class);
 				},
 				get children() {
@@ -8844,7 +8887,7 @@ function NavigationMenuTrigger(props) {
 	return createComponent$1(Button, mergeProps(forwarded, {
 		role: "menuitem",
 		"aria-haspopup": "dialog",
-		get ["aria-expanded"]() {
+		get "aria-expanded"() {
 			return open();
 		},
 		get disabled() {
@@ -8860,7 +8903,7 @@ function NavigationMenuTrigger(props) {
 			props.ref?.(node);
 		},
 		variant: "ghost",
-		get ["class"]() {
+		get "class"() {
 			return navigationMenuTriggerClass(open(), props.class);
 		},
 		onPointerEnter: () => {
@@ -8903,7 +8946,7 @@ function NavigationMenuContent(props) {
 	const forwarded = omit(props, "class", "children");
 	const render = () => createComponent$1(View, mergeProps(forwarded, {
 		role: "group",
-		get ["class"]() {
+		get "class"() {
 			return mergeClasses("w-full min-w-0 flex flex-col gap-1", props.class);
 		},
 		get children() {
@@ -8919,7 +8962,7 @@ function NavigationMenuLink(props) {
 	return createComponent$1(Button, mergeProps(forwarded, {
 		role: "link",
 		variant: "ghost",
-		get ["class"]() {
+		get "class"() {
 			return mergeClasses("w-full h-auto min-w-0 flex flex-col items-start gap-1 rounded-lg p-2 text-left", props.active && "bg-selected", props.class);
 		},
 		onClick: (event) => {
@@ -8939,7 +8982,7 @@ function NavigationMenuLink(props) {
 function NavigationMenuIndicator(props) {
 	return createComponent$1(View, mergeProps(props, {
 		"aria-hidden": "true",
-		get ["class"]() {
+		get "class"() {
 			return mergeClasses("absolute left-1/2 bottom-0 w-2 h-0.5 rounded-full bg-accent", props.class);
 		}
 	}));
@@ -9053,7 +9096,7 @@ function NumberField(props) {
 		return !props.disabled && !props.readOnly && (value === null || value < range().max);
 	};
 	return createComponent$1(InputGroup, {
-		get ["class"]() {
+		get "class"() {
 			return props.class;
 		},
 		get children() {
@@ -9064,7 +9107,7 @@ function NumberField(props) {
 					get disabled() {
 						return !canDecrement();
 					},
-					get ["aria-label"]() {
+					get "aria-label"() {
 						return props.decrementLabel ?? `Decrease ${props["aria-label"]}`;
 					},
 					onClick: () => changeBy(-1, range().step),
@@ -9078,23 +9121,23 @@ function NumberField(props) {
 				}),
 				createComponent$1(InputGroupInput, mergeProps(forwarded, {
 					role: "spinbutton",
-					get ["aria-label"]() {
+					get "aria-label"() {
 						return props["aria-label"];
 					},
-					get ["aria-valuemin"]() {
+					get "aria-valuemin"() {
 						return memo(() => {
 							return !!Number.isFinite(range().min);
 						})() ? range().min : void 0;
 					},
-					get ["aria-valuemax"]() {
+					get "aria-valuemax"() {
 						return memo(() => {
 							return !!Number.isFinite(range().max);
 						})() ? range().max : void 0;
 					},
-					get ["aria-valuenow"]() {
+					get "aria-valuenow"() {
 						return state.value() ?? void 0;
 					},
-					get ["aria-valuetext"]() {
+					get "aria-valuetext"() {
 						return memo(() => {
 							return state.value() === null;
 						})() ? void 0 : formattedValue();
@@ -9105,7 +9148,7 @@ function NumberField(props) {
 					get placeholder() {
 						return props.placeholder;
 					},
-					get ["class"]() {
+					get "class"() {
 						return props.inputClass;
 					},
 					onFocus: (event) => {
@@ -9142,7 +9185,7 @@ function NumberField(props) {
 					get disabled() {
 						return !canIncrement();
 					},
-					get ["aria-label"]() {
+					get "aria-label"() {
 						return props.incrementLabel ?? `Increase ${props["aria-label"]}`;
 					},
 					onClick: () => changeBy(1, range().step),
@@ -9177,7 +9220,7 @@ function PageViewport(props) {
 		key: () => props.resetKey
 	});
 	return createComponent$1(ScrollArea, mergeProps(forwarded, {
-		get ["class"]() {
+		get "class"() {
 			return pageViewportClass(props.class);
 		},
 		get contentClass() {
@@ -9207,7 +9250,7 @@ const pageHeaderDescriptionClass = (stacked = false) => mergeClasses("text-sm te
 /** Consistent page title, supporting text and trailing application actions. */
 function PageHeader(props) {
 	return createComponent$1(View, {
-		get ["class"]() {
+		get "class"() {
 			return pageHeaderClass(props.class, props.stacked);
 		},
 		get children() {
@@ -9219,7 +9262,7 @@ function PageHeader(props) {
 						get children() {
 							return [createComponent$1(Text, {
 								role: "heading",
-								get ["class"]() {
+								get "class"() {
 									return pageHeaderTitleClass();
 								},
 								get children() {
@@ -9230,7 +9273,7 @@ function PageHeader(props) {
 									return props.description;
 								},
 								children: (description) => createComponent$1(Text, {
-									get ["class"]() {
+									get "class"() {
 										return pageHeaderDescriptionClass(props.stacked);
 									},
 									get children() {
@@ -9272,7 +9315,7 @@ function Onboarding(props) {
 		get role() {
 			return props.role ?? "region";
 		},
-		get ["class"]() {
+		get "class"() {
 			return mergeClasses("h-full bg-canvas", props.class);
 		},
 		get contentClass() {
@@ -9290,7 +9333,7 @@ function Onboarding(props) {
 }
 function OnboardingHeader(props) {
 	return createComponent$1(View, mergeProps(props, {
-		get ["class"]() {
+		get "class"() {
 			return mergeClasses("w-full min-w-0 flex flex-row items-center gap-3", props.class);
 		},
 		get children() {
@@ -9300,7 +9343,7 @@ function OnboardingHeader(props) {
 }
 function OnboardingHeading(props) {
 	return createComponent$1(View, mergeProps(props, {
-		get ["class"]() {
+		get "class"() {
 			return mergeClasses("min-w-0 flex-1 flex flex-col gap-1", props.class);
 		},
 		get children() {
@@ -9313,7 +9356,7 @@ function OnboardingTitle(props) {
 		get role() {
 			return props.role ?? "heading";
 		},
-		get ["class"]() {
+		get "class"() {
 			return mergeClasses("w-full min-w-0 whitespace-normal text-lg font-semibold text-primary", props.class);
 		},
 		get children() {
@@ -9323,7 +9366,7 @@ function OnboardingTitle(props) {
 }
 function OnboardingDescription(props) {
 	return createComponent$1(Text, mergeProps(props, {
-		get ["class"]() {
+		get "class"() {
 			return mergeClasses("w-full min-w-0 whitespace-normal text-sm text-muted", props.class);
 		},
 		get children() {
@@ -9333,7 +9376,7 @@ function OnboardingDescription(props) {
 }
 function OnboardingFooter(props) {
 	return createComponent$1(View, mergeProps(props, {
-		get ["class"]() {
+		get "class"() {
 			return mergeClasses("w-full min-w-0 pt-1", props.class);
 		},
 		get children() {
@@ -9399,24 +9442,24 @@ function ProgressRoot(props) {
 		get children() {
 			return createComponent$1(View, mergeProps(forwarded, {
 				role: "progressbar",
-				get ["aria-label"]() {
+				get "aria-label"() {
 					return context.label();
 				},
-				get ["aria-valuemin"]() {
+				get "aria-valuemin"() {
 					return context.min();
 				},
-				get ["aria-valuemax"]() {
+				get "aria-valuemax"() {
 					return context.max();
 				},
-				get ["aria-valuenow"]() {
+				get "aria-valuenow"() {
 					return memo(() => {
 						return !!indeterminate();
 					})() ? void 0 : context.value();
 				},
-				get ["aria-valuetext"]() {
+				get "aria-valuetext"() {
 					return context.valueLabel();
 				},
-				get ["class"]() {
+				get "class"() {
 					return mergeClasses("w-full min-w-0 flex flex-col gap-2", props.class);
 				},
 				get children() {
@@ -9431,7 +9474,7 @@ function ProgressTrack(props) {
 	const forwarded = omit(props, "size");
 	return createComponent$1(View, mergeProps(forwarded, {
 		"aria-hidden": "true",
-		get ["class"]() {
+		get "class"() {
 			return mergeClasses("w-full flex-none overflow-hidden rounded-full bg-control", progressTrackSize(props.size), props.class);
 		}
 	}));
@@ -9445,7 +9488,7 @@ function IndeterminateProgressFill(props) {
 	return createComponent$1(NativeWidget, mergeProps(props, {
 		tag: "progress-indeterminate",
 		"aria-hidden": "true",
-		get ["class"]() {
+		get "class"() {
 			return mergeClasses("w-full h-full flex-none text-accent", props.class);
 		},
 		get config() {
@@ -9465,7 +9508,7 @@ function ProgressFill(props) {
 		get children() {
 			return createComponent$1(View, mergeProps(props, {
 				"aria-hidden": "true",
-				get ["class"]() {
+				get "class"() {
 					return mergeClasses("h-full rounded-full bg-accent", context.percent() < 100 && "rounded-r-none", props.class);
 				},
 				get style() {
@@ -9481,7 +9524,7 @@ function ProgressFill(props) {
 function ProgressLabel(props) {
 	const context = useProgressContext();
 	return createComponent$1(Text, mergeProps(props, {
-		get ["class"]() {
+		get "class"() {
 			return mergeClasses("min-w-0 text-sm text-secondary", props.class);
 		},
 		get children() {
@@ -9492,7 +9535,7 @@ function ProgressLabel(props) {
 function ProgressValueLabel(props) {
 	const context = useProgressContext();
 	return createComponent$1(Text, mergeProps(props, {
-		get ["class"]() {
+		get "class"() {
 			return mergeClasses("flex-none text-sm font-mono text-muted", props.class);
 		},
 		get children() {
@@ -9505,7 +9548,7 @@ function Progress(props) {
 	const forwarded = omit(props, "class", "size");
 	return createComponent$1(ProgressRoot, mergeProps(forwarded, { get children() {
 		return createComponent$1(ProgressTrack, {
-			get ["class"]() {
+			get "class"() {
 				return props.class;
 			},
 			get size() {
@@ -9531,7 +9574,7 @@ function ProgressCircle(props) {
 		class: "absolute inset-0 w-full h-full flex-none"
 	});
 	return createComponent$1(ProgressRoot, mergeProps(forwarded, {
-		get ["class"]() {
+		get "class"() {
 			return mergeClasses("relative flex-none items-center justify-center gap-0 text-accent", progressCircleSize(props.size), props.class);
 		},
 		get children() {
@@ -9565,7 +9608,7 @@ function promptComposerEditorHeightClass(value) {
 function PromptComposerEditor(props) {
 	return createComponent$1(TextArea, mergeProps(props, {
 		chrome: "none",
-		get ["class"]() {
+		get "class"() {
 			return mergeClasses("min-w-0 px-0 py-1", promptComposerEditorHeightClass(props.value ?? ""), props.class);
 		}
 	}));
@@ -9579,7 +9622,7 @@ function PromptComposerAction(props) {
 		get size() {
 			return props.size ?? "icon";
 		},
-		get ["class"]() {
+		get "class"() {
 			return mergeClasses("flex-none rounded-full border border-subtle", props.class);
 		}
 	}));
@@ -9597,14 +9640,14 @@ function PromptComposer(props) {
 		get role() {
 			return props.role ?? "group";
 		},
-		get ["aria-disabled"]() {
+		get "aria-disabled"() {
 			return props.disabled;
 		},
-		get ["aria-invalid"]() {
+		get "aria-invalid"() {
 			return props.invalid;
 		},
 		"data-wabou-owns": "surface focus-ring",
-		get ["class"]() {
+		get "class"() {
 			return mergeClasses(promptComposerClass(focus.focusWithin(), props.invalid ?? false, props.disabled ?? false, props.class), props.surfaceClass ?? "bg-input");
 		},
 		get children() {
@@ -9621,7 +9664,7 @@ function PromptComposerStatus(props) {
 			return content();
 		},
 		children: (resolved) => createComponent$1(View, mergeProps(forwarded, {
-			get ["class"]() {
+			get "class"() {
 				return mergeClasses("w-full min-w-0 flex flex-row items-center justify-end gap-2", props.class);
 			},
 			get children() {
@@ -9637,7 +9680,7 @@ function PromptComposerToolbar(props) {
 		get role() {
 			return props.role ?? "toolbar";
 		},
-		get ["class"]() {
+		get "class"() {
 			return mergeClasses("w-full min-w-0 flex flex-row flex-nowrap items-center justify-between gap-1.5", props.wrap && "flex-wrap", props.class);
 		}
 	}));
@@ -9649,7 +9692,7 @@ function PromptComposerTools(props) {
 		get role() {
 			return props.role ?? "group";
 		},
-		get ["class"]() {
+		get "class"() {
 			return mergeClasses("min-w-0 flex-1 flex flex-row flex-nowrap items-center gap-0.5", props.wrap && "flex-wrap", props.class);
 		}
 	}));
@@ -9674,7 +9717,7 @@ function PromptSuggestions(props) {
 		get gap() {
 			return props.gap ?? 8;
 		},
-		get ["class"]() {
+		get "class"() {
 			return mergeClasses("w-full", props.class);
 		}
 	}));
@@ -9683,13 +9726,13 @@ function PromptSuggestions(props) {
 function PromptSuggestion(props) {
 	const rest = omit(props, "title", "description", "icon", "class");
 	return createComponent$1(Button, mergeProps(rest, {
-		get ["aria-label"]() {
+		get "aria-label"() {
 			return props["aria-label"] ?? props.title;
 		},
 		get variant() {
 			return props.variant ?? "outline";
 		},
-		get ["class"]() {
+		get "class"() {
 			return mergeClasses("w-full h-auto min-h-14 min-w-0 items-start justify-start gap-2 border-subtle bg-transparent p-3 text-left shadow-none", props.class);
 		},
 		get children() {
@@ -9733,7 +9776,7 @@ function PromptSuggestion(props) {
 function PropertyList(props) {
 	return createComponent$1(View, mergeProps(props, {
 		role: "table",
-		get ["class"]() {
+		get "class"() {
 			return mergeClasses("w-full min-w-0 flex flex-col overflow-hidden rounded-xl border border-subtle bg-surface", props.class);
 		},
 		get children() {
@@ -9745,16 +9788,16 @@ function PropertyList(props) {
 function PropertyRow(props) {
 	return createComponent$1(View, {
 		role: "row",
-		get ["aria-label"]() {
+		get "aria-label"() {
 			return props.name;
 		},
-		get ["class"]() {
+		get "class"() {
 			return mergeClasses("min-h-10 w-full min-w-0 px-3 py-2 flex flex-row items-center gap-3 border-b border-subtle", props.class);
 		},
 		get children() {
 			return [createComponent$1(Text, {
 				role: "cell",
-				get ["class"]() {
+				get "class"() {
 					return mergeClasses("w-48 flex-none text-xs font-mono text-accent whitespace-nowrap", props.nameClass);
 				},
 				get children() {
@@ -9762,7 +9805,7 @@ function PropertyRow(props) {
 				}
 			}), createComponent$1(Text, {
 				role: "cell",
-				get ["class"]() {
+				get "class"() {
 					return mergeClasses("min-w-0 flex-1 text-xs text-muted whitespace-normal", props.valueClass);
 				},
 				get children() {
@@ -9829,10 +9872,10 @@ function QRCode(props) {
 	const source = createMemo(() => qrCodePath(matrix(), renderedSize(), quietZone(props.quietZone), props.foreground));
 	return createComponent$1(View, mergeProps(rest, {
 		role: "img",
-		get ["aria-label"]() {
+		get "aria-label"() {
 			return props["aria-label"] ?? "QR code";
 		},
-		get ["class"]() {
+		get "class"() {
 			return mergeClasses("relative flex-none overflow-hidden", props.class);
 		},
 		get style() {
@@ -9891,7 +9934,7 @@ function RatingIcon(props) {
 		get fill() {
 			return props.highlighted ? "currentColor" : "none";
 		},
-		get ["class"]() {
+		get "class"() {
 			return props.highlighted ? "text-accent" : "text-muted";
 		},
 		get transform() {
@@ -9936,14 +9979,14 @@ function Rating(props) {
 	});
 	return createComponent$1(View, {
 		role: "radiogroup",
-		get ["aria-label"]() {
+		get "aria-label"() {
 			return props.label;
 		},
-		get ["aria-disabled"]() {
+		get "aria-disabled"() {
 			return disabled() || void 0;
 		},
 		"aria-orientation": "horizontal",
-		get ["class"]() {
+		get "class"() {
 			return mergeClasses("flex flex-col items-start gap-1.5", props.class, componentsDisabledInteractiveClass(disabled()));
 		},
 		get children() {
@@ -9962,10 +10005,10 @@ function Rating(props) {
 							return createComponent$1(Button$1, {
 								unstyled: true,
 								role: "radio",
-								get ["aria-label"]() {
+								get "aria-label"() {
 									return ratingLabel(item);
 								},
-								get ["aria-checked"]() {
+								get "aria-checked"() {
 									return checked();
 								},
 								get selected() {
@@ -10023,7 +10066,7 @@ function Rating(props) {
 /** Quiet disclosure surface for model reasoning or intermediate thought. */
 function Reasoning(props) {
 	const rest = omit(props, "class");
-	return createComponent$1(Collapsible, mergeProps(rest, { get ["class"]() {
+	return createComponent$1(Collapsible, mergeProps(rest, { get "class"() {
 		return mergeClasses("w-full min-w-0 overflow-hidden rounded-lg border border-subtle bg-surface-muted", props.class);
 	} }));
 }
@@ -10031,10 +10074,10 @@ function ReasoningTrigger(props) {
 	const label = () => props.label ?? (props.streaming ? "Thinking" : "Reasoning");
 	const rest = omit(props, "label", "streaming", "class", "aria-label");
 	return createComponent$1(CollapsibleTrigger, mergeProps(rest, {
-		get ["aria-label"]() {
+		get "aria-label"() {
 			return props["aria-label"] ?? label();
 		},
-		get ["class"]() {
+		get "class"() {
 			return mergeClasses("min-h-9 px-3 py-1.5 text-left", props.class);
 		},
 		get children() {
@@ -10067,7 +10110,7 @@ function ReasoningTrigger(props) {
 }
 function ReasoningContent(props) {
 	const rest = omit(props, "class");
-	return createComponent$1(CollapsibleContent, mergeProps(rest, { get ["class"]() {
+	return createComponent$1(CollapsibleContent, mergeProps(rest, { get "class"() {
 		return mergeClasses("min-w-0 border-t border-subtle px-3 py-2", props.class);
 	} }));
 }
@@ -10190,10 +10233,10 @@ function ResizablePanelGroup(props) {
 					typeof _ref$ === "function" || Array.isArray(_ref$) ? applyRef(_ref$, r$) : measured.ref = r$;
 				},
 				role: "group",
-				get ["aria-label"]() {
+				get "aria-label"() {
 					return props["aria-label"];
 				},
-				get ["class"]() {
+				get "class"() {
 					return mergeClasses("w-full h-full min-w-0 min-h-0 flex overflow-hidden", direction() === "horizontal" ? "flex-row" : "flex-col", props.class);
 				},
 				get children() {
@@ -10208,10 +10251,10 @@ function ResizablePanel(props) {
 	const style = createMemo(() => context.direction() === "horizontal" ? { width: `${context.state.size(props.id)}%` } : { height: `${context.state.size(props.id)}%` });
 	return createComponent$1(View, {
 		role: "group",
-		get ["aria-label"]() {
+		get "aria-label"() {
 			return props.id;
 		},
-		get ["class"]() {
+		get "class"() {
 			return mergeClasses("min-w-0 min-h-0 flex-none overflow-hidden", props.class);
 		},
 		get style() {
@@ -10255,23 +10298,23 @@ function ResizableHandle(props) {
 	};
 	return createComponent$1(View, {
 		role: "separator",
-		get ["aria-label"]() {
+		get "aria-label"() {
 			return props["aria-label"];
 		},
-		get ["aria-valuemin"]() {
+		get "aria-valuemin"() {
 			return range().min;
 		},
-		get ["aria-valuemax"]() {
+		get "aria-valuemax"() {
 			return range().max;
 		},
-		get ["aria-valuenow"]() {
+		get "aria-valuenow"() {
 			return context.state.size(props.before);
 		},
-		get ["aria-valuetext"]() {
+		get "aria-valuetext"() {
 			return `${Math.round(context.state.size(props.before))} percent`;
 		},
 		focusOrder: 0,
-		get ["class"]() {
+		get "class"() {
 			return mergeClasses("flex-none rounded-sm", context.direction() === "horizontal" ? "w-2 h-full" : "w-full h-2", dragging() || hovered() ? "bg-accent" : "bg-control", props.class);
 		},
 		onPointerEnter: () => setHovered(true),
@@ -10303,7 +10346,7 @@ function SearchField(props) {
 		return true;
 	};
 	return createComponent$1(InputGroup, {
-		get ["class"]() {
+		get "class"() {
 			return props.class;
 		},
 		get variant() {
@@ -10332,7 +10375,7 @@ function SearchField(props) {
 					get value() {
 						return state.value();
 					},
-					get ["class"]() {
+					get "class"() {
 						return props.inputClass;
 					},
 					onInput: (event) => state.set(event.currentTarget.value),
@@ -10351,7 +10394,7 @@ function SearchField(props) {
 					get children() {
 						return createComponent$1(InputGroupButton, {
 							size: "icon",
-							get ["aria-label"]() {
+							get "aria-label"() {
 								return props.clearLabel ?? "Clear search";
 							},
 							onClick: clear,
@@ -10445,17 +10488,17 @@ function Select(props) {
 			get disabled() {
 				return props.disabled;
 			},
-			get ["aria-label"]() {
+			get "aria-label"() {
 				return props["aria-label"];
 			},
 			"aria-haspopup": "listbox",
-			get ["aria-expanded"]() {
+			get "aria-expanded"() {
 				return interaction.open();
 			},
-			get ["aria-controls"]() {
+			get "aria-controls"() {
 				return selectControlsId(`${id}-listbox`, interaction.open());
 			},
-			get ["aria-valuetext"]() {
+			get "aria-valuetext"() {
 				return selected()?.label;
 			},
 			ref: (node) => {
@@ -10479,7 +10522,7 @@ function Select(props) {
 			},
 			get children() {
 				return [createComponent$1(Text, {
-					get ["class"]() {
+					get "class"() {
 						return mergeClasses("min-w-0 flex-1 text-left truncate", selected() ? "text-primary" : "text-muted");
 					},
 					get children() {
@@ -10511,10 +10554,10 @@ function Select(props) {
 						id: `${id}-listbox`,
 						ref: (node) => content = node,
 						role: "listbox",
-						get ["aria-label"]() {
+						get "aria-label"() {
 							return props["aria-label"];
 						},
-						get ["aria-activedescendant"]() {
+						get "aria-activedescendant"() {
 							return memo(() => {
 								return !!interaction.highlighted();
 							})() ? `${id}-option-${interaction.highlighted()}` : void 0;
@@ -10536,13 +10579,13 @@ function Select(props) {
 											return `${id}-option-${option().value}`;
 										},
 										role: "option",
-										get ["aria-selected"]() {
+										get "aria-selected"() {
 											return selected();
 										},
-										get ["aria-disabled"]() {
+										get "aria-disabled"() {
 											return option().disabled;
 										},
-										get ["class"]() {
+										get "class"() {
 											return mergeClasses("w-full h-8 flex-none px-2.5 flex items-center justify-between gap-2 rounded-md text-sm leading-normal", pickerOptionClass(option().disabled ?? false, highlighted()));
 										},
 										onPointerMove: () => {
@@ -10649,10 +10692,10 @@ function Checkbox(props) {
 		get disabled() {
 			return props.disabled;
 		},
-		get ["aria-label"]() {
+		get "aria-label"() {
 			return props["aria-label"] ?? props.label;
 		},
-		get ["aria-checked"]() {
+		get "aria-checked"() {
 			return ariaChecked();
 		},
 		get selected() {
@@ -10663,7 +10706,7 @@ function Checkbox(props) {
 		get children() {
 			return [createComponent$1(Center, {
 				"aria-hidden": "true",
-				get ["class"]() {
+				get "class"() {
 					return mergeClasses(selectionGeometry(size()).indicator, "flex-none border", "rounded text-xs font-bold", boxColors());
 				},
 				get children() {
@@ -10683,7 +10726,7 @@ function Checkbox(props) {
 				return memo(() => {
 					return !!props.label;
 				})() ? createComponent$1(Text, {
-					get ["class"]() {
+					get "class"() {
 						return mergeClasses(selectionLabelClass(size()), "text-primary");
 					},
 					get children() {
@@ -10733,10 +10776,10 @@ function RadioGroup(props) {
 		get children() {
 			return createComponent$1(View, {
 				role: "radiogroup",
-				get ["aria-label"]() {
+				get "aria-label"() {
 					return props["aria-label"];
 				},
-				get ["class"]() {
+				get "class"() {
 					return mergeClasses("flex", props.orientation === "horizontal" ? "flex-row" : "flex-col", props.appearance === "segment" ? "items-center gap-0.5 rounded-md border border-subtle bg-control p-0.5" : "gap-3", props.class);
 				},
 				get children() {
@@ -10764,10 +10807,10 @@ function RadioGroupItem(props) {
 		get selected() {
 			return checked();
 		},
-		get ["aria-label"]() {
+		get "aria-label"() {
 			return props["aria-label"] ?? props.label;
 		},
-		get ["aria-checked"]() {
+		get "aria-checked"() {
 			return checked();
 		},
 		get focusOrder() {
@@ -10789,13 +10832,13 @@ function RadioGroupItem(props) {
 					return group.appearance() === "radio";
 				})() && createComponent$1(Center, {
 					"aria-hidden": "true",
-					get ["class"]() {
+					get "class"() {
 						return mergeClasses(selectionGeometry(size()).indicator, "flex-none border", "rounded-full bg-input", match(checked()).with(true, () => "border-accent").with(false, () => "border-strong").exhaustive());
 					},
 					get children() {
 						return memo(() => {
 							return !!checked();
-						})() ? createComponent$1(View, { get ["class"]() {
+						})() ? createComponent$1(View, { get "class"() {
 							return mergeClasses(selectionGeometry(size()).radioDot, "rounded-full bg-accent");
 						} }) : checked();
 					}
@@ -10804,7 +10847,7 @@ function RadioGroupItem(props) {
 				return memo(() => {
 					return !!props.label;
 				})() ? createComponent$1(Text, {
-					get ["class"]() {
+					get "class"() {
 						return mergeClasses(selectionLabelClass(size()), checked() ? "text-primary" : "text-secondary");
 					},
 					get children() {
@@ -10839,10 +10882,10 @@ function Toggle(props) {
 		get selected() {
 			return pressed();
 		},
-		get ["aria-label"]() {
+		get "aria-label"() {
 			return props["aria-label"];
 		},
-		get ["aria-pressed"]() {
+		get "aria-pressed"() {
 			return pressed();
 		},
 		class: (state) => mergeClasses("items-center justify-center border font-medium", size(), colors(state), match(props.variant ?? "default").with("outline", () => "border-strong").with("default", () => "border-transparent").exhaustive(), state.focusVisible && "border-focus", props.class, componentsDisabledInteractiveClass(state.disabled)),
@@ -10910,14 +10953,14 @@ function ToggleGroup(props) {
 		get children() {
 			return createComponent$1(View, {
 				role: "group",
-				get ["aria-label"]() {
+				get "aria-label"() {
 					return props["aria-label"];
 				},
 				"aria-orientation": "horizontal",
-				get ["aria-disabled"]() {
+				get "aria-disabled"() {
 					return props.disabled;
 				},
-				get ["class"]() {
+				get "class"() {
 					return mergeClasses("flex flex-row items-stretch rounded-md", props.segmented ? "gap-0 overflow-hidden border border-strong bg-surface" : mergeClasses("bg-transparent", match(props.spacing ?? 0).with(0, () => "gap-0").with(1, () => "gap-1").with(2, () => "gap-2").exhaustive()), props.class);
 				},
 				get children() {
@@ -10942,10 +10985,10 @@ function ToggleGroupItem(props) {
 		get selected() {
 			return selected();
 		},
-		get ["aria-label"]() {
+		get "aria-label"() {
 			return props["aria-label"];
 		},
-		get ["aria-pressed"]() {
+		get "aria-pressed"() {
 			return selected();
 		},
 		get focusOrder() {
@@ -10987,19 +11030,19 @@ function SettingsItem(props) {
 		get role() {
 			return props.role ?? "group";
 		},
-		get ["aria-label"]() {
+		get "aria-label"() {
 			return props["aria-label"] ?? props.title;
 		},
-		get ["aria-orientation"]() {
+		get "aria-orientation"() {
 			return orientation();
 		},
-		get ["aria-disabled"]() {
+		get "aria-disabled"() {
 			return props.disabled;
 		},
 		get interactionBlocked() {
 			return props.disabled || props.interactionBlocked;
 		},
-		get ["class"]() {
+		get "class"() {
 			return mergeClasses("w-full min-w-0 flex", orientation() === "horizontal" ? "flex-row items-start justify-between gap-6" : "flex-col items-stretch gap-3", props.class, componentsDisabledInteractiveClass(props.disabled ?? false));
 		},
 		get style() {
@@ -11007,7 +11050,7 @@ function SettingsItem(props) {
 		},
 		get children() {
 			return [createComponent$1(View, {
-				get ["class"]() {
+				get "class"() {
 					return mergeClasses("min-w-0 flex-1 flex flex-col gap-1", props.labelClass);
 				},
 				get children() {
@@ -11028,7 +11071,7 @@ function SettingsItem(props) {
 					})];
 				}
 			}), createComponent$1(View, {
-				get ["class"]() {
+				get "class"() {
 					return mergeClasses("min-w-0 flex items-center gap-2", orientation() === "horizontal" ? "flex-none justify-end" : "w-full justify-start", props.controlClass);
 				},
 				get children() {
@@ -11046,15 +11089,15 @@ function SettingsItem(props) {
 function SettingsSection(props) {
 	return createComponent$1(View, {
 		role: "group",
-		get ["aria-label"]() {
+		get "aria-label"() {
 			return props.title;
 		},
-		get ["class"]() {
+		get "class"() {
 			return mergeClasses("w-full min-w-0 flex items-start", props.stacked ? "flex-col gap-3" : "flex-row gap-7", props.class);
 		},
 		get children() {
 			return [createComponent$1(View, {
-				get ["class"]() {
+				get "class"() {
 					return mergeClasses("flex-none flex flex-col gap-1 pt-1", props.stacked ? "w-full" : "w-52");
 				},
 				get children() {
@@ -11076,7 +11119,7 @@ function SettingsSection(props) {
 					})];
 				}
 			}), createComponent$1(View, {
-				get ["class"]() {
+				get "class"() {
 					return mergeClasses("w-full min-w-0 flex-1 flex flex-col gap-5 rounded-xl border border-subtle bg-surface px-5 py-5 shadow-xs", props.contentClass);
 				},
 				get children() {
@@ -11090,10 +11133,10 @@ function SettingsSection(props) {
 function SettingsGroup(props) {
 	return createComponent$1(View, {
 		role: "group",
-		get ["aria-label"]() {
+		get "aria-label"() {
 			return props.title;
 		},
-		get ["class"]() {
+		get "class"() {
 			return mergeClasses("min-w-0 flex flex-col gap-4", props.class);
 		},
 		get children() {
@@ -11144,10 +11187,10 @@ function ShaderLayer(props) {
 		get role() {
 			return props.role ?? "img";
 		},
-		get ["aria-label"]() {
+		get "aria-label"() {
 			return props["aria-label"] ?? "Custom GPU effect";
 		},
-		get ["class"]() {
+		get "class"() {
 			return mergeClasses("overflow-hidden", props.class);
 		},
 		get config() {
@@ -11284,7 +11327,7 @@ function ShortcutRecorder(props) {
 	};
 	const parts = () => value().split("+").filter(Boolean);
 	return createComponent$1(View, {
-		get ["class"]() {
+		get "class"() {
 			return mergeClasses("min-w-0 flex flex-col gap-2", props.class);
 		},
 		get children() {
@@ -11300,10 +11343,10 @@ function ShortcutRecorder(props) {
 			}), createComponent$1(Button$1, {
 				unstyled: true,
 				role: "button",
-				get ["aria-label"]() {
+				get "aria-label"() {
 					return props.label ?? "Keyboard shortcut";
 				},
-				get ["aria-pressed"]() {
+				get "aria-pressed"() {
 					return recording();
 				},
 				get disabled() {
@@ -11385,7 +11428,7 @@ function Sidebar(props) {
 		get role() {
 			return props.role ?? "group";
 		},
-		get ["class"]() {
+		get "class"() {
 			return mergeClasses("h-full min-h-0 flex-none flex flex-col overflow-hidden bg-surface-muted", props.class);
 		},
 		get shadows() {
@@ -11396,7 +11439,7 @@ function Sidebar(props) {
 	}));
 }
 function SidebarHeader(props) {
-	return createComponent$1(View, mergeProps(props, { get ["class"]() {
+	return createComponent$1(View, mergeProps(props, { get "class"() {
 		return workbenchHeaderClass(props.class);
 	} }));
 }
@@ -11404,7 +11447,7 @@ function SidebarSearch(props) {
 	const forwarded = omit(props, "class");
 	const quiet = () => props.variant === "quiet";
 	return createComponent$1(View, {
-		get ["class"]() {
+		get "class"() {
 			return mergeClasses("flex-none p-2", quiet() ? "bg-surface-muted" : "border-b border-subtle bg-surface");
 		},
 		get children() {
@@ -11412,7 +11455,7 @@ function SidebarSearch(props) {
 				get placeholder() {
 					return props.placeholder ?? "Search";
 				},
-				get ["class"]() {
+				get "class"() {
 					return mergeClasses("w-full", props.class);
 				}
 			}));
@@ -11422,7 +11465,7 @@ function SidebarSearch(props) {
 /** The only scrolling region in a standard sidebar; header/footer stay fixed. */
 function SidebarContent(props) {
 	return createComponent$1(ScrollArea, mergeProps(props, {
-		get ["class"]() {
+		get "class"() {
 			return mergeClasses("min-h-0 flex-1", props.class);
 		},
 		get contentClass() {
@@ -11435,13 +11478,13 @@ function SidebarGroup(props) {
 		get role() {
 			return props.role ?? "group";
 		},
-		get ["class"]() {
+		get "class"() {
 			return mergeClasses("flex-none flex flex-col gap-2 mb-3", props.class);
 		}
 	}));
 }
 function SidebarGroupLabel(props) {
-	return createComponent$1(Text, mergeProps(props, { get ["class"]() {
+	return createComponent$1(Text, mergeProps(props, { get "class"() {
 		return mergeClasses("h-8 px-2 flex-none flex items-center text-xs font-medium text-muted", props.class);
 	} }));
 }
@@ -11467,7 +11510,7 @@ function SidebarMenu(props) {
 				get role() {
 					return props.role ?? "group";
 				},
-				get ["class"]() {
+				get "class"() {
 					return mergeClasses("min-w-0 flex flex-col gap-2", props.class);
 				},
 				get children() {
@@ -11487,7 +11530,7 @@ function SidebarMenuButton(props) {
 		get selected() {
 			return selected();
 		},
-		get ["aria-selected"]() {
+		get "aria-selected"() {
 			return selected();
 		},
 		class: (state) => mergeClasses("w-full min-w-0 h-8 px-2 justify-start gap-2 rounded-md border border-transparent text-sm", state.pressed ? "bg-control-pressed text-primary" : state.selected ? "bg-selected font-medium text-primary" : state.hovered ? "bg-control-hover text-primary" : "bg-transparent text-secondary", state.focusVisible && "border-focus", props.class),
@@ -11503,14 +11546,14 @@ function SidebarMenuIcon(props) {
 		get role() {
 			return props.role ?? "img";
 		},
-		get ["class"]() {
+		get "class"() {
 			return mergeClasses("w-4 h-4 flex-none flex items-center justify-center", props.class);
 		}
 	}));
 }
 /** Truncating label slot for rows that also contain icons or suffix actions. */
 function SidebarMenuLabel(props) {
-	return createComponent$1(Text, mergeProps(props, { get ["class"]() {
+	return createComponent$1(Text, mergeProps(props, { get "class"() {
 		return mergeClasses("min-w-0 flex-1 truncate text-left", props.class);
 	} }));
 }
@@ -11520,14 +11563,14 @@ function SidebarMenuSuffix(props) {
 		get role() {
 			return props.role ?? "group";
 		},
-		get ["class"]() {
+		get "class"() {
 			return mergeClasses("min-w-0 flex-none flex items-center justify-end", props.class);
 		}
 	}));
 }
 function SidebarEmpty(props) {
 	return createComponent$1(View, {
-		get ["class"]() {
+		get "class"() {
 			return mergeClasses("px-3 py-6 flex flex-col items-center gap-1", props.class);
 		},
 		get children() {
@@ -11551,7 +11594,7 @@ function SidebarEmpty(props) {
 	});
 }
 function SidebarFooter(props) {
-	return createComponent$1(View, mergeProps(props, { get ["class"]() {
+	return createComponent$1(View, mergeProps(props, { get "class"() {
 		return mergeClasses("flex-none border-t border-subtle bg-surface", props.class);
 	} }));
 }
@@ -11593,31 +11636,31 @@ function Slider(props) {
 	return createComponent$1(NativeWidget, {
 		tag: "slider",
 		role: "slider",
-		get ["aria-label"]() {
+		get "aria-label"() {
 			return props.label;
 		},
-		get ["aria-valuemin"]() {
+		get "aria-valuemin"() {
 			return min();
 		},
-		get ["aria-valuemax"]() {
+		get "aria-valuemax"() {
 			return max();
 		},
-		get ["aria-valuenow"]() {
+		get "aria-valuenow"() {
 			return value();
 		},
-		get ["aria-valuetext"]() {
+		get "aria-valuetext"() {
 			return props.valueText?.(value()) ?? String(value());
 		},
-		get ["aria-disabled"]() {
+		get "aria-disabled"() {
 			return props.disabled ?? false;
 		},
-		get ["aria-orientation"]() {
+		get "aria-orientation"() {
 			return orientation();
 		},
 		get focusOrder() {
 			return props.disabled ? -1 : 0;
 		},
-		get ["class"]() {
+		get "class"() {
 			return mergeClasses(orientation() === "vertical" ? "w-7 h-[120px] select-none" : "w-full h-7 select-none", "text-accent", props.disabled ? "" : "cursor-pointer", props.class, componentsDisabledInteractiveClass(props.disabled ?? false));
 		},
 		get config() {
@@ -11644,10 +11687,10 @@ function Slider(props) {
 function SplitButton(props) {
 	const menuLabel = () => props.menuLabel ?? `${props.label} alternatives`;
 	return createComponent$1(ButtonGroup, {
-		get ["aria-label"]() {
+		get "aria-label"() {
 			return props.label;
 		},
-		get ["class"]() {
+		get "class"() {
 			return props.class;
 		},
 		get children() {
@@ -11672,7 +11715,7 @@ function SplitButton(props) {
 				}),
 				createComponent$1(ButtonGroupSeparator, {}),
 				createComponent$1(DropdownMenu, {
-					get ["aria-label"]() {
+					get "aria-label"() {
 						return menuLabel();
 					},
 					get items() {
@@ -11682,7 +11725,7 @@ function SplitButton(props) {
 						return props.onAction;
 					},
 					trigger: (trigger) => createComponent$1(Button, mergeProps(trigger, {
-						get ["aria-label"]() {
+						get "aria-label"() {
 							return menuLabel();
 						},
 						get variant() {
@@ -11709,10 +11752,10 @@ function SplitButton(props) {
 function StatCard(props) {
 	return createComponent$1(Card, {
 		role: "group",
-		get ["aria-label"]() {
+		get "aria-label"() {
 			return props.label;
 		},
-		get ["class"]() {
+		get "class"() {
 			return props.class;
 		},
 		get children() {
@@ -11730,7 +11773,7 @@ function StatCard(props) {
 									}
 								}), createComponent$1(View, {
 									"aria-hidden": "true",
-									get ["class"]() {
+									get "class"() {
 										return mergeClasses("w-2 h-2 rounded-full bg-accent", props.indicatorClass);
 									}
 								})];
@@ -11784,7 +11827,7 @@ function StatusBar(props) {
 		get role() {
 			return props.role ?? "status";
 		},
-		get ["class"]() {
+		get "class"() {
 			return mergeClasses("h-7 w-full min-w-0 flex-none flex flex-row items-center gap-1 px-2 border-t border-subtle bg-control", props.class);
 		},
 		get children() {
@@ -11795,7 +11838,7 @@ function StatusBar(props) {
 function StatusBarItem(props) {
 	const forwarded = omit(props, "class", "grow", "children");
 	return createComponent$1(Text, mergeProps(forwarded, {
-		get ["class"]() {
+		get "class"() {
 			return mergeClasses("h-full min-w-0 px-1.5 flex items-center text-xs text-muted whitespace-nowrap", props.grow ? "flex-1" : "flex-none", props.class);
 		},
 		get children() {
@@ -11807,7 +11850,7 @@ function StatusBarSeparator(props) {
 	return createComponent$1(View, {
 		role: "separator",
 		"aria-orientation": "vertical",
-		get ["class"]() {
+		get "class"() {
 			return mergeClasses("w-px h-4 flex-none bg-subtle", props.class);
 		}
 	});
@@ -11816,7 +11859,7 @@ function StatusBarSeparator(props) {
 function StatusBarGroup(props) {
 	const forwarded = omit(props, "class", "grow", "shrink", "children");
 	return createComponent$1(View, mergeProps(forwarded, {
-		get ["class"]() {
+		get "class"() {
 			return mergeClasses("h-full min-w-0 px-1.5 flex flex-row items-center gap-1.5 text-xs text-muted", props.grow ? "flex-1" : props.shrink ? "shrink" : "flex-none", props.class);
 		},
 		get children() {
@@ -11828,7 +11871,7 @@ function StatusBarGroup(props) {
 function StatusBarIndicator(props) {
 	return createComponent$1(View, {
 		"aria-hidden": "true",
-		get ["class"]() {
+		get "class"() {
 			return mergeClasses("w-1.5 h-1.5 flex-none rounded-full", componentToneClass(props.tone === "muted" ? "neutral" : props.tone ?? "neutral", "indicator"), props.class);
 		}
 	});
@@ -11845,10 +11888,10 @@ function Stepper(props) {
 	};
 	return createComponent$1(View, {
 		role: "group",
-		get ["aria-label"]() {
+		get "aria-label"() {
 			return props["aria-label"] ?? "Progress steps";
 		},
-		get ["class"]() {
+		get "class"() {
 			return mergeClasses("min-w-0 flex flex-row items-start", props.class);
 		},
 		get children() {
@@ -11864,7 +11907,7 @@ function Stepper(props) {
 							get children() {
 								return [
 									createComponent$1(Button, {
-										get ["aria-label"]() {
+										get "aria-label"() {
 											return `Go to ${step.label}`;
 										},
 										get variant() {
@@ -11897,7 +11940,7 @@ function Stepper(props) {
 						}), memo(() => {
 							return memo(() => {
 								return index() < props.steps.length - 1;
-							})() && createComponent$1(View, { get ["class"]() {
+							})() && createComponent$1(View, { get "class"() {
 								return mergeClasses("h-px flex-1 mt-4", index() < currentIndex() ? "bg-accent" : "bg-subtle");
 							} });
 						})];
@@ -11962,7 +12005,7 @@ function Switch(props) {
 		state.set(!checked());
 	};
 	return createComponent$1(View, {
-		get ["class"]() {
+		get "class"() {
 			return mergeClasses("w-full min-w-0 flex items-start gap-2", props.labelPlacement === "start" && "flex-row-reverse", props.class);
 		},
 		get children() {
@@ -11975,22 +12018,22 @@ function Switch(props) {
 				get disabled() {
 					return props.disabled;
 				},
-				get ["aria-label"]() {
+				get "aria-label"() {
 					return props["aria-label"] ?? props.label;
 				},
-				get ["aria-checked"]() {
+				get "aria-checked"() {
 					return checked();
 				},
 				class: (state) => mergeClasses(switchControlClass(state), componentsDisabledInteractiveClass(state.disabled)),
 				onClick: toggle,
 				renderContent: (buttonState) => createComponent$1(View, {
 					"aria-hidden": "true",
-					get ["class"]() {
+					get "class"() {
 						return switchTrackClass(checked(), buttonState(), size());
 					},
 					get children() {
 						return createComponent$1(View, {
-							get ["class"]() {
+							get "class"() {
 								return mergeClasses(geometry().thumbClass, "rounded-full bg-surface");
 							},
 							get transform() {
@@ -12070,7 +12113,7 @@ function Tabs(props) {
 		value: context,
 		get children() {
 			return createComponent$1(View, {
-				get ["class"]() {
+				get "class"() {
 					return mergeClasses("min-w-0 flex gap-3", orientationClass(context.orientation(), "flex-col", "flex-row"), props.class);
 				},
 				get children() {
@@ -12085,13 +12128,13 @@ function TabsList(props) {
 	if (!context) throw new Error("TabsList must be used inside Tabs");
 	return createComponent$1(View, {
 		role: "tablist",
-		get ["aria-label"]() {
+		get "aria-label"() {
 			return props["aria-label"];
 		},
-		get ["aria-orientation"]() {
+		get "aria-orientation"() {
 			return context.orientation();
 		},
-		get ["class"]() {
+		get "class"() {
 			return memo(() => {
 				return !!props.unstyled;
 			})() ? props.class : mergeClasses("min-w-0 max-w-full flex-none flex items-center gap-1", orientationClass(context.orientation(), "flex-row overflow-x-scroll", "flex-col overflow-y-scroll"), match(props.variant ?? "default").with("default", () => "p-0.5 rounded-lg bg-control").with("line", () => "bg-transparent").exhaustive(), props.class);
@@ -12111,7 +12154,7 @@ function TabsItem(props) {
 	const selected = () => context.value() === props.value;
 	const itemClass = () => typeof props.class === "function" ? props.class({ selected: selected() }) : props.class;
 	return createComponent$1(View, {
-		get ["class"]() {
+		get "class"() {
 			return mergeClasses("h-8 min-w-24 max-w-56 flex flex-row items-center overflow-hidden rounded-md border border-transparent", selected() ? "bg-surface text-primary shadow-xs" : "bg-transparent text-muted", itemClass());
 		},
 		get children() {
@@ -12133,7 +12176,7 @@ function TabsItem(props) {
 				})() ? createComponent$1(Button, {
 					variant: "ghost",
 					size: "icon",
-					get ["aria-label"]() {
+					get "aria-label"() {
 						return props.closeLabel ?? `Close ${props.value}`;
 					},
 					class: "w-6 h-6 flex-none text-muted",
@@ -12162,7 +12205,7 @@ function TabsTrigger(props) {
 	return createComponent$1(Button$1, {
 		unstyled: true,
 		role: "tab",
-		get ["aria-label"]() {
+		get "aria-label"() {
 			return props["aria-label"];
 		},
 		get disabled() {
@@ -12171,7 +12214,7 @@ function TabsTrigger(props) {
 		get selected() {
 			return selected();
 		},
-		get ["aria-selected"]() {
+		get "aria-selected"() {
 			return selected();
 		},
 		get focusOrder() {
@@ -12213,10 +12256,10 @@ function TabsContent(props) {
 		get children() {
 			return createComponent$1(View, {
 				role: "tabpanel",
-				get ["aria-hidden"]() {
+				get "aria-hidden"() {
 					return !selected();
 				},
-				get ["class"]() {
+				get "class"() {
 					return mergeClasses("min-w-0 flex flex-col", orientationClass(context.orientation(), "w-full flex-none", "flex-1"), props.class);
 				},
 				get style() {
@@ -12234,10 +12277,10 @@ function TabsContent(props) {
 function Timeline(props) {
 	return createComponent$1(View, {
 		role: "group",
-		get ["aria-label"]() {
+		get "aria-label"() {
 			return props["aria-label"] ?? "Timeline";
 		},
-		get ["class"]() {
+		get "class"() {
 			return mergeClasses("min-w-0 flex flex-col", props.class);
 		},
 		get children() {
@@ -12251,7 +12294,7 @@ function Timeline(props) {
 						return [createComponent$1(View, {
 							class: "w-4 flex-none flex flex-col items-center",
 							get children() {
-								return [createComponent$1(View, { get ["class"]() {
+								return [createComponent$1(View, { get "class"() {
 									return mergeClasses("w-3 h-3 flex-none rounded-full border", item.status === "complete" ? "border-accent bg-accent" : item.status === "current" ? "border-accent bg-surface" : "border-subtle bg-control");
 								} }), memo(() => {
 									return memo(() => {
@@ -12355,7 +12398,7 @@ function WindowFrame(props) {
 		},
 		get children() {
 			return createComponent$1(View, mergeProps(viewProps, {
-				get ["class"]() {
+				get "class"() {
 					return mergeClasses("w-full h-full", viewProps.class);
 				},
 				get classList() {
@@ -12398,7 +12441,7 @@ const titleBarDragRegionLayoutStyle = {
 /** Layout shell for an application-owned title bar. */
 function TitleBar(props) {
 	return createComponent$1(View, mergeProps(props, {
-		get ["class"]() {
+		get "class"() {
 			return mergeClasses(titleBarClass, props.class);
 		},
 		get style() {
@@ -12413,7 +12456,7 @@ function TitleBar(props) {
 function TitleBarDragRegion(props) {
 	const window = useWindow();
 	return createComponent$1(View, mergeProps(props, {
-		get ["class"]() {
+		get "class"() {
 			return props.class;
 		},
 		get style() {
@@ -12447,7 +12490,7 @@ function ToastContent(props) {
 	const theme = useComponentsTheme();
 	const style = () => treatment(props.input.variant ?? "default");
 	return createComponent$1(View, {
-		get ["class"]() {
+		get "class"() {
 			return mergeClasses("w-full min-w-0 flex items-start gap-3 px-4 py-3.5", componentsSurfaceClass("floating"));
 		},
 		get shadows() {
@@ -12459,7 +12502,7 @@ function ToastContent(props) {
 					get source() {
 						return style().icon;
 					},
-					get ["class"]() {
+					get "class"() {
 						return mergeClasses("flex-none mt-0.5", style().color);
 					},
 					size: 18
@@ -12493,7 +12536,7 @@ function ToastContent(props) {
 										return createComponent$1(Button, {
 											size: "sm",
 											variant: "outline",
-											get ["aria-label"]() {
+											get "aria-label"() {
 												return props.input.action.label;
 											},
 											onClick: () => {
@@ -12513,7 +12556,7 @@ function ToastContent(props) {
 				createComponent$1(Button, {
 					size: "icon",
 					variant: "ghost",
-					get ["aria-label"]() {
+					get "aria-label"() {
 						return `Dismiss ${props.input.title}`;
 					},
 					class: "w-7 h-7 flex-none",
@@ -12582,7 +12625,7 @@ function Toaster(props) {
 		get placement() {
 			return props.placement ?? "bottom-end";
 		},
-		get ["class"]() {
+		get "class"() {
 			return props.class;
 		},
 		stackClass: "w-96 max-w-full",
@@ -12601,7 +12644,7 @@ function Toaster(props) {
 /** Composable disclosure root for an AI or automation tool invocation. */
 function Tool(props) {
 	const rest = omit(props, "class");
-	return createComponent$1(Collapsible, mergeProps(rest, { get ["class"]() {
+	return createComponent$1(Collapsible, mergeProps(rest, { get "class"() {
 		return mergeClasses("w-full min-w-0 overflow-hidden rounded-lg border border-subtle bg-surface shadow-xs", props.class);
 	} }));
 }
@@ -12636,10 +12679,10 @@ function ToolHeader(props) {
 	const presentation = () => props.status ? statusPresentation(props.status) : void 0;
 	const rest = omit(props, "title", "summary", "status", "icon", "class", "aria-label");
 	return createComponent$1(CollapsibleTrigger, mergeProps(rest, {
-		get ["aria-label"]() {
+		get "aria-label"() {
 			return props["aria-label"] ?? toolHeaderLabel(props.title, props.summary, props.status);
 		},
-		get ["class"]() {
+		get "class"() {
 			return mergeClasses("min-h-10 px-3 py-1.5 bg-control text-left", props.class);
 		},
 		get children() {
@@ -12699,7 +12742,7 @@ function ToolHeader(props) {
 }
 function ToolContent(props) {
 	const rest = omit(props, "class");
-	return createComponent$1(CollapsibleContent, mergeProps(rest, { get ["class"]() {
+	return createComponent$1(CollapsibleContent, mergeProps(rest, { get "class"() {
 		return mergeClasses("min-w-0 border-t border-subtle bg-surface", props.class);
 	} }));
 }
@@ -12707,7 +12750,7 @@ function ToolContent(props) {
 function ToolCodeSection(props) {
 	const rest = omit(props, "code", "label", "language", "copyable", "class", "codeClass", "codeProps");
 	return createComponent$1(View, mergeProps(rest, {
-		get ["class"]() {
+		get "class"() {
 			return mergeClasses("min-w-0 p-3 gap-2", props.class);
 		},
 		get children() {
@@ -12728,7 +12771,7 @@ function ToolCodeSection(props) {
 				get copyable() {
 					return props.copyable;
 				},
-				get ["class"]() {
+				get "class"() {
 					return mergeClasses("rounded-md", props.codeClass);
 				}
 			}))];
@@ -12746,7 +12789,7 @@ function ToolOutput(props) {
 		get label() {
 			return props.label ?? (props.error ? "Error" : "Result");
 		},
-		get ["class"]() {
+		get "class"() {
 			return mergeClasses("border-t border-subtle", props.error ? "bg-danger-surface" : void 0, props.class);
 		}
 	}));
@@ -12920,15 +12963,15 @@ function TreeView(props) {
 				}
 			},
 			role: "treeitem",
-			get ["aria-label"]() {
+			get "aria-label"() {
 				return item().node.label;
 			},
-			get ["aria-expanded"]() {
+			get "aria-expanded"() {
 				return memo(() => {
 					return !!branch();
 				})() ? isExpanded(id) : void 0;
 			},
-			get ["aria-selected"]() {
+			get "aria-selected"() {
 				return isSelected(id);
 			},
 			get selected() {
@@ -12999,16 +13042,16 @@ function TreeView(props) {
 		controllerRef: (controller) => {
 			virtualController = controller;
 		},
-		get ["class"]() {
+		get "class"() {
 			return props.class;
 		},
 		children: (item) => renderTreeItem(item)
 	}) : createComponent$1(View, {
 		role: "tree",
-		get ["aria-label"]() {
+		get "aria-label"() {
 			return props["aria-label"];
 		},
-		get ["class"]() {
+		get "class"() {
 			return mergeClasses("min-w-0 flex flex-col gap-0.5", props.class);
 		},
 		get children() {
@@ -13024,7 +13067,7 @@ function TreeView(props) {
 //#endregion
 //#region src/components/typography.tsx
 function styledText(props, className) {
-	return createComponent$1(Text, mergeProps(props, { get ["class"]() {
+	return createComponent$1(Text, mergeProps(props, { get "class"() {
 		return mergeClasses(className, props.class);
 	} }));
 }
@@ -13052,7 +13095,7 @@ function TypographyBlockquote(props) {
 	});
 }
 function TypographyList(props) {
-	return createComponent$1(View, mergeProps(props, { get ["class"]() {
+	return createComponent$1(View, mergeProps(props, { get "class"() {
 		return mergeClasses("flex flex-col gap-2", props.class);
 	} }));
 }
@@ -13075,63 +13118,63 @@ function TypographyListItem(props) {
 /** Full-window desktop application boundary with explicit shrink semantics. */
 function Workbench(props) {
 	const forwarded = omit(props, "class");
-	return createComponent$1(View, mergeProps(forwarded, { get ["class"]() {
+	return createComponent$1(View, mergeProps(forwarded, { get "class"() {
 		return workbenchClass(props.class);
 	} }));
 }
 /** Fixed-width navigation rail paired with a {@link WorkbenchMain}. */
 function WorkbenchSidebar(props) {
 	const forwarded = omit(props, "class");
-	return createComponent$1(Sidebar, mergeProps(forwarded, { get ["class"]() {
+	return createComponent$1(Sidebar, mergeProps(forwarded, { get "class"() {
 		return workbenchSidebarClass(props.class);
 	} }));
 }
 /** The resizable application column beside the navigation rail. */
 function WorkbenchMain(props) {
 	const forwarded = omit(props, "class");
-	return createComponent$1(View, mergeProps(forwarded, { get ["class"]() {
+	return createComponent$1(View, mergeProps(forwarded, { get "class"() {
 		return workbenchMainClass(props.class);
 	} }));
 }
 /** Shared 48px chrome row for both sidebar and content headers. */
 function WorkbenchHeader(props) {
 	const forwarded = omit(props, "class");
-	return createComponent$1(View, mergeProps(forwarded, { get ["class"]() {
+	return createComponent$1(View, mergeProps(forwarded, { get "class"() {
 		return workbenchHeaderClass(props.class);
 	} }));
 }
 /** Bounded application content. Add a ScrollArea inside when scrolling is needed. */
 function WorkbenchContent(props) {
 	const forwarded = omit(props, "class");
-	return createComponent$1(View, mergeProps(forwarded, { get ["class"]() {
+	return createComponent$1(View, mergeProps(forwarded, { get "class"() {
 		return workbenchContentClass(props.class);
 	} }));
 }
 /** A centered 896px desktop content column that still shrinks with its pane. */
 function WorkbenchContentColumn(props) {
 	const forwarded = omit(props, "class");
-	return createComponent$1(View, mergeProps(forwarded, { get ["class"]() {
+	return createComponent$1(View, mergeProps(forwarded, { get "class"() {
 		return workbenchContentColumnClass(props.class);
 	} }));
 }
 /** Fixed chrome below the workbench content, such as a composer or status bar. */
 function WorkbenchFooter(props) {
 	const forwarded = omit(props, "class");
-	return createComponent$1(View, mergeProps(forwarded, { get ["class"]() {
+	return createComponent$1(View, mergeProps(forwarded, { get "class"() {
 		return workbenchFooterClass(props.class);
 	} }));
 }
 /** Fixed-width auxiliary pane for file previews, diffs and contextual tools. */
 function WorkbenchInspector(props) {
 	const forwarded = omit(props, "class");
-	return createComponent$1(View, mergeProps(forwarded, { get ["class"]() {
+	return createComponent$1(View, mergeProps(forwarded, { get "class"() {
 		return workbenchInspectorClass(props.class);
 	} }));
 }
 /** Inspector title row with a stable height and bounded children. */
 function WorkbenchInspectorHeader(props) {
 	const forwarded = omit(props, "class");
-	return createComponent$1(View, mergeProps(forwarded, { get ["class"]() {
+	return createComponent$1(View, mergeProps(forwarded, { get "class"() {
 		return workbenchInspectorHeaderClass(props.class);
 	} }));
 }
@@ -13142,7 +13185,7 @@ function WorkbenchInspectorHeader(props) {
 function WorkbenchInspectorTitlebar(props) {
 	const forwarded = omit(props, "title", "description", "closeLabel", "onClose", "renderAction", "class");
 	return createComponent$1(WorkbenchInspectorHeader, mergeProps(forwarded, {
-		get ["class"]() {
+		get "class"() {
 			return props.class;
 		},
 		get children() {
@@ -13176,7 +13219,7 @@ function WorkbenchInspectorTitlebar(props) {
 						})() ? createComponent$1(Button, {
 							variant: "ghost",
 							size: "icon",
-							get ["aria-label"]() {
+							get "aria-label"() {
 								return props.closeLabel ?? "Close inspector";
 							},
 							get onClick() {
@@ -13198,7 +13241,7 @@ function WorkbenchInspectorTitlebar(props) {
 /** Flexible, clipped inspector body. Add a ScrollArea inside when needed. */
 function WorkbenchInspectorContent(props) {
 	const forwarded = omit(props, "class");
-	return createComponent$1(View, mergeProps(forwarded, { get ["class"]() {
+	return createComponent$1(View, mergeProps(forwarded, { get "class"() {
 		return workbenchInspectorContentClass(props.class);
 	} }));
 }
@@ -13219,7 +13262,7 @@ function Fps(props) {
 			return variant();
 		},
 		weight: "normal",
-		get ["class"]() {
+		get "class"() {
 			return mergeClasses("font-mono", props.class);
 		},
 		get children() {

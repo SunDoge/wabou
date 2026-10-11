@@ -1,0 +1,13 @@
+[package]
+name = "gallery-functions"
+version = "0.1.0"
+edition = "2024"
+license.workspace = true
+publish = false
+
+[lib]
+crate-type = ["rlib", "cdylib"]
+
+[dependencies]
+gallery-api = { path = "../gallery-api" }
+wabou-capability-sdk = { path = "../../crates/wabou-capability-sdk" }

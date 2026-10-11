@@ -12,6 +12,27 @@ const fn valid_resource_key_parts(lo: u32, hi: u32) -> bool {
     lo != 0 && hi != 0 && hi % 2 == 1
 }
 
+/// Family of asynchronous jobs owned by a resident runtime scheduler.
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+pub enum BackgroundTask {}
+
+/// Generational handle to a runtime-owned background job.
+pub type TaskKey = ResourceKey<BackgroundTask>;
+
+/// Family of open files owned by a resident runtime provider.
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+pub enum OpenFile {}
+
+/// Generational handle to an open resident file.
+pub type FileKey = ResourceKey<OpenFile>;
+
+/// Family of TCP connections owned by resident runtime code.
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+pub enum TcpConnection {}
+
+/// Generational handle to a resident TCP connection.
+pub type ConnectionKey = ResourceKey<TcpConnection>;
+
 /// Full-width generational identity for one family of native resources.
 ///
 /// The family is a Rust-only brand. Every wire boundary uses the stable

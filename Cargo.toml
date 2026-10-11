@@ -2,6 +2,7 @@
 resolver = "3"
 members = ["apps/*", "crates/*"]
 exclude = [
+  "apps/pulse",
   "experiments/*",
   "templates/basic",
   "vendor/bitwarden-sdk",
@@ -10,6 +11,8 @@ default-members = [
   "apps/7guis",
   "apps/devtools",
   "apps/gallery",
+  "apps/gallery-api",
+  "apps/gallery-functions",
   "apps/hackernews",
   "apps/manga-ocr",
   "apps/meow-starter",
@@ -24,6 +27,10 @@ default-members = [
   "crates/wabou-backend-vello-hybrid",
   "crates/wabou-bindgen",
   "crates/wabou-cli",
+  "crates/wabou-capability-abi",
+  "crates/wabou-capability-sdk",
+  "crates/wabou-launch",
+  "crates/wabou-runtime-library",
   "crates/wabou-database",
   "crates/wabou-devtools",
   "crates/wabou-host-api",
@@ -33,6 +40,7 @@ default-members = [
   "crates/wabou-shell-vello",
   "crates/wabou-style",
   "crates/wabou-terminal-vello",
+  "crates/wabou-telemetry",
   "crates/wabou-tray",
   "crates/wabou-widgets-vello",
 ]
@@ -42,6 +50,7 @@ version = "0.1.0-alpha.3"
 license = "Apache-2.0"
 
 [workspace.dependencies]
+wabou-telemetry = { path = "crates/wabou-telemetry" }
 anyhow = "1"
 wabou = { path = "crates/wabou", default-features = false }
 wabou-accessibility = { path = "crates/wabou-accessibility" }
@@ -65,7 +74,6 @@ bitflags = "2.10.0"
 bon = "3.9.3"
 bytemuck = "1.24.0"
 clap = "4.6.4"
-dioxus-devtools = { version = "0.7.10", default-features = false }
 directories = "6.0.0"
 flume = "0.12.0"
 futures-channel = "0.3"

@@ -236,6 +236,54 @@ pub(crate) const HOST_ABI: &[HostAbiEntry] = &[
         owner: "core",
         feature: None,
     },
+    HostAbiEntry {
+        name: "__wabou_url",
+        direction: Direction::Host,
+        owner: "runtime",
+        feature: None,
+    },
+    HostAbiEntry {
+        name: "__wabou_form_decode",
+        direction: Direction::Host,
+        owner: "runtime",
+        feature: None,
+    },
+    HostAbiEntry {
+        name: "__wabou_form_encode",
+        direction: Direction::Host,
+        owner: "runtime",
+        feature: None,
+    },
+    HostAbiEntry {
+        name: "__wabou_utf8_encode_into",
+        direction: Direction::Host,
+        owner: "runtime",
+        feature: None,
+    },
+    HostAbiEntry {
+        name: "__wabou_fetch_start",
+        direction: Direction::Host,
+        owner: "runtime",
+        feature: None,
+    },
+    HostAbiEntry {
+        name: "__wabou_fetch_cancel",
+        direction: Direction::Host,
+        owner: "runtime",
+        feature: None,
+    },
+    HostAbiEntry {
+        name: "__wabou_profile_enabled",
+        direction: Direction::Host,
+        owner: "runtime",
+        feature: None,
+    },
+    HostAbiEntry {
+        name: "__wabou_profile_batch",
+        direction: Direction::Host,
+        owner: "runtime",
+        feature: None,
+    },
 ];
 
 /// Return the feature-independent host globals declared by the ABI schema.

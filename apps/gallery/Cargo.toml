@@ -12,6 +12,7 @@ name = "gallery-bindgen"
 path = "examples/wabou-bindgen.rs"
 
 [dependencies]
-serde = { workspace = true, features = ["derive"] }
+gallery-api = { path = "../gallery-api" }
+gallery-functions = { path = "../gallery-functions" }
 snafu = { workspace = true }
-wabou = { workspace = true, features = ["bindings", "vello-hybrid"] }
+wabou = { workspace = true, features = ["bindings", "vello-hybrid", "capability-modules"] }

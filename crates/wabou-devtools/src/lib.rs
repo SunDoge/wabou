@@ -585,6 +585,12 @@ fn default_frame_limit() -> usize {
 #[serde(tag = "method", content = "params")]
 /// One request method supported by the local DevTools protocol.
 pub enum DebugCommand {
+    /// Configure bounded performance recording. Changing mode clears old records.
+    #[serde(rename = "profileConfigure")]
+    ProfileConfigure(ProfileParams),
+    /// Return CPU timeline and duration summaries.
+    #[serde(rename = "profileSnapshot")]
+    ProfileSnapshot(EmptyParams),
     /// Return runtime/window status.
     #[serde(rename = "status")]
     Status(EmptyParams),
@@ -612,6 +618,16 @@ pub enum DebugCommand {
     /// Capture pixels, snapshot, frames, and optional point inspection atomically.
     #[serde(rename = "captureCase")]
     CaptureCase(CaptureCaseParams),
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+/// Bounded performance recorder settings.
+pub struct ProfileParams {
+    /// off, counters, or trace.
+    pub mode: String,
+    /// Maximum retained timeline events (1..=65536).
+    pub capacity: usize,
 }
 
 /// Runtime-controlled overlay painted by the inspected application.
@@ -1006,6 +1022,13 @@ impl DebugState {
                     .collect();
                 serde_json::to_value(nodes).map_err(|e| e.to_string())
             }
+            DebugCommand::ProfileConfigure(params) => {
+                let mode = serde_json::from_value(serde_json::json!(params.mode))
+                    .map_err(|e| e.to_string())?;
+                wabou_telemetry::global().configure(mode, params.capacity)?;
+                Ok(wabou_telemetry::global().snapshot())
+            }
+            DebugCommand::ProfileSnapshot(_) => Ok(wabou_telemetry::global().snapshot()),
             DebugCommand::InspectNode(NodeIdParams { id }) => {
                 let node = self
                     .snapshot

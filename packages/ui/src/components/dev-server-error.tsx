@@ -1,30 +1,11 @@
-import {
-  rgba,
-  subscribeHostMessages,
-  subscribeJsonHostMessages,
-} from "@wabou/core";
-import { createSignal, type JSX, onCleanup, Show } from "solid-js";
+import { rgba } from "@wabou/core";
+import { type JSX, Show } from "solid-js";
 import { Button, Modal, Text, View } from "../primitives";
-
-export interface DevServerDiagnostic {
-  message: string;
-  stack?: string;
-  id?: string;
-  frame?: string;
-  plugin?: string;
-  loc?: { file?: string; line: number; column: number };
-}
-
-function decodeDiagnostic(value: unknown): DevServerDiagnostic {
-  if (!value || typeof value !== "object") {
-    throw new TypeError("Vite diagnostic must be an object");
-  }
-  const source = value as Record<string, unknown>;
-  if (typeof source.message !== "string") {
-    throw new TypeError("Vite diagnostic must contain a message");
-  }
-  return source as unknown as DevServerDiagnostic;
-}
+import {
+  useDevelopmentDiagnostics,
+  type DevServerDiagnostic,
+} from "./development-diagnostics";
+export type { DevServerDiagnostic } from "./development-diagnostics";
 
 function diagnosticLocation(diagnostic: DevServerDiagnostic): string {
   const file = diagnostic.loc?.file ?? diagnostic.id;
@@ -37,29 +18,13 @@ function diagnosticLocation(diagnostic: DevServerDiagnostic): string {
 
 /** Native equivalent of Vite's browser error overlay. */
 export function DevServerErrorOverlay(): JSX.Element {
-  const [diagnostic, setDiagnostic] = createSignal<DevServerDiagnostic>();
-  const unsubscribeError = subscribeJsonHostMessages<DevServerDiagnostic>(
-    "wabou:dev-server-error",
-    setDiagnostic,
-    {
-      decode: decodeDiagnostic,
-      onError: (error) =>
-        console.error("[wabou-hmr] invalid Vite diagnostic", error),
-    },
-  );
-  const unsubscribeReady = subscribeHostMessages("wabou:dev-server-ready", () =>
-    setDiagnostic(undefined),
-  );
-  onCleanup(() => {
-    unsubscribeError();
-    unsubscribeReady();
-  });
+  const { diagnostic, dismiss } = useDevelopmentDiagnostics();
 
   return (
     <Modal
       open={diagnostic() !== undefined}
       onOpenChange={(open) => {
-        if (!open) setDiagnostic(undefined);
+        if (!open) dismiss();
       }}
       aria-label="Development build failed"
       contentRole="alertdialog"
@@ -72,7 +37,9 @@ export function DevServerErrorOverlay(): JSX.Element {
           <>
             <View class="min-w-0 gap-1">
               <Text class="text-lg font-semibold text-danger-primary">
-                Vite could not update the app
+                {error.plugin === "Rust"
+                  ? "Rust could not update the app"
+                  : "JavaScript could not update the app"}
               </Text>
               <Text class="text-xs text-muted whitespace-normal">
                 {diagnosticLocation(error)}
@@ -98,7 +65,7 @@ export function DevServerErrorOverlay(): JSX.Element {
               <Button
                 aria-label="Dismiss development error"
                 class="flex-none h-8 px-3 rounded-lg bg-control text-sm text-primary"
-                onClick={() => setDiagnostic(undefined)}
+                onClick={() => dismiss()}
               >
                 Dismiss
               </Button>

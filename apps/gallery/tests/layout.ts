@@ -1528,7 +1528,70 @@ const assertGithubDesktopReferenceLayout = (snapshot: LayoutSnapshot) => {
     );
 };
 
+const assertPulseIconsCentered = (snapshot: LayoutSnapshot) => {
+  const frames = queryLayoutNodes(snapshot, { name: "Pulse icon frame" });
+  if (frames.length !== 18)
+    throw new Error(`Expected 18 Pulse icon frames, received ${frames.length}`);
+  for (const frame of frames) {
+    const icon = snapshot.nodes.find(
+      (node) =>
+        node.tag === "svg" &&
+        node.parentId?.lo === frame.id.lo &&
+        node.parentId?.hi === frame.id.hi,
+    );
+    if (!icon) throw new Error("Pulse icon frame has no SVG");
+    assertClose(
+      icon.rect.x + icon.rect.width / 2,
+      frame.rect.x + frame.rect.width / 2,
+      "icon horizontal center",
+    );
+    assertClose(
+      icon.rect.y + icon.rect.height / 2,
+      frame.rect.y + frame.rect.height / 2,
+      "icon vertical center",
+    );
+  }
+};
 const overrides: Readonly<Record<string, Omit<LayoutFixtureCase, "id">>> = {
+  "demos/pulse-overview": {
+    checks: ["sibling-collision"],
+    assert: (snapshot) => {
+      assertPulseIconsCentered(snapshot);
+      const cpu = getLayoutNode(snapshot, { name: "CPU metric" });
+      const memory = getLayoutNode(snapshot, { name: "Memory metric" });
+      const gpu = getLayoutNode(snapshot, { name: "GPU metric" });
+      assertClose(cpu.rect.y, memory.rect.y, "first row alignment");
+      assertClose(cpu.rect.y, gpu.rect.y, "third column alignment");
+      assertClose(cpu.rect.height, 250, "metric height");
+      const history = getLayoutNode(snapshot, { name: "CPU sample history" });
+      assertLayoutRectContains(cpu.contentRect, history.rect, {
+        label: "CPU history inside card padding",
+      });
+      assertClose(memory.rect.x - layoutRectRight(cpu.rect), 16, "card gap");
+      assertLayoutRectContains(
+        { x: 0, y: 0, width: 1240, height: 820 },
+        gpu.rect,
+        { label: "third column" },
+      );
+    },
+  },
+  "demos/pulse-compact": {
+    checks: ["sibling-collision"],
+    assert: (snapshot) => {
+      assertPulseIconsCentered(snapshot);
+      const cpu = getLayoutNode(snapshot, { name: "CPU metric" });
+      const memory = getLayoutNode(snapshot, { name: "Memory metric" });
+      const gpu = getLayoutNode(snapshot, { name: "GPU metric" });
+      assertClose(cpu.rect.y, memory.rect.y, "compact first row");
+      if (gpu.rect.y <= cpu.rect.y)
+        throw new Error("compact metrics must wrap into two columns");
+      assertLayoutRectContains(
+        { x: 0, y: 0, width: 900, height: 700 },
+        memory.rect,
+        { label: "compact second column" },
+      );
+    },
+  },
   "gallery/Overview": {
     // The complete overview is intentionally taller than the fixture viewport;
     // this contract targets its real GPUI SVG projection and paint path.

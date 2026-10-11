@@ -275,6 +275,7 @@ impl FrameSource for Applier {
     }
 
     fn build_frame(&mut self, tcx: &mut TextContext, width: u32, height: u32) -> Vec<PlacedNode> {
+        let _measurement = wabou_telemetry::span("frame", "projection.cpu");
         #[cfg(feature = "profiling")]
         let build_span = tracing::trace_span!(target: "wabou::perf", "quick.build_frame");
         #[cfg(feature = "profiling")]
@@ -310,6 +311,7 @@ impl FrameSource for Applier {
                 );
                 #[cfg(feature = "profiling")]
                 let _guard = span.enter();
+                let _measurement = wabou_telemetry::span("frame", "style.inherit");
                 self.inherit();
             }
             self.document
@@ -323,6 +325,7 @@ impl FrameSource for Applier {
             let span = tracing::trace_span!(target: "wabou::perf", "quick.widgets.measure");
             #[cfg(feature = "profiling")]
             let _guard = span.enter();
+            let _measurement = wabou_telemetry::span("frame", "widgets.measure");
             self.sync_widget_styles();
         }
         let viewport = (width, height);
@@ -368,6 +371,8 @@ impl FrameSource for Applier {
                 );
                 #[cfg(feature = "profiling")]
                 let _guard = span.enter();
+                let mut measurement = wabou_telemetry::span("frame", "layout.cpu");
+                measurement.attribute("nodes", self.document.node_store.solid_to_node.len() as u64);
                 layout::compute_and_walk_with_scroll_and_widgets(
                     &mut self.document.node_store.tree,
                     self.document.node_store.root,

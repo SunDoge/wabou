@@ -577,11 +577,68 @@
   var abort_controller_default = AbortController2;
 
   // packages/core/src/polyfills/abort-controller.ts
+  var reasons = new WeakMap;
+  var Signal = AbortSignal;
+  Object.defineProperties(Signal.prototype, {
+    reason: {
+      configurable: true,
+      get() {
+        return reasons.get(this);
+      }
+    },
+    throwIfAborted: {
+      configurable: true,
+      value() {
+        if (this.aborted)
+          throw this.reason;
+      }
+    }
+  });
+
+  class Controller extends abort_controller_default {
+    abort(reason = new DOMException("The operation was aborted", "AbortError")) {
+      if (this.signal.aborted)
+        return;
+      reasons.set(this.signal, reason);
+      super.abort();
+    }
+  }
+  Signal.abort = (reason) => {
+    const c = new Controller;
+    c.abort(reason);
+    return c.signal;
+  };
+  Signal.timeout = (milliseconds) => {
+    if (!Number.isSafeInteger(milliseconds) || milliseconds < 0)
+      throw new RangeError("Invalid timeout");
+    const c = new Controller;
+    setTimeout(() => c.abort(new DOMException("The operation timed out", "TimeoutError")), milliseconds);
+    return c.signal;
+  };
+  Signal.any = (signals2) => {
+    const c = new Controller;
+    const cleanups = [];
+    for (const signal of signals2) {
+      if (signal.aborted) {
+        c.abort(signal.reason);
+        break;
+      }
+      const abort = () => c.abort(signal.reason);
+      signal.addEventListener("abort", abort, { once: true });
+      cleanups.push(() => signal.removeEventListener("abort", abort));
+    }
+    const cleanup = () => {
+      for (const remove of cleanups)
+        remove();
+    };
+    if (c.signal.aborted)
+      cleanup();
+    else
+      c.signal.addEventListener("abort", cleanup, { once: true });
+    return c.signal;
+  };
   function installAbortControllerPolyfill() {
-    installMissingGlobals({
-      AbortController: abort_controller_default,
-      AbortSignal
-    });
+    installMissingGlobals({ AbortController: Controller, AbortSignal: Signal });
   }
   installAbortControllerPolyfill();
 
@@ -2937,105 +2994,89 @@
   }
   installStreamsPolyfill();
 
-  // node_modules/.bun/@stardazed+streams-text-encoding@1.0.2/node_modules/@stardazed/streams-text-encoding/dist/sd-streams-text-encoding.esm.js
-  var decDecoder = Symbol("decDecoder");
-  var decTransform = Symbol("decTransform");
-
-  class TextDecodeTransformer {
-    constructor(decoder) {
-      this.decoder_ = decoder;
-    }
-    transform(chunk, controller) {
-      if (!(chunk instanceof ArrayBuffer || ArrayBuffer.isView(chunk))) {
-        throw new TypeError("Input data must be a BufferSource");
-      }
-      const text = this.decoder_.decode(chunk, { stream: true });
-      if (text.length !== 0) {
-        controller.enqueue(text);
-      }
-    }
-    flush(controller) {
-      const text = this.decoder_.decode();
-      if (text.length !== 0) {
-        controller.enqueue(text);
-      }
-    }
-  }
-
-  class TextDecoderStream2 {
-    constructor(label, options) {
-      this[decDecoder] = new TextDecoder(label, options);
-      this[decTransform] = new TransformStream(new TextDecodeTransformer(this[decDecoder]));
+  // packages/core/src/polyfills/encoding-streams.ts
+  class WabouTextDecoderStream {
+    decoder;
+    transform;
+    constructor(label = "utf-8", options = {}) {
+      this.decoder = new TextDecoder(label, options);
+      this.transform = new TransformStream({
+        transform: (chunk, controller) => {
+          const text = this.decoder.decode(chunk, { stream: true });
+          if (text)
+            controller.enqueue(text);
+        },
+        flush: (controller) => {
+          const text = this.decoder.decode();
+          if (text)
+            controller.enqueue(text);
+        }
+      });
     }
     get encoding() {
-      return this[decDecoder].encoding;
+      return this.decoder.encoding;
     }
     get fatal() {
-      return this[decDecoder].fatal;
+      return this.decoder.fatal;
     }
     get ignoreBOM() {
-      return this[decDecoder].ignoreBOM;
+      return this.decoder.ignoreBOM;
     }
     get readable() {
-      return this[decTransform].readable;
+      return this.transform.readable;
     }
     get writable() {
-      return this[decTransform].writable;
+      return this.transform.writable;
     }
-  }
-  var encEncoder = Symbol("encEncoder");
-  var encTransform = Symbol("encTransform");
-
-  class TextEncodeTransformer {
-    constructor(encoder) {
-      this.encoder_ = encoder;
-      this.partial_ = undefined;
-    }
-    transform(chunk, controller) {
-      let stringChunk = String(chunk);
-      if (this.partial_ !== undefined) {
-        stringChunk = this.partial_ + stringChunk;
-        this.partial_ = undefined;
-      }
-      const lastCharIndex = stringChunk.length - 1;
-      const lastCodeUnit = stringChunk.charCodeAt(lastCharIndex);
-      if (lastCodeUnit >= 55296 && lastCodeUnit < 56320) {
-        this.partial_ = String.fromCharCode(lastCodeUnit);
-        stringChunk = stringChunk.substring(0, lastCharIndex);
-      }
-      const bytes = this.encoder_.encode(stringChunk);
-      if (bytes.length !== 0) {
-        controller.enqueue(bytes);
-      }
-    }
-    flush(controller) {
-      if (this.partial_) {
-        controller.enqueue(this.encoder_.encode(this.partial_));
-        this.partial_ = undefined;
-      }
+    get [Symbol.toStringTag]() {
+      return "TextDecoderStream";
     }
   }
 
-  class TextEncoderStream {
+  class WabouTextEncoderStream {
+    transform;
     constructor() {
-      this[encEncoder] = new TextEncoder;
-      this[encTransform] = new TransformStream(new TextEncodeTransformer(this[encEncoder]));
+      const encoder = new TextEncoder;
+      let pending = "";
+      this.transform = new TransformStream({
+        transform(chunk, controller) {
+          if (typeof chunk === "symbol")
+            throw new TypeError("Cannot encode a Symbol");
+          let text = pending + String(chunk);
+          pending = "";
+          const last = text.charCodeAt(text.length - 1);
+          if (last >= 55296 && last <= 56319) {
+            pending = text.slice(-1);
+            text = text.slice(0, -1);
+          }
+          if (text)
+            controller.enqueue(encoder.encode(text));
+        },
+        flush(controller) {
+          if (pending)
+            controller.enqueue(encoder.encode(pending));
+          pending = "";
+        }
+      });
     }
     get encoding() {
-      return this[encEncoder].encoding;
+      return "utf-8";
     }
     get readable() {
-      return this[encTransform].readable;
+      return this.transform.readable;
     }
     get writable() {
-      return this[encTransform].writable;
+      return this.transform.writable;
+    }
+    get [Symbol.toStringTag]() {
+      return "TextEncoderStream";
     }
   }
-
-  // packages/core/src/polyfills/encoding-streams.ts
-  var encodingStreamGlobals = { TextDecoderStream: TextDecoderStream2, TextEncoderStream };
   function installEncodingStreamsPolyfill() {
-    installMissingGlobals(encodingStreamGlobals);
+    installMissingGlobals({
+      TextDecoderStream: WabouTextDecoderStream,
+      TextEncoderStream: WabouTextEncoderStream
+    });
   }
   installEncodingStreamsPolyfill();
 
@@ -3123,16 +3164,19 @@
       if (body === null) {
         this.body = null;
       } else {
+        const bytes = this.bodyBytes;
         const stream = new ReadableStream({
           start: (controller) => {
-            controller.enqueue(this.bodyBytes);
+            controller.enqueue(bytes);
             controller.close();
           }
         });
         const getReader = stream.getReader.bind(stream);
         stream.getReader = (...args) => {
+          const reader = getReader(...args);
           this.consumed = true;
-          return getReader(...args);
+          this.bodyBytes = null;
+          return reader;
         };
         this.body = stream;
       }
@@ -3164,6 +3208,8 @@
       } finally {
         reader.releaseLock();
       }
+      if (chunks.length === 1)
+        return chunks[0];
       const bytes = new Uint8Array(length);
       let offset = 0;
       for (const chunk of chunks) {
@@ -3182,12 +3228,15 @@
       return this.consumeBody();
     }
     async arrayBuffer() {
-      return (await this.consumeBody()).slice().buffer;
+      const bytes = await this.consumeBody();
+      if (bytes.byteOffset === 0 && bytes.byteLength === bytes.buffer.byteLength)
+        return bytes.buffer;
+      return bytes.slice().buffer;
     }
     clone() {
       if (this.bodyUsed)
         throw new TypeError("Cannot clone a consumed Response body");
-      return new WabouResponse(this.bodyBytes, {
+      return new WabouResponse(this.body === null ? null : this.bodyBytes, {
         status: this.status,
         statusText: this.statusText,
         headers: this.headers
@@ -3208,17 +3257,34 @@
       }, url, false);
     }
   }
+  var nextFetchId = 0;
   function installFetchPolyfill() {
     installMissingGlobals({ Headers: WabouHeaders, Response: WabouResponse });
     if (!("__wabou_fetch" in globalThis))
       return;
     globalThis.fetch = (input, init) => {
-      const url = typeof input === "string" ? input : input.url;
+      const signal = init?.signal;
+      if (signal?.aborted)
+        return Promise.reject(signal.reason);
+      const runtime = globalThis;
+      const id = ++nextFetchId;
+      const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
       const serializedInit = init ? {
-        ...init,
+        method: init.method,
+        body: init.body,
         headers: init.headers instanceof WabouHeaders ? init.headers.toRecord() : init.headers
       } : {};
-      return globalThis.__wabou_fetch(url, JSON.stringify(serializedInit)).then((data) => {
+      const initJson = JSON.stringify(serializedInit);
+      runtime.__wabou_fetch_start?.(id);
+      const pending = new Promise((resolve, reject) => {
+        const abort = () => {
+          runtime.__wabou_fetch_cancel?.(id);
+          reject(signal.reason);
+        };
+        signal?.addEventListener("abort", abort, { once: true });
+        runtime.__wabou_fetch(url, initJson, id).then(resolve, reject).finally(() => signal?.removeEventListener("abort", abort));
+      });
+      return pending.then((data) => {
         const ResponseConstructor = globalThis.Response;
         if (ResponseConstructor === WabouResponse)
           return WabouResponse.fromHost(data, url);

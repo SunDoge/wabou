@@ -865,3 +865,184 @@ fn harness_evaluation_preserves_values_and_exception_details() {
     assert!(error.contains("broken fixture"));
     assert!(error.contains("fixtureFailure"));
 }
+
+#[test]
+fn web_api_url_and_streaming_encoding_contracts() {
+    let runtime = JsRuntime::new_with_options(JsRuntimeOptions::default()).unwrap();
+    runtime.with(|ctx| ctx.eval::<(), _>(r#"
+        function equal(actual, expected) { if (JSON.stringify(actual) !== JSON.stringify(expected)) throw Error(JSON.stringify({actual, expected})); }
+        const u = new URL('../a?q=one+two&q=3', 'https://例子.test:443/path/file');
+        equal(u.hostname, 'xn--fsqu00a.test');
+        equal(u.pathname, '/a');
+        const params = u.searchParams;
+        equal(params.getAll('q'), ['one two', '3']);
+        params.set('q', 'é !');
+        equal(u.search, '?q=%C3%A9+%21');
+        u.search = '?z=2&a=1&a=0';
+        equal(u.searchParams === params, true);
+        params.sort();
+        equal(u.search, '?a=1&a=0&z=2');
+        u.port = 'invalid'; equal(u.port, '');
+        equal(URL.canParse('bad'), false);
+        equal(new URL('mailto:a@b').origin, 'null');
+        equal(new URLSearchParams('x=%FF&y=a+b').get('x'), '�');
+        const iter = new URLSearchParams('a=1&b=2');
+        const entries = iter.entries(); entries.next(); iter.append('c', '3');
+        equal(Array.from(entries), [['b','2'], ['c','3']]);
+        const dest = new Uint8Array(5).fill(99);
+        equal(new TextEncoder().encodeInto('😀ab', dest), {read:3,written:5});
+        equal(Array.from(dest), [240,159,152,128,97]);
+        equal(Array.from(new TextEncoder().encode('\ud800')), [239,191,189]);
+        const controller = new AbortController();
+        const reason = {message:'stop'}; controller.abort(reason);
+        equal(controller.signal.reason === reason, true);
+        let thrown = false; try { controller.signal.throwIfAborted(); } catch(e) { thrown = e === reason; } equal(thrown, true);
+        equal(AbortSignal.any([controller.signal]).reason === reason, true);
+        const d = new TextDecoder();
+        equal(d.decode(new Uint8Array([0xe2,0x82]), {stream:true}), '');
+        equal(d.decode(new Uint8Array([0xac])), '€');
+        equal(d.decode(new Uint8Array([0xef,0xbb,0xbf,65])), 'A');
+        equal(d.decode(new Uint8Array([0xef,0xbb,0xbf,66])), 'B');
+        equal(new TextDecoder('latin1').decode(new Uint8Array([0x80])), '€');
+        equal(new TextDecoder('utf-16le').decode(new Uint8Array([65,0])), 'A');
+        equal(new TextDecoder('utf-8',{ignoreBOM:true}).decode(new Uint8Array([0xef,0xbb,0xbf])), '\ufeff');
+        let rejected = false; try { new TextDecoder('nope'); } catch(e) { rejected = e instanceof RangeError; } equal(rejected,true);
+        const fatal = new TextDecoder('utf-8', {fatal:true});
+        rejected = false; try { fatal.decode(new Uint8Array([0xff])); } catch(e) { rejected = e instanceof TypeError; } equal(rejected,true);
+        equal(fatal.decode(new Uint8Array([65])), 'A');
+    "#)).unwrap();
+    // Teardown also proves the native codec does not retain a Ctx cycle.
+    drop(runtime);
+}
+
+#[test]
+fn web_api_cancelled_fetch_never_opens_connection() {
+    let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+    listener.set_nonblocking(true).unwrap();
+    let address = listener.local_addr().unwrap();
+    let runtime = JsRuntime::new().unwrap();
+    runtime.with(|ctx| ctx.eval::<(), _>(format!(
+        "globalThis.cancelled = false; __wabou_fetch_start(1); __wabou_fetch_cancel(1); __wabou_fetch('http://{address}/', '{{}}', 1).catch(() => cancelled = true);"
+    ))).unwrap();
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(2);
+    loop {
+        runtime.poll_async_runtime();
+        if runtime
+            .with(|ctx| ctx.eval::<bool, _>("cancelled"))
+            .unwrap()
+        {
+            break;
+        }
+        assert!(
+            std::time::Instant::now() < deadline,
+            "cancellation did not settle"
+        );
+        std::thread::yield_now();
+    }
+    assert_eq!(
+        listener.accept().unwrap_err().kind(),
+        std::io::ErrorKind::WouldBlock
+    );
+}
+
+#[test]
+fn web_api_cancellation_drops_an_inflight_http_request() {
+    use std::io::Read;
+    let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+    let address = listener.local_addr().unwrap();
+    let (accepted_tx, accepted_rx) = std::sync::mpsc::channel();
+    let server = std::thread::spawn(move || {
+        let (mut socket, _) = listener.accept().unwrap();
+        socket
+            .set_read_timeout(Some(std::time::Duration::from_secs(3)))
+            .unwrap();
+        let mut buffer = [0; 2048];
+        assert!(socket.read(&mut buffer).unwrap() > 0);
+        accepted_tx.send(()).unwrap();
+        // With no response sent, only cancellation can close this connection.
+        assert_eq!(socket.read(&mut buffer).unwrap(), 0);
+    });
+    let runtime = JsRuntime::new().unwrap();
+    runtime.with(|ctx| ctx.eval::<(), _>(format!("globalThis.stopped = false; __wabou_fetch_start(2); __wabou_fetch('http://{address}/', '{{}}', 2).catch(() => stopped = true);"))).unwrap();
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(3);
+    loop {
+        runtime.poll_async_runtime();
+        if accepted_rx.try_recv().is_ok() {
+            break;
+        }
+        assert!(
+            std::time::Instant::now() < deadline,
+            "request was not received"
+        );
+        std::thread::yield_now();
+    }
+    runtime
+        .with(|ctx| ctx.eval::<(), _>("__wabou_fetch_cancel(2)"))
+        .unwrap();
+    loop {
+        runtime.poll_async_runtime();
+        if runtime.with(|ctx| ctx.eval::<bool, _>("stopped")).unwrap() {
+            break;
+        }
+        assert!(
+            std::time::Instant::now() < deadline,
+            "request was not cancelled"
+        );
+        std::thread::yield_now();
+    }
+    server.join().unwrap();
+}
+
+#[test]
+fn encoding_stream_boundaries_run_inside_quickjs() {
+    let mut runtime = JsRuntime::new().unwrap();
+    runtime
+        .boot(include_str!("../gen/test-runtime.js"))
+        .unwrap();
+    let result = runtime.eval_promise_json(r#"(async () => {
+        const source = new ReadableStream({start(c) {
+            for (const chunk of ['\ud83d', '', '\ude80', '\ud800']) c.enqueue(chunk);
+            c.close();
+        }});
+        const chunks = [];
+        for await (const chunk of source.pipeThrough(new TextEncoderStream())) chunks.push(Array.from(chunk));
+        const bytes = new ReadableStream({start(c) { c.enqueue(new Uint8Array([0xe2,0x82])); c.close(); }});
+        let fatal = false;
+        try { for await (const chunk of bytes.pipeThrough(new TextDecoderStream('utf-8', {fatal:true}))) {} }
+        catch(e) { fatal = e instanceof TypeError; }
+        const transform = new TextEncoderStream();
+        const writer = transform.writable.getWriter();
+        const closed = writer.closed.catch(reason => reason);
+        await transform.readable.cancel('cancel encoding');
+        return {chunks, fatal, cancelled:await closed};
+    })()"#, std::time::Duration::from_secs(1)).unwrap();
+    assert_eq!(
+        result,
+        r#"{"chunks":[[240,159,154,128],[239,191,189]],"fatal":true,"cancelled":"cancel encoding"}"#
+    );
+}
+
+#[test]
+fn buffered_response_memory_contract_runs_inside_quickjs() {
+    let mut runtime = JsRuntime::new().unwrap();
+    runtime
+        .boot(include_str!("../gen/test-runtime.js"))
+        .unwrap();
+    let result = runtime.eval_promise_json(r#"(async () => {
+        const source = new Uint8Array([99,65,66,88]);
+        const response = new Response(source.subarray(1,3));
+        source[1] = 90;
+        const clone = response.clone();
+        const bytes = await response.bytes();
+        bytes[0] = 67;
+        const cloned = Array.from(await clone.bytes());
+        const buffer = await new Response(source.subarray(1,3)).arrayBuffer();
+        const input = new Uint8Array([99,0xe2,0x82,0xac,88]);
+        const decoded = new TextDecoder().decode(input.subarray(1,4));
+        return {cloned,buffer:Array.from(new Uint8Array(buffer)),decoded,input:Array.from(input),nullBody:new Response(null).clone().body === null};
+    })()"#, std::time::Duration::from_secs(1)).unwrap();
+    assert_eq!(
+        result,
+        r#"{"cloned":[65,66],"buffer":[90,66],"decoded":"€","input":[99,226,130,172,88],"nullBody":true}"#
+    );
+}

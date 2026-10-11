@@ -15,6 +15,7 @@ const applicationLayerPackages = new Set(["@wabou/core"]);
 const applicationDependencyExceptions = new Map([
   ["@wabou/devtools-app", new Set(["@wabou/core"])],
   ["@wabou/gallery", new Set(["@wabou/core"])],
+  ["@wabou/pulse-reference", new Set(["@wabou/core"])],
 ]);
 const rustApplicationDependencyExceptions = new Map([
   ["devtools", new Set(["wabou-devtools"])],
@@ -302,9 +303,11 @@ for (const manifestPath of packageManifestPaths) {
 
 const appDirs = await readdir(join(root, "apps"), { withFileTypes: true });
 for (const directory of appDirs.filter((entry) => entry.isDirectory())) {
-  const entry = await manifest(
-    join(root, "apps", directory.name, "package.json"),
-  );
+  const appRoot = join(root, "apps", directory.name);
+  const manifestPath = join(appRoot, "package.json");
+  // Rust-only contract/capability crates are not frontend applications.
+  if (!(await Bun.file(manifestPath).exists())) continue;
+  const entry = await manifest(manifestPath);
   const declared = { ...entry.dependencies, ...entry.devDependencies };
   for (const dependency of retiredPackages) {
     if (dependency in declared) {
@@ -321,10 +324,12 @@ for (const directory of appDirs.filter((entry) => entry.isDirectory())) {
       );
     }
   }
-  await verifyRustApplication(
-    join(root, "apps", directory.name),
-    rustApplicationDependencyExceptions.get(directory.name) ?? new Set(),
-  );
+  if (await Bun.file(join(appRoot, "Cargo.toml")).exists()) {
+    await verifyRustApplication(
+      appRoot,
+      rustApplicationDependencyExceptions.get(directory.name) ?? new Set(),
+    );
+  }
 }
 
 await verifyRustApplication(join(root, "templates/basic"), new Set());

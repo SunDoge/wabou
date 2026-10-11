@@ -36,9 +36,33 @@ impl PackageFormat {
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 struct WabouPackageFile {
-    package: PackageConfig,
+    #[serde(default)]
+    package: Option<PackageConfig>,
+    #[serde(default)]
+    dev: Option<DevConfig>,
     #[serde(default)]
     build: Option<BuildConfig>,
+}
+
+#[derive(Default, Debug, Deserialize)]
+#[serde(rename_all = "kebab-case", deny_unknown_fields)]
+pub(super) struct DevConfig {
+    pub(super) runtime_library: Option<PathBuf>,
+    pub(super) runtime_config: Option<PathBuf>,
+    #[serde(default)]
+    pub(super) rust_hot_reload: bool,
+}
+pub(super) fn load_dev_config(app: &App) -> Result<DevConfig> {
+    let mut config = load_config_file(app)?
+        .and_then(|file| file.dev)
+        .unwrap_or_default();
+    for path in [&mut config.runtime_library, &mut config.runtime_config]
+        .into_iter()
+        .flatten()
+    {
+        *path = app.root.join(&*path);
+    }
+    Ok(config)
 }
 
 #[derive(Debug, Deserialize)]
@@ -161,10 +185,11 @@ pub(super) fn load_package_config(app: &App) -> Result<PackageConfig> {
             path.display()
         )
     })?;
-    if file.package.product_name.trim().is_empty() {
+    let package = file.package.ok_or("wabou.toml has no [package] section")?;
+    if package.product_name.trim().is_empty() {
         return Err("package.product-name cannot be empty".into());
     }
-    let identifier = file.package.identifier.as_str();
+    let identifier = package.identifier.as_str();
     if !identifier.contains('.')
         || !identifier
             .bytes()
@@ -172,5 +197,40 @@ pub(super) fn load_package_config(app: &App) -> Result<PackageConfig> {
     {
         return Err("package.identifier must be a reverse-domain identifier".into());
     }
-    Ok(file.package)
+    Ok(package)
+}
+
+#[cfg(test)]
+mod dev_tests {
+    use super::*;
+    #[test]
+    fn dev_only_config_resolves_paths_relative_to_app() {
+        let root = tempfile::tempdir().unwrap();
+        let app = App {
+            name: "frontend".into(),
+            root: root.path().to_owned(),
+            frontend: root.path().to_owned(),
+            entry: "ui/index.tsx".into(),
+        };
+        fs::write(root.path().join("wabou.toml"), "[dev]\nruntime-library = 'runtime/library.so'\nruntime-config = 'app.json'\nrust-hot-reload = true\n").unwrap();
+        let config = load_dev_config(&app).unwrap();
+        assert_eq!(
+            config.runtime_library,
+            Some(root.path().join("runtime/library.so"))
+        );
+        assert_eq!(config.runtime_config, Some(root.path().join("app.json")));
+        assert!(config.rust_hot_reload);
+        assert!(
+            load_package_config(&app)
+                .unwrap_err()
+                .to_string()
+                .contains("[package]")
+        );
+        fs::write(
+            root.path().join("wabou.toml"),
+            "[dev]\nruntime-libray = 'typo.so'\n",
+        )
+        .unwrap();
+        assert!(load_dev_config(&app).is_err());
+    }
 }

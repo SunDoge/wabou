@@ -16,10 +16,7 @@ import "./polyfills/crypto";
 import "./polyfills/streams";
 import "./polyfills/encoding-streams";
 
-// URL and URLSearchParams are installed by the host's core-prelude (platform.ts,
-// bundled with whatwg-url via gen-core-prelude) BEFORE the app boots.
-// We don't re-import them here: in vite dev the live `import { URL } from
-// "whatwg-url"` fails to resolve CJS named exports via raw /@fs/ serving.
+// Native-backed URL and URLSearchParams are installed by core-prelude before the app boots.
 import "./polyfills/fetch";
 
 import "./glue/animation-frame";
@@ -280,3 +277,9 @@ export {
 } from "./renderer";
 export * from "./style";
 export * from "./vector-path";
+
+export {
+  measurePerformance,
+  measureAsyncPerformance,
+  flushPerformance,
+} from "./performance";

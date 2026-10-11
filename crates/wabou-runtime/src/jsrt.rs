@@ -291,7 +291,8 @@ impl JsRuntime {
             // __wabou_flush(Uint8Array) -> copy the frame bytes out.
             let out = out.clone();
             let f = Function::new(ctx.clone(), move |buf: TypedArray<u8>| -> JsResult<()> {
-                if let Some(bytes) = buf.as_bytes() {
+                // SAFETY: the bytes are copied immediately without executing JS.
+                if let Some(bytes) = unsafe { buf.as_bytes() } {
                     *out.borrow_mut() = bytes.to_vec();
                 }
                 Ok(())
@@ -368,6 +369,16 @@ impl JsRuntime {
                     .with_name("__wabou_utf8_decode")?,
             )?;
 
+            globals.set("__wabou_utf8_encode_into", Function::new(ctx.clone(), crate::host_ffi::host_utf8_encode_into)?)?;
+            rquickjs::Class::<crate::web_encoding::NativeTextDecoderState>::define(&globals)?;
+            globals.set("__wabou_url", rquickjs::Function::new(ctx.clone(), crate::web_url::url_operation)?)?;
+            globals.set("__wabou_form_decode", rquickjs::Function::new(ctx.clone(), crate::web_url::form_decode)?)?;
+            globals.set("__wabou_form_encode", rquickjs::Function::new(ctx.clone(), crate::web_url::form_encode)?)?;
+
+            globals.set("__wabou_profile_enabled", Function::new(ctx.clone(), || wabou_telemetry::global().enabled())?)?;
+            globals.set("__wabou_profile_batch", Function::new(ctx.clone(), |ctx: Ctx<'_>, raw: String| {
+                wabou_telemetry::global().batch(&raw).map_err(|error| rquickjs::Exception::throw_type(&ctx, &error))
+            })?)?;
             let perf = rquickjs::Object::new(ctx.clone())?;
             let clock = Arc::clone(&self.clock);
             perf.set(
@@ -549,7 +560,8 @@ impl JsRuntime {
             rquickjs::Function::new(
                 ctx.clone(),
                 move |colors: TypedArray<u32>| -> JsResult<()> {
-                    let bytes = colors.as_bytes().ok_or(rquickjs::Error::Unknown)?;
+                    // SAFETY: decoding completes before notifying the host; no JS runs here.
+                    let bytes = unsafe { colors.as_bytes() }.ok_or(rquickjs::Error::Unknown)?;
                     let (chunks, _) = bytes.as_chunks::<{ std::mem::size_of::<u32>() }>();
                     let values = chunks
                         .iter()
@@ -647,7 +659,8 @@ impl JsRuntime {
                 ctx.clone(),
                 move |ids: TypedArray<u32>, output: Option<TypedArray<f64>>| -> JsResult<u32> {
                     let snapshot = metrics.borrow();
-                    let requested = ids.as_bytes().map_or(&[][..], |bytes| bytes);
+                    // SAFETY: IDs are decoded synchronously without executing JS.
+                    let requested = unsafe { ids.as_bytes() }.map_or(&[][..], |bytes| bytes);
                     let (chunks, remainder) =
                         requested.as_chunks::<{ std::mem::size_of::<u32>() * 2 }>();
                     if !remainder.is_empty() {
@@ -686,38 +699,43 @@ impl JsRuntime {
                         return Ok(required_u32);
                     }
 
-                    crate::host_ffi::with_typed_array_prefix_mut(&output, required, |packed| {
-                        packed[..LAYOUT_SNAPSHOT_HEADER_LEN].copy_from_slice(&[
-                            LAYOUT_SNAPSHOT_VERSION,
-                            snapshot.revision as u32 as f64,
-                            (snapshot.revision >> 32) as u32 as f64,
-                            snapshot.viewport.x as f64,
-                            snapshot.viewport.y as f64,
-                            snapshot.viewport.width as f64,
-                            snapshot.viewport.height as f64,
-                            nodes.len() as f64,
-                        ]);
-                        for (index, (id, node)) in nodes.into_iter().enumerate() {
-                            let offset =
-                                LAYOUT_SNAPSHOT_HEADER_LEN + index * LAYOUT_SNAPSHOT_NODE_LEN;
-                            packed[offset..offset + LAYOUT_SNAPSHOT_NODE_LEN].copy_from_slice(&[
-                                id.lo as f64,
-                                id.hi as f64,
-                                node.rect.x as f64,
-                                node.rect.y as f64,
-                                node.rect.width as f64,
-                                node.rect.height as f64,
-                                node.clip.x as f64,
-                                node.clip.y as f64,
-                                node.clip.width as f64,
-                                node.clip.height as f64,
-                                node.scroll.offset_x as f64,
-                                node.scroll.offset_y as f64,
-                                node.scroll.range_x as f64,
-                                node.scroll.range_y as f64,
+                    // SAFETY: the encoder only writes owned layout data; it never executes JS.
+                    unsafe {
+                        crate::host_ffi::with_typed_array_prefix_mut(&output, required, |packed| {
+                            packed[..LAYOUT_SNAPSHOT_HEADER_LEN].copy_from_slice(&[
+                                LAYOUT_SNAPSHOT_VERSION,
+                                snapshot.revision as u32 as f64,
+                                (snapshot.revision >> 32) as u32 as f64,
+                                snapshot.viewport.x as f64,
+                                snapshot.viewport.y as f64,
+                                snapshot.viewport.width as f64,
+                                snapshot.viewport.height as f64,
+                                nodes.len() as f64,
                             ]);
-                        }
-                    })?;
+                            for (index, (id, node)) in nodes.into_iter().enumerate() {
+                                let offset =
+                                    LAYOUT_SNAPSHOT_HEADER_LEN + index * LAYOUT_SNAPSHOT_NODE_LEN;
+                                packed[offset..offset + LAYOUT_SNAPSHOT_NODE_LEN].copy_from_slice(
+                                    &[
+                                        id.lo as f64,
+                                        id.hi as f64,
+                                        node.rect.x as f64,
+                                        node.rect.y as f64,
+                                        node.rect.width as f64,
+                                        node.rect.height as f64,
+                                        node.clip.x as f64,
+                                        node.clip.y as f64,
+                                        node.clip.width as f64,
+                                        node.clip.height as f64,
+                                        node.scroll.offset_x as f64,
+                                        node.scroll.offset_y as f64,
+                                        node.scroll.range_x as f64,
+                                        node.scroll.range_y as f64,
+                                    ],
+                                );
+                            }
+                        })
+                    }?;
                     Ok(required_u32)
                 },
             )?
@@ -733,9 +751,12 @@ impl JsRuntime {
                         "requested byte length exceeds 65536",
                     ));
                 }
-                crate::host_ffi::with_typed_array_prefix_mut(&output, output.len(), |bytes| {
-                    getrandom::fill(bytes)
-                })?
+                // SAFETY: getrandom writes the slice without executing JS or accessing aliases.
+                unsafe {
+                    crate::host_ffi::with_typed_array_prefix_mut(&output, output.len(), |bytes| {
+                        getrandom::fill(bytes)
+                    })
+                }?
                 .map_err(|error| {
                     rquickjs::Error::new_from_js_message(
                         "system random source",
@@ -751,7 +772,8 @@ impl JsRuntime {
             rquickjs::Function::new(
                 ctx.clone(),
                 rquickjs::prelude::Async(|algorithm: u8, input: TypedArray<u8>| -> _ {
-                    let bytes = input.as_bytes().map(<[u8]>::to_vec);
+                    // SAFETY: copy before constructing the future; no JS or await while borrowed.
+                    let bytes = unsafe { input.as_bytes() }.map(<[u8]>::to_vec);
                     async move {
                         let bytes = bytes.ok_or(rquickjs::Error::Unknown)?;
                         tokio::task::spawn_blocking(move || digest_bytes(algorithm, &bytes))
@@ -774,13 +796,54 @@ impl JsRuntime {
             .no_proxy()
             .build()
             .map_err(|_| rquickjs::Error::Unknown)?;
+        let cancellations = Arc::new(Mutex::new(HashMap::<
+            u32,
+            tokio_util::sync::CancellationToken,
+        >::new()));
         self.with(|ctx| {
+            let active = cancellations.clone();
+            ctx.globals().set(
+                "__wabou_fetch_start",
+                Function::new(ctx.clone(), move |id: u32| {
+                    active
+                        .lock()
+                        .unwrap()
+                        .insert(id, tokio_util::sync::CancellationToken::new());
+                })?,
+            )?;
+            let active = cancellations.clone();
+            ctx.globals().set(
+                "__wabou_fetch_cancel",
+                Function::new(ctx.clone(), move |id: u32| {
+                    if let Some(token) = active.lock().unwrap().get(&id) {
+                        token.cancel();
+                    }
+                })?,
+            )?;
             let function = Function::new(
                 ctx.clone(),
-                rquickjs::prelude::Async(move |url: String, init_json: String| {
-                    let client = client.clone();
-                    fetch_request(client, url, init_json)
-                }),
+                rquickjs::prelude::Async(
+                    move |url: String, init_json: String, id: rquickjs::function::Opt<u32>| {
+                        let client = client.clone();
+                        let active = cancellations.clone();
+                        let token = id.0.and_then(|id| active.lock().unwrap().get(&id).cloned());
+                        async move {
+                            let result = if let Some(token) = token {
+                                tokio::select! {
+                                    biased;
+                                    _ = token.cancelled() => Err(rquickjs::Error::Unknown),
+                                    result = fetch_request(client, url, init_json) => result,
+                                }
+                            } else {
+                                fetch_request(client, url, init_json).await
+                            };
+                            if let Some(id) = id.0 {
+                                active.lock().unwrap().remove(&id);
+                            }
+                            result
+                        }
+                    },
+                ),
             )?
             .with_name("__wabou_fetch")?;
             ctx.globals().set("__wabou_fetch", function)
@@ -826,6 +889,7 @@ impl JsRuntime {
     /// so the shell can schedule a frame even when the queue became idle during
     /// this poll.
     pub fn poll_async_runtime(&self) -> bool {
+        let _measurement = wabou_telemetry::span("js", "jobs");
         self.runtime_wake.pending.store(false, Ordering::Release);
         let _guard = self._tokio.handle().enter();
         let waker = Waker::from(self.runtime_wake.clone());
@@ -961,6 +1025,10 @@ impl JsRuntime {
                 ));
             }
             let capability = Object::new(ctx.clone())?;
+            capability.prop(
+                "__wabou_namespace",
+                rquickjs::object::Property::from(name.clone()),
+            )?;
             mount(ctx, capability.clone())?;
             root.set(name, capability)
         })
@@ -1142,6 +1210,8 @@ impl JsRuntime {
     /// Returns the frame bytes (empty if nothing changed this tick) and whether
     /// more rAF callbacks remain queued (so the host can keep redrawing).
     pub fn tick(&mut self) -> JsResult<(Vec<u8>, bool)> {
+        let mut measurement = wabou_telemetry::span("js", "tick");
+        measurement.attribute("hostFrameSequence", self.host_frame_sequence);
         let frame_time = self.clock.now_ms();
         let has_raf = self.with(|ctx| -> JsResult<bool> {
             let tick: Function = ctx.globals().get("__wabou_tick")?;
@@ -1168,10 +1238,13 @@ impl JsRuntime {
     /// value/Promise and never use this path.
     #[doc(hidden)]
     pub fn dispatch_host_frame(&mut self, events: &[HostEvent]) -> JsResult<HostFrameDisposition> {
+        let mut measurement = wabou_telemetry::span("js", "dispatch");
+        measurement.attribute("eventCount", events.len() as u64);
         if events.is_empty() {
             return Ok(HostFrameDisposition::default());
         }
         self.host_frame_sequence = self.host_frame_sequence.wrapping_add(1).max(1);
+        measurement.attribute("hostFrameSequence", self.host_frame_sequence);
         let bytes = encode_host_frame(
             self.host_frame_sequence,
             self.host_frame_epoch.elapsed(),
@@ -1198,12 +1271,18 @@ impl JsRuntime {
             let prevented_event_ids = result
                 .get::<_, TypedArray<u32>>("preventedEventIds")
                 .ok()
-                .map(|values| AsRef::<[u32]>::as_ref(&values).to_vec())
+                .map(|values| {
+                    // SAFETY: copy immediately; no JS executes while the slice is borrowed.
+                    unsafe { values.as_slice() }.to_vec()
+                })
                 .unwrap_or_default();
             let protocol_frame = result
                 .get::<_, TypedArray<u8>>("protocolFrame")
                 .ok()
-                .map(|values| AsRef::<[u8]>::as_ref(&values).to_vec())
+                .map(|values| {
+                    // SAFETY: copy immediately; no JS executes while the slice is borrowed.
+                    unsafe { values.as_slice() }.to_vec()
+                })
                 .unwrap_or_default();
             Ok(HostFrameDisposition {
                 prevented_event_ids,
@@ -1296,9 +1375,14 @@ impl JsRuntime {
         accepted_path: &str,
         timestamp: u64,
         source: String,
-    ) -> JsResult<bool> {
+    ) -> Result<bool, String> {
+        let _measurement = wabou_telemetry::span("reload", "hmr.apply");
         let vite = self.vite.as_ref().expect("vite runtime");
-        self.with(|ctx| vite.apply_hmr(&ctx, path, accepted_path, timestamp, source))
+        self.with(|ctx| {
+            vite.apply_hmr(&ctx, path, accepted_path, timestamp, source)
+                .catch(&ctx)
+                .map_err(hmr_diagnostic)
+        })
     }
 
     /// Apply an HMR module whose evaluation is the whole update, such as the
@@ -1309,17 +1393,40 @@ impl JsRuntime {
         accepted_path: &str,
         timestamp: u64,
         source: String,
-    ) -> JsResult<()> {
+    ) -> Result<(), String> {
         let vite = self.vite.as_ref().expect("vite runtime");
-        self.with(|ctx| vite.apply_side_effect_update(&ctx, accepted_path, timestamp, source))
+        self.with(|ctx| {
+            vite.apply_side_effect_update(&ctx, accepted_path, timestamp, source)
+                .catch(&ctx)
+                .map_err(hmr_diagnostic)
+        })
     }
 
     /// In-process full reload: clear the Vite module cache and re-import `entry`
     /// with a cache-busting query. Call after the applier has reset its tree.
     #[cfg(feature = "vite")]
     pub fn reboot_vite_entry(&mut self, entry: &str) -> JsResult<()> {
+        let _measurement = wabou_telemetry::span("reload", "hmr.reboot");
         let vite = self.vite.as_ref().expect("vite runtime");
         self.with(|ctx| vite.boot_full_reload(&ctx, entry))
+    }
+}
+
+#[cfg(feature = "vite")]
+fn hmr_diagnostic(error: rquickjs::CaughtError<'_>) -> String {
+    match error {
+        rquickjs::CaughtError::Exception(exception) => format!(
+            "{}\n{}",
+            exception
+                .message()
+                .unwrap_or_else(|| "JavaScript exception".into()),
+            exception.stack().unwrap_or_default()
+        ),
+        rquickjs::CaughtError::Value(value) => value
+            .as_string()
+            .and_then(|value| value.to_string().ok())
+            .unwrap_or_else(|| "JavaScript threw a non-string value".into()),
+        rquickjs::CaughtError::Error(error) => error.to_string(),
     }
 }
 

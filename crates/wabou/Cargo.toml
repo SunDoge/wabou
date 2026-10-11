@@ -18,6 +18,7 @@ wabou-tray = { workspace = true, optional = true }
 [features]
 default = ["vello-hybrid"]
 bindings = ["wabou-bindgen/generate"]
+capability-modules = ["wabou-runtime/capability-modules", "wabou-runtime/capability-development"]
 devtools = ["wabou-runtime/devtools", "wabou-backend-vello-hybrid?/devtools"]
 headless = ["wabou-runtime/headless"]
 profiling = ["wabou-runtime/profiling"]

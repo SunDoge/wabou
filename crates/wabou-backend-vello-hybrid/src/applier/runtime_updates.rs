@@ -201,6 +201,21 @@ impl Applier {
         result
     }
 
+    #[cfg(feature = "vite")]
+    fn report_hmr_failure(&mut self, path: &str, message: &str) -> HmrDrainResult {
+        let diagnostic =
+            serde_json::json!({"message": message, "id": path, "plugin": "Wabou HMR"}).to_string();
+        tracing::error!(target: "hmr", %path, %message, "JS replacement failed; retaining current UI");
+        let event = HostEvent::Application(crate::host_message::HostMessage::str(
+            "wabou:dev-server-error",
+            diagnostic.clone(),
+        ));
+        if let Err(error) = self.dispatch_host_frame(&[event]) {
+            tracing::error!(target: "hmr", ?error, "failed to dispatch replacement diagnostic");
+        }
+        HmrDrainResult::Error { diagnostic }
+    }
+
     /// Drain every pending [`ReloadMsg`] into one batch and apply it.
     ///
     /// **Order:** native CSS updates are logged only (Style IR arrives via
@@ -275,10 +290,7 @@ impl Applier {
                         continue;
                     }
                     Err(error) => {
-                        let reason =
-                            format!("side-effect HMR failed for {}: {error:?}", update.path);
-                        self.perform_full_reload(&reason);
-                        return HmrDrainResult::FullReload { reason };
+                        return self.report_hmr_failure(&update.path, &error.to_string());
                     }
                 }
             }
@@ -304,10 +316,7 @@ impl Applier {
                     return HmrDrainResult::FullReload { reason };
                 }
                 Err(error) => {
-                    let reason = format!("apply_hmr failed for {}: {error:?}", update.path);
-                    tracing::error!(target: "hmr", %reason);
-                    self.perform_full_reload(&reason);
-                    return HmrDrainResult::FullReload { reason };
+                    return self.report_hmr_failure(&update.path, &error.to_string());
                 }
             }
             #[cfg(not(feature = "vite"))]

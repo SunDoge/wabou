@@ -598,3 +598,43 @@ fn local_socket_round_trip_uses_versioned_status() {
     assert_eq!(capture["snapshot"]["status"]["revision"], 9);
     assert_eq!(capture["point"]["x"], 10.0);
 }
+
+#[test]
+fn performance_protocol_configures_and_exports_bounded_recording() {
+    let mut state = DebugState::default();
+    let command: DebugCommand = serde_json::from_value(
+        json!({"method":"profileConfigure","params":{"mode":"trace","capacity":2}}),
+    )
+    .unwrap();
+    state.execute(&command).unwrap();
+    for _ in 0..3 {
+        drop(wabou_telemetry::span("test", "work"));
+    }
+    let result = state
+        .execute(&DebugCommand::ProfileSnapshot(EmptyParams {}))
+        .unwrap();
+    assert_eq!(result["traceEvents"].as_array().unwrap().len(), 2);
+    assert_eq!(result["droppedEvents"], 1);
+    assert!(
+        state
+            .execute(&DebugCommand::ProfileConfigure(ProfileParams {
+                mode: "trace".into(),
+                capacity: 0
+            }))
+            .is_err()
+    );
+    assert!(
+        state
+            .execute(&DebugCommand::ProfileConfigure(ProfileParams {
+                mode: "invalid".into(),
+                capacity: 2
+            }))
+            .is_err()
+    );
+    state
+        .execute(&DebugCommand::ProfileConfigure(ProfileParams {
+            mode: "off".into(),
+            capacity: 2,
+        }))
+        .unwrap();
+}

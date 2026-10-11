@@ -117,6 +117,8 @@ jobs:
         run: |
           # Gallery and DevTools enable the Specta exporter. Check the ordinary
           # runtime/facade dependency path independently of workspace features.
+          bun run scripts/check-runtime-boundaries.ts
+          cargo check -p wabou-cli --no-default-features
           cargo check -p wabou-bindgen --no-default-features
           cargo check -p wabou-runtime --no-default-features
           cargo check -p wabou --no-default-features

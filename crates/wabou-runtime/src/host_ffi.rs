@@ -30,7 +30,8 @@ pub fn host_utf8_encode<'js>(ctx: Ctx<'js>, s: String) -> Result<TypedArray<'js,
 }
 
 pub fn host_utf8_decode<'js>(bytes: TypedArray<'js, u8>) -> Result<String> {
-    let bytes = bytes.as_bytes().ok_or(rquickjs::Error::Allocation)?;
+    // SAFETY: decoding is synchronous and executes no JS while the slice is borrowed.
+    let bytes = unsafe { bytes.as_bytes() }.ok_or(rquickjs::Error::Allocation)?;
     // TextDecoder defaults to non-fatal: replace invalid byte sequences with
     // U+FFFD rather than throwing. from_utf8_lossy matches that.
     Ok(String::from_utf8_lossy(bytes).into_owned())
@@ -47,13 +48,17 @@ pub fn fill_typed_array<T: Copy>(output: &TypedArray<'_, T>, values: &[T]) -> Re
     }
     let raw = output.as_raw().ok_or(rquickjs::Error::Unknown)?;
     let byte_len = std::mem::size_of_val(values);
-    if raw.len != byte_len {
+    if raw.len() != byte_len {
         return Err(rquickjs::Error::Unknown);
     }
     // QuickJS owns a live, writable ArrayBuffer for this synchronous call.
     // TypedArray validates the element type and exact byte length above.
     unsafe {
-        std::ptr::copy_nonoverlapping(values.as_ptr().cast::<u8>(), raw.ptr.as_ptr(), byte_len);
+        std::ptr::copy_nonoverlapping(
+            values.as_ptr().cast::<u8>(),
+            raw.as_ptr().cast::<u8>(),
+            byte_len,
+        );
     }
     Ok(())
 }
@@ -62,7 +67,12 @@ pub fn fill_typed_array<T: Copy>(output: &TypedArray<'_, T>, values: &[T]) -> Re
 ///
 /// The callback scope prevents a borrowed JS buffer from escaping the host
 /// call while structured encoders can write without an intermediate vector.
-pub fn with_typed_array_prefix_mut<T, R>(
+///
+/// # Safety
+///
+/// The callback must not execute JavaScript or access an alias of the buffer
+/// while the mutable slice is alive.
+pub unsafe fn with_typed_array_prefix_mut<T, R>(
     output: &TypedArray<'_, T>,
     len: usize,
     write: impl FnOnce(&mut [T]) -> R,
@@ -74,11 +84,45 @@ pub fn with_typed_array_prefix_mut<T, R>(
     let byte_len = len
         .checked_mul(std::mem::size_of::<T>())
         .ok_or(rquickjs::Error::Unknown)?;
-    if raw.len < byte_len {
+    if raw.len() < byte_len {
         return Err(rquickjs::Error::Unknown);
     }
     // QuickJS owns a live, writable and element-aligned ArrayBuffer for this
     // synchronous call. The slice cannot escape the callback.
-    let prefix = unsafe { std::slice::from_raw_parts_mut(raw.ptr.as_ptr().cast::<T>(), len) };
+    let prefix =
+        unsafe { std::slice::from_raw_parts_mut(raw.as_ptr().cast::<u8>().cast::<T>(), len) };
     Ok(write(prefix))
+}
+
+/// Encode complete Unicode scalars directly into the caller's bounded buffer.
+pub fn host_utf8_encode_into<'js>(
+    ctx: Ctx<'js>,
+    input: String,
+    output: TypedArray<'js, u8>,
+) -> Result<rquickjs::Object<'js>> {
+    let mut written = 0;
+    let mut read = 0;
+    let raw = output.as_raw().ok_or(rquickjs::Error::Allocation)?;
+    for character in input.chars() {
+        let mut buffer = [0_u8; 4];
+        let encoded = character.encode_utf8(&mut buffer).as_bytes();
+        if written + encoded.len() > raw.len() {
+            break;
+        }
+        // The live typed array is writable; no JS call or await occurs while
+        // its raw pointer is used, and the bound was checked above.
+        unsafe {
+            std::ptr::copy_nonoverlapping(
+                encoded.as_ptr(),
+                raw.as_ptr().cast::<u8>().add(written),
+                encoded.len(),
+            );
+        }
+        written += encoded.len();
+        read += character.len_utf16();
+    }
+    let result = rquickjs::Object::new(ctx)?;
+    result.set("read", read)?;
+    result.set("written", written)?;
+    Ok(result)
 }

@@ -60,6 +60,7 @@
     "apps/meow-starter",
     "apps/motrix",
     "apps/pi-agent",
+    "apps/pulse",
     "apps/timestow",
     "apps/stress",
     "apps/terminal",

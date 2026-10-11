@@ -1,0 +1,17 @@
+[package]
+name = "blockui-macros"
+version = "0.1.0"
+edition = "2024"
+publish = false
+[lib]
+proc-macro = true
+[dependencies]
+syn = { version = "2", features = ["full"] }
+quote = "1"
+proc-macro2 = "1"
+proc-macro-crate = "3.5"
+
+rstml = { version = "0.13.1", optional = true }
+
+[features]
+rsx = ["dep:rstml"]

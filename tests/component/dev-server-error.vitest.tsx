@@ -42,3 +42,33 @@ test("components provider surfaces and clears Vite diagnostics", () => {
     screen.queryByRole("alertdialog", { name: "Development build failed" }),
   ).toBeNull();
 });
+
+test("Rust diagnostics remain visible across JS recovery and can be dismissed", () => {
+  const screen = renderComponent(() => (
+    <ComponentsProvider>
+      <Text>Last good interface</Text>
+    </ComponentsProvider>
+  ));
+  dispatchHostMessageForTest(
+    "wabou:reload-status",
+    JSON.stringify({
+      source: "rust",
+      target: "functions/Cargo.toml",
+      phase: "error",
+      error: "src/lib.rs:8:3: missing value",
+    }),
+  );
+  screen.flush();
+  expect(
+    screen.getByRole("alertdialog", { name: "Development build failed" }).text,
+  ).toContain("Rust could not update the app");
+  dispatchHostMessageForTest("wabou:dev-server-ready", "{}");
+  screen.flush();
+  expect(
+    screen.getByRole("alertdialog", { name: "Development build failed" }).text,
+  ).toContain("src/lib.rs:8:3");
+  screen.getByRole("button", { name: "Dismiss development error" }).click();
+  expect(
+    screen.queryByRole("alertdialog", { name: "Development build failed" }),
+  ).toBeNull();
+});

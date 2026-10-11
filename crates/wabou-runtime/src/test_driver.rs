@@ -1135,6 +1135,7 @@ fn semantic_snapshot_json(window_key: WindowKey, snapshot: &SemanticSnapshot) ->
             "bounds": node.bounds,
             "children": node.children,
             "controls": node.controls,
+            "describedBy": node.described_by,
             "activeDescendant": node.active_descendant,
             "disabled": node.disabled,
             "checked": semantic_toggle_json(node.states.checked),
@@ -1448,6 +1449,7 @@ mod tests {
             bounds: [10.0, 20.0, 110.0, 60.0],
             children: Vec::new(),
             controls: Vec::new(),
+            described_by: Vec::new(),
             active_descendant: None,
             disabled: false,
             states: wabou_shell::SemanticStates::default(),
@@ -1460,6 +1462,7 @@ mod tests {
         let mut sensitive = node();
         sensitive.value = Some("must-not-be-persisted".into());
         sensitive.controls = vec![8];
+        sensitive.described_by = vec![8];
         sensitive.active_descendant = Some(8);
         sensitive.states.checked = Some(wabou_shell::SemanticToggleState::Mixed);
         let mut generic = node();
@@ -1489,6 +1492,10 @@ mod tests {
         assert_eq!(artifact["windows"][0]["nodes"][0]["focused"], true);
         assert_eq!(
             artifact["windows"][0]["nodes"][0]["controls"],
+            serde_json::json!([8])
+        );
+        assert_eq!(
+            artifact["windows"][0]["nodes"][0]["describedBy"],
             serde_json::json!([8])
         );
         assert_eq!(artifact["windows"][0]["nodes"][0]["activeDescendant"], 8);
@@ -1629,6 +1636,8 @@ mod tests {
             ("menu", SemanticRole::Menu),
             ("menubar", SemanticRole::MenuBar),
             ("menuitem", SemanticRole::MenuItem),
+            ("menuitemcheckbox", SemanticRole::MenuItemCheckBox),
+            ("menuitemradio", SemanticRole::MenuItemRadio),
             ("tree", SemanticRole::Tree),
             ("treeitem", SemanticRole::TreeItem),
             ("toolbar", SemanticRole::Toolbar),

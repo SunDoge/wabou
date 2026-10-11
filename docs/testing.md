@@ -15,6 +15,34 @@ fixtures. Expensive all-target checks, replay variants, standalone scaffold
 builds, captures, HiDPI renders, and performance sampling belong to local
 pre-release verification rather than every pushed commit.
 
+## QuickJS upgrades
+
+Upgrade `rquickjs` in both the runtime and native backend together with a
+compatible `rquickjs-serde`. Run the runtime contracts and backend feature check:
+
+```bash
+cargo test -p wabou-runtime --features capability-modules,vite --lib
+cargo check -p wabou-backend-vello-hybrid --features vite,devtools
+```
+
+To exercise the real Vite module graph reported in issue #29 without a window or
+GPU, start Gallery's Vite server in one terminal, then run the explicit test in
+another:
+
+```bash
+# Terminal 1, from apps/gallery:
+bun x vite --host 127.0.0.1 --port 5298 --strictPort
+
+# Terminal 2, from the repository root:
+WABOU_TEST_VITE_URL=http://127.0.0.1:5298 cargo test -p wabou-runtime --features vite --lib real_vite_graph_boots_and_runtime_drops -- --ignored --nocapture
+```
+
+`WABOU_TEST_VITE_ENTRY` optionally selects an entry other than `/ui/index.tsx`.
+Stop the server after the test. This checks module loading, startup and runtime
+teardown in the tested environment; it does not establish GPU rendering or prove
+that every reported crash is fixed. In particular, passing the pure-Rust capture
+test does not establish safety of closures capturing QuickJS `Ctx`/`Object` handles.
+
 ## Solid-to-native architecture contracts
 
 The retained runtime has two non-negotiable contracts. Test them below component
@@ -842,3 +870,19 @@ browser-only DOM behavior to the shared fixture. The current adapter
 deliberately covers the common `View` and `Text` subset. Chromium and Wabou
 intentionally use different font resolution and glyph rasterization paths, so
 text quality still requires the focused text and HiDPI checks described above.
+
+For precompiled runtime/capability boundaries and hot-reload recovery:
+
+```bash
+bun run scripts/check-runtime-boundaries.ts
+cargo test -p wabou-cli --no-default-features
+cargo test -p wabou-runtime --features vite,capability-modules --lib
+bun test packages/vite/src/runtime/client.test.ts
+```
+
+The dependency check excludes runtime/renderer implementations from the launcher,
+SDK, Gallery functions and lightweight CLI. Runtime tests include actual Cargo
+watcher failure/recovery, native generation/resource retention, and a QuickJS HMR
+module that throws during evaluation then accepts the next corrected edit. The
+QuickJS case tests the hot boundary directly; it does not simulate a full Vite
+WebSocket or native frame loop.

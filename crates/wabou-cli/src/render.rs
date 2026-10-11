@@ -1,5 +1,8 @@
 //! Backend-neutral command-line render options and frontend preparation.
 
+// The lightweight CLI still parses these options; only embedded rendering reads them.
+#![cfg_attr(not(feature = "embedded-renderer"), allow(dead_code))]
+
 use std::path::{Path, PathBuf};
 
 use clap::ArgMatches;

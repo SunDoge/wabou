@@ -1,0 +1,13 @@
+[package]
+name = "ui-contract"
+version = "0.1.0"
+edition = "2024"
+publish = false
+[dependencies]
+blockui-abi = { path = "../blockui-abi" }
+serde = { version = "1" }
+serde_json = "1"
+
+[features]
+default = ["derive"]
+derive = ["serde/derive"]

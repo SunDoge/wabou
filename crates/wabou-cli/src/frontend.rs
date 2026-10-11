@@ -14,6 +14,10 @@ fn vite_build_command(app: &App, args: &[&str]) -> Command {
         .current_dir(&app.frontend)
         .args(["x", "vite", "build"])
         .args(args);
+    // Authored build modes may select a fixture or another dedicated entry.
+    if !args.contains(&"--mode") {
+        command.env("WABOU_VITE_ENTRY", &app.entry);
+    }
     command
 }
 
@@ -39,7 +43,11 @@ pub(super) fn build_unlocked(
 ) -> Result<ExitStatus> {
     ensure_javascript_dependencies(workspace, app)?;
     ensure_workspace_package_exports(workspace)?;
+    let configuration = default_vite_config(app)?;
     let mut command = vite_build_command(app, args);
+    if let Some(configuration) = &configuration {
+        command.arg("--config").arg(configuration.path());
+    }
     command
         .env("WABOU_BUILD_PROFILE", profile.as_str())
         .env(
@@ -78,6 +86,7 @@ pub(super) fn build(
     build_unlocked(workspace, app, args, profile, source_map)
 }
 
+#[cfg_attr(not(feature = "embedded-renderer"), allow(dead_code))]
 pub(super) fn lock(workspace: &Path, app: &App) -> Result<fs::File> {
     build_lock(workspace, app)
 }
@@ -137,6 +146,29 @@ export default {{
     })
 }
 
+/// Use authored Vite configuration when present; otherwise provide Wabou's defaults.
+pub(super) fn default_vite_config(app: &App) -> Result<Option<tempfile::NamedTempFile>> {
+    if ["ts", "js", "mts", "mjs", "cts", "cjs"]
+        .iter()
+        .any(|extension| app.root.join(format!("vite.config.{extension}")).is_file())
+    {
+        return Ok(None);
+    }
+    let output = Command::new("bun").current_dir(&app.root).args(["--eval", "import { fileURLToPath } from 'node:url'; console.log(JSON.stringify(fileURLToPath(import.meta.resolve('@wabou/vite'))));"]).output()?;
+    super::ensure(output.status, "resolve @wabou/vite")?;
+    let module: String = serde_json::from_slice(&output.stdout)?;
+    let file = tempfile::Builder::new().suffix(".mjs").tempfile()?;
+    let options = serde_json::json!({"root": app.root.canonicalize()?, "entry": app.entry, "outDir": "dist/resources"});
+    fs::write(
+        file.path(),
+        format!(
+            "import {{ defineWabouConfig }} from {};\nexport default defineWabouConfig({options});\n",
+            serde_json::to_string(&module)?
+        ),
+    )?;
+    Ok(Some(file))
+}
+
 #[cfg(test)]
 mod tests {
     use std::fs::OpenOptions;
@@ -174,6 +206,13 @@ mod tests {
             entry: "ui/index.tsx".into(),
         };
         let command = vite_build_command(&app, &["--mode", "fixture"]);
+        assert!(!command.get_envs().any(|(key, _)| key == "WABOU_VITE_ENTRY"));
+        assert!(
+            vite_build_command(&app, &[])
+                .get_envs()
+                .any(|(key, value)| key == "WABOU_VITE_ENTRY"
+                    && value == Some(std::ffi::OsStr::new("ui/index.tsx")))
+        );
         assert_eq!(command.get_program(), "bun");
         assert_eq!(
             command.get_args().collect::<Vec<_>>(),

@@ -11,13 +11,15 @@ name = "wabou_shell_vello"
 path = "src/lib.rs"
 
 [dependencies]
+wabou-telemetry.workspace = true
 accesskit = "0.24.1"
 accesskit_xplat = "=0.1.1"
 arboard = { workspace = true }
 bitflags = { workspace = true }
 bytemuck.workspace = true
 futures-util = "0.3"
-glifo.workspace = true
+glifo = { workspace = true, features = ["png"] }
+skrifa = { version = "0.44", default-features = false, features = ["std"] }
 image = { workspace = true, features = ["ico", "jpeg", "png", "webp"] }
 lru = "0.18.1"
 naga.workspace = true

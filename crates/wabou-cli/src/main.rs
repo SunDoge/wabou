@@ -17,17 +17,31 @@ mod behavior_test;
 mod clean;
 mod config;
 mod devtools;
+mod distribution;
 mod doctor;
 mod frontend;
+#[cfg(feature = "embedded-renderer")]
 mod hybrid_render;
+#[cfg(not(feature = "embedded-renderer"))]
+mod hybrid_render {
+    use super::{App, RenderOptions, Result};
+    use std::path::Path;
+    pub(super) fn run(_: &Path, _: &App, _: &RenderOptions) -> Result<()> {
+        Err("this CLI was built without embedded-renderer; use a CLI build with that feature for render/layout".into())
+    }
+    pub(super) fn run_layout(workspace: &Path, app: &App, options: &RenderOptions) -> Result<()> {
+        run(workspace, app, options)
+    }
+}
 mod packaging;
 mod process;
 mod project;
 mod render;
 mod scaffold;
+mod ts_config;
 
 use artifact::{
-    app_binary, app_bindings_target, app_dev_features, app_framework_feature, app_package,
+    app_binary, app_bindings_target, app_dev_features, app_framework_feature,
     app_profiling_feature, artifact_from_metadata_for_target, cargo_metadata,
     optional_app_bindings_target,
 };
@@ -82,6 +96,31 @@ struct CargoFeatures {
 
 #[derive(Subcommand)]
 enum Commands {
+    /// Experimental Rust UI commands: dev, run, build, check, test and doctor.
+    #[command(disable_help_flag = true)]
+    Native {
+        #[arg(trailing_var_arg = true, allow_hyphen_values = true, num_args = 1..)]
+        args: Vec<std::ffi::OsString>,
+    },
+    /// Run a JSON application configuration through a trusted prebuilt runtime.
+    Launch {
+        #[arg(value_name = "CONFIG_JSON")]
+        config: PathBuf,
+        #[arg(long, value_name = "LIBRARY")]
+        runtime: Option<PathBuf>,
+    },
+    /// Build a portable application using the embedded runtime and capability libraries.
+    Bundle {
+        #[arg(value_name = "APP")]
+        app: Option<PathBuf>,
+        #[arg(long)]
+        config: Option<PathBuf>,
+        #[arg(long)]
+        out: PathBuf,
+        /// Link the runtime and project capabilities into a generated application host.
+        #[arg(long = "static")]
+        static_link: bool,
+    },
     /// Create a standalone Wabou application pinned to a Git revision.
     New {
         #[arg(value_name = "PATH")]
@@ -127,9 +166,15 @@ enum Commands {
         /// Show the renderer-native performance HUD.
         #[arg(long)]
         hud: bool,
-        /// Hot-patch explicitly registered Rust capability functions without restarting the host.
+        /// Build/watch registered Rust capability modules without restarting the host.
         #[arg(long)]
         rust_hot_reload: bool,
+        /// Run a trusted precompiled runtime instead of compiling the app host.
+        #[arg(long, value_name = "LIBRARY")]
+        runtime_library: Option<PathBuf>,
+        /// Capability/window launch configuration; Vite source is set by dev.
+        #[arg(long, value_name = "JSON")]
+        runtime_config: Option<PathBuf>,
         /// Vite mode used to select an application-owned development entry.
         #[arg(long)]
         mode: Option<String>,
@@ -392,7 +437,88 @@ fn resolve_behavior_test_target(
     (find_app_root(search_from), Some(target))
 }
 
+// Explicit metadata selects the Rust parser before TSX-specific flags are parsed.
+fn rust_frontend_arguments(
+    arguments: &[std::ffi::OsString],
+    cwd: &Path,
+) -> Option<Vec<std::ffi::OsString>> {
+    let operation = arguments.get(1)?.to_str()?;
+    if !matches!(
+        operation,
+        "dev" | "run" | "build" | "check" | "test" | "doctor"
+    ) {
+        return None;
+    }
+    let project = if let Some(app) = arguments
+        .get(2)
+        .filter(|arg| !arg.to_string_lossy().starts_with('-'))
+    {
+        let path = cwd.join(app);
+        if path.join("Cargo.toml").is_file() || !matches!(operation, "check" | "test") {
+            path
+        } else {
+            let nearest = cwd
+                .ancestors()
+                .find(|path| path.join("Cargo.toml").is_file())?;
+            let contents = std::fs::read_to_string(nearest.join("Cargo.toml")).ok()?;
+            let manifest: toml::Value = toml::from_str(&contents).ok()?;
+            if manifest.get("package")?.get("name")?.as_str()? != app.to_str()? {
+                return None;
+            }
+            nearest.to_owned()
+        }
+    } else {
+        // Stop at the nearest manifest so a TSX package cannot inherit its
+        // enclosing Rust application's frontend selection.
+        cwd.ancestors()
+            .find(|path| path.join("Cargo.toml").is_file())?
+            .to_owned()
+    };
+    let manifest = std::fs::read_to_string(project.join("Cargo.toml")).ok()?;
+    let manifest: toml::Value = toml::from_str(&manifest).ok()?;
+    if manifest
+        .get("package")?
+        .get("metadata")?
+        .get("wabou")?
+        .get("frontend")?
+        .as_str()?
+        != "rust"
+    {
+        return None;
+    }
+    Some(
+        std::iter::once(std::ffi::OsString::from("wabou native"))
+            .chain(arguments.iter().skip(1).cloned())
+            .collect(),
+    )
+}
+
+fn run_native_frontend(
+    name: &'static str,
+    arguments: impl IntoIterator<Item = std::ffi::OsString>,
+) -> std::process::ExitCode {
+    #[cfg(feature = "native-ui")]
+    {
+        blockui_cli::main_from_named(name, arguments)
+    }
+    #[cfg(not(feature = "native-ui"))]
+    {
+        let _ = (name, arguments);
+        eprintln!(
+            "this CLI was built without native-ui; enable it to use experimental Rust UI commands"
+        );
+        std::process::ExitCode::FAILURE
+    }
+}
+
 fn main() -> Result<()> {
+    let arguments: Vec<_> = env::args_os().collect();
+    if let Some(arguments) = rust_frontend_arguments(&arguments, &env::current_dir()?) {
+        if run_native_frontend("wabou", arguments) == std::process::ExitCode::SUCCESS {
+            return Ok(());
+        }
+        return Err("Rust frontend command failed".into());
+    }
     let matches = Cli::command().get_matches();
     let render_actions = render_actions_from_matches(&matches);
     let cli = Cli::from_arg_matches(&matches)?;
@@ -403,6 +529,54 @@ fn main() -> Result<()> {
         Ok::<_, Box<dyn Error>>((workspace, app))
     };
     match cli.command {
+        Commands::Native { mut args } => {
+            if args.first().is_some_and(|arg| arg == "new") {
+                if !args.iter().any(|arg| arg == "--wabou-native") {
+                    args.push("--wabou-native".into());
+                }
+                if !args.iter().any(|arg| {
+                    arg == "--native-sdk-path"
+                        || arg.to_string_lossy().starts_with("--native-sdk-path=")
+                }) {
+                    args.push("--native-sdk-path".into());
+                    args.push(
+                        std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+                            .join("../wabou-native")
+                            .into_os_string(),
+                    );
+                }
+            }
+            let arguments = std::iter::once(std::ffi::OsString::from("blockui")).chain(args);
+            if run_native_frontend("wabou native", arguments) == std::process::ExitCode::SUCCESS {
+                Ok(())
+            } else {
+                Err("Rust native command failed".into())
+            }
+        }
+        Commands::Launch { config, runtime } => launch_application(runtime.as_deref(), &config),
+        Commands::Bundle {
+            app,
+            config,
+            out,
+            static_link,
+        } => {
+            let frontend_root = project::find_frontend_root(&cwd).unwrap_or_else(|| cwd.clone());
+            let workspace = find_workspace(&cwd).unwrap_or(frontend_root);
+            let mut app = project::load_frontend_app(&workspace, &cwd, app.as_deref())?;
+            let prepared = if config.is_none() {
+                ts_config::prepare(&app)?
+            } else {
+                None
+            };
+            if let Some(prepared) = &prepared {
+                app.entry = prepared.entry.clone();
+            }
+            let config = config
+                .or_else(|| prepared.as_ref().map(|p| p.file.path().to_owned()))
+                .or(config::load_dev_config(&app)?.runtime_config)
+                .ok_or("bundle needs wabou.config.ts or --config")?;
+            distribution::bundle(&workspace, &app, &config, &out, static_link)
+        }
         Commands::New {
             path,
             wabou_repository,
@@ -427,10 +601,37 @@ fn main() -> Result<()> {
             devtools,
             hud,
             rust_hot_reload,
+            runtime_library,
+            runtime_config,
             mode,
             cargo_features,
         } => {
-            let (workspace, app) = resolve_app(app.as_deref())?;
+            let frontend_root = project::find_frontend_root(&cwd).unwrap_or_else(|| cwd.clone());
+            let workspace = find_workspace(&cwd).unwrap_or(frontend_root);
+            let mut app = project::load_frontend_app(&workspace, &cwd, app.as_deref())?;
+            let configured = config::load_dev_config(&app)?;
+            let runtime_library = runtime_library.or(configured.runtime_library);
+            let runtime_config = runtime_config.or(configured.runtime_config);
+            let prepared = if runtime_config.is_none() {
+                ts_config::prepare(&app)?
+            } else {
+                None
+            };
+            if let Some(prepared) = &prepared {
+                app.entry = prepared.entry.clone();
+            }
+            let runtime_config =
+                runtime_config.or_else(|| prepared.as_ref().map(|p| p.file.path().to_owned()));
+            if runtime_library.is_some() && runtime_config.is_none() {
+                return Err("an external runtime-library requires runtime-config, through flags or [dev] in wabou.toml".into());
+            }
+            if runtime_config.is_none() && !app.root.join("Cargo.toml").is_file() {
+                return Err(
+                    "frontend-only dev needs wabou.config.ts or [dev] runtime-config in wabou.toml"
+                        .into(),
+                );
+            }
+            let rust_hot_reload = rust_hot_reload || configured.rust_hot_reload;
             dev(
                 &workspace,
                 app,
@@ -439,6 +640,8 @@ fn main() -> Result<()> {
                     open_devtools: devtools,
                     hud,
                     rust_hot_reload,
+                    runtime_library: runtime_library.as_deref(),
+                    runtime_config: runtime_config.as_deref(),
                     mode: mode.as_deref(),
                     cargo_features: &cargo_features.values,
                 },
@@ -1129,11 +1332,37 @@ fn run_bindings_target(
     ensure(cargo.status()?, "Wabou bindings generator")
 }
 
+fn load_launch_config(path: &Path) -> Result<wabou_launch::LaunchConfig> {
+    let path = path.canonicalize()?;
+    let mut config: wabou_launch::LaunchConfig = serde_json::from_slice(&fs::read(&path)?)?;
+    config.resolve_paths(
+        path.parent()
+            .ok_or("configuration has no parent directory")?,
+    );
+    Ok(config)
+}
+
+fn launch_application(runtime: Option<&Path>, configuration: &Path) -> Result<()> {
+    let config = load_launch_config(configuration)?;
+    // The user explicitly selects a trusted native library. Stabby checks the
+    // launch signature; it is not a security sandbox for native code.
+    if let Some(runtime) = runtime {
+        let library = unsafe { wabou_launch::RuntimeLibrary::load(runtime) }?;
+        return library.run(&config).map_err(Into::into);
+    }
+    #[cfg(feature = "embedded-renderer")]
+    return wabou_runtime_library::run_config(config).map_err(Into::into);
+    #[cfg(not(feature = "embedded-renderer"))]
+    Err("this CLI has no embedded runtime; supply --runtime or install the default CLI".into())
+}
+
 struct DevOptions<'a> {
     port: u16,
     open_devtools: bool,
     hud: bool,
     rust_hot_reload: bool,
+    runtime_library: Option<&'a Path>,
+    runtime_config: Option<&'a Path>,
     mode: Option<&'a str>,
     cargo_features: &'a [String],
 }
@@ -1141,6 +1370,7 @@ struct DevOptions<'a> {
 fn dev(workspace: &Path, app: App, options: DevOptions<'_>) -> Result<()> {
     ensure_javascript_dependencies(workspace, &app)?;
     ensure_workspace_package_exports(workspace)?;
+    let vite_configuration = frontend::default_vite_config(&app)?;
     let port_text = options.port.to_string();
     let mut vite_command = Command::new("bun");
     vite_command
@@ -1158,36 +1388,58 @@ fn dev(workspace: &Path, app: App, options: DevOptions<'_>) -> Result<()> {
     if let Some(mode) = options.mode {
         vite_command.args(["--mode", mode]);
     }
+    vite_command.env("WABOU_VITE_ENTRY", &app.entry);
+    if let Some(configuration) = &vite_configuration {
+        vite_command.arg("--config").arg(configuration.path());
+    }
     let mut vite = ManagedChild::spawn(vite_command)?;
     let url = format!("http://127.0.0.1:{}", options.port);
     wait_for_vite(&url, vite.child.as_mut())?;
 
-    let binary = app_binary(workspace, &app)?;
-    let mut dev_features = app_dev_features(workspace, &app)?;
-    let mut host_command = if options.rust_hot_reload {
-        ensure_dx_hot_patch_available()?;
-        let package = app_package(workspace, &app)?;
-        let hot_reload_feature = app_framework_feature(workspace, &app, "rust-hot-reload")?;
-        dev_features.push(',');
-        dev_features.push_str(&hot_reload_feature);
-        let mut command = Command::new("dx");
-        command.current_dir(workspace).args([
-            "serve",
-            "--hot-patch",
-            "--desktop",
-            "--interactive",
-            "false",
-            "--open",
-            "false",
-            "--package",
-            &package,
-            "--bin",
-            &binary,
-            "--features",
-            &dev_features,
-        ]);
+    // Keep the generated configuration alive for the supervised host process.
+    let mut runtime_configuration = None;
+    let mut host_command = if let Some(configuration) = options.runtime_config {
+        if !options.cargo_features.is_empty() {
+            return Err("--features applies to a linked host; configure module features in the runtime JSON".into());
+        }
+        let runtime = options
+            .runtime_library
+            .map(Path::canonicalize)
+            .transpose()?;
+        let mut config = load_launch_config(configuration)?;
+        if options.rust_hot_reload
+            && !config.capabilities.iter().any(|capability| {
+                matches!(
+                    capability.implementation,
+                    wabou_launch::Implementation::Project { .. }
+                )
+            })
+        {
+            return Err(
+                "--rust-hot-reload requires a project implementation in --runtime-config".into(),
+            );
+        }
+        config.source = wabou_launch::UiSource::Vite {
+            url: url.clone(),
+            entry: app.entry.clone(),
+        };
+        let file = tempfile::NamedTempFile::new()?;
+        serde_json::to_writer(file.as_file(), &config)?;
+        let mut command = Command::new(env::current_exe()?);
+        command.arg("launch").arg(file.path());
+        if let Some(runtime) = runtime {
+            command.arg("--runtime").arg(runtime);
+        }
+        runtime_configuration = Some(file);
         command
     } else {
+        let binary = app_binary(workspace, &app)?;
+        let mut dev_features = app_dev_features(workspace, &app)?;
+        if options.rust_hot_reload {
+            let feature = app_framework_feature(workspace, &app, "capability-modules")?;
+            dev_features.push(',');
+            dev_features.push_str(&feature);
+        }
         let app_manifest = manifest(&app);
         let mut command = Command::new("cargo");
         command.current_dir(workspace).args([
@@ -1199,15 +1451,18 @@ fn dev(workspace: &Path, app: App, options: DevOptions<'_>) -> Result<()> {
             "--features",
             &dev_features,
         ]);
+        if options.rust_hot_reload {
+            command.env("WABOU_RUST_HOT_RELOAD", "1");
+        }
+        command
+            .env("WABOU_VITE_URL", &url)
+            .env("WABOU_VITE_ENTRY", &app.entry);
+        apply_cargo_features(&mut command, options.cargo_features);
         command
     };
-    host_command
-        .env("WABOU_VITE_URL", &url)
-        .env("WABOU_VITE_ENTRY", &app.entry);
     if options.hud {
         host_command.env("WABOU_PERFORMANCE_HUD", "1");
     }
-    apply_cargo_features(&mut host_command, options.cargo_features);
     let mut host = ManagedChild::spawn(host_command)?;
 
     let mut inspector = if options.open_devtools {
@@ -1224,25 +1479,9 @@ fn dev(workspace: &Path, app: App, options: DevOptions<'_>) -> Result<()> {
     } else {
         println!("[wabou] dev server ready at {url}; press Ctrl-C to stop");
     }
-    supervise(&mut host, &mut vite, inspector.as_mut())
-}
-
-fn ensure_dx_hot_patch_available() -> Result<()> {
-    let output = Command::new("dx").arg("--version").output().map_err(|error| {
-        format!(
-            "Rust capability hot reload requires Dioxus CLI 0.7.10 (`cargo binstall dioxus-cli@0.7.10`): {error}"
-        )
-    })?;
-    ensure(output.status, "Dioxus CLI version check")?;
-    let version = String::from_utf8_lossy(&output.stdout);
-    if !version.contains("0.7.10") {
-        return Err(format!(
-            "Rust capability hot reload requires Dioxus CLI 0.7.10, found `{}`",
-            version.trim()
-        )
-        .into());
-    }
-    Ok(())
+    let result = supervise(&mut host, &mut vite, inspector.as_mut());
+    drop(runtime_configuration);
+    result
 }
 
 fn package_executable(workspace: &Path, app: &App, release: bool) -> Result<()> {
@@ -1284,6 +1523,84 @@ fn ensure(status: ExitStatus, label: &str) -> Result<()> {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn embedded_launch_and_static_bundle_flags() {
+        assert!(matches!(
+            Cli::try_parse_from(["wabou", "launch", "app.json"])
+                .unwrap()
+                .command,
+            Commands::Launch { runtime: None, .. }
+        ));
+        assert!(matches!(
+            Cli::try_parse_from([
+                "wabou",
+                "bundle",
+                "app",
+                "--config",
+                "app/app.json",
+                "--out",
+                "dist",
+                "--static"
+            ])
+            .unwrap()
+            .command,
+            Commands::Bundle {
+                static_link: true,
+                ..
+            }
+        ));
+    }
+    #[test]
+    fn prebuilt_dev_flags_can_override_project_configuration() {
+        assert!(Cli::try_parse_from(["wabou", "dev", "--runtime-library", "runtime.so"]).is_ok());
+        assert!(Cli::try_parse_from(["wabou", "dev", "--runtime-config", "app.json"]).is_ok());
+        let parsed = Cli::try_parse_from([
+            "wabou",
+            "dev",
+            "--runtime-library",
+            "runtime.so",
+            "--runtime-config",
+            "app.json",
+        ])
+        .unwrap();
+        assert!(matches!(
+            parsed.command,
+            Commands::Dev {
+                runtime_library: Some(_),
+                runtime_config: Some(_),
+                ..
+            }
+        ));
+    }
+    #[test]
+    fn launch_configuration_resolves_module_paths_from_its_directory() {
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().join("app.json");
+        std::fs::write(&path, r#"{
+            "version":1,"title":"Example","width":800,"height":600,
+            "source":{"kind":"bundle","path":"bundle.js"},
+            "capabilities":[{"name":"host","version":1,"methods":[],
+                "implementation":{"kind":"project","manifest":"functions/Cargo.toml","watch":["api/src"],"targetDirectory":"build-cache"}}]
+        }"#).unwrap();
+        let config = super::load_launch_config(&path).unwrap();
+        let root = directory.path().canonicalize().unwrap();
+        let wabou_launch::UiSource::Bundle { path } = config.source else {
+            panic!("expected bundle")
+        };
+        assert_eq!(path, root.join("bundle.js"));
+        let wabou_launch::Implementation::Project {
+            manifest,
+            watch,
+            target_directory,
+            ..
+        } = &config.capabilities[0].implementation
+        else {
+            panic!("expected project")
+        };
+        assert_eq!(manifest, &root.join("functions/Cargo.toml"));
+        assert_eq!(watch, &vec![root.join("api/src")]);
+        assert_eq!(target_directory.as_ref(), Some(&root.join("build-cache")));
+    }
     #[cfg(unix)]
     use std::thread;
     #[cfg(unix)]
@@ -2479,5 +2796,91 @@ out-dir = "dist/resources"
                 RenderAction::Key("Enter".into()),
             ]
         );
+    }
+}
+
+#[cfg(test)]
+mod native_cli_tests {
+    use super::*;
+
+    #[test]
+    fn native_commands_preserve_child_flags_and_paths() {
+        let cli = Cli::try_parse_from([
+            "wabou",
+            "native",
+            "check",
+            "外部 app",
+            "--static",
+            "--message-format",
+            "json",
+        ])
+        .unwrap();
+        let Commands::Native { args } = cli.command else {
+            panic!("expected native route")
+        };
+        let expected: Vec<std::ffi::OsString> =
+            ["check", "外部 app", "--static", "--message-format", "json"]
+                .into_iter()
+                .map(Into::into)
+                .collect();
+        assert_eq!(args, expected);
+    }
+
+    #[test]
+    fn native_help_reaches_the_rust_command_parser() {
+        let cli = Cli::try_parse_from(["wabou", "native", "--help"]).unwrap();
+        let Commands::Native { args } = cli.command else {
+            panic!("expected native route")
+        };
+        assert_eq!(args, vec![std::ffi::OsString::from("--help")]);
+    }
+
+    #[test]
+    fn tsx_dev_retains_its_existing_route() {
+        let cli = Cli::try_parse_from(["wabou", "dev", "apps/gallery"]).unwrap();
+        assert!(matches!(cli.command, Commands::Dev { .. }));
+    }
+    #[test]
+    fn frontend_metadata_routes_rust_flags_and_respects_nearest_package() {
+        let directory = tempfile::tempdir().unwrap();
+        std::fs::write(
+            directory.path().join("Cargo.toml"),
+            "[package]\nname='native'\n[package.metadata.wabou]\nfrontend='rust'\n",
+        )
+        .unwrap();
+        let package_args: Vec<std::ffi::OsString> =
+            ["wabou", "test", "native", "--lib", "--filter", "increment"]
+                .into_iter()
+                .map(Into::into)
+                .collect();
+        assert_eq!(
+            &rust_frontend_arguments(&package_args, directory.path()).unwrap()[1..],
+            &package_args[1..]
+        );
+        let unknown_args: Vec<std::ffi::OsString> = ["wabou", "test", "unknown"]
+            .into_iter()
+            .map(Into::into)
+            .collect();
+        assert!(rust_frontend_arguments(&unknown_args, directory.path()).is_none());
+        let source = directory.path().join("src");
+        std::fs::create_dir(&source).unwrap();
+        let args: Vec<std::ffi::OsString> = ["wabou", "build", "--static", "--release"]
+            .into_iter()
+            .map(Into::into)
+            .collect();
+        let routed = rust_frontend_arguments(&args, &source).unwrap();
+        assert_eq!(&routed[1..], &args[1..]);
+        let nested = directory.path().join("tsx");
+        std::fs::create_dir(&nested).unwrap();
+        std::fs::write(nested.join("Cargo.toml"), "[package]\nname='tsx'\n").unwrap();
+        assert!(rust_frontend_arguments(&args, &nested).is_none());
+        let explicit: Vec<std::ffi::OsString> = ["wabou", "build", "tsx", "--release"]
+            .into_iter()
+            .map(Into::into)
+            .collect();
+        assert!(rust_frontend_arguments(&explicit, directory.path()).is_none());
+        let unsupported: Vec<std::ffi::OsString> =
+            ["wabou", "render"].into_iter().map(Into::into).collect();
+        assert!(rust_frontend_arguments(&unsupported, directory.path()).is_none());
     }
 }

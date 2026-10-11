@@ -834,6 +834,36 @@ function encodeTestCapabilitySuccess(value: unknown): string {
         output
     }
 
+    /// Pure project metadata for TS configuration; imports no UI runtime.
+    pub fn render_contracts(&self) -> String {
+        let mut output = String::from(HEADER);
+        output.push_str("export const capabilityContracts = {\n");
+        for capability in sorted_capabilities(&self.capabilities) {
+            output.push_str(&format!(
+                "  {}: {{ name: {:?}, version: {}, methods: [\n",
+                capability.name, capability.name, capability.version
+            ));
+            for method in sorted_methods(&capability.methods) {
+                output.push_str(&format!(
+                    "    {{ name: {:?}, hasRequest: {}, json: true }},\n",
+                    method.name,
+                    !method.arguments.is_empty()
+                ));
+            }
+            output.push_str("  ] },\n");
+        }
+        output.push_str("} as const;\n");
+        output
+    }
+    /// Write configuration metadata from the same Rust contract as the clients.
+    pub fn write_contracts(&self, path: impl AsRef<Path>) -> Result<(), BindingsError> {
+        write_generated(path.as_ref(), self.render_contracts())
+    }
+    /// Verify project configuration metadata without modifying it.
+    pub fn check_contracts(&self, path: impl AsRef<Path>) -> Result<(), BindingsError> {
+        check_generated(path.as_ref(), self.render_contracts())
+    }
+
     /// Render and write all clients, creating parent directories.
     pub fn write(&self, path: impl AsRef<Path>) -> Result<(), BindingsError> {
         write_generated(path.as_ref(), self.render())
@@ -1132,6 +1162,23 @@ fn upper_camel_case(value: &str) -> String {
 mod tests {
     use super::*;
     use serde::{Deserialize, Serialize};
+
+    #[test]
+    fn project_metadata_matches_the_client_contract_without_runtime_imports() {
+        let contract = CapabilityContract::new("demo", 7);
+        let bindings = Bindings::new().capability(
+            Capability::new(contract)
+                .method(JsonMethod::<(), FunctionResponse>::no_request("ping"))
+                .method(JsonMethod::<FunctionRequest, FunctionResponse>::new(
+                    "update",
+                )),
+        );
+        let output = bindings.render_contracts();
+        assert!(output.contains("name: \"demo\", version: 7"));
+        assert!(output.contains("name: \"ping\", hasRequest: false, json: true"));
+        assert!(output.contains("name: \"update\", hasRequest: true, json: true"));
+        assert!(!output.contains("import "));
+    }
 
     #[derive(Deserialize, Type)]
     #[serde(rename_all = "camelCase")]

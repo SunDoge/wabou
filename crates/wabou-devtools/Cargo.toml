@@ -8,6 +8,7 @@ license.workspace = true
 bindings = ["dep:specta", "dep:specta-typescript", "wabou-host-api/specta"]
 
 [dependencies]
+wabou-telemetry.workspace = true
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
 wabou-host-api = { workspace = true }

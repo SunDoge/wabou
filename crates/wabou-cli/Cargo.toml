@@ -21,7 +21,20 @@ serde_json = { workspace = true }
 tempfile = "3"
 toml = "0.9"
 wabou-devtools = { workspace = true }
-wabou-backend-vello-hybrid = { workspace = true, features = ["devtools"] }
-wabou-shell-vello.workspace = true
-wabou-widgets-vello.workspace = true
+wabou-launch = { path = "../wabou-launch" }
+wabou-backend-vello-hybrid = { workspace = true, features = ["devtools"], optional = true }
+wabou-shell-vello = { workspace = true, optional = true }
+wabou-widgets-vello = { workspace = true, optional = true }
 wabou-shell-api.workspace = true
+
+# Transitional native Rust frontend command adapter.
+blockui-cli = { path = "../blockui-cli", optional = true }
+
+wabou-runtime-library = { path = "../wabou-runtime-library", optional = true }
+
+[features]
+# QuickJS GUI tooling is the default. Experimental Rust UI is opt-in.
+# External-runtime launchers can use --no-default-features.
+default = ["embedded-renderer"]
+embedded-renderer = ["dep:wabou-backend-vello-hybrid", "dep:wabou-shell-vello", "dep:wabou-widgets-vello", "dep:wabou-runtime-library"]
+native-ui = ["dep:blockui-cli"]

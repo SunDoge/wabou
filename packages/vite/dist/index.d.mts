@@ -30,9 +30,11 @@ interface WabouViteOptions {
   /** Ignore third-party metadata classes. Supports `*` globs. */
   ignoreClasses?: string[];
   /** ECMA-402 locale and time-zone data included in the application bundle. */
-  intl?: WabouIntlOptions;
+  intl?: WabouIntlOptions | false;
 }
 interface WabouIntlOptions {
+  /** APIs to include. Dependencies are included automatically; defaults to all. */
+  apis?: ("number" | "date" | "plural")[];
   /** FormatJS locale-data modules. Defaults to English and Chinese. */
   locales?: string[];
   /** Time-zone data set. `golden` is the compact recommended default. */
@@ -42,7 +44,7 @@ type WabouViteOptionsExport = WabouViteOptions | ((environment: ConfigEnv) => Wa
 /** Detect a Wabou source workspace while allowing applications to live below it. */
 declare function hasWabouWorkspaceSources(start: string): boolean;
 /** Plugins required for Solid to target Wabou instead of the browser DOM. */
-declare function wabouPlugins(root?: string, theme?: WabouColorThemeOptions, ignoreClasses?: string[], intl?: WabouIntlOptions, entry?: string, themeContrast?: "warn" | "error"): Plugin[];
+declare function wabouPlugins(root?: string, theme?: WabouColorThemeOptions, ignoreClasses?: string[], intl?: WabouIntlOptions | false, entry?: string, themeContrast?: "warn" | "error"): Plugin[];
 /** Define the complete conventional Vite configuration for a Wabou app. */
 declare function defineWabouConfig(options: WabouViteOptionsExport): UserConfigExport;
 //#endregion

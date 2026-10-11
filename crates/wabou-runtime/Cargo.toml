@@ -10,9 +10,14 @@ name = "wabou_runtime"
 path = "src/lib.rs"
 
 [dependencies]
+wabou-telemetry.workspace = true
+encoding_rs = "0.8"
+notify = { version = "8.2", optional = true }
 arc-swap = { workspace = true }
-dioxus-devtools = { workspace = true, optional = true }
 flume = { workspace = true }
+libloading = { version = ">=0.7.3, <0.10", optional = true }
+stabby = { version = "=72.1.16", features = ["libloading"], optional = true }
+wabou-capability-abi = { path = "../wabou-capability-abi", optional = true }
 futures-lite = "2"
 getrandom = { workspace = true }
 image = { workspace = true, features = ["jpeg", "png", "webp"] }
@@ -24,10 +29,10 @@ reqwest = {
   features = ["rustls"]
 }
 rquickjs = {
-  version = "0.12.1",
+  version = "0.14.0",
   features = ["full-async", "loader", "rust-alloc"]
 }
-rquickjs-serde = "0.6.1"
+rquickjs-serde = "0.8.0"
 serde = { workspace = true, features = ["derive"] }
 serde_ignored = { workspace = true }
 serde_json = { workspace = true }
@@ -38,7 +43,7 @@ slotmap = { workspace = true }
 sourcemap = "9.2.2"
 sys-locale = { workspace = true }
 tempfile = "3"
-tokio = { workspace = true, features = ["fs", "macros", "rt-multi-thread", "sync", "time"] }
+tokio = { workspace = true, features = ["fs", "io-util", "net", "macros", "rt-multi-thread", "sync", "time"] }
 tokio-util = { version = "0.7", features = ["rt"] }
 tracing = { workspace = true }
 url = { workspace = true }
@@ -63,12 +68,15 @@ ureq = { version = "3.3", default-features = false, optional = true }
 default = []
 devtools = ["dep:wabou-devtools"]
 profiling = []
-rust-hot-reload = ["dep:dioxus-devtools"]
+rust-hot-reload = ["capability-development"]
+capability-development = ["capability-modules", "dep:notify"]
+capability-modules = ["dep:libloading", "dep:stabby", "dep:wabou-capability-abi"]
 # Shared deterministic mode used by backend-owned headless harnesses.
 headless = []
 # Live vite dev-server integration (module fetching + HMR). Step 2.
 vite = ["dep:tungstenite", "dep:ureq"]
 
 [dev-dependencies]
+notify = "8.2"
 image = { workspace = true, features = ["png"] }
 wabou-devtools = { workspace = true }

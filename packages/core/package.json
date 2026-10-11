@@ -64,6 +64,11 @@
       "wabou-source": "./src/jsx.ts",
       "types": "./dist/jsx-runtime.d.mts",
       "import": "./dist/jsx-runtime.mjs"
+    },
+    "./performance": {
+      "wabou-source": "./src/performance.ts",
+      "types": "./dist/performance.d.mts",
+      "import": "./dist/performance.mjs"
     }
   },
   "scripts": {
@@ -71,11 +76,9 @@
   },
   "dependencies": {
     "@solidjs/universal": "2.0.0-rc.7",
-    "@stardazed/streams-text-encoding": "1.0.2",
     "@tanstack/virtual-core": "3.17.7",
     "abort-controller": "3.0.0",
     "solid-js": "2.0.0-rc.7",
-    "web-streams-polyfill": "4.3.0",
-    "whatwg-url": "^17.1.0"
+    "web-streams-polyfill": "4.3.0"
   }
 }

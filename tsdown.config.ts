@@ -7,6 +7,7 @@ const packages: Record<string, UserConfig["entry"]> = {
   core: {
     index: "src/index.ts",
     protocol: "src/protocol.ts",
+    performance: "src/performance.ts",
     effects: "src/effects.ts",
     registry: "src/registry.ts",
     renderer: "src/renderer.ts",
@@ -24,12 +25,14 @@ const packages: Record<string, UserConfig["entry"]> = {
     "layout-fixtures": "src/layout-fixtures.ts",
   },
   ui: {
+    performance: "src/performance.ts",
     index: "src/index.ts",
     i18n: "src/i18n.ts",
     primitives: "src/primitives/index.ts",
     "jsx-runtime": "src/jsx.ts",
   },
   vite: {
+    config: "src/config.ts",
     index: "src/index.ts",
     test: "src/test.ts",
     preset: "src/preset/index.ts",
