@@ -1,16 +1,16 @@
 import { JSX } from "solid-js";
 //#region src/layout-fixtures.d.ts
-type LayoutFixture = () => JSX.Element;
-interface LayoutFixtureDefinition {
+export type LayoutFixture = () => JSX.Element;
+export interface LayoutFixtureDefinition {
   readonly render: LayoutFixture;
   readonly width?: number;
   readonly height?: number;
   readonly scaleFactor?: number;
   readonly waitMs?: number;
 }
-type LayoutFixtureEntry = LayoutFixture | LayoutFixtureDefinition;
-type LayoutFixtureRegistry = Readonly<Record<string, LayoutFixtureEntry>>;
-interface ComponentFixtureOptions {
+export type LayoutFixtureEntry = LayoutFixture | LayoutFixtureDefinition;
+export type LayoutFixtureRegistry = Readonly<Record<string, LayoutFixtureEntry>>;
+export interface ComponentFixtureOptions {
   readonly width?: number;
   readonly height?: number;
   readonly scaleFactor?: number;
@@ -18,7 +18,7 @@ interface ComponentFixtureOptions {
   /** Render a fixture inside providers or a shared bounded application shell. */
   readonly wrap?: (render: LayoutFixture) => JSX.Element;
 }
-interface LayoutFixtureOptions {
+export interface LayoutFixtureOptions {
   /**
    * Map the native system color scheme to an authored theme name. Fixtures
    * follow `light`/`dark` by default; pass `false` when the application owns a
@@ -35,7 +35,7 @@ declare global {
  * Give component fixtures the same theme, viewport, and bounded root without
  * repeating an application shell in every test entry.
  */
-declare function defineComponentFixtures(fixtures: LayoutFixtureRegistry, options?: ComponentFixtureOptions): LayoutFixtureRegistry;
+export declare function defineComponentFixtures(fixtures: LayoutFixtureRegistry, options?: ComponentFixtureOptions): LayoutFixtureRegistry;
 /**
  * Expose named component fixtures to `wabou layout --batch`.
  *
@@ -43,7 +43,6 @@ declare function defineComponentFixtures(fixtures: LayoutFixtureRegistry, option
  * preceding Solid owner before rendering the next case, so effects and event
  * handlers retain ordinary Solid cleanup semantics while QuickJS is reused.
  */
-declare function defineLayoutFixtures(fixtures: LayoutFixtureRegistry, options?: LayoutFixtureOptions): void;
+export declare function defineLayoutFixtures(fixtures: LayoutFixtureRegistry, options?: LayoutFixtureOptions): void;
 //#endregion
-export { ComponentFixtureOptions, LayoutFixture, LayoutFixtureDefinition, LayoutFixtureEntry, LayoutFixtureOptions, LayoutFixtureRegistry, defineComponentFixtures, defineLayoutFixtures };
 //# sourceMappingURL=layout-fixtures.d.mts.map

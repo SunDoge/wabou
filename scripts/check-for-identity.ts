@@ -1,4 +1,4 @@
-import ts from "typescript";
+import ts from "typescript-compiler-api";
 
 export interface AmbiguousForUsage {
   file: string;

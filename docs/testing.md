@@ -886,3 +886,24 @@ watcher failure/recovery, native generation/resource retention, and a QuickJS HM
 module that throws during evaluation then accepts the next corrected edit. The
 QuickJS case tests the hot boundary directly; it does not simulate a full Vite
 WebSocket or native frame loop.
+
+## Dependency compatibility
+
+Upgrade `solid-js`, `@solidjs/universal`, and `@solidjs/web` together across the
+workspace and starter template. Prerelease renderer/runtime versions must match;
+Dependabot groups the Solid packages so an isolated renderer update cannot select
+a runtime without its required internal exports. Rebuild packages and runtime
+bundles, then run `verify:js` and layout contracts after a Solid upgrade.
+
+Type checking uses TypeScript 7. The AST-based identity/package checks import
+`typescript-compiler-api`, an explicit alias of TypeScript 5.9, because the
+TypeScript 7 package does not expose the legacy JavaScript compiler API. Keep this
+separation until those checks migrate to a supported parser API.
+
+The released Vello Hybrid 0.2 GPU backend requires wgpu 29. Keep the direct wgpu
+dependency and `wgpu_context` 0.9 on that same generation; `wgpu_context` 0.10 uses
+wgpu 30 and cannot exchange GPU handles with the current Hybrid backend. winit
+0.31 beta.3 replaces path-based file-drop events with asynchronous data transfer;
+keep beta.2 until the native input adapter and drag/drop contracts are migrated.
+Dependabot temporarily ignores these incompatible updates rather than repeatedly
+opening isolated upgrades. Remove each ignore when its migration is implemented.

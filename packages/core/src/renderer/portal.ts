@@ -26,8 +26,8 @@ export function Portal(props: PortalProps): JSX.Element {
   const plane = local.plane ?? "floating";
   const root = acquireOverlayRoot(plane);
   const container = createElement("view") as Handle;
-  spread(container, containerProps, false);
-  spread(container, { overlayPlane: plane }, false);
+  spread(container, containerProps, true);
+  spread(container, { overlayPlane: plane }, true);
   insertNode(root, container, undefined);
   insert(container, () => local.children);
   onCleanup(() => {

@@ -282,8 +282,8 @@ function Portal(props) {
 	const plane = local.plane ?? "floating";
 	const root = acquireOverlayRoot(plane);
 	const container = createElement("view");
-	spread(container, containerProps, false);
-	spread(container, { overlayPlane: plane }, false);
+	spread(container, containerProps, true);
+	spread(container, { overlayPlane: plane }, true);
 	insertNode(root, container, void 0);
 	insert(container, () => local.children);
 	onCleanup(() => {
@@ -1057,7 +1057,7 @@ const setProp = renderer.setProp;
 const createComponent$1 = renderer.createComponent;
 const effect = renderer.effect;
 const memo = renderer.memo;
-const spread = renderer.spread;
+const spread = (node, props, skipChildren, options) => renderer.spread(node, typeof props === "function" || Array.isArray(props) ? props : () => props, skipChildren, options);
 const mergeProps = renderer.mergeProps;
 const applyRef = renderer.applyRef;
 const ref = renderer.ref;
@@ -1333,4 +1333,4 @@ function eventName(code) {
 //#endregion
 export { writer as A, releaseOverlayRoot as C, setProp as D, runSweep as E, defaultHost as F, useHost as I, PathBuilder as L, createFps as M, Portal as N, setTransform2D as O, HostProvider as P, isVectorPath as R, registerRoot as S, render as T, mergeProps as _, createElement as a, reconcileControlledInputValues as b, dispatchEvent as c, getRequestEvent as d, insert as f, memo as g, isServer as h, createComponent$1 as i, VirtualList as j, spread as k, effect as l, isDirectEvent as m, acquireOverlayRoot as n, createTextNode as o, insertNode as p, applyRef as r, delegateEvents as s, Dynamic as t, getMountRoot as u, mount as v, removeNode as w, ref as x, observeGlobalPointerEvent as y };
 
-//# sourceMappingURL=renderer-b5f65qCm.mjs.map
+//# sourceMappingURL=renderer-Bd1F9NOg.mjs.map

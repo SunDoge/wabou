@@ -24,6 +24,7 @@ async function run(command: string[], cwd = root): Promise<void> {
   }
 }
 
+const workspaceManifest = await Bun.file(join(root, "package.json")).json();
 const coreManifest = await Bun.file(
   join(root, "packages/core/package.json"),
 ).json();
@@ -57,14 +58,14 @@ await writeFile(
       private: true,
       type: "module",
       dependencies: {
-        "@solidjs/web": "2.0.0-rc.7",
+        "@solidjs/web": workspaceManifest.devDependencies["@solidjs/web"],
         "@wabou/ui": `file:${uiTarball}`,
-        "solid-js": "2.0.0-rc.7",
+        "solid-js": coreManifest.dependencies["solid-js"],
       },
       devDependencies: {
         "@wabou/vite": `file:${viteTarball}`,
-        typescript: "^5.9.0",
-        vite: "^8.2.2",
+        typescript: workspaceManifest.devDependencies.typescript,
+        vite: workspaceManifest.devDependencies.vite,
       },
       overrides: { "@wabou/core": `file:${coreTarball}` },
     },

@@ -14,18 +14,18 @@ interface HotContext {
   send(): void;
   prune(): void;
 }
-declare function createHotContext(ownerPath: string): HotContext;
-declare function updateStyle(id: string, css: string): void;
-declare function removeStyle(id: string): void;
+export declare function createHotContext(ownerPath: string): HotContext;
+export declare function updateStyle(id: string, css: string): void;
+export declare function removeStyle(id: string): void;
 /**
  * Replace hot records transactionally during an entry reload. Vite can report
  * a reload while a saved file still fails to transform; retaining the previous
  * records lets the next valid save use HMR instead of leaving the runtime in a
  * permanently degraded state.
  */
-declare function beginFullReload(): void;
-declare function commitFullReload(): void;
-declare function rollbackFullReload(): void;
+export declare function beginFullReload(): void;
+export declare function commitFullReload(): void;
+export declare function rollbackFullReload(): void;
 //#endregion
-export { beginFullReload, commitFullReload, createHotContext, removeStyle, rollbackFullReload, updateStyle };
+export {};
 //# sourceMappingURL=runtime.d.mts.map

@@ -1,4 +1,4 @@
-import { n as WabouColorThemeOptions } from "./theme-contract-f21cN-tv.mjs";
+import { n as WabouColorThemeOptions } from "./theme-contract-CGexNhcT.mjs";
 import { Preset } from "@unocss/core";
 //#region src/preset/index.d.ts
 type Length = {
@@ -7,7 +7,7 @@ type Length = {
 } | {
   unit: "auto";
 };
-type WabouStyleValue = {
+export type WabouStyleValue = {
   type: "keyword";
   value: string;
 } | {
@@ -32,7 +32,7 @@ type WabouStyleValue = {
   type: "record";
   fields: Record<string, WabouStyleValue>;
 };
-type WabouStyleDeclaration = {
+export type WabouStyleDeclaration = {
   property: string;
   value: WabouStyleValue;
 };
@@ -40,7 +40,7 @@ type RustParsedUtility = {
   className: string;
   declarations: WabouStyleDeclaration[];
 };
-type WabouUtilityManifest = {
+export type WabouUtilityManifest = {
   version: number;
   spacing: Record<string, number>;
   colors: Record<string, number>;
@@ -54,26 +54,26 @@ type WabouUtilityManifest = {
   }[];
   conformance: RustParsedUtility[];
 };
-declare const wabouUtilityManifest: WabouUtilityManifest;
-type UtilityDiagnostic = {
+export declare const wabouUtilityManifest: WabouUtilityManifest;
+export type UtilityDiagnostic = {
   candidate: string;
   message: string;
 };
-type ResolvedUtility = {
+export type ResolvedUtility = {
   candidate: string;
   matcher: string;
   declarations: WabouStyleDeclaration[];
 };
-declare function resolveWabouUtility(candidate: string): ResolvedUtility | undefined;
-declare function validateWabouUtility(candidate: string): UtilityDiagnostic | undefined;
-interface WabouPresetOptions {
+export declare function resolveWabouUtility(candidate: string): ResolvedUtility | undefined;
+export declare function validateWabouUtility(candidate: string): UtilityDiagnostic | undefined;
+export interface WabouPresetOptions {
   /** Application theme whose semantic colors should appear in editor tooling. */
   theme?: WabouColorThemeOptions;
   /** Additional semantic colors supplied outside the application theme. */
   semanticColors?: readonly string[];
 }
 /** UnoCSS adapter for editor tooling over the native utility manifest. */
-declare function presetWabou(options?: WabouPresetOptions): Preset;
+export declare function presetWabou(options?: WabouPresetOptions): Preset;
 //#endregion
-export { ResolvedUtility, UtilityDiagnostic, WabouPresetOptions, WabouStyleDeclaration, WabouStyleValue, WabouUtilityManifest, presetWabou, resolveWabouUtility, validateWabouUtility, wabouUtilityManifest };
+export {};
 //# sourceMappingURL=preset.d.mts.map

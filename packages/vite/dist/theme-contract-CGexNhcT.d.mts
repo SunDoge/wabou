@@ -85,7 +85,7 @@ declare const defaultWabouColorThemes: {
 };
 type DefaultWabouSemanticColorToken = keyof (typeof defaultWabouColorThemes)["themes"]["light"]["colors"];
 /** Semantic colors guaranteed by Wabou's built-in component theme. */
-declare const defaultWabouSemanticColorTokens: readonly ("canvas" | "surface" | "surface-muted" | "input" | "control" | "control-hover" | "control-pressed" | "selected" | "primary" | "secondary" | "muted" | "subtle" | "strong" | "accent" | "accent-hover" | "accent-pressed" | "on-accent" | "on-danger" | "on-success" | "danger" | "danger-hover" | "danger-pressed" | "danger-surface" | "danger-primary" | "success-surface" | "success-primary" | "focus")[];
+declare const defaultWabouSemanticColorTokens: readonly ("accent" | "accent-hover" | "accent-pressed" | "canvas" | "control" | "control-hover" | "control-pressed" | "danger" | "danger-hover" | "danger-pressed" | "danger-primary" | "danger-surface" | "focus" | "input" | "muted" | "on-accent" | "on-danger" | "on-success" | "primary" | "secondary" | "selected" | "strong" | "subtle" | "success-primary" | "success-surface" | "surface" | "surface-muted")[];
 //#endregion
 export { defaultWabouSemanticColorTokens as a, defaultWabouColorThemes as i, WabouColorThemeOptions as n, WabouThemeColor as r, DefaultWabouSemanticColorToken as t };
-//# sourceMappingURL=theme-contract-f21cN-tv.d.mts.map
+//# sourceMappingURL=theme-contract-CGexNhcT.d.mts.map

@@ -23,12 +23,14 @@ use rio_vt::crosswords::square::{ContentTag, Extras, Square, Wide};
 use rio_vt::crosswords::style::{Style, StyleFlags};
 use rio_vt::crosswords::{Crosswords, CrosswordsSize, Mode};
 use rio_vt::event::sync::FairMutex;
-use rio_vt::event::{EventListener, Msg, ProgressState, RioEvent, TerminalDamage, WindowId};
+use rio_vt::event::{
+    EventListener, Msg, ProgressState, RioEvent, TerminalDamage, WindowId, WindowSize,
+};
 use rio_vt::performer::Machine;
 use rio_vt::performer::handler::Processor;
 use rio_vt::selection::{Selection, SelectionRange, SelectionType};
 use rustc_hash::FxHashMap;
-use teletypewriter::{WinsizeBuilder, create_pty_with_spawn};
+use teletypewriter::create_pty_with_spawn;
 use vello_common::kurbo::{Affine, Rect, Stroke};
 use vello_common::peniko::{Color, Fill};
 #[cfg(test)]
@@ -194,8 +196,8 @@ impl TerminalSize {
         )
     }
 
-    fn winsize(self) -> WinsizeBuilder {
-        WinsizeBuilder {
+    fn winsize(self) -> WindowSize {
+        WindowSize {
             rows: saturating_u16(self.rows),
             cols: saturating_u16(self.columns),
             width: saturating_u16(self.pixel_width as usize),
@@ -256,10 +258,6 @@ impl TerminalListener {
 }
 
 impl EventListener for TerminalListener {
-    fn event(&self) -> (Option<RioEvent>, bool) {
-        (None, false)
-    }
-
     fn send_event(&self, event: RioEvent, _window: WindowId) {
         self.shared.events.lock().unwrap().push(event);
         self.wake();
@@ -280,7 +278,7 @@ impl EventListener for TerminalListener {
 pub struct TerminalWidget {
     terminal: Arc<FairMutex<Terminal>>,
     visible_rows: Vec<Row<Square>>,
-    visible_styles: Vec<Style>,
+    visible_styles: Vec<Vec<Style>>,
     visible_extras: FxHashMap<u16, Extras>,
     listener: TerminalListener,
     parser: Processor,
@@ -468,9 +466,10 @@ impl TerminalWidget {
         let winsize = self.size.winsize();
         let (command, args) = pty_spawn_parts(&launch);
         match create_pty_with_spawn(
-            &command,
+            Some(&command),
             args,
             &launch.cwd,
+            None,
             winsize.cols,
             winsize.rows,
             winsize.width,
@@ -755,7 +754,7 @@ impl TerminalWidget {
                 self.graphics.apply_updates(queues);
                 return true;
             }
-            RioEvent::Title(title) => {
+            RioEvent::Title(_, title) => {
                 self.report_terminal_title(Some(title), None);
             }
             RioEvent::TitleWithSubtitle(title, subtitle) => {
@@ -796,7 +795,7 @@ impl TerminalWidget {
                 self.schedule_cursor_blink(terminal_blinking);
                 return true;
             }
-            RioEvent::Bell => {
+            RioEvent::Bell(_) => {
                 self.pending_host_actions
                     .push_back(HostAction::RequestAttention);
                 self.pending_node_events

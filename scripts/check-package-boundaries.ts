@@ -1,6 +1,6 @@
 import { readdir } from "node:fs/promises";
 import { join } from "node:path";
-import ts from "typescript";
+import ts from "typescript-compiler-api";
 
 const root = new URL("..", import.meta.url).pathname;
 // Retired implementation package names stay forbidden so new code cannot

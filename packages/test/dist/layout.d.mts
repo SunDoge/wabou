@@ -1,15 +1,15 @@
 //#region src/layout.d.ts
-interface LayoutNodeKey {
+export interface LayoutNodeKey {
   readonly lo: number;
   readonly hi: number;
 }
-interface LayoutRect {
+export interface LayoutRect {
   readonly x: number;
   readonly y: number;
   readonly width: number;
   readonly height: number;
 }
-interface LayoutComputedStyle {
+export interface LayoutComputedStyle {
   readonly position?: string | null;
   readonly overflowX?: string | null;
   readonly overflowY?: string | null;
@@ -23,24 +23,24 @@ interface LayoutComputedStyle {
   readonly background?: string | null;
   readonly opacity?: number | null;
 }
-interface LayoutSemanticProjection {
+export interface LayoutSemanticProjection {
   readonly role: string;
   readonly label?: string | null;
 }
-interface LayoutTextMetrics {
+export interface LayoutTextMetrics {
   readonly source: "node" | "widget";
   readonly lineBox: LayoutRect;
   readonly baseline: number;
 }
-interface LayoutClip {
+export interface LayoutClip {
   readonly coordinateSpace: string;
   readonly rect: LayoutRect;
 }
-interface LayoutClipInfo {
+export interface LayoutClipInfo {
   readonly chain: readonly LayoutClip[];
   readonly effective?: LayoutClip | null;
 }
-interface LayoutSnapshotNode {
+export interface LayoutSnapshotNode {
   readonly id: LayoutNodeKey;
   readonly parentId?: LayoutNodeKey | null;
   readonly tag: string;
@@ -56,7 +56,7 @@ interface LayoutSnapshotNode {
   readonly clip?: LayoutClipInfo;
   readonly computed: LayoutComputedStyle;
 }
-interface LayoutSnapshot {
+export interface LayoutSnapshot {
   readonly status: {
     readonly viewportWidth: number;
     readonly viewportHeight: number;
@@ -65,36 +65,36 @@ interface LayoutSnapshot {
   };
   readonly nodes: readonly LayoutSnapshotNode[];
 }
-interface LayoutQuery {
+export interface LayoutQuery {
   readonly tag?: string;
   readonly role?: string;
   readonly name?: string;
   readonly text?: string;
   readonly className?: string;
 }
-interface LayoutDiagnostic {
+export interface LayoutDiagnostic {
   readonly code: "flow-sibling-overlap" | "interactive-target-too-small" | "low-text-contrast" | "native-text-clipped" | "style-diagnostic" | "text-overlap" | "visible-overflow";
   readonly message: string;
   readonly node: LayoutSnapshotNode;
   readonly related?: LayoutSnapshotNode;
   readonly amount?: number;
 }
-interface LayoutDiagnosticOptions {
+export interface LayoutDiagnosticOptions {
   readonly tolerance?: number;
   /** Restrict checks to descendants of this node, including itself. */
   readonly within?: LayoutSnapshotNode;
 }
-interface LayoutVisualDiagnosticOptions extends LayoutDiagnosticOptions {
+export interface LayoutVisualDiagnosticOptions extends LayoutDiagnosticOptions {
   /** WCAG-style contrast ratio used as a visual legibility floor. */
   readonly minimumTextContrast?: number;
   /** Minimum logical size of button-like controls. */
   readonly minimumInteractiveTarget?: number;
 }
-interface LayoutRectAssertionOptions {
+export interface LayoutRectAssertionOptions {
   readonly tolerance?: number;
   readonly label?: string;
 }
-interface LayoutTextStyleAssertionOptions {
+export interface LayoutTextStyleAssertionOptions {
   /** Exact resolved logical font size expected by the component contract. */
   readonly fontSize?: number;
   /** Exact resolved numeric font weight expected by the component contract. */
@@ -102,43 +102,42 @@ interface LayoutTextStyleAssertionOptions {
   readonly tolerance?: number;
   readonly label?: string;
 }
-declare const layoutRectRight: (rect: LayoutRect) => number;
-declare const layoutRectBottom: (rect: LayoutRect) => number;
+export declare const layoutRectRight: (rect: LayoutRect) => number;
+export declare const layoutRectBottom: (rect: LayoutRect) => number;
 /** Assert that a completed native layout rect stays inside another rect. */
-declare function assertLayoutRectContains(outer: LayoutRect, inner: LayoutRect, options?: LayoutRectAssertionOptions): void;
+export declare function assertLayoutRectContains(outer: LayoutRect, inner: LayoutRect, options?: LayoutRectAssertionOptions): void;
 /**
  * Assert typography after class resolution, Style IR application and native
  * layout. This deliberately checks the completed layout node instead of source
  * class names, so token and font-resolution regressions are visible to tests.
  */
-declare function assertLayoutTextStyle(node: LayoutSnapshotNode, options: LayoutTextStyleAssertionOptions): void;
+export declare function assertLayoutTextStyle(node: LayoutSnapshotNode, options: LayoutTextStyleAssertionOptions): void;
 /** Validate the Rust snapshot boundary before layout assertions consume it. */
-declare function parseLayoutSnapshot(value: unknown): LayoutSnapshot;
+export declare function parseLayoutSnapshot(value: unknown): LayoutSnapshot;
 /** Return the visual contrast ratio for two opaque hexadecimal colors. */
-declare function layoutColorContrast(foreground: string, background: string): number | undefined;
-declare function layoutRole(node: LayoutSnapshotNode): string;
-declare function layoutName(node: LayoutSnapshotNode): string;
-declare function queryLayoutNodes(snapshot: LayoutSnapshot, query: LayoutQuery): readonly LayoutSnapshotNode[];
-declare function getLayoutNode(snapshot: LayoutSnapshot, query: LayoutQuery): LayoutSnapshotNode;
+export declare function layoutColorContrast(foreground: string, background: string): number | undefined;
+export declare function layoutRole(node: LayoutSnapshotNode): string;
+export declare function layoutName(node: LayoutSnapshotNode): string;
+export declare function queryLayoutNodes(snapshot: LayoutSnapshot, query: LayoutQuery): readonly LayoutSnapshotNode[];
+export declare function getLayoutNode(snapshot: LayoutSnapshot, query: LayoutQuery): LayoutSnapshotNode;
 /** Stable text projection of the exact Style IR + Taffy result. */
-declare function formatLayoutTree(snapshot: LayoutSnapshot): string;
-declare function visibleOverflowDiagnostics(snapshot: LayoutSnapshot, options?: LayoutDiagnosticOptions): readonly LayoutDiagnostic[];
+export declare function formatLayoutTree(snapshot: LayoutSnapshot): string;
+export declare function visibleOverflowDiagnostics(snapshot: LayoutSnapshot, options?: LayoutDiagnosticOptions): readonly LayoutDiagnostic[];
 /** Opt-in collision check for normal-flow siblings. */
-declare function siblingCollisionDiagnostics(snapshot: LayoutSnapshot, options?: LayoutDiagnosticOptions): readonly LayoutDiagnostic[];
+export declare function siblingCollisionDiagnostics(snapshot: LayoutSnapshot, options?: LayoutDiagnosticOptions): readonly LayoutDiagnostic[];
 /**
  * Opt-in collision check for visible text leaves across component subtrees.
  * This catches content collisions that a direct-sibling layout check cannot
  * see, such as a transformed reaction inside a bubble covering its footer.
  */
-declare function textCollisionDiagnostics(snapshot: LayoutSnapshot, options?: LayoutDiagnosticOptions): readonly LayoutDiagnostic[];
-declare function styleDiagnostics(snapshot: LayoutSnapshot, options?: LayoutDiagnosticOptions): readonly LayoutDiagnostic[];
+export declare function textCollisionDiagnostics(snapshot: LayoutSnapshot, options?: LayoutDiagnosticOptions): readonly LayoutDiagnostic[];
+export declare function styleDiagnostics(snapshot: LayoutSnapshot, options?: LayoutDiagnosticOptions): readonly LayoutDiagnostic[];
 /**
  * Opt-in visual legibility checks over the resolved native scene contract.
  * These intentionally consume computed colors and geometry rather than source
  * class names, so theme changes and component composition are covered too.
  */
-declare function visualQualityDiagnostics(snapshot: LayoutSnapshot, options?: LayoutVisualDiagnosticOptions): readonly LayoutDiagnostic[];
-declare function assertNoLayoutDiagnostics(diagnostics: readonly LayoutDiagnostic[]): void;
+export declare function visualQualityDiagnostics(snapshot: LayoutSnapshot, options?: LayoutVisualDiagnosticOptions): readonly LayoutDiagnostic[];
+export declare function assertNoLayoutDiagnostics(diagnostics: readonly LayoutDiagnostic[]): void;
 //#endregion
-export { LayoutClip, LayoutClipInfo, LayoutComputedStyle, LayoutDiagnostic, LayoutDiagnosticOptions, LayoutNodeKey, LayoutQuery, LayoutRect, LayoutRectAssertionOptions, LayoutSemanticProjection, LayoutSnapshot, LayoutSnapshotNode, LayoutTextMetrics, LayoutTextStyleAssertionOptions, LayoutVisualDiagnosticOptions, assertLayoutRectContains, assertLayoutTextStyle, assertNoLayoutDiagnostics, formatLayoutTree, getLayoutNode, layoutColorContrast, layoutName, layoutRectBottom, layoutRectRight, layoutRole, parseLayoutSnapshot, queryLayoutNodes, siblingCollisionDiagnostics, styleDiagnostics, textCollisionDiagnostics, visibleOverflowDiagnostics, visualQualityDiagnostics };
 //# sourceMappingURL=layout.d.mts.map

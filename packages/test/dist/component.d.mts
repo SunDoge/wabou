@@ -3,13 +3,13 @@ import { EventType } from "@wabou/core/protocol";
 import { PlatformServices } from "@wabou/core";
 import { JSX } from "solid-js";
 //#region src/component.d.ts
-type ComponentOverlayPlane = "content" | "floating" | "modal";
-interface ComponentTypedStyleValue {
+export type ComponentOverlayPlane = "content" | "floating" | "modal";
+export interface ComponentTypedStyleValue {
   readonly kind: number;
   readonly value: number;
 }
-type ComponentStyleValue = string | ComponentTypedStyleValue;
-interface ComponentRoleListOptions {
+export type ComponentStyleValue = string | ComponentTypedStyleValue;
+export interface ComponentRoleListOptions {
   name?: string;
   disabled?: boolean;
   readOnly?: boolean;
@@ -22,17 +22,17 @@ interface ComponentRoleListOptions {
   orientation?: "horizontal" | "vertical";
   focused?: boolean;
 }
-interface ComponentRoleQueryOptions extends ComponentRoleListOptions {
+export interface ComponentRoleQueryOptions extends ComponentRoleListOptions {
   /** Select one occurrence in depth-first authored order. */
   index?: number;
 }
-interface ComponentQueries {
+export interface ComponentQueries {
   getByRole(role: string, options?: ComponentRoleQueryOptions): ComponentLocator;
   queryByRole(role: string, options?: ComponentRoleQueryOptions): ComponentLocator | null;
   getAllByRole(role: string, options?: ComponentRoleListOptions): readonly ComponentLocator[];
   queryAllByRole(role: string, options?: ComponentRoleListOptions): readonly ComponentLocator[];
 }
-interface ComponentSnapshotNode {
+export interface ComponentSnapshotNode {
   readonly tag: string;
   readonly role?: string;
   readonly name?: string;
@@ -48,7 +48,7 @@ interface ComponentSnapshotNode {
   readonly transform?: readonly [number, number, number, number, number, number];
   readonly children?: readonly ComponentSnapshotNode[];
 }
-interface ComponentLocator extends ComponentQueries {
+export interface ComponentLocator extends ComponentQueries {
   /** Exact retained-node identity. Changes prove that the component remounted. */
   readonly identity: Readonly<{
     lo: number;
@@ -141,20 +141,20 @@ interface ComponentLocator extends ComponentQueries {
     height: number;
   }): void;
 }
-interface ComponentPointerPosition {
+export interface ComponentPointerPosition {
   clientX?: number;
   clientY?: number;
   offsetX?: number;
   offsetY?: number;
 }
-interface ComponentKeyOptions {
+export interface ComponentKeyOptions {
   code?: string;
   /** Physical Shift, Control, Alt, and Meta modifier bits. */
   mods?: number;
   primary?: boolean;
   repeat?: boolean;
 }
-interface ComponentScreen extends ComponentQueries {
+export interface ComponentScreen extends ComponentQueries {
   /** Current top-level authored nodes, including synthetic overlay roots. */
   readonly roots: readonly ComponentLocator[];
   /** Stable authored protocol forest suitable for Vitest snapshots. */
@@ -167,13 +167,13 @@ interface ComponentScreen extends ComponentQueries {
   waitFor<T>(assertion: () => T | Promise<T>, options?: ComponentWaitForOptions): Promise<T>;
   dispose(): void;
 }
-interface ComponentWaitForOptions {
+export interface ComponentWaitForOptions {
   /** Total retry budget in milliseconds. Defaults to 1000. */
   timeout?: number;
   /** Retry interval in milliseconds. Defaults to 10. */
   interval?: number;
 }
-interface RenderComponentOptions {
+export interface RenderComponentOptions {
   /** Host fixture injected into the component subtree. */
   host?: Host;
   /** Native platform services overridden for this component subtree. */
@@ -181,17 +181,17 @@ interface RenderComponentOptions {
   /** Use a fake clock owned and restored by this component screen. */
   clock?: "real" | "fake";
 }
-interface TestHostCall {
+export interface TestHostCall {
   readonly path: string;
   readonly args: readonly unknown[];
 }
-interface TestHostFixture<H extends Host> {
+export interface TestHostFixture<H extends Host> {
   readonly host: H;
   readonly calls: readonly TestHostCall[];
   callsTo(path: string): readonly TestHostCall[];
   clearCalls(): void;
 }
-interface TestBuiltinHost {
+export interface TestBuiltinHost {
   system?: Partial<BuiltinHost["system"]>;
   fonts?: Partial<BuiltinHost["fonts"]>;
   diagnostics?: Partial<BuiltinHost["diagnostics"]>;
@@ -205,22 +205,21 @@ interface TestBuiltinHost {
  * accidental combinations such as an InputGroup and its native input both
  * painting `bg-input`.
  */
-declare function assertSingleSurfaceOwner(root: ComponentLocator): ComponentLocator;
+export declare function assertSingleSurfaceOwner(root: ComponentLocator): ComponentLocator;
 /** Assert an explicit number of native focus owners inside one composition. */
-declare function assertFocusOwnerCount(root: ComponentLocator, expected: number): readonly ComponentLocator[];
+export declare function assertFocusOwnerCount(root: ComponentLocator, expected: number): readonly ComponentLocator[];
 /** Assert that a rendered overlay is attached to the requested native plane. */
-declare function assertInOverlayPlane(locator: ComponentLocator, expected: Exclude<ComponentOverlayPlane, "content">): void;
+export declare function assertInOverlayPlane(locator: ComponentLocator, expected: Exclude<ComponentOverlayPlane, "content">): void;
 /** Create a typed, deterministic Host with automatic call recording. */
-declare function createTestHost<C extends object = Record<string, never>>(capabilities?: C, builtins?: TestBuiltinHost): TestHostFixture<Host & C>;
+export declare function createTestHost<C extends object = Record<string, never>>(capabilities?: C, builtins?: TestBuiltinHost): TestHostFixture<Host & C>;
 /** Dispose the active component tree. Vitest users get this automatically. */
-declare function cleanupComponents(): void;
+export declare function cleanupComponents(): void;
 /**
  * Mount a component into Wabou's real Solid renderer while recording its
  * authored host tree. This is intentionally a fast component-contract test:
  * native layout, hit testing, and final semantic projection remain the job of
  * `wabou test` behavior scenarios.
  */
-declare function renderComponent(render: () => JSX.Element, options?: RenderComponentOptions): ComponentScreen;
+export declare function renderComponent(render: () => JSX.Element, options?: RenderComponentOptions): ComponentScreen;
 //#endregion
-export { ComponentKeyOptions, ComponentLocator, ComponentOverlayPlane, ComponentPointerPosition, ComponentQueries, ComponentRoleListOptions, ComponentRoleQueryOptions, ComponentScreen, ComponentSnapshotNode, ComponentStyleValue, ComponentTypedStyleValue, ComponentWaitForOptions, RenderComponentOptions, TestBuiltinHost, TestHostCall, TestHostFixture, assertFocusOwnerCount, assertInOverlayPlane, assertSingleSurfaceOwner, cleanupComponents, createTestHost, renderComponent };
 //# sourceMappingURL=component.d.mts.map

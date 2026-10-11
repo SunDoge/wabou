@@ -612,6 +612,7 @@ interface Handle {
 }
 declare function runSweep(): void;
 declare const writer: Writer;
+declare const renderer: import("@solidjs/universal").Renderer<Handle>;
 /** Imperative paint-only transform state for high-frequency animation. */
 declare function setTransform2D(node: Handle, matrix: Affine2D): void;
 declare const render: (code: () => JSX$1.Element, node: Handle) => () => void;
@@ -624,10 +625,10 @@ declare const setProp: <T>(node: Handle, name: string, value: T, prev?: T | unde
 declare const createComponent$1: <T>(Comp: (props: T) => Handle, props: T) => Handle;
 declare const effect: <T>(fn: (prev?: T) => T, effect: (value: T, prev?: T) => void, options?: import("@solidjs/universal").RendererEffectOptions) => void;
 declare const memo: <T>(fn: () => T, equal: boolean) => () => T;
-declare const spread: <T extends object>(node: any, props: T, skipChildren?: boolean, options?: import("@solidjs/universal").RendererEffectOptions) => void;
+declare const spread: typeof renderer.spread;
 declare const mergeProps: (...sources: unknown[]) => unknown;
-declare const applyRef: (r: ((element: Handle) => void) | ((element: Handle) => void)[], element: Handle) => void;
-declare const ref: (fn: () => ((element: Handle) => void) | ((element: Handle) => void)[], element: Handle) => void;
+declare const applyRef: (r: ((element: Handle) => void)[] | ((element: Handle) => void), element: Handle) => void;
+declare const ref: (fn: () => ((element: Handle) => void)[] | ((element: Handle) => void), element: Handle) => void;
 type DynamicComponent = (props: never) => JSX$1.Element;
 type DynamicTarget = WabouNativeTag | DynamicComponent;
 type DynamicProps<T extends DynamicTarget> = {
@@ -664,4 +665,4 @@ declare function dispatchEvent(solidId: NodeKey$1, eventCode: number, payloadStr
 declare function reconcileControlledInputValues(): void;
 //#endregion
 export { isServer as $, WabouSemanticRole as A, DebugOverlayPaintStats as At, acquireOverlayRoot as B, jsxs as Bt, WabouNativeTag as C, DebugOverlayOptions as Ct, WabouPositionedEvent as D, LayoutTarget as Dt, WabouPointerEvent as E, HostProviderProps as Et, WabouTextSelectionChangeEvent as F, LayoutSnapshot as Ft, delegateEvents as G, PathPoint as Gt, createComponent$1 as H, PathFillRule as Ht, WabouTransitionEvent as I, Fragment as It, getMountRoot as J, isVectorPath as Jt, dispatchEvent as K, VectorPath as Kt, WabouValueChangeEvent as L, JSX$1 as Lt, WabouSvgProps as M, LayoutNodeMetrics as Mt, WabouSvgShapeProps as N, LayoutRect as Nt, WabouScrollEvent as O, defaultHost as Ot, WabouTextCommitEvent as P, LayoutScrollMetrics as Pt, isDirectEvent as Q, WabouVectorPathProps as R, jsx as Rt, WabouNativeSpring as S, BuiltinHost as St, WabouNodeEvent as T, HostProvider as Tt, createElement as U, PathLineCap as Ut, applyRef as V, PathBuilder as Vt, createTextNode as W, PathLineJoin as Wt, insert as X, getRequestEvent as Y, insertNode as Z, WabouImePreeditEvent as _, VirtualListProps as _t, WabouBuiltinIntrinsicElements as a, ref as at, WabouKeyEvent as b, Portal as bt, WabouEventTarget as c, removeNode as ct, WabouFloatingPlacement as d, setProp as dt, memo as et, WabouFloatingPosition as f, setTransform2D as ft, WabouImeDeleteSurroundingEvent as g, VirtualListController as gt, WabouImageProps as h, VirtualList as ht, NativeScrollbarStyle as i, reconcileControlledInputValues as it, WabouSubmitEvent as j, FrameStats as jt, WabouSecretStateChangeEvent as k, useHost as kt, WabouExposedSemanticRole as l, render as lt, WabouGlobalPointerListener as m, writer as mt, DynamicProps as n, mount as nt, WabouControlProps as o, registerRoot as ot, WabouGlobalPointerEventType as p, spread as pt, effect as q, VectorPathPaint as qt, Handle as r, observeGlobalPointerEvent as rt, WabouElementProps as s, releaseOverlayRoot as st, Dynamic as t, mergeProps as tt, WabouFloatingAnchor as u, runSweep as ut, WabouInputEvent as v, VirtualListRange as vt, WabouNativeTransition as w, Host as wt, WabouNativeElements as x, PortalProps as xt, WabouInputProps as y, VirtualListScrollAlignment as yt, WabouWheelEvent as z, jsxDEV as zt };
-//# sourceMappingURL=index-xUlg6tnG.d.mts.map
+//# sourceMappingURL=index-C9Q6qjIb.d.mts.map

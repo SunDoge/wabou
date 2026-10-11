@@ -1,39 +1,39 @@
 import { Handle, WabouElementProps } from "@wabou/core/renderer";
 import { JSX } from "solid-js";
 //#region src/index.d.ts
-type TerminalStyle = Record<string, string | number>;
-interface TerminalExitEvent {
+export type TerminalStyle = Record<string, string | number>;
+export interface TerminalExitEvent {
   type: "terminalexit";
   reason: "exit";
 }
-interface TerminalProgressEvent {
+export interface TerminalProgressEvent {
   type: "terminalprogress";
   state: "remove" | "set" | "error" | "indeterminate" | "pause";
   progress: number | null;
 }
-interface TerminalNotificationEvent {
+export interface TerminalNotificationEvent {
   type: "terminalnotification";
   title: string;
   body: string;
 }
-interface TerminalTitleChangeEvent {
+export interface TerminalTitleChangeEvent {
   type: "terminaltitlechange";
   title: string | null;
   subtitle: string | null;
 }
-interface TerminalCwdChangeEvent {
+export interface TerminalCwdChangeEvent {
   type: "terminalcwdchange";
   path: string;
 }
-interface TerminalSelectionChangeEvent {
+export interface TerminalSelectionChangeEvent {
   type: "terminalselectionchange";
   text: string | null;
   kind: "simple" | "word" | "line" | "block" | null;
 }
-interface TerminalBellEvent {
+export interface TerminalBellEvent {
   type: "terminalbell";
 }
-interface TerminalProps {
+export interface TerminalProps {
   class?: string;
   style?: TerminalStyle;
   /** Native host node, useful for focus and future imperative terminal APIs. */
@@ -72,7 +72,7 @@ interface TerminalProps {
   onTerminalBell?: (event: TerminalBellEvent) => void;
 }
 /** Typed Solid wrapper around the Rust `terminal` widget. */
-declare function Terminal(props: TerminalProps): JSX.Element;
+export declare function Terminal(props: TerminalProps): JSX.Element;
 declare module "@wabou/core/registry" {
   interface WabouIntrinsicElements {
     /** Low-level native widget. Prefer the typed PascalCase `Terminal`. */
@@ -102,5 +102,4 @@ declare module "@wabou/core/registry" {
   }
 }
 //#endregion
-export { Terminal, TerminalBellEvent, TerminalCwdChangeEvent, TerminalExitEvent, TerminalNotificationEvent, TerminalProgressEvent, TerminalProps, TerminalSelectionChangeEvent, TerminalStyle, TerminalTitleChangeEvent };
 //# sourceMappingURL=index.d.mts.map

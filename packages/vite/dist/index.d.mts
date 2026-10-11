@@ -1,16 +1,16 @@
-import { a as defaultWabouSemanticColorTokens, i as defaultWabouColorThemes, n as WabouColorThemeOptions, r as WabouThemeColor, t as DefaultWabouSemanticColorToken } from "./theme-contract-f21cN-tv.mjs";
+import { a as defaultWabouSemanticColorTokens, i as defaultWabouColorThemes, n as WabouColorThemeOptions, r as WabouThemeColor, t as DefaultWabouSemanticColorToken } from "./theme-contract-CGexNhcT.mjs";
 import { ConfigEnv, Plugin, UserConfig, UserConfigExport } from "vite";
 //#region src/style-compiler/vite.d.ts
 /** Validate a generated or shared theme color at its declaration site. */
-declare function color(value: string): WabouThemeColor;
+export declare function color(value: string): WabouThemeColor;
 /**
  * Define and eagerly validate a color theme while preserving its concrete
  * theme names and semantic token keys for editor completion.
  */
-declare function defineWabouTheme<const T extends WabouColorThemeOptions>(theme: T): T;
+export declare function defineWabouTheme<const T extends WabouColorThemeOptions>(theme: T): T;
 //#endregion
 //#region src/index.d.ts
-interface WabouViteOptions {
+export interface WabouViteOptions {
   /** Application root. Defaults to Vite's current working directory. */
   root?: string;
   /** Solid entry module. */
@@ -32,7 +32,7 @@ interface WabouViteOptions {
   /** ECMA-402 locale and time-zone data included in the application bundle. */
   intl?: WabouIntlOptions | false;
 }
-interface WabouIntlOptions {
+export interface WabouIntlOptions {
   /** APIs to include. Dependencies are included automatically; defaults to all. */
   apis?: ("number" | "date" | "plural")[];
   /** FormatJS locale-data modules. Defaults to English and Chinese. */
@@ -40,13 +40,13 @@ interface WabouIntlOptions {
   /** Time-zone data set. `golden` is the compact recommended default. */
   timeZones?: "golden" | "all";
 }
-type WabouViteOptionsExport = WabouViteOptions | ((environment: ConfigEnv) => WabouViteOptions);
+export type WabouViteOptionsExport = WabouViteOptions | ((environment: ConfigEnv) => WabouViteOptions);
 /** Detect a Wabou source workspace while allowing applications to live below it. */
-declare function hasWabouWorkspaceSources(start: string): boolean;
+export declare function hasWabouWorkspaceSources(start: string): boolean;
 /** Plugins required for Solid to target Wabou instead of the browser DOM. */
-declare function wabouPlugins(root?: string, theme?: WabouColorThemeOptions, ignoreClasses?: string[], intl?: WabouIntlOptions | false, entry?: string, themeContrast?: "warn" | "error"): Plugin[];
+export declare function wabouPlugins(root?: string, theme?: WabouColorThemeOptions, ignoreClasses?: string[], intl?: WabouIntlOptions | false, entry?: string, themeContrast?: "warn" | "error"): Plugin[];
 /** Define the complete conventional Vite configuration for a Wabou app. */
-declare function defineWabouConfig(options: WabouViteOptionsExport): UserConfigExport;
+export declare function defineWabouConfig(options: WabouViteOptionsExport): UserConfigExport;
 //#endregion
-export { type DefaultWabouSemanticColorToken, type WabouColorThemeOptions, WabouIntlOptions, type WabouThemeColor, WabouViteOptions, WabouViteOptionsExport, color, defaultWabouColorThemes, defaultWabouSemanticColorTokens, defineWabouConfig, defineWabouTheme, hasWabouWorkspaceSources, wabouPlugins };
+export { type DefaultWabouSemanticColorToken, type WabouColorThemeOptions, type WabouThemeColor, defaultWabouColorThemes, defaultWabouSemanticColorTokens };
 //# sourceMappingURL=index.d.mts.map

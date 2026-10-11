@@ -799,7 +799,7 @@ function editorPrimitive(tag, props) {
 }
 function semanticPrimitive(tag, role, props) {
 	const node = createElement(tag);
-	spread(node, { role }, false);
+	spread(node, { role }, true);
 	spread(node, props, false);
 	return node;
 }
@@ -818,7 +818,7 @@ function View(props) {
 function ProjectionBoundary(props) {
 	const node = createElement("view");
 	spread(node, props, false);
-	spread(node, { projectionBoundary: true }, false);
+	spread(node, { projectionBoundary: true }, true);
 	return node;
 }
 function resolvedTextBehavior(maxLines) {
@@ -844,7 +844,7 @@ function Text(props) {
 		get textBehavior() {
 			return resolvedTextBehavior(props.maxLines);
 		}
-	}, false);
+	}, true);
 	return node;
 }
 /**
@@ -866,7 +866,7 @@ function RichText(props) {
 				flags: behavior.flags | TEXT_BEHAVIOR.AggregateStyledText
 			};
 		}
-	}, false);
+	}, true);
 	return node;
 }
 /** A text-style boundary inside RichText; it never creates a layout box. */
@@ -926,18 +926,18 @@ function Icon(props) {
 		get "aria-hidden"() {
 			return props.label ? void 0 : "true";
 		}
-	}, false);
+	}, true);
 	return node;
 }
 /** A replaced image node rendered by the native host. */
 function Image(props) {
 	const rest = omit(props, "resource");
 	const node = createElement("img");
-	spread(node, { role: "img" }, false);
+	spread(node, { role: "img" }, true);
 	spread(node, rest, false);
 	spread(node, { get resource() {
 		return props.resource;
-	} }, false);
+	} }, true);
 	return node;
 }
 /** A native single-line text editor with selection and scrolling. */
@@ -1049,7 +1049,7 @@ function NativeWidget(props) {
 	spread(node, rest, false);
 	spread(node, { get widgetConfig() {
 		return props.config;
-	} }, false);
+	} }, true);
 	return node;
 }
 //#endregion
@@ -2909,4 +2909,4 @@ var primitives_exports = /* @__PURE__ */ __exportAll({
 //#endregion
 export { View as $, createOwnedImageResource as A, Icon as B, createKeyedSelection as C, createFormDraft as D, FORM_ERROR as E, createMeasuredSize as F, PathBuilder as G, NativeWidget as H, Button as I, RichTextSpan as J, ProjectionBoundary as K, Link as L, CollapsiblePresence as M, createPresence as N, createFileImageResource as O, createContainerMatch as P, TextInput as Q, createButton as R, Row as S, toggleSelection as T, PasswordInput as U, Image as V, Path as W, Text as X, Svg as Y, TextArea as Z, OverlayPlaneProvider as _, createTransition as _t, ScrollArea as a, createFocus as at, Center as b, useMotionConfig as bt, floatingFromPoint as c, animate as ct, createRetainedItems as d, createKeyframeAnimation as dt, rotate2d$1 as et, Pulse as f, createLoop as ft, createTransitionPresence as g, createSweep as gt, Modal as h, createRotation as ht, createScrollReset as i, createHover as it, releaseImageResource as j, createNetworkImageResource as k, NotificationRegion as l, animateKeyframes as lt, Spin as m, createPulse as mt, createTabs as n, createActive as nt, Popover as o, createFocusWithin as ot, Ripple as p, createNativeLoopAnimation as pt, RichText as q, createShortcuts as r, createPress as rt, floatingFromNode as s, createAnimationFrame as st, primitives_exports as t, translate2d$1 as tt, createNotifications as u, createInterpolation as ut, createOverlayLayer as v, normalizeSweepGeometry as vt, isSelected as w, Column as x, useReducedMotion as xt, useOverlayPlane as y, MotionConfigProvider as yt, Editor as z };
 
-//# sourceMappingURL=primitives-BgBPNB9w.mjs.map
+//# sourceMappingURL=primitives-CrKv66e3.mjs.map
