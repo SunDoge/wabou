@@ -1,15 +1,24 @@
 import {
   type ColumnDef,
-  createTable,
+  constructTable,
+  columnFilteringFeature,
+  columnVisibilityFeature,
+  globalFilteringFeature,
+  rowSelectionFeature,
+  rowSortingFeature,
+  filterFns,
+  sortFns,
+  tableFeatures,
   functionalUpdate,
-  getCoreRowModel,
-  getFilteredRowModel,
-  getSortedRowModel,
+  createCoreRowModel,
+  createFilteredRowModel,
+  createSortedRowModel,
   type Row,
   type RowSelectionState,
   type SortingState,
   type Table,
 } from "@tanstack/table-core";
+import { storeReactivityBindings } from "@tanstack/table-core/store-reactivity-bindings";
 import {
   type Accessor,
   createMemo,
@@ -18,28 +27,54 @@ import {
   untrack,
 } from "solid-js";
 
-export interface TanStackDataTableOptions<TData> {
+const dataTableFeatures = tableFeatures({
+  coreReactivityFeature: storeReactivityBindings(),
+  columnFilteringFeature,
+  columnVisibilityFeature,
+  globalFilteringFeature,
+  rowSelectionFeature,
+  rowSortingFeature,
+  coreRowModel: createCoreRowModel(),
+  filteredRowModel: createFilteredRowModel(),
+  sortedRowModel: createSortedRowModel(),
+  filterFns,
+  sortFns,
+});
+
+type DataTableFeatures = typeof dataTableFeatures;
+export type TanStackDataTableRow<TData extends object> = Row<
+  DataTableFeatures,
+  TData
+>;
+
+export interface TanStackDataTableOptions<TData extends object> {
   /** Static data or a reactive accessor. */
   data: readonly TData[] | Accessor<readonly TData[]>;
-  columns: readonly ColumnDef<TData, unknown>[];
-  getRowId?: (row: TData, index: number, parent?: Row<TData>) => string;
-  enableRowSelection?: boolean | ((row: Row<TData>) => boolean);
+  columns: readonly ColumnDef<DataTableFeatures, TData, unknown>[];
+  getRowId?: (
+    row: TData,
+    index: number,
+    parent?: TanStackDataTableRow<TData>,
+  ) => string;
+  enableRowSelection?:
+    | boolean
+    | ((row: TanStackDataTableRow<TData>) => boolean);
   initialSorting?: SortingState;
   initialGlobalFilter?: string;
   initialRowSelection?: RowSelectionState;
 }
 
 /** Column definition re-exported so ordinary consumers only import `@wabou/ui`. */
-export type TanStackDataTableColumn<TData, TValue = unknown> = ColumnDef<
-  TData,
-  TValue
->;
+export type TanStackDataTableColumn<
+  TData extends object,
+  TValue = unknown,
+> = ColumnDef<DataTableFeatures, TData, TValue>;
 
-export interface TanStackDataTable<TData> {
-  /** The framework-agnostic TanStack instance for advanced capabilities. */
-  readonly table: Table<TData>;
+export interface TanStackDataTable<TData extends object> {
+  /** TanStack v9 instance with filtering, sorting, visibility, and selection. */
+  readonly table: Table<DataTableFeatures, TData>;
   /** Reactive rows after filtering and sorting. */
-  readonly rows: Accessor<readonly Row<TData>[]>;
+  readonly rows: Accessor<readonly TanStackDataTableRow<TData>[]>;
   readonly sorting: Accessor<SortingState>;
   readonly setSorting: Setter<SortingState>;
   readonly globalFilter: Accessor<string>;
@@ -60,7 +95,7 @@ function access<T>(value: T | Accessor<T>): T {
  * machine here. Applications retain the native renderer and component layer,
  * while TanStack owns the mature data model.
  */
-export function createTanStackDataTable<TData>(
+export function createTanStackDataTable<TData extends object>(
   options: TanStackDataTableOptions<TData>,
 ): TanStackDataTable<TData> {
   const [sorting, setSorting] = createSignal<SortingState>(
@@ -72,20 +107,17 @@ export function createTanStackDataTable<TData>(
   const [rowSelection, setRowSelection] = createSignal<RowSelectionState>(
     options.initialRowSelection ?? {},
   );
-  const table = createTable<TData>({
+  const table = constructTable<DataTableFeatures, TData>({
+    features: dataTableFeatures,
     // TanStack needs an initial value before the reactive row memo is created.
     // Reading an accessor here would escape Solid's tracking scope in strict
     // mode; the memo below performs every reactive synchronization.
     data: [...untrack(() => access(options.data))],
     columns: [...options.columns],
     state: {},
-    onStateChange: () => {},
     renderFallbackValue: "—",
     getRowId: options.getRowId,
     enableRowSelection: options.enableRowSelection,
-    getCoreRowModel: getCoreRowModel(),
-    getFilteredRowModel: getFilteredRowModel(),
-    getSortedRowModel: getSortedRowModel(),
     onSortingChange: (updater) =>
       setSorting((value) => functionalUpdate(updater, value)),
     onGlobalFilterChange: (updater) =>

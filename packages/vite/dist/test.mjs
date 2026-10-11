@@ -40,7 +40,10 @@ function defineWabouTestConfig(options = {}) {
 				}
 			]
 		},
-		test: { environment: "node" }
+		test: {
+			environment: "node",
+			server: { deps: { inline: ["solid-js", /@solidjs\//] } }
+		}
 	}, options.vite ?? {});
 }
 //#endregion

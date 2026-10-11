@@ -146,6 +146,29 @@ export default {{
     })
 }
 
+/// Use authored Vite configuration when present; otherwise provide Wabou's defaults.
+pub(super) fn default_vite_config(app: &App) -> Result<Option<tempfile::NamedTempFile>> {
+    if ["ts", "js", "mts", "mjs", "cts", "cjs"]
+        .iter()
+        .any(|extension| app.root.join(format!("vite.config.{extension}")).is_file())
+    {
+        return Ok(None);
+    }
+    let output = Command::new("bun").current_dir(&app.root).args(["--eval", "import { fileURLToPath } from 'node:url'; console.log(JSON.stringify(fileURLToPath(import.meta.resolve('@wabou/vite'))));"]).output()?;
+    super::ensure(output.status, "resolve @wabou/vite")?;
+    let module: String = serde_json::from_slice(&output.stdout)?;
+    let file = tempfile::Builder::new().suffix(".mjs").tempfile()?;
+    let options = serde_json::json!({"root": app.root.canonicalize()?, "entry": app.entry, "outDir": "dist/resources"});
+    fs::write(
+        file.path(),
+        format!(
+            "import {{ defineWabouConfig }} from {};\nexport default defineWabouConfig({options});\n",
+            serde_json::to_string(&module)?
+        ),
+    )?;
+    Ok(Some(file))
+}
+
 #[cfg(test)]
 mod tests {
     use std::fs::OpenOptions;
@@ -197,27 +220,4 @@ mod tests {
         );
         assert_eq!(command.get_current_dir(), Some(root.path()));
     }
-}
-
-/// Use authored Vite configuration when present; otherwise provide Wabou's defaults.
-pub(super) fn default_vite_config(app: &App) -> Result<Option<tempfile::NamedTempFile>> {
-    if ["ts", "js", "mts", "mjs", "cts", "cjs"]
-        .iter()
-        .any(|extension| app.root.join(format!("vite.config.{extension}")).is_file())
-    {
-        return Ok(None);
-    }
-    let output = Command::new("bun").current_dir(&app.root).args(["--eval", "import { fileURLToPath } from 'node:url'; console.log(JSON.stringify(fileURLToPath(import.meta.resolve('@wabou/vite'))));"]).output()?;
-    super::ensure(output.status, "resolve @wabou/vite")?;
-    let module: String = serde_json::from_slice(&output.stdout)?;
-    let file = tempfile::Builder::new().suffix(".mjs").tempfile()?;
-    let options = serde_json::json!({"root": app.root.canonicalize()?, "entry": app.entry, "outDir": "dist/resources"});
-    fs::write(
-        file.path(),
-        format!(
-            "import {{ defineWabouConfig }} from {};\nexport default defineWabouConfig({options});\n",
-            serde_json::to_string(&module)?
-        ),
-    )?;
-    Ok(Some(file))
 }

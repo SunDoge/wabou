@@ -24,10 +24,11 @@ jobs:
         uses: actions/checkout@v7
 
       - name: Install Rust toolchain
-        uses: actions-rust-lang/setup-rust-toolchain@v1
+        uses: actions-rust-lang/setup-rust-toolchain@v2
         with:
           toolchain: stable
           rustflags: ""
+          build-warnings: warn
           cache: true
           cache-shared-key: windows-smoke
 
@@ -74,14 +75,15 @@ jobs:
             pkg-config
 
       - name: Install Rust toolchain
-        uses: actions-rust-lang/setup-rust-toolchain@v1
+        uses: actions-rust-lang/setup-rust-toolchain@v2
         with:
           toolchain: stable
           components: rustfmt, clippy
           # Keep warnings-as-errors scoped to the explicit Clippy command
-          # below. Applying -D warnings through RUSTFLAGS would also
+          # below. Action v2 defaults build-warnings to deny; that would also
           # fail bindings, layout, packaging, and ordinary test compilation.
           rustflags: ""
+          build-warnings: warn
           cache: ${{ !env.ACT }}
 
       - name: Install Bun
@@ -146,7 +148,7 @@ jobs:
 
       - name: Upload native-test diagnostics
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: native-test-diagnostics
           path: |
@@ -176,10 +178,11 @@ jobs:
             pkg-config
 
       - name: Install Rust toolchain
-        uses: actions-rust-lang/setup-rust-toolchain@v1
+        uses: actions-rust-lang/setup-rust-toolchain@v2
         with:
           toolchain: stable
           rustflags: ""
+          build-warnings: warn
           cache: ${{ !env.ACT }}
           cache-shared-key: linux-package
 
@@ -217,7 +220,7 @@ jobs:
             squashfs-root/usr/lib/seven-guis/resources/bundle.js
 
       - name: Upload AppImage
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: seven-guis-appimage
           path: dist/7guis/bundles/*.AppImage

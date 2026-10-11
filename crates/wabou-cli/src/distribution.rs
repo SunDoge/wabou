@@ -155,22 +155,6 @@ fn find_library(messages: &[u8]) -> Result<PathBuf> {
     Ok(candidates.remove(0))
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    #[test]
-    fn selects_loadable_artifact_and_rejects_ambiguous_output() {
-        let message = br#"{"reason":"compiler-artifact","target":{"crate_types":["rlib","cdylib"]},"filenames":["/tmp/libhost.rlib","/tmp/libhost.so"]}"#;
-        assert_eq!(
-            find_library(message).unwrap(),
-            PathBuf::from("/tmp/libhost.so")
-        );
-        assert!(find_library(b"").is_err());
-        let twice = [message.as_slice(), b"\n", message.as_slice()].concat();
-        assert!(find_library(&twice).is_err());
-    }
-}
-
 /// Generate a conventional Cargo application: no plugin files are needed at runtime.
 #[cfg(feature = "embedded-renderer")]
 fn build_linked(workspace: &Path, config: &wabou_launch::LaunchConfig) -> Result<PathBuf> {
@@ -342,4 +326,20 @@ fn write_if_changed(path: &Path, bytes: &[u8]) -> Result<()> {
     }
     fs::write(path, bytes)?;
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn selects_loadable_artifact_and_rejects_ambiguous_output() {
+        let message = br#"{"reason":"compiler-artifact","target":{"crate_types":["rlib","cdylib"]},"filenames":["/tmp/libhost.rlib","/tmp/libhost.so"]}"#;
+        assert_eq!(
+            find_library(message).unwrap(),
+            PathBuf::from("/tmp/libhost.so")
+        );
+        assert!(find_library(b"").is_err());
+        let twice = [message.as_slice(), b"\n", message.as_slice()].concat();
+        assert!(find_library(&twice).is_err());
+    }
 }

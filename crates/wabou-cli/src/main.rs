@@ -56,7 +56,7 @@ use config::{
 };
 use devtools::InspectCommand;
 use frontend::{build as build_frontend, build_test_script};
-#[cfg(test)]
+#[cfg(all(test, unix))]
 use process::wait_for_managed_child;
 use process::{
     ManagedChild, configure_test_backend, ensure_host_exit, supervise, wait_for_behavior_host,
@@ -1601,7 +1601,9 @@ mod tests {
         assert_eq!(watch, &vec![root.join("api/src")]);
         assert_eq!(target_directory.as_ref(), Some(&root.join("build-cache")));
     }
+    #[cfg(unix)]
     use std::thread;
+    #[cfg(unix)]
     use std::time::Instant;
 
     use crate::render::RenderAction;

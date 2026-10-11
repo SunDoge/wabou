@@ -1,13 +1,12 @@
-import type { Row } from "@tanstack/table-core";
 import arrowDown from "lucide-static/icons/arrow-down.svg?raw";
 import arrowUp from "lucide-static/icons/arrow-up.svg?raw";
 import arrowUpDown from "lucide-static/icons/arrow-up-down.svg?raw";
 import { For as ForValue, type JSX, Show } from "solid-js";
-import type { TanStackDataTable } from "../integrations";
+import type { TanStackDataTable, TanStackDataTableRow } from "../integrations";
 import { Icon, Button as PrimitiveButton, Text, View } from "../primitives";
 import { Table, TableBody, TableCell, TableHeader, TableRow } from "./table";
 
-export interface DataTableProps<TData> {
+export interface DataTableProps<TData extends object> {
   model: TanStackDataTable<TData>;
   "aria-label": string;
   emptyMessage?: string;
@@ -15,7 +14,7 @@ export interface DataTableProps<TData> {
   renderCell?: (options: {
     value: unknown;
     columnId: string;
-    row: Row<TData>;
+    row: TanStackDataTableRow<TData>;
   }) => JSX.Element;
 }
 
@@ -42,7 +41,9 @@ export function TableSortIndicator(props: {
 }
 
 /** Shadcn-style table anatomy backed by the framework-agnostic TanStack core. */
-export function DataTable<TData>(props: DataTableProps<TData>): JSX.Element {
+export function DataTable<TData extends object>(
+  props: DataTableProps<TData>,
+): JSX.Element {
   return (
     <Table aria-label={props["aria-label"]}>
       <TableHeader>

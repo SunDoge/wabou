@@ -1,5 +1,7 @@
-import type { ColumnDef } from "@tanstack/table-core";
-import { createTanStackDataTable } from "@wabou/ui";
+import {
+  createTanStackDataTable,
+  type TanStackDataTableColumn,
+} from "@wabou/ui";
 import { createRoot, createSignal, flush } from "solid-js";
 import { describe, expect, test } from "vitest";
 
@@ -9,7 +11,7 @@ interface RecordRow {
   score: number;
 }
 
-const columns: ColumnDef<RecordRow>[] = [
+const columns: TanStackDataTableColumn<RecordRow>[] = [
   { accessorKey: "name", header: "Name" },
   { accessorKey: "score", header: "Score" },
 ];
@@ -32,6 +34,11 @@ describe("TanStack Table integration", () => {
 
     expect(model.rows().map((row) => row.id)).toEqual(["b", "a"]);
 
+    model.table.getColumn("score")?.toggleSorting(true);
+    flush();
+    expect(model.sorting()).toEqual([{ id: "score", desc: true }]);
+    expect(model.rows().map((row) => row.id)).toEqual(["a", "b"]);
+
     model.setGlobalFilter("alpha");
     flush();
     expect(model.rows().map((row) => row.id)).toEqual(["a"]);
@@ -46,6 +53,40 @@ describe("TanStack Table integration", () => {
     flush();
     expect(model.rowSelection()).toEqual({ b: true });
     expect(model.selectedCount()).toBe(1);
+    dispose();
+  });
+
+  test("preserves initial state and respects per-row selection eligibility", () => {
+    let dispose = () => {};
+    const model = createRoot((rootDispose) => {
+      dispose = rootDispose;
+      return createTanStackDataTable<RecordRow>({
+        data: [
+          { id: "a", name: "Alpha", score: 9 },
+          { id: "b", name: "Beta", score: 4 },
+        ],
+        columns,
+        getRowId: (row) => row.id,
+        initialSorting: [{ id: "score", desc: false }],
+        initialGlobalFilter: "beta",
+        initialRowSelection: { a: true },
+        enableRowSelection: (row) => row.id === "a",
+      });
+    });
+
+    expect(model.rows().map((row) => row.id)).toEqual(["b"]);
+    model.rows()[0]?.toggleSelected(true);
+    flush();
+    expect(model.rowSelection()).toEqual({ a: true });
+    expect(model.selectedCount()).toBe(1);
+
+    model.table.setGlobalFilter("");
+    flush();
+    expect(model.globalFilter()).toBe("");
+    expect(model.rows().map((row) => row.id)).toEqual(["b", "a"]);
+    model.rows()[1]?.toggleSelected(false);
+    flush();
+    expect(model.selectedCount()).toBe(0);
     dispose();
   });
 

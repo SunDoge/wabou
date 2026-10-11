@@ -1166,7 +1166,7 @@ function Button(props) {
 		get disabled() {
 			return disabled();
 		},
-		get ["aria-disabled"]() {
+		get "aria-disabled"() {
 			return disabled();
 		},
 		get focusOrder() {
@@ -1175,37 +1175,37 @@ function Button(props) {
 		get role() {
 			return props.role ?? "button";
 		},
-		get ["aria-haspopup"]() {
+		get "aria-haspopup"() {
 			return props["aria-haspopup"];
 		},
-		get ["aria-expanded"]() {
+		get "aria-expanded"() {
 			return props["aria-expanded"];
 		},
-		get ["aria-controls"]() {
+		get "aria-controls"() {
 			return props["aria-controls"];
 		},
-		get ["aria-label"]() {
+		get "aria-label"() {
 			return props["aria-label"];
 		},
-		get ["aria-checked"]() {
+		get "aria-checked"() {
 			return props["aria-checked"];
 		},
-		get ["aria-current"]() {
+		get "aria-current"() {
 			return props["aria-current"];
 		},
-		get ["aria-selected"]() {
+		get "aria-selected"() {
 			return props["aria-selected"];
 		},
-		get ["aria-pressed"]() {
+		get "aria-pressed"() {
 			return props["aria-pressed"];
 		},
-		get ["aria-busy"]() {
+		get "aria-busy"() {
 			return props["aria-busy"];
 		},
-		get ["aria-valuetext"]() {
+		get "aria-valuetext"() {
 			return props["aria-valuetext"];
 		},
-		get ["class"]() {
+		get "class"() {
 			return mergeClasses("select-none", typeof props.class === "function" ? props.class(state()) : props.class);
 		},
 		get classList() {
@@ -1430,7 +1430,7 @@ function CollapsiblePresence(props) {
 		opacity: number(opacityTransition.value())
 	});
 	return createComponent$1(View, {
-		get ["class"]() {
+		get "class"() {
 			return props.class;
 		},
 		classList: { "overflow-hidden": true },
@@ -1440,7 +1440,7 @@ function CollapsiblePresence(props) {
 		get interactionBlocked() {
 			return !open();
 		},
-		get ["aria-hidden"]() {
+		get "aria-hidden"() {
 			return open() ? void 0 : "true";
 		},
 		get children() {
@@ -1458,7 +1458,7 @@ function CollapsiblePresence(props) {
 							return createComponent$1(View, mergeProps(() => {
 								return props.contentProps;
 							}, {
-								get ["class"]() {
+								get "class"() {
 									return props.contentClass;
 								},
 								get style() {
@@ -1694,19 +1694,19 @@ function setsEqual(left, right) {
 //#region src/primitives/layout.tsx
 /** Horizontal flex container. No wrapper node is added beyond the host View. */
 function Row(props) {
-	return createComponent$1(View, mergeProps(props, { get ["class"]() {
+	return createComponent$1(View, mergeProps(props, { get "class"() {
 		return mergeClasses("flex flex-row", props.class);
 	} }));
 }
 /** Vertical flex container. No wrapper node is added beyond the host View. */
 function Column(props) {
-	return createComponent$1(View, mergeProps(props, { get ["class"]() {
+	return createComponent$1(View, mergeProps(props, { get "class"() {
 		return mergeClasses("flex flex-col", props.class);
 	} }));
 }
 /** Flex container that centers children on both axes. */
 function Center(props) {
-	return createComponent$1(View, mergeProps(props, { get ["class"]() {
+	return createComponent$1(View, mergeProps(props, { get "class"() {
 		return mergeClasses("flex items-center justify-center", props.class);
 	} }));
 }
@@ -2536,10 +2536,10 @@ function Popover(props) {
 						get role() {
 							return props.contentRole ?? "dialog";
 						},
-						get ["aria-label"]() {
+						get "aria-label"() {
 							return props["aria-label"];
 						},
-						get ["class"]() {
+						get "class"() {
 							return props.contentClass;
 						},
 						get shadows() {
@@ -2554,7 +2554,7 @@ function Popover(props) {
 						get interactionBlocked() {
 							return !open() || props.contentInteractionBlocked;
 						},
-						get ["aria-hidden"]() {
+						get "aria-hidden"() {
 							return open() ? void 0 : "true";
 						},
 						get style() {
@@ -2610,7 +2610,7 @@ function ScrollArea(props) {
 			var _ref$ = props.ref;
 			typeof _ref$ === "function" || Array.isArray(_ref$) ? applyRef(_ref$, r$) : props.ref = r$;
 		},
-		get ["class"]() {
+		get "class"() {
 			return scrollAreaViewportClass(props.class);
 		},
 		get style() {
@@ -2624,7 +2624,7 @@ function ScrollArea(props) {
 		},
 		get children() {
 			return createComponent$1(View, {
-				get ["class"]() {
+				get "class"() {
 					return mergeClasses("flex-none flex flex-col min-h-full", props.contentClass);
 				},
 				get children() {
@@ -2909,4 +2909,4 @@ var primitives_exports = /* @__PURE__ */ __exportAll({
 //#endregion
 export { View as $, createOwnedImageResource as A, Icon as B, createKeyedSelection as C, createFormDraft as D, FORM_ERROR as E, createMeasuredSize as F, PathBuilder as G, NativeWidget as H, Button as I, RichTextSpan as J, ProjectionBoundary as K, Link as L, CollapsiblePresence as M, createPresence as N, createFileImageResource as O, createContainerMatch as P, TextInput as Q, createButton as R, Row as S, toggleSelection as T, PasswordInput as U, Image as V, Path as W, Text as X, Svg as Y, TextArea as Z, OverlayPlaneProvider as _, createTransition as _t, ScrollArea as a, createFocus as at, Center as b, useMotionConfig as bt, floatingFromPoint as c, animate as ct, createRetainedItems as d, createKeyframeAnimation as dt, rotate2d$1 as et, Pulse as f, createLoop as ft, createTransitionPresence as g, createSweep as gt, Modal as h, createRotation as ht, createScrollReset as i, createHover as it, releaseImageResource as j, createNetworkImageResource as k, NotificationRegion as l, animateKeyframes as lt, Spin as m, createPulse as mt, createTabs as n, createActive as nt, Popover as o, createFocusWithin as ot, Ripple as p, createNativeLoopAnimation as pt, RichText as q, createShortcuts as r, createPress as rt, floatingFromNode as s, createAnimationFrame as st, primitives_exports as t, translate2d$1 as tt, createNotifications as u, createInterpolation as ut, createOverlayLayer as v, normalizeSweepGeometry as vt, isSelected as w, Column as x, useReducedMotion as xt, useOverlayPlane as y, MotionConfigProvider as yt, Editor as z };
 
-//# sourceMappingURL=primitives-6iSkwpGP.mjs.map
+//# sourceMappingURL=primitives-BgBPNB9w.mjs.map
