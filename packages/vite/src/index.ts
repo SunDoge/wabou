@@ -50,10 +50,12 @@ export interface WabouViteOptions {
   /** Ignore third-party metadata classes. Supports `*` globs. */
   ignoreClasses?: string[];
   /** ECMA-402 locale and time-zone data included in the application bundle. */
-  intl?: WabouIntlOptions;
+  intl?: WabouIntlOptions | false;
 }
 
 export interface WabouIntlOptions {
+  /** APIs to include. Dependencies are included automatically; defaults to all. */
+  apis?: ("number" | "date" | "plural")[];
   /** FormatJS locale-data modules. Defaults to English and Chinese. */
   locales?: string[];
   /** Time-zone data set. `golden` is the compact recommended default. */
@@ -107,7 +109,7 @@ export function wabouPlugins(
   root = process.cwd(),
   theme?: WabouColorThemeOptions,
   ignoreClasses?: string[],
-  intl?: WabouIntlOptions,
+  intl?: WabouIntlOptions | false,
   entry = "ui/index.tsx",
   themeContrast: "warn" | "error" = "warn",
 ): Plugin[] {
@@ -175,7 +177,7 @@ function resolveWabouConfig(
       options.theme,
       options.ignoreClasses,
       options.intl,
-      options.entry ?? "ui/index.tsx",
+      process.env.WABOU_VITE_ENTRY ?? options.entry ?? "ui/index.tsx",
       options.themeContrast,
     ),
     resolve: {
@@ -198,7 +200,7 @@ function resolveWabouConfig(
       // instead of opaque generated bundle offsets.
       sourcemap,
       lib: {
-        entry: options.entry ?? "ui/index.tsx",
+        entry: process.env.WABOU_VITE_ENTRY ?? options.entry ?? "ui/index.tsx",
         formats: ["iife"],
         name: options.globalName ?? "WabouApp",
         fileName: () => "bundle.js",
@@ -235,7 +237,7 @@ const RESOLVED_INTL_DATA_ID = `\0${INTL_DATA_ID}`;
 function wabouIntlPlugin(
   root: string,
   entry: string,
-  options: WabouIntlOptions,
+  options: WabouIntlOptions | false,
 ): Plugin {
   const entryPath = resolve(root, entry);
   return {
@@ -260,7 +262,8 @@ function wabouIntlPlugin(
   };
 }
 
-function intlDataModule(options: WabouIntlOptions): string {
+function intlDataModule(options: WabouIntlOptions | false): string {
+  if (options === false) return "export {};";
   const locales = [...new Set(options.locales ?? ["en", "zh"])];
   if (locales.length === 0)
     throw new Error("Wabou intl.locales cannot be empty");
@@ -271,25 +274,35 @@ function intlDataModule(options: WabouIntlOptions): string {
       );
     }
   }
+  const apis = new Set(options.apis ?? ["number", "date", "plural"]);
+  for (const api of apis) {
+    if (!["number", "date", "plural"].includes(api))
+      throw new Error(`invalid Wabou Intl API ${api}`);
+  }
+  if (apis.size === 0) return "export {};";
   const imports = [
     "@formatjs/intl-getcanonicallocales/polyfill.js",
     "@formatjs/intl-locale/polyfill.js",
-    "@formatjs/intl-pluralrules/polyfill.js",
-    ...locales.map(
-      (locale) => `@formatjs/intl-pluralrules/locale-data/${locale}.js`,
-    ),
-    "@formatjs/intl-numberformat/polyfill.js",
-    ...locales.map(
-      (locale) => `@formatjs/intl-numberformat/locale-data/${locale}.js`,
-    ),
-    "@formatjs/intl-datetimeformat/polyfill.js",
-    ...locales.map(
-      (locale) => `@formatjs/intl-datetimeformat/locale-data/${locale}.js`,
-    ),
-    options.timeZones === "all"
-      ? "@formatjs/intl-datetimeformat/add-all-tz.js"
-      : "@formatjs/intl-datetimeformat/add-golden-tz.js",
   ];
+  const include = (name: string) => {
+    imports.push(
+      `@formatjs/intl-${name}/polyfill.js`,
+      ...locales.map(
+        (locale) => `@formatjs/intl-${name}/locale-data/${locale}.js`,
+      ),
+    );
+  };
+  if (apis.has("plural") || apis.has("number") || apis.has("date"))
+    include("pluralrules");
+  if (apis.has("number") || apis.has("date")) include("numberformat");
+  if (apis.has("date")) {
+    include("datetimeformat");
+    imports.push(
+      options.timeZones === "all"
+        ? "@formatjs/intl-datetimeformat/add-all-tz.js"
+        : "@formatjs/intl-datetimeformat/add-golden-tz.js",
+    );
+  }
   // A virtual module has no package location of its own, so Vite otherwise
   // resolves these imports from the application root. Resolve them here from
   // @wabou/vite, which owns the dependencies, so isolated workspace installs
@@ -298,18 +311,29 @@ function intlDataModule(options: WabouIntlOptions): string {
     fileURLToPath(import.meta.resolve(id)),
   );
   return `${resolvedImports.map((id) => `import ${JSON.stringify(id)};`).join("\n")}
-Intl.DateTimeFormat.__setDefaultTimeZone?.(__wabou_system_time_zone());`;
+${apis.has("date") ? "Intl.DateTimeFormat.__setDefaultTimeZone?.(__wabou_system_time_zone());" : ""}`;
 }
 
-function manifestIntl(root: string): WabouIntlOptions {
+function manifestIntl(root: string): WabouIntlOptions | false {
   if (!existsSync(resolve(root, "wabou.toml"))) return {};
   const { manifest, path } = readManifest(root);
   const intl = (manifest as { intl?: unknown }).intl;
   if (intl === undefined) return {};
+  if (intl === false) return false;
   if (typeof intl !== "object" || intl === null || Array.isArray(intl)) {
     throw new Error(`${path} intl must be a table`);
   }
-  const value = intl as { locales?: unknown; "time-zones"?: unknown };
+  const value = intl as {
+    locales?: unknown;
+    apis?: unknown;
+    "time-zones"?: unknown;
+  };
+  if (
+    value.apis !== undefined &&
+    (!Array.isArray(value.apis) ||
+      value.apis.some((api) => !["number", "date", "plural"].includes(api)))
+  )
+    throw new Error(`${path} intl.apis must contain number, date or plural`);
   if (
     value.locales !== undefined &&
     (!Array.isArray(value.locales) ||
@@ -325,6 +349,7 @@ function manifestIntl(root: string): WabouIntlOptions {
     throw new Error(`${path} intl.time-zones must be "golden" or "all"`);
   }
   return {
+    apis: value.apis as WabouIntlOptions["apis"],
     locales: value.locales as string[] | undefined,
     timeZones: value["time-zones"] as "golden" | "all" | undefined,
   };

@@ -452,7 +452,7 @@ function resolveWabouConfig(options, environment) {
 	const renderer = workspaceSource && workspaceRoot ? resolve(workspaceRoot, "packages/core/src/renderer.ts") : fileURLToPath(import.meta.resolve("@wabou/core/renderer"));
 	const defaults = {
 		define: { "process.env.NODE_ENV": JSON.stringify(process.env.NODE_ENV ?? (environment.command === "serve" ? "development" : "production")) },
-		plugins: wabouPlugins(root, options.theme, options.ignoreClasses, options.intl, options.entry ?? "ui/index.tsx", options.themeContrast),
+		plugins: wabouPlugins(root, options.theme, options.ignoreClasses, options.intl, process.env.WABOU_VITE_ENTRY ?? options.entry ?? "ui/index.tsx", options.themeContrast),
 		resolve: {
 			dedupe: ["solid-js"],
 			conditions: workspaceSource ? ["wabou-source"] : void 0,
@@ -468,7 +468,7 @@ function resolveWabouConfig(options, environment) {
 		build: {
 			sourcemap,
 			lib: {
-				entry: options.entry ?? "ui/index.tsx",
+				entry: process.env.WABOU_VITE_ENTRY ?? options.entry ?? "ui/index.tsx",
 				formats: ["iife"],
 				name: options.globalName ?? "WabouApp",
 				fileName: () => "bundle.js"
@@ -517,32 +517,51 @@ function wabouIntlPlugin(root, entry, options) {
 	};
 }
 function intlDataModule(options) {
+	if (options === false) return "export {};";
 	const locales = [...new Set(options.locales ?? ["en", "zh"])];
 	if (locales.length === 0) throw new Error("Wabou intl.locales cannot be empty");
 	for (const locale of locales) if (!/^[A-Za-z0-9-]+$/.test(locale)) throw new Error(`invalid Wabou Intl locale module ${JSON.stringify(locale)}`);
-	return `${[
-		"@formatjs/intl-getcanonicallocales/polyfill.js",
-		"@formatjs/intl-locale/polyfill.js",
-		"@formatjs/intl-pluralrules/polyfill.js",
-		...locales.map((locale) => `@formatjs/intl-pluralrules/locale-data/${locale}.js`),
-		"@formatjs/intl-numberformat/polyfill.js",
-		...locales.map((locale) => `@formatjs/intl-numberformat/locale-data/${locale}.js`),
-		"@formatjs/intl-datetimeformat/polyfill.js",
-		...locales.map((locale) => `@formatjs/intl-datetimeformat/locale-data/${locale}.js`),
-		options.timeZones === "all" ? "@formatjs/intl-datetimeformat/add-all-tz.js" : "@formatjs/intl-datetimeformat/add-golden-tz.js"
-	].map((id) => fileURLToPath(import.meta.resolve(id))).map((id) => `import ${JSON.stringify(id)};`).join("\n")}
-Intl.DateTimeFormat.__setDefaultTimeZone?.(__wabou_system_time_zone());`;
+	const apis = new Set(options.apis ?? [
+		"number",
+		"date",
+		"plural"
+	]);
+	for (const api of apis) if (![
+		"number",
+		"date",
+		"plural"
+	].includes(api)) throw new Error(`invalid Wabou Intl API ${api}`);
+	if (apis.size === 0) return "export {};";
+	const imports = ["@formatjs/intl-getcanonicallocales/polyfill.js", "@formatjs/intl-locale/polyfill.js"];
+	const include = (name) => {
+		imports.push(`@formatjs/intl-${name}/polyfill.js`, ...locales.map((locale) => `@formatjs/intl-${name}/locale-data/${locale}.js`));
+	};
+	if (apis.has("plural") || apis.has("number") || apis.has("date")) include("pluralrules");
+	if (apis.has("number") || apis.has("date")) include("numberformat");
+	if (apis.has("date")) {
+		include("datetimeformat");
+		imports.push(options.timeZones === "all" ? "@formatjs/intl-datetimeformat/add-all-tz.js" : "@formatjs/intl-datetimeformat/add-golden-tz.js");
+	}
+	return `${imports.map((id) => fileURLToPath(import.meta.resolve(id))).map((id) => `import ${JSON.stringify(id)};`).join("\n")}
+${apis.has("date") ? "Intl.DateTimeFormat.__setDefaultTimeZone?.(__wabou_system_time_zone());" : ""}`;
 }
 function manifestIntl(root) {
 	if (!existsSync(resolve(root, "wabou.toml"))) return {};
 	const { manifest, path } = readManifest(root);
 	const intl = manifest.intl;
 	if (intl === void 0) return {};
+	if (intl === false) return false;
 	if (typeof intl !== "object" || intl === null || Array.isArray(intl)) throw new Error(`${path} intl must be a table`);
 	const value = intl;
+	if (value.apis !== void 0 && (!Array.isArray(value.apis) || value.apis.some((api) => ![
+		"number",
+		"date",
+		"plural"
+	].includes(api)))) throw new Error(`${path} intl.apis must contain number, date or plural`);
 	if (value.locales !== void 0 && (!Array.isArray(value.locales) || value.locales.some((locale) => typeof locale !== "string"))) throw new Error(`${path} intl.locales must be an array of strings`);
 	if (value["time-zones"] !== void 0 && value["time-zones"] !== "golden" && value["time-zones"] !== "all") throw new Error(`${path} intl.time-zones must be "golden" or "all"`);
 	return {
+		apis: value.apis,
 		locales: value.locales,
 		timeZones: value["time-zones"]
 	};

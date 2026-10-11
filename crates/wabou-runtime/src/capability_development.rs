@@ -6,7 +6,10 @@ use std::{
     io::Read,
     path::{Path, PathBuf},
     process::{Command, Stdio},
-    sync::{Arc, Condvar, Mutex},
+    sync::{
+        Arc, Condvar, Mutex,
+        atomic::{AtomicBool, Ordering},
+    },
     thread::JoinHandle,
     time::{Duration, Instant},
 };
@@ -109,6 +112,14 @@ impl HostService for CapabilityDevelopment {
             return Err("module watcher already started".into());
         }
         let stop = Arc::new((Mutex::new(false), Condvar::new()));
+        let dirty = Arc::new(AtomicBool::new(false));
+        let watcher_failed = Arc::new(AtomicBool::new(false));
+        let watcher = source_watcher(
+            &self.project,
+            stop.clone(),
+            dirty.clone(),
+            watcher_failed.clone(),
+        );
         // Capture before compiling so edits made during compilation are not lost.
         let baseline = fingerprint(
             &self.project.watch,
@@ -131,14 +142,23 @@ impl HostService for CapabilityDevelopment {
         let status = self.status.clone();
         let messages = self.messages.clone();
         let thread = std::thread::Builder::new().name("wabou-module-build".into()).spawn(move || {
+            let _watcher = watcher;
             let mut previous = baseline;
             loop {
                 let (lock, wake) = &*stopped;
                 let guard = lock.lock().unwrap_or_else(|e| e.into_inner());
                 if *guard { break; }
-                let (guard, _) = wake.wait_timeout(guard, Duration::from_millis(200)).unwrap_or_else(|e| e.into_inner());
+                let polling = _watcher.is_none() || watcher_failed.load(Ordering::Acquire);
+                let guard = if !dirty.swap(false, Ordering::AcqRel) {
+                    let (guard, timed) = wake.wait_timeout(guard, if polling { Duration::from_millis(200) } else { Duration::from_secs(30) }).unwrap_or_else(|e| e.into_inner());
+                    if *guard { break; }
+                    if !timed.timed_out() && !dirty.swap(false, Ordering::AcqRel) { continue; }
+                    guard
+                } else { guard };
                 if *guard { break; }
                 drop(guard);
+                // Collapse editor bursts; content fingerprints prevent duplicate builds.
+                std::thread::sleep(Duration::from_millis(75));
                 let next = match fingerprint(&project.watch, project.target_directory.as_deref()) {
                     Ok(next) => next,
                     Err(error) => { tracing::warn!(%error, "module source scan failed"); continue; }
@@ -214,6 +234,79 @@ fn publish_status(
     tracing::info!(target: "hmr", source = "rust", manifest = %target.display(), building = status.building, attempt = status.attempts, elapsed_ms = status.elapsed_ms, error = ?status.error, "capability development status");
 }
 
+fn source_watcher(
+    project: &ModuleProject,
+    stop: Arc<(Mutex<bool>, Condvar)>,
+    dirty: Arc<AtomicBool>,
+    failed: Arc<AtomicBool>,
+) -> Option<notify::RecommendedWatcher> {
+    use notify::Watcher;
+    let normalize = |path: &Path| path.canonicalize().or_else(|_| std::path::absolute(path));
+    let paths = project
+        .watch
+        .iter()
+        .map(|path| normalize(path))
+        .collect::<Result<Vec<_>, _>>()
+        .ok()?;
+    let excluded = project
+        .target_directory
+        .as_deref()
+        .map(normalize)
+        .transpose()
+        .ok()?;
+    let watched = paths.clone();
+    let result = (|| -> notify::Result<_> {
+        let mut watcher =
+            notify::recommended_watcher(move |event: notify::Result<notify::Event>| {
+                let relevant = match event {
+                    Ok(event) if matches!(event.kind, notify::EventKind::Access(_)) => false,
+                    Ok(event) => event.paths.iter().any(|path| {
+                        watched.iter().any(|root| {
+                            path.strip_prefix(root).is_ok_and(|relative| {
+                                !relative.components().any(|component| {
+                                    matches!(
+                                        component.as_os_str().to_str(),
+                                        Some("target" | ".git" | "node_modules" | "dist")
+                                    )
+                                })
+                            })
+                        }) && !excluded.as_ref().is_some_and(|root| path.starts_with(root))
+                    }),
+                    Err(error) => {
+                        tracing::warn!(%error, "source watcher failed; falling back to polling");
+                        failed.store(true, Ordering::Release);
+                        true
+                    }
+                };
+                if relevant {
+                    let _guard = stop.0.lock().unwrap_or_else(|e| e.into_inner());
+                    dirty.store(true, Ordering::Release);
+                    stop.1.notify_all();
+                }
+            })?;
+        let mut roots = std::collections::BTreeSet::new();
+        for path in paths {
+            let directory = if path.is_dir() {
+                path
+            } else {
+                path.parent().unwrap_or(Path::new(".")).to_owned()
+            };
+            roots.insert(directory);
+        }
+        for root in roots {
+            watcher.watch(&root, notify::RecursiveMode::Recursive)?;
+        }
+        Ok(watcher)
+    })();
+    match result {
+        Ok(watcher) => Some(watcher),
+        Err(error) => {
+            tracing::warn!(%error, "native source watching unavailable; falling back to polling");
+            None
+        }
+    }
+}
+
 fn fingerprint(paths: &[PathBuf], excluded: Option<&Path>) -> Result<u64, String> {
     fn normalize(path: &Path) -> std::io::Result<PathBuf> {
         path.canonicalize().or_else(|_| std::path::absolute(path))
@@ -223,10 +316,10 @@ fn fingerprint(paths: &[PathBuf], excluded: Option<&Path>) -> Result<u64, String
         .transpose()
         .map_err(|e| e.to_string())?;
     fn scan(path: &Path, hash: &mut DefaultHasher, excluded: Option<&Path>) -> std::io::Result<()> {
-        if let Some(excluded) = excluded {
-            if normalize(path)? == excluded {
-                return Ok(());
-            }
+        if let Some(excluded) = excluded
+            && normalize(path)? == excluded
+        {
+            return Ok(());
         }
         let metadata = match std::fs::symlink_metadata(path) {
             Ok(metadata) => metadata,
@@ -267,6 +360,7 @@ fn fingerprint(paths: &[PathBuf], excluded: Option<&Path>) -> Result<u64, String
     Ok(hash.finish())
 }
 fn build(project: &ModuleProject, stop: &(Mutex<bool>, Condvar)) -> Result<PathBuf, String> {
+    let _measurement = wabou_telemetry::span("reload", "cargo.build");
     // File-backed Cargo JSON avoids full pipes blocking compilation and lets us
     // resolve target directories, names and platforms from actual artifacts.
     let mut log = tempfile::tempfile().map_err(|e| e.to_string())?;

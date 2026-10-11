@@ -152,12 +152,21 @@ from watching even if its basename is not `target`.
 Default watching covers the module directory and excludes target, .git,
 node_modules and dist. Symlinks are skipped. Explicitly add local dependency roots
 and relevant workspace manifests/configuration outside that directory. Watching
-uses content hashing and is intended for small application modules; it is not an
-optimized workspace-wide file watcher. Shutdown wakes the watcher, terminates its
+uses native filesystem notifications with a 75ms debounce and content hashing to
+avoid rebuilding after unchanged or excluded-file events. A 30-second safety scan
+catches missed events; unavailable or failed native watchers fall back to 200ms
+polling. Shutdown wakes the watcher, terminates its
 current Cargo command and joins the worker thread. It does not yet manage Cargo
 build-script descendants as an OS process group.
 
 ## Typed handler convenience
+
+The resident runtime's task service notifies waiting capability invocations when
+work completes. Invocations reporting a pending `task.poll` wait on that notification
+instead of polling every 2ms. Completion registration precedes polling to avoid a
+lost-wakeup race. Custom async implementations that do not use the resident task
+service retain the 2ms fallback. Neither futures nor notification objects cross
+the module ABI.
 
 For bounded handlers the SDK can own request decoding, response encoding and the
 invocation adapter. Keep application functions in ordinary Rust:

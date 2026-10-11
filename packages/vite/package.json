@@ -40,6 +40,11 @@
       "wabou-source": "./src/utility-manifest.ts",
       "types": "./dist/utility-manifest.d.mts",
       "import": "./dist/utility-manifest.mjs"
+    },
+    "./config": {
+      "wabou-source": "./src/config.ts",
+      "types": "./dist/config.d.mts",
+      "import": "./dist/config.mjs"
     }
   },
   "scripts": {

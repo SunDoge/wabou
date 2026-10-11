@@ -167,7 +167,7 @@
       "direction": "host",
       "owner": "runtime",
       "kind": "function",
-      "params": [["url", "string"], ["initJson", "string"]],
+      "params": [["url", "string"], ["initJson", "string"], ["id?", "number"]],
       "returns": "Promise<{ status: number; statusText: string; headers: Record<string, string>; body: Uint8Array }>"
     },
     {
@@ -261,7 +261,6 @@
       "params": [["id", "string"]],
       "returns": "void"
     },
-
     {
       "name": "__wabou_tick",
       "direction": "guest",
@@ -320,6 +319,75 @@
         ["status", "number"],
         ["payloadJson", "string"]
       ],
+      "returns": "void"
+    },
+    {
+      "name": "__wabou_url",
+      "direction": "host",
+      "owner": "runtime",
+      "kind": "function",
+      "params": [
+        ["input", "string"],
+        ["base", "string"],
+        ["field", "string"],
+        ["value", "string"]
+      ],
+      "returns": "Record<string, string>"
+    },
+    {
+      "name": "__wabou_form_decode",
+      "direction": "host",
+      "owner": "runtime",
+      "kind": "function",
+      "params": [["input", "string"]],
+      "returns": "string"
+    },
+    {
+      "name": "__wabou_form_encode",
+      "direction": "host",
+      "owner": "runtime",
+      "kind": "function",
+      "params": [["input", "string"]],
+      "returns": "string"
+    },
+    {
+      "name": "__wabou_utf8_encode_into",
+      "direction": "host",
+      "owner": "runtime",
+      "kind": "function",
+      "params": [["input", "string"], ["output", "Uint8Array"]],
+      "returns": "{ read: number; written: number }"
+    },
+    {
+      "name": "__wabou_fetch_start",
+      "direction": "host",
+      "owner": "runtime",
+      "kind": "function",
+      "params": [["id", "number"]],
+      "returns": "void"
+    },
+    {
+      "name": "__wabou_fetch_cancel",
+      "direction": "host",
+      "owner": "runtime",
+      "kind": "function",
+      "params": [["id", "number"]],
+      "returns": "void"
+    },
+    {
+      "name": "__wabou_profile_enabled",
+      "direction": "host",
+      "owner": "runtime",
+      "kind": "function",
+      "params": [],
+      "returns": "boolean"
+    },
+    {
+      "name": "__wabou_profile_batch",
+      "direction": "host",
+      "owner": "runtime",
+      "kind": "function",
+      "params": [["raw", "string"]],
       "returns": "void"
     }
   ]

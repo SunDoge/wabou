@@ -38,6 +38,7 @@ mod process;
 mod project;
 mod render;
 mod scaffold;
+mod ts_config;
 
 use artifact::{
     app_binary, app_bindings_target, app_dev_features, app_framework_feature,
@@ -113,7 +114,7 @@ enum Commands {
         #[arg(value_name = "APP")]
         app: Option<PathBuf>,
         #[arg(long)]
-        config: PathBuf,
+        config: Option<PathBuf>,
         #[arg(long)]
         out: PathBuf,
         /// Link the runtime and project capabilities into a generated application host.
@@ -561,7 +562,19 @@ fn main() -> Result<()> {
         } => {
             let frontend_root = project::find_frontend_root(&cwd).unwrap_or_else(|| cwd.clone());
             let workspace = find_workspace(&cwd).unwrap_or(frontend_root);
-            let app = project::load_frontend_app(&workspace, &cwd, app.as_deref())?;
+            let mut app = project::load_frontend_app(&workspace, &cwd, app.as_deref())?;
+            let prepared = if config.is_none() {
+                ts_config::prepare(&app)?
+            } else {
+                None
+            };
+            if let Some(prepared) = &prepared {
+                app.entry = prepared.entry.clone();
+            }
+            let config = config
+                .or_else(|| prepared.as_ref().map(|p| p.file.path().to_owned()))
+                .or(config::load_dev_config(&app)?.runtime_config)
+                .ok_or("bundle needs wabou.config.ts or --config")?;
             distribution::bundle(&workspace, &app, &config, &out, static_link)
         }
         Commands::New {
@@ -595,15 +608,28 @@ fn main() -> Result<()> {
         } => {
             let frontend_root = project::find_frontend_root(&cwd).unwrap_or_else(|| cwd.clone());
             let workspace = find_workspace(&cwd).unwrap_or(frontend_root);
-            let app = project::load_frontend_app(&workspace, &cwd, app.as_deref())?;
+            let mut app = project::load_frontend_app(&workspace, &cwd, app.as_deref())?;
             let configured = config::load_dev_config(&app)?;
             let runtime_library = runtime_library.or(configured.runtime_library);
             let runtime_config = runtime_config.or(configured.runtime_config);
+            let prepared = if runtime_config.is_none() {
+                ts_config::prepare(&app)?
+            } else {
+                None
+            };
+            if let Some(prepared) = &prepared {
+                app.entry = prepared.entry.clone();
+            }
+            let runtime_config =
+                runtime_config.or_else(|| prepared.as_ref().map(|p| p.file.path().to_owned()));
             if runtime_library.is_some() && runtime_config.is_none() {
                 return Err("an external runtime-library requires runtime-config, through flags or [dev] in wabou.toml".into());
             }
             if runtime_config.is_none() && !app.root.join("Cargo.toml").is_file() {
-                return Err("frontend-only dev needs [dev] runtime-config in wabou.toml".into());
+                return Err(
+                    "frontend-only dev needs wabou.config.ts or [dev] runtime-config in wabou.toml"
+                        .into(),
+                );
             }
             let rust_hot_reload = rust_hot_reload || configured.rust_hot_reload;
             dev(
@@ -1344,6 +1370,7 @@ struct DevOptions<'a> {
 fn dev(workspace: &Path, app: App, options: DevOptions<'_>) -> Result<()> {
     ensure_javascript_dependencies(workspace, &app)?;
     ensure_workspace_package_exports(workspace)?;
+    let vite_configuration = frontend::default_vite_config(&app)?;
     let port_text = options.port.to_string();
     let mut vite_command = Command::new("bun");
     vite_command
@@ -1360,6 +1387,10 @@ fn dev(workspace: &Path, app: App, options: DevOptions<'_>) -> Result<()> {
         .stdin(Stdio::null());
     if let Some(mode) = options.mode {
         vite_command.args(["--mode", mode]);
+    }
+    vite_command.env("WABOU_VITE_ENTRY", &app.entry);
+    if let Some(configuration) = &vite_configuration {
+        vite_command.arg("--config").arg(configuration.path());
     }
     let mut vite = ManagedChild::spawn(vite_command)?;
     let url = format!("http://127.0.0.1:{}", options.port);

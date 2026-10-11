@@ -506,11 +506,65 @@ SDK `static-link` to avoid duplicate exported plugin symbols. The same handlers
 and host-owned services run through the existing function table; this first
 version does not eliminate its encoding/polling overhead. No capability dynamic
 libraries are required at runtime. UI/resources remain beside the executable.
-System libraries may still be dynamically linked. Static mode currently retains
-the runtime's development support code; it does not yet produce a minimal runtime.
+System libraries may still be dynamically linked. Static mode disables the runtime's
+development feature, excluding Vite, DevTools and capability source watching.
 Compilation uses the PATH Cargo and reuses the workspace target directory.
+Generated hosts live in `target/wabou/static-hosts` with stable source paths and a
+persistent Cargo.lock. Identical inputs preserve generated-file timestamps; distinct
+capability configurations have distinct executable names. Concurrent builds of the
+same generated host are serialized.
 Existing Rust-host applications can continue using `wabou build --release` and
 `wabou package` for application-owned registration and native installers.
 
+### TypeScript project configuration
+
+A frontend-only project can use `wabou.config.ts` instead of a TOML/JSON pair:
+
+```ts
+import { defineConfig, rustCapability } from "@wabou/vite/config";
+import { capabilityContracts } from "./ui/generated/host-contracts";
+
+export default defineConfig({
+  window: { title: "My app", width: 1000, height: 700 },
+  ui: { entry: "ui/main.tsx" },
+  capabilities: [rustCapability({
+    contract: capabilityContracts.bindingsDemo,
+    manifest: "functions/Cargo.toml",
+  })],
+});
+```
+
+Generate the pure-data contracts with Rust `Bindings::write_contracts` alongside
+the normal client bindings. This avoids manually duplicating method names and
+contract versions. Configuration accepts an async factory; Bun evaluates it in
+the CLI, and the runtime receives only JSON data. Paths resolve against the
+authored config directory. `wabou dev` and `wabou bundle --static --out dist/app`
+discover this config automatically; an explicit runtime config takes precedence.
+An authored Vite config remains supported; otherwise the CLI generates one with
+the configured UI entry. Runtime execution needs neither Bun nor TS configuration.
+
 The default CLI excludes the experimental BlockUI adapter. Build with
 `cargo build -p wabou-cli --features native-ui` when working on that experiment.
+
+### Optional Intl data
+
+The Vite configuration includes English and Chinese Intl data by default. Apps
+that do not use Intl or widgets requiring it can omit that data:
+
+```ts
+export default defineWabouConfig({ intl: false });
+```
+
+Apps needing only number formatting can avoid date and time-zone data:
+
+```ts
+export default defineWabouConfig({
+  intl: { locales: ["en"], apis: ["number"] },
+});
+```
+
+`apis` accepts `number`, `date`, and `plural`; required FormatJS dependencies are
+included automatically. This is configured in `vite.config.ts`, independently of
+`wabou.config.ts`. TOML projects can use `intl = false` at the root or set `apis`
+in the `[intl]` table. Disabling Intl is explicit: date/number widgets and libraries
+using Intl still require the relevant APIs.

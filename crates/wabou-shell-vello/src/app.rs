@@ -393,6 +393,7 @@ impl App {
         shell: &mut Shell,
         source: &mut dyn FrameSource,
         base_color: Color,
+        parent: u64,
     ) -> (usize, f64, f64) {
         let (w, h) = shell.logical_size();
         let scale = shell.scale_factor();
@@ -403,6 +404,8 @@ impl App {
             let span = tracing::trace_span!(target: "wabou::perf", "frame.build");
             #[cfg(feature = "profiling")]
             let _guard = span.enter();
+            let mut phase = wabou_telemetry::span("frame", "build.cpu");
+            phase.attribute("parent", parent);
             source.build_frame(&mut shell.tcx, w, h)
         };
         let t1 = Instant::now();
@@ -411,6 +414,8 @@ impl App {
             let span = tracing::trace_span!(target: "wabou::perf", "frame.scene");
             #[cfg(feature = "profiling")]
             let _guard = span.enter();
+            let mut phase = wabou_telemetry::span("frame", "scene.cpu");
+            phase.attribute("parent", parent);
             scene_builder::build_scene_scaled(
                 &mut shell.scene,
                 &nodes,
@@ -1156,6 +1161,7 @@ impl App {
     }
 
     fn redraw(&mut self) {
+        let frame_measurement = wabou_telemetry::span("frame", "redraw.cpu");
         self.performance_hud.begin_frame(Instant::now());
         #[cfg(feature = "profiling")]
         let frame_span = tracing::trace_span!(
@@ -1178,8 +1184,12 @@ impl App {
             self.source.handle_semantic_action(action);
         }
         let base_color = self.source.base_color();
-        let (node_count, build_frame_ms, scene_ms) =
-            Self::build(shell, self.source.as_mut(), base_color);
+        let (node_count, build_frame_ms, scene_ms) = Self::build(
+            shell,
+            self.source.as_mut(),
+            base_color,
+            frame_measurement.id(),
+        );
         self.update_ime_state();
         self.sync_pointer_cursor();
         let Some(shell) = self.state.as_mut() else {
@@ -1220,6 +1230,8 @@ impl App {
             let span = tracing::trace_span!(target: "wabou::perf", "frame.present");
             #[cfg(feature = "profiling")]
             let _guard = span.enter();
+            let mut phase = wabou_telemetry::span("frame", "present.cpu");
+            phase.attribute("parent", frame_measurement.id());
             shell.present(base_color)
         };
         let present_ms = ms(Instant::now() - t2);

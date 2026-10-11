@@ -2,6 +2,7 @@
 resolver = "3"
 members = ["apps/*", "crates/*"]
 exclude = [
+  "apps/pulse",
   "experiments/*",
   "templates/basic",
   "vendor/bitwarden-sdk",
@@ -39,6 +40,7 @@ default-members = [
   "crates/wabou-shell-vello",
   "crates/wabou-style",
   "crates/wabou-terminal-vello",
+  "crates/wabou-telemetry",
   "crates/wabou-tray",
   "crates/wabou-widgets-vello",
 ]
@@ -48,6 +50,7 @@ version = "0.1.0-alpha.3"
 license = "Apache-2.0"
 
 [workspace.dependencies]
+wabou-telemetry = { path = "crates/wabou-telemetry" }
 anyhow = "1"
 wabou = { path = "crates/wabou", default-features = false }
 wabou-accessibility = { path = "crates/wabou-accessibility" }

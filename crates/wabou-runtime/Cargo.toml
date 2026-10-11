@@ -10,6 +10,9 @@ name = "wabou_runtime"
 path = "src/lib.rs"
 
 [dependencies]
+wabou-telemetry.workspace = true
+encoding_rs = "0.8"
+notify = { version = "8.2", optional = true }
 arc-swap = { workspace = true }
 flume = { workspace = true }
 libloading = { version = ">=0.7.3, <0.10", optional = true }
@@ -65,7 +68,8 @@ ureq = { version = "3.3", default-features = false, optional = true }
 default = []
 devtools = ["dep:wabou-devtools"]
 profiling = []
-rust-hot-reload = ["capability-modules"]
+rust-hot-reload = ["capability-development"]
+capability-development = ["capability-modules", "dep:notify"]
 capability-modules = ["dep:libloading", "dep:stabby", "dep:wabou-capability-abi"]
 # Shared deterministic mode used by backend-owned headless harnesses.
 headless = []
@@ -73,5 +77,6 @@ headless = []
 vite = ["dep:tungstenite", "dep:ureq"]
 
 [dev-dependencies]
+notify = "8.2"
 image = { workspace = true, features = ["png"] }
 wabou-devtools = { workspace = true }

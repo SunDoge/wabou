@@ -14,6 +14,7 @@ import { Sidebar as PiAgentSidebar } from "../../pi-agent/ui/sidebar";
 import { galleryLayoutFixtures } from "./layout-fixture-pages";
 import { OverviewPage } from "./pages/overview";
 import { CrossRenderFixture } from "../../../tests/render-reference/cross-render-fixture";
+import { PulseOverview } from "./pulse/overview";
 
 let activeOwners = 0;
 
@@ -134,6 +135,8 @@ function PiAgentToolbarFixture() {
 }
 
 defineLayoutFixtures({
+  "demos/pulse-overview": { width: 1240, height: 820, render: PulseOverview },
+  "demos/pulse-compact": { width: 900, height: 700, render: PulseOverview },
   "foundations/paint-reference": {
     width: 960,
     height: 720,

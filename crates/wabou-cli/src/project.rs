@@ -48,7 +48,7 @@ pub(super) fn load_frontend_app(
         )
         .into());
     }
-    let entry = if root.join("ui/index.tsx").is_file() {
+    let entry = if root.join("ui/index.tsx").is_file() || root.join("wabou.config.ts").is_file() {
         "ui/index.tsx"
     } else {
         return Err(format!("{} has no conventional ui/index.tsx entry", root.display()).into());
@@ -68,7 +68,10 @@ pub(super) fn load_frontend_app(
 pub(super) fn find_frontend_root(start: &Path) -> Option<PathBuf> {
     start
         .ancestors()
-        .find(|dir| dir.join("package.json").is_file() && dir.join("ui/index.tsx").is_file())
+        .find(|dir| {
+            dir.join("package.json").is_file()
+                && (dir.join("ui/index.tsx").is_file() || dir.join("wabou.config.ts").is_file())
+        })
         .map(Path::to_path_buf)
 }
 

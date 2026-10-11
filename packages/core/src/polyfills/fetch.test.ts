@@ -67,9 +67,9 @@ test("installs interoperable Headers and Response globals", async () => {
     expect(new Uint8Array(await arrayBufferClone.arrayBuffer())).toEqual(
       new TextEncoder().encode('{"ok":true}'),
     );
-    expect(await (bytesClone as unknown as WabouBinaryResponse).bytes()).toEqual(
-      new TextEncoder().encode('{"ok":true}'),
-    );
+    expect(
+      await (bytesClone as unknown as WabouBinaryResponse).bytes(),
+    ).toEqual(new TextEncoder().encode('{"ok":true}'));
 
     const streamed = await fetch("https://example.test/items", {
       method: "POST",
@@ -97,3 +97,113 @@ test("installs interoperable Headers and Response globals", async () => {
 interface WabouBinaryResponse {
   bytes(): Promise<Uint8Array>;
 }
+
+test("fetch propagates abort reason and cancels the native request", async () => {
+  const runtime = globalThis as typeof globalThis & {
+    __wabou_fetch?: (...args: any[]) => Promise<any>;
+    __wabou_fetch_start?: (id: number) => void;
+    __wabou_fetch_cancel?: (id: number) => void;
+  };
+  const previous = {
+    fetch: runtime.fetch,
+    host: runtime.__wabou_fetch,
+    start: runtime.__wabou_fetch_start,
+    cancel: runtime.__wabou_fetch_cancel,
+  };
+  let calls = 0;
+  const started: number[] = [];
+  const cancelled: number[] = [];
+  let finish!: (value: any) => void;
+  try {
+    runtime.__wabou_fetch = () => {
+      calls++;
+      return new Promise((resolve) => {
+        finish = resolve;
+      });
+    };
+    runtime.__wabou_fetch_start = (id) => started.push(id);
+    runtime.__wabou_fetch_cancel = (id) => cancelled.push(id);
+    installFetchPolyfill();
+    const reason = new Error("cancel test");
+    const pre = new AbortController();
+    pre.abort(reason);
+    await expect(
+      fetch("https://example.test", { signal: pre.signal }),
+    ).rejects.toBe(reason);
+    expect(calls).toBe(0);
+    expect(started).toEqual([]);
+    const c = new AbortController();
+    const pending = fetch("https://example.test", { signal: c.signal });
+    c.abort(reason);
+    await expect(pending).rejects.toBe(reason);
+    expect(cancelled).toEqual(started);
+    finish({
+      status: 200,
+      statusText: "OK",
+      headers: {},
+      body: new Uint8Array(),
+    });
+    await Promise.resolve();
+  } finally {
+    runtime.fetch = previous.fetch;
+    for (const [name, value] of [
+      ["__wabou_fetch", previous.host],
+      ["__wabou_fetch_start", previous.start],
+      ["__wabou_fetch_cancel", previous.cancel],
+    ] as const) {
+      if (value) Reflect.set(runtime, name, value);
+      else Reflect.deleteProperty(runtime, name);
+    }
+  }
+});
+
+test("buffered response transfers a large host body without recopying", async () => {
+  const { WabouResponse } = await import("./fetch");
+  const body = new Uint8Array(8 * 1024 * 1024);
+  body[0] = 17;
+  body[body.length - 1] = 29;
+  const response = WabouResponse.fromHost(
+    { status: 200, statusText: "OK", headers: {}, body },
+    "https://example.test",
+  );
+  const bytes = await response.bytes();
+  expect(bytes).toBe(body);
+  expect(bytes[0]).toBe(17);
+  expect(bytes[bytes.length - 1]).toBe(29);
+  await expect(response.bytes()).rejects.toBeInstanceOf(TypeError);
+  const arrayResponse = WabouResponse.fromHost(
+    { status: 200, statusText: "OK", headers: {}, body },
+    "https://example.test",
+  );
+  expect(await arrayResponse.arrayBuffer()).toBe(body.buffer);
+});
+
+test("response construction and cloning isolate externally mutable input", async () => {
+  const { WabouResponse } = await import("./fetch");
+  const input = new Uint8Array([1, 2, 3]);
+  const response = new WabouResponse(input);
+  input[0] = 9;
+  const clone = response.clone();
+  const consumed = await response.bytes();
+  consumed[1] = 8;
+  expect(Array.from(await clone.bytes())).toEqual([1, 2, 3]);
+  expect(consumed[0]).toBe(1);
+  expect(new WabouResponse(null).clone().body).toBeNull();
+});
+
+test("arrayBuffer only exposes the bytes of a host body view", async () => {
+  const { WabouResponse } = await import("./fetch");
+  const backing = new Uint8Array([99, 1, 2, 88]);
+  const response = WabouResponse.fromHost(
+    {
+      status: 200,
+      statusText: "OK",
+      headers: {},
+      body: backing.subarray(1, 3),
+    },
+    "https://example.test",
+  );
+  const buffer = await response.arrayBuffer();
+  expect(buffer).not.toBe(backing.buffer);
+  expect(Array.from(new Uint8Array(buffer))).toEqual([1, 2]);
+});

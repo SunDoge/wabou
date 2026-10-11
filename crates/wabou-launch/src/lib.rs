@@ -66,6 +66,12 @@ pub struct LaunchConfig {
     pub title: String,
     pub width: u32,
     pub height: u32,
+    /// Show the operating system's title bar and window borders.
+    #[serde(
+        default = "native_decorations",
+        skip_serializing_if = "decorations_enabled"
+    )]
+    pub decorations: bool,
     pub source: UiSource,
     /// Base directory for relative paths in resident resource operations.
     #[serde(default)]
@@ -81,6 +87,7 @@ impl LaunchConfig {
             title: "Wabou".into(),
             width: 800,
             height: 600,
+            decorations: true,
             source,
             resource_directory: None,
             capabilities: Vec::new(),
@@ -122,6 +129,12 @@ impl LaunchConfig {
         }
     }
 }
+fn native_decorations() -> bool {
+    true
+}
+fn decorations_enabled(value: &bool) -> bool {
+    *value
+}
 /// Resident precompiled runtime. It deliberately remains loaded until process
 /// exit: platform/GPU/TLS callbacks may remain after a window event loop returns.
 /// Construct one per launcher process, not one per capability replacement.
@@ -156,5 +169,31 @@ impl RuntimeLibrary {
         let result: Result<(), stabby::string::String> =
             entry(stabby::string::String::from(payload.as_str())).into();
         result.map_err(|error| error.to_string())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn window_decorations_default_to_native_and_custom_chrome_round_trips() {
+        let mut config = LaunchConfig::new(UiSource::Bundle {
+            path: "bundle.js".into(),
+        });
+        let native = serde_json::to_value(&config).unwrap();
+        assert!(native.get("decorations").is_none());
+        assert!(
+            serde_json::from_value::<LaunchConfig>(native)
+                .unwrap()
+                .decorations
+        );
+        config.decorations = false;
+        let custom = serde_json::to_value(&config).unwrap();
+        assert_eq!(custom["decorations"], false);
+        assert!(
+            !serde_json::from_value::<LaunchConfig>(custom)
+                .unwrap()
+                .decorations
+        );
     }
 }

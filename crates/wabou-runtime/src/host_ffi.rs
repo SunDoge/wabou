@@ -93,3 +93,36 @@ pub unsafe fn with_typed_array_prefix_mut<T, R>(
         unsafe { std::slice::from_raw_parts_mut(raw.as_ptr().cast::<u8>().cast::<T>(), len) };
     Ok(write(prefix))
 }
+
+/// Encode complete Unicode scalars directly into the caller's bounded buffer.
+pub fn host_utf8_encode_into<'js>(
+    ctx: Ctx<'js>,
+    input: String,
+    output: TypedArray<'js, u8>,
+) -> Result<rquickjs::Object<'js>> {
+    let mut written = 0;
+    let mut read = 0;
+    let raw = output.as_raw().ok_or(rquickjs::Error::Allocation)?;
+    for character in input.chars() {
+        let mut buffer = [0_u8; 4];
+        let encoded = character.encode_utf8(&mut buffer).as_bytes();
+        if written + encoded.len() > raw.len() {
+            break;
+        }
+        // The live typed array is writable; no JS call or await occurs while
+        // its raw pointer is used, and the bound was checked above.
+        unsafe {
+            std::ptr::copy_nonoverlapping(
+                encoded.as_ptr(),
+                raw.as_ptr().cast::<u8>().add(written),
+                encoded.len(),
+            );
+        }
+        written += encoded.len();
+        read += character.len_utf16();
+    }
+    let result = rquickjs::Object::new(ctx)?;
+    result.set("read", read)?;
+    result.set("written", written)?;
+    Ok(result)
+}

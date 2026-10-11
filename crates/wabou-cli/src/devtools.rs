@@ -18,6 +18,18 @@ use super::{Result, ensure};
 #[derive(Subcommand)]
 pub(super) enum InspectCommand {
     Status,
+    /// Start/stop bounded performance recording (clears previous records).
+    ProfileMode {
+        #[arg(value_parser = ["off", "counters", "trace"])]
+        mode: String,
+        #[arg(long, default_value_t = 16384)]
+        capacity: usize,
+    },
+    /// Export a Perfetto-compatible timeline and duration summaries.
+    Profile {
+        #[arg(long)]
+        output: Option<PathBuf>,
+    },
     Query {
         query: String,
         #[arg(long, default_value_t = 100)]
@@ -132,12 +144,20 @@ fn find_helper(current_exe: &Path, path: Option<&OsStr>, name: &str) -> Option<P
 
 pub(super) fn inspect(socket: Option<PathBuf>, command: InspectCommand) -> Result<()> {
     let path = socket.map_or_else(discover_socket, Ok)?;
+    let profile_output = match &command {
+        InspectCommand::Profile { output } => output.clone(),
+        _ => None,
+    };
     let validate_snapshot = matches!(&command, InspectCommand::Validate);
     let capture_output = match &command {
         InspectCommand::Capture { output, .. } => Some(output.clone()),
         _ => None,
     };
     let (method, params): (&str, Value) = match command {
+        InspectCommand::ProfileMode { mode, capacity } => {
+            ("profileConfigure", json!({"mode":mode,"capacity":capacity}))
+        }
+        InspectCommand::Profile { .. } => ("profileSnapshot", empty_params()),
         InspectCommand::Status => ("status", empty_params()),
         InspectCommand::Query { query, limit } => {
             ("queryNodes", json!({ "query": query, "limit": limit }))
@@ -165,7 +185,10 @@ pub(super) fn inspect(socket: Option<PathBuf>, command: InspectCommand) -> Resul
     let validation_error = validate_snapshot
         .then(|| snapshot_validation_error(&result))
         .flatten();
-    if let Some(output) = capture_output {
+    if let Some(output) = profile_output {
+        fs::write(&output, serde_json::to_vec_pretty(&result)?)?;
+        println!("{}", output.display());
+    } else if let Some(output) = capture_output {
         let capture: DebugCaptureCase = serde_json::from_value(result)?;
         write_capture_case(&output, capture)?;
         println!("{}", output.display());

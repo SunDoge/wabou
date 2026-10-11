@@ -16,6 +16,7 @@ where
     T: DeserializeOwned,
 {
     fn from_js(_ctx: &Ctx<'js>, value: Value<'js>) -> rquickjs::Result<Self> {
+        let _measurement = wabou_telemetry::span("capability.transport", "request.decode");
         rquickjs_serde::from_value_strict(value)
             .map(Self)
             .map_err(|error| {
@@ -33,6 +34,7 @@ where
     T: Serialize,
 {
     fn into_js(self, ctx: &Ctx<'js>) -> rquickjs::Result<Value<'js>> {
+        let _measurement = wabou_telemetry::span("capability.transport", "response.encode");
         rquickjs_serde::to_value(ctx.clone(), self.0).map_err(|error| {
             rquickjs::Error::new_into_js_message(
                 std::any::type_name::<T>(),
@@ -58,6 +60,14 @@ impl<'js> NativeCapability<'js> {
     #[doc(hidden)]
     pub fn from_runtime_parts(ctx: Ctx<'js>, object: Object<'js>) -> Self {
         Self { ctx, object }
+    }
+
+    fn trace_name(&self, name: &str) -> std::sync::Arc<str> {
+        let namespace: Option<String> = self.object.get("__wabou_namespace").unwrap_or(None);
+        namespace.map_or_else(
+            || std::sync::Arc::from(name),
+            |namespace| std::sync::Arc::from(format!("{namespace}.{name}")),
+        )
     }
 
     /// Install a typed synchronous native method.
@@ -92,11 +102,12 @@ impl<'js> NativeCapability<'js> {
             ));
         }
 
+        let trace_name = self.trace_name(method.name());
         if method.has_request() {
             let function = rquickjs::Function::new(
                 self.ctx.clone(),
                 move |SerdeValue(request): SerdeValue<Request>| {
-                    invoke_sync(handler.clone(), request)
+                    invoke_sync(&trace_name, handler.clone(), request)
                 },
             )?;
             self.object.set(method.name(), function)
@@ -112,7 +123,7 @@ impl<'js> NativeCapability<'js> {
                         error.to_string(),
                     )
                 })?;
-                invoke_sync(handler.clone(), request)
+                invoke_sync(&trace_name, handler.clone(), request)
             })?;
             self.object.set(method.name(), function)
         }
@@ -261,12 +272,14 @@ impl<'js> NativeCapability<'js> {
             ));
         }
 
+        let trace_name = self.trace_name(name);
         if has_request {
             let function = rquickjs::Function::new(
                 self.ctx.clone(),
                 rquickjs::prelude::Async(move |SerdeValue(request): SerdeValue<Request>| {
                     let handler = handler.clone();
-                    async move { invoke(handler, request).await }
+                    let trace_name = trace_name.clone();
+                    async move { invoke(&trace_name, handler, request).await }
                 }),
             )?;
             self.object.set(name, function)
@@ -275,6 +288,7 @@ impl<'js> NativeCapability<'js> {
                 self.ctx.clone(),
                 rquickjs::prelude::Async(move || {
                     let handler = handler.clone();
+                    let trace_name = trace_name.clone();
                     async move {
                         let request = Request::deserialize(serde::de::value::UnitDeserializer::<
                             serde::de::value::Error,
@@ -286,7 +300,7 @@ impl<'js> NativeCapability<'js> {
                                 error.to_string(),
                             )
                         })?;
-                        invoke(handler, request).await
+                        invoke(&trace_name, handler, request).await
                     }
                 }),
             )?;
@@ -296,6 +310,7 @@ impl<'js> NativeCapability<'js> {
 }
 
 fn invoke_sync<Request, Response, Error, Handler>(
+    name: &str,
     handler: Handler,
     request: Request,
 ) -> rquickjs::Result<SerdeValue<Response>>
@@ -304,7 +319,10 @@ where
     Error: Display,
     Handler: Fn(Request) -> Result<Response, Error>,
 {
-    handler(request).map(SerdeValue).map_err(|error| {
+    let mut measurement = wabou_telemetry::span("capability.sync", name);
+    let result = handler(request);
+    measurement.attribute("failed", u64::from(result.is_err()));
+    result.map(SerdeValue).map_err(|error| {
         rquickjs::Error::new_into_js_message(
             "Rust native capability",
             "JavaScript value",
@@ -314,6 +332,7 @@ where
 }
 
 async fn invoke<Request, Response, Error, Handler, HandlerFuture>(
+    name: &str,
     handler: Handler,
     request: Request,
 ) -> rquickjs::Result<SerdeValue<Response>>
@@ -323,7 +342,10 @@ where
     Handler: Fn(Request) -> HandlerFuture,
     HandlerFuture: Future<Output = Result<Response, Error>>,
 {
-    handler(request).await.map(SerdeValue).map_err(|error| {
+    let mut measurement = wabou_telemetry::span("capability.async", name);
+    let result = handler(request).await;
+    measurement.attribute("failed", u64::from(result.is_err()));
+    result.map(SerdeValue).map_err(|error| {
         rquickjs::Error::new_into_js_message(
             "Rust native capability",
             "JavaScript Promise",

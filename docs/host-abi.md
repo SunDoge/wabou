@@ -42,3 +42,11 @@ Source of truth: `packages/core/host-abi.json`.
 | `__wabou_apply_hmr` | guest | vite | vite |
 | `__wabou_hmr_clear_records` | guest | vite | vite |
 | `__wabou_effect_complete` | guest | core | always |
+| `__wabou_url` | host | runtime | always |
+| `__wabou_form_decode` | host | runtime | always |
+| `__wabou_form_encode` | host | runtime | always |
+| `__wabou_utf8_encode_into` | host | runtime | always |
+| `__wabou_fetch_start` | host | runtime | always |
+| `__wabou_fetch_cancel` | host | runtime | always |
+| `__wabou_profile_enabled` | host | runtime | always |
+| `__wabou_profile_batch` | host | runtime | always |

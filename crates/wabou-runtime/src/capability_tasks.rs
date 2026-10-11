@@ -119,6 +119,7 @@ impl Drop for Job {
 pub struct CapabilityTasks {
     executor: tokio::runtime::Handle,
     jobs: CapabilityResources<BackgroundTask, Job>,
+    completion: Arc<tokio::sync::Notify>,
 }
 impl CapabilityTasks {
     /// Use a resident executor whose lifetime covers this scheduler.
@@ -126,7 +127,12 @@ impl CapabilityTasks {
         Self {
             executor,
             jobs: CapabilityResources::default(),
+            completion: Arc::new(tokio::sync::Notify::new()),
         }
+    }
+    /// Resident completion events for module dispatchers; no plugin waker crosses the ABI.
+    pub fn completion_notification(&self) -> Arc<tokio::sync::Notify> {
+        self.completion.clone()
     }
     /// Start host work. Blocking operations require their own cancellation policy;
     /// Tokio abort cannot interrupt an already-running blocking OS operation.
@@ -143,6 +149,7 @@ impl CapabilityTasks {
                 .and_then(|value| serde_json::to_value(value).map_err(|e| e.to_string()))
         });
         let abort = task.abort_handle();
+        let completion = self.completion.clone();
         self.executor.spawn(async move {
             let value = task
                 .await
@@ -150,6 +157,7 @@ impl CapabilityTasks {
             if let Ok(mut output) = output.lock() {
                 *output = Some(value);
             }
+            completion.notify_waiters();
         });
         self.jobs.insert(Job { abort, result })
     }

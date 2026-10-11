@@ -25,3 +25,13 @@ for (const name of [
     `${name}: runtime implementation is outside the normal dependency graph`,
   );
 }
+const release = Bun.spawnSync(
+  ["cargo", "tree", "-p", "wabou-runtime-library", "--no-default-features", "--edges", "normal"],
+  { stdout: "pipe", stderr: "pipe" },
+);
+if (release.exitCode !== 0) throw new Error(release.stderr.toString());
+const development = release.stdout.toString().split("\n").find(
+  (line) => /\b(?:wabou-devtools|tungstenite|ureq|notify) v/.test(line),
+);
+if (development) throw new Error(`Release runtime contains development dependencies: ${development}`);
+console.log("release runtime: Vite, DevTools and source watcher dependencies are absent");

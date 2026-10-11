@@ -39,6 +39,11 @@
       "wabou-source": "./src/jsx.ts",
       "types": "./dist/jsx-runtime.d.mts",
       "import": "./dist/jsx-runtime.mjs"
+    },
+    "./performance": {
+      "wabou-source": "./src/performance.ts",
+      "types": "./dist/performance.d.mts",
+      "import": "./dist/performance.mjs"
     }
   },
   "scripts": {

@@ -10,6 +10,7 @@ name = "wabou_backend_vello_hybrid"
 path = "src/lib.rs"
 
 [dependencies]
+wabou-telemetry.workspace = true
 bitflags.workspace = true
 runtime-api = { package = "wabou-runtime", path = "../wabou-runtime", default-features = false }
 image = { workspace = true, features = ["jpeg", "png", "webp"] }
@@ -24,7 +25,7 @@ tokio = { workspace = true, features = ["fs", "macros", "rt-multi-thread", "sync
 tracing.workspace = true
 tracing-subscriber = { workspace = true, features = ["env-filter"] }
 vello-common.workspace = true
-wabou-devtools.workspace = true
+wabou-devtools = { workspace = true, optional = true }
 wabou-bindgen.workspace = true
 wabou-host-api.workspace = true
 wabou-widgets-vello.workspace = true
@@ -34,11 +35,12 @@ wabou-style.workspace = true
 
 [features]
 default = []
-devtools = ["runtime-api/devtools"]
+devtools = ["dep:wabou-devtools", "runtime-api/devtools"]
 profiling = []
 vite = ["runtime-api/vite"]
 
 [dev-dependencies]
+wabou-devtools.workspace = true
 proptest = "1"
 runtime-api = { package = "wabou-runtime", path = "../wabou-runtime", default-features = false, features = ["devtools"] }
 tempfile = "3"

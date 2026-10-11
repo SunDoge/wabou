@@ -2,12 +2,11 @@
 use std::sync::Arc;
 use wabou_backend_vello_hybrid::{VelloHybridHostBuilder, WindowOptions};
 use wabou_launch::{Implementation, LAUNCH_VERSION, LaunchConfig, LaunchResult, UiSource};
+#[cfg(feature = "development")]
+use wabou_runtime::capability_development::{CapabilityDevelopment, ModuleProject};
 use wabou_runtime::{
-    capability_development::{CapabilityDevelopment, ModuleProject},
-    capability_files::CapabilityFiles,
-    capability_module::CapabilityModule,
-    capability_state::CapabilityState,
-    capability_tasks::CapabilityTasks,
+    capability_files::CapabilityFiles, capability_module::CapabilityModule,
+    capability_state::CapabilityState, capability_tasks::CapabilityTasks,
     capability_tcp::CapabilityTcp,
 };
 
@@ -36,6 +35,7 @@ pub unsafe fn run_linked(
     config: LaunchConfig,
     linked: &[(String, wabou_capability_abi::ModuleApi)],
 ) -> Result<(), String> {
+    let _trace_export = wabou_telemetry::ExportOnDrop;
     if config.version != LAUNCH_VERSION {
         return Err("incompatible runtime launch contract".into());
     }
@@ -51,19 +51,24 @@ pub unsafe fn run_linked(
     let mut host = VelloHybridHostBuilder::new().window(
         WindowOptions::new()
             .title(config.title)
+            .decorations(config.decorations)
             .initial_inner_size(config.width, config.height),
     );
     host = match config.source {
         UiSource::Bundle { path } => {
             host.javascript_source(std::fs::read_to_string(path).map_err(|e| e.to_string())?)
         }
+        #[cfg(feature = "development")]
         UiSource::Vite { url, entry } => host.vite_source(url, entry),
+        #[cfg(not(feature = "development"))]
+        UiSource::Vite { .. } => return Err("this release runtime does not support Vite".into()),
     };
     for capability in config.capabilities {
         // Each capability receives a distinct host-owned durable data namespace.
         // Files and tasks are resident services, not objects from module code.
         let state = CapabilityState::default();
         let tasks = CapabilityTasks::new(executor.handle().clone());
+        let completion = tasks.completion_notification();
         let files = CapabilityFiles::new(resource_directory.clone(), tasks.clone());
         let tcp = CapabilityTcp::new(tasks.clone());
         let module = CapabilityModule::new(
@@ -80,6 +85,7 @@ pub unsafe fn run_linked(
                 }
             }),
         );
+        let module = module.with_completion_notification(completion);
         if let Some((_, api)) = linked.iter().find(|(name, _)| name == &capability.name) {
             unsafe {
                 module.install_linked(*api)?;
@@ -89,6 +95,11 @@ pub unsafe fn run_linked(
                 Implementation::Library { path } => unsafe {
                     module.reload(&path)?;
                 },
+                #[cfg(not(feature = "development"))]
+                Implementation::Project { .. } => {
+                    return Err("this release runtime requires built capability libraries".into());
+                }
+                #[cfg(feature = "development")]
                 Implementation::Project {
                     manifest,
                     watch,

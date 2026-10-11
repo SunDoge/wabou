@@ -11,6 +11,7 @@ name = "wabou_shell_vello"
 path = "src/lib.rs"
 
 [dependencies]
+wabou-telemetry.workspace = true
 accesskit = "0.24.1"
 accesskit_xplat = "=0.1.1"
 arboard = { workspace = true }

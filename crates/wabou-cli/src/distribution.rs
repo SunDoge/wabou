@@ -99,7 +99,7 @@ pub(super) fn bundle(
         fs::copy(
             linked_executable
                 .as_ref()
-                .map(|(_, path)| path.clone())
+                .cloned()
                 .unwrap_or(env::current_exe()?),
             staging.path().join(executable),
         )?;
@@ -173,11 +173,7 @@ mod tests {
 
 /// Generate a conventional Cargo application: no plugin files are needed at runtime.
 #[cfg(feature = "embedded-renderer")]
-fn build_linked(
-    workspace: &Path,
-    config: &wabou_launch::LaunchConfig,
-) -> Result<(tempfile::TempDir, PathBuf)> {
-    let project = tempfile::tempdir()?;
+fn build_linked(workspace: &Path, config: &wabou_launch::LaunchConfig) -> Result<PathBuf> {
     let mut dependencies = toml::Table::new();
     for name in [
         "wabou-runtime-library",
@@ -193,6 +189,9 @@ fn build_linked(
                 "version".into(),
                 format!("={}", env!("CARGO_PKG_VERSION")).into(),
             );
+        }
+        if name == "wabou-runtime-library" {
+            dependency.insert("default-features".into(), false.into());
         }
         if name == "wabou-capability-sdk" {
             dependency.insert(
@@ -262,19 +261,37 @@ fn build_linked(
     }
     let mut manifest = toml::Table::new();
     let mut package = toml::Table::new();
-    package.insert("name".into(), "wabou-application".into());
+    use std::hash::{Hash, Hasher};
+    let mut hash = std::collections::hash_map::DefaultHasher::new();
+    toml::to_string(&dependencies)?.hash(&mut hash);
+    registrations.hash(&mut hash);
+    env!("CARGO_PKG_VERSION").hash(&mut hash);
+    let identity = hash.finish();
+    let name = format!("wabou-application-{identity:016x}");
+    let project = workspace.join("target/wabou/static-hosts").join(&name);
+    fs::create_dir_all(project.join("src"))?;
+    let lock = fs::OpenOptions::new()
+        .create(true)
+        .truncate(false)
+        .read(true)
+        .write(true)
+        .open(project.join("build.lock"))?;
+    fs4::fs_std::FileExt::lock_exclusive(&lock)?;
+    package.insert("name".into(), name.clone().into());
     package.insert("version".into(), "0.0.0".into());
     package.insert("edition".into(), "2024".into());
     manifest.insert("package".into(), toml::Value::Table(package));
     manifest.insert("dependencies".into(), toml::Value::Table(dependencies));
     manifest.insert("workspace".into(), toml::Value::Table(toml::Table::new()));
-    fs::write(
-        project.path().join("Cargo.toml"),
-        toml::to_string(&manifest)?,
+    write_if_changed(
+        &project.as_path().join("Cargo.toml"),
+        toml::to_string(&manifest)?.as_bytes(),
     )?;
-    fs::create_dir(project.path().join("src"))?;
-    fs::write(
-        project.path().join("src/main.rs"),
+    if !project.join("Cargo.lock").exists() && workspace.join("Cargo.lock").is_file() {
+        fs::copy(workspace.join("Cargo.lock"), project.join("Cargo.lock"))?;
+    }
+    write_if_changed(
+        &project.as_path().join("src/main.rs"),
         format!(
             r#"
 fn main() -> Result<(), Box<dyn std::error::Error>> {{
@@ -285,22 +302,22 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {{
     Ok(())
 }}
 "#
-        ),
+        ).as_bytes(),
     )?;
     let target = workspace.join("target");
     let mut cargo = Command::new("cargo");
     cargo
         .args(["build", "--release", "--manifest-path"])
-        .arg(project.path().join("Cargo.toml"))
+        .arg(project.as_path().join("Cargo.toml"))
         .arg("--target-dir")
         .arg(&target);
     ensure(cargo.status()?, "static application build")?;
     let binary = target.join("release").join(if cfg!(windows) {
-        "wabou-application.exe"
+        format!("{name}.exe")
     } else {
-        "wabou-application"
+        name
     });
-    Ok((project, binary))
+    Ok(binary)
 }
 
 #[cfg(feature = "embedded-renderer")]
@@ -315,5 +332,14 @@ fn copy_tree(source: &Path, destination: &Path) -> Result<()> {
             fs::copy(entry.path(), target)?;
         }
     }
+    Ok(())
+}
+
+#[cfg(feature = "embedded-renderer")]
+fn write_if_changed(path: &Path, bytes: &[u8]) -> Result<()> {
+    if fs::read(path).is_ok_and(|existing| existing == bytes) {
+        return Ok(());
+    }
+    fs::write(path, bytes)?;
     Ok(())
 }

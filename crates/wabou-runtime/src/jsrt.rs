@@ -369,6 +369,16 @@ impl JsRuntime {
                     .with_name("__wabou_utf8_decode")?,
             )?;
 
+            globals.set("__wabou_utf8_encode_into", Function::new(ctx.clone(), crate::host_ffi::host_utf8_encode_into)?)?;
+            rquickjs::Class::<crate::web_encoding::NativeTextDecoderState>::define(&globals)?;
+            globals.set("__wabou_url", rquickjs::Function::new(ctx.clone(), crate::web_url::url_operation)?)?;
+            globals.set("__wabou_form_decode", rquickjs::Function::new(ctx.clone(), crate::web_url::form_decode)?)?;
+            globals.set("__wabou_form_encode", rquickjs::Function::new(ctx.clone(), crate::web_url::form_encode)?)?;
+
+            globals.set("__wabou_profile_enabled", Function::new(ctx.clone(), || wabou_telemetry::global().enabled())?)?;
+            globals.set("__wabou_profile_batch", Function::new(ctx.clone(), |ctx: Ctx<'_>, raw: String| {
+                wabou_telemetry::global().batch(&raw).map_err(|error| rquickjs::Exception::throw_type(&ctx, &error))
+            })?)?;
             let perf = rquickjs::Object::new(ctx.clone())?;
             let clock = Arc::clone(&self.clock);
             perf.set(
@@ -786,13 +796,54 @@ impl JsRuntime {
             .no_proxy()
             .build()
             .map_err(|_| rquickjs::Error::Unknown)?;
+        let cancellations = Arc::new(Mutex::new(HashMap::<
+            u32,
+            tokio_util::sync::CancellationToken,
+        >::new()));
         self.with(|ctx| {
+            let active = cancellations.clone();
+            ctx.globals().set(
+                "__wabou_fetch_start",
+                Function::new(ctx.clone(), move |id: u32| {
+                    active
+                        .lock()
+                        .unwrap()
+                        .insert(id, tokio_util::sync::CancellationToken::new());
+                })?,
+            )?;
+            let active = cancellations.clone();
+            ctx.globals().set(
+                "__wabou_fetch_cancel",
+                Function::new(ctx.clone(), move |id: u32| {
+                    if let Some(token) = active.lock().unwrap().get(&id) {
+                        token.cancel();
+                    }
+                })?,
+            )?;
             let function = Function::new(
                 ctx.clone(),
-                rquickjs::prelude::Async(move |url: String, init_json: String| {
-                    let client = client.clone();
-                    fetch_request(client, url, init_json)
-                }),
+                rquickjs::prelude::Async(
+                    move |url: String, init_json: String, id: rquickjs::function::Opt<u32>| {
+                        let client = client.clone();
+                        let active = cancellations.clone();
+                        let token = id.0.and_then(|id| active.lock().unwrap().get(&id).cloned());
+                        async move {
+                            let result = if let Some(token) = token {
+                                tokio::select! {
+                                    biased;
+                                    _ = token.cancelled() => Err(rquickjs::Error::Unknown),
+                                    result = fetch_request(client, url, init_json) => result,
+                                }
+                            } else {
+                                fetch_request(client, url, init_json).await
+                            };
+                            if let Some(id) = id.0 {
+                                active.lock().unwrap().remove(&id);
+                            }
+                            result
+                        }
+                    },
+                ),
             )?
             .with_name("__wabou_fetch")?;
             ctx.globals().set("__wabou_fetch", function)
@@ -838,6 +889,7 @@ impl JsRuntime {
     /// so the shell can schedule a frame even when the queue became idle during
     /// this poll.
     pub fn poll_async_runtime(&self) -> bool {
+        let _measurement = wabou_telemetry::span("js", "jobs");
         self.runtime_wake.pending.store(false, Ordering::Release);
         let _guard = self._tokio.handle().enter();
         let waker = Waker::from(self.runtime_wake.clone());
@@ -973,6 +1025,10 @@ impl JsRuntime {
                 ));
             }
             let capability = Object::new(ctx.clone())?;
+            capability.prop(
+                "__wabou_namespace",
+                rquickjs::object::Property::from(name.clone()),
+            )?;
             mount(ctx, capability.clone())?;
             root.set(name, capability)
         })
@@ -1154,6 +1210,8 @@ impl JsRuntime {
     /// Returns the frame bytes (empty if nothing changed this tick) and whether
     /// more rAF callbacks remain queued (so the host can keep redrawing).
     pub fn tick(&mut self) -> JsResult<(Vec<u8>, bool)> {
+        let mut measurement = wabou_telemetry::span("js", "tick");
+        measurement.attribute("hostFrameSequence", self.host_frame_sequence);
         let frame_time = self.clock.now_ms();
         let has_raf = self.with(|ctx| -> JsResult<bool> {
             let tick: Function = ctx.globals().get("__wabou_tick")?;
@@ -1180,10 +1238,13 @@ impl JsRuntime {
     /// value/Promise and never use this path.
     #[doc(hidden)]
     pub fn dispatch_host_frame(&mut self, events: &[HostEvent]) -> JsResult<HostFrameDisposition> {
+        let mut measurement = wabou_telemetry::span("js", "dispatch");
+        measurement.attribute("eventCount", events.len() as u64);
         if events.is_empty() {
             return Ok(HostFrameDisposition::default());
         }
         self.host_frame_sequence = self.host_frame_sequence.wrapping_add(1).max(1);
+        measurement.attribute("hostFrameSequence", self.host_frame_sequence);
         let bytes = encode_host_frame(
             self.host_frame_sequence,
             self.host_frame_epoch.elapsed(),
@@ -1315,6 +1376,7 @@ impl JsRuntime {
         timestamp: u64,
         source: String,
     ) -> Result<bool, String> {
+        let _measurement = wabou_telemetry::span("reload", "hmr.apply");
         let vite = self.vite.as_ref().expect("vite runtime");
         self.with(|ctx| {
             vite.apply_hmr(&ctx, path, accepted_path, timestamp, source)
@@ -1344,6 +1406,7 @@ impl JsRuntime {
     /// with a cache-busting query. Call after the applier has reset its tree.
     #[cfg(feature = "vite")]
     pub fn reboot_vite_entry(&mut self, entry: &str) -> JsResult<()> {
+        let _measurement = wabou_telemetry::span("reload", "hmr.reboot");
         let vite = self.vite.as_ref().expect("vite runtime");
         self.with(|ctx| vite.boot_full_reload(&ctx, entry))
     }

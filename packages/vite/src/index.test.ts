@@ -242,3 +242,20 @@ describe("@wabou/vite", () => {
     expect(config.build?.lib).toMatchObject({ entry: "ui/fixture.tsx" });
   });
 });
+
+test("Intl can be disabled or limited without pulling date/time-zone data", () => {
+  const disabled = wabouPlugins("/app", undefined, undefined, false)[0];
+  const loadDisabled = disabled.load as (id: string) => string;
+  expect(loadDisabled("\0virtual:wabou-intl-data")).toBe("export {};");
+  const number = wabouPlugins("/app", undefined, undefined, {
+    locales: ["en"],
+    apis: ["number"],
+  })[0];
+  const source = (number.load as (id: string) => string)(
+    "\0virtual:wabou-intl-data",
+  );
+  expect(source).toContain("numberformat");
+  expect(source).toContain("pluralrules");
+  expect(source).not.toContain("datetimeformat");
+  expect(source).not.toContain("__wabou_system_time_zone");
+});

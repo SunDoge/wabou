@@ -36,6 +36,7 @@ pub struct CapabilityModule {
     current: Arc<RwLock<Option<Arc<Generation>>>>,
     host: Arc<HostOperations>,
     contract_version: u32,
+    completion: Option<Arc<tokio::sync::Notify>>,
 }
 impl CapabilityModule {
     /// Create an unloaded dispatcher. The host closure owns retained Rust state.
@@ -44,7 +45,14 @@ impl CapabilityModule {
             current: Arc::new(RwLock::new(None)),
             host,
             contract_version,
+            completion: None,
         }
+    }
+    /// Wake host-task waits on resident completion instead of periodic polling.
+    /// The notifier must belong to the scheduler handling this module's task.poll.
+    pub fn with_completion_notification(mut self, completion: Arc<tokio::sync::Notify>) -> Self {
+        self.completion = Some(completion);
+        self
     }
     /// Load a candidate transactionally. An invalid library leaves current code
     /// untouched. Each live generation has one unique private library copy.
@@ -54,6 +62,7 @@ impl CapabilityModule {
     /// pointers, thread lifetimes and panic containment. The loader cannot
     /// sandbox native code or validate a malicious function table.
     pub unsafe fn reload(&self, path: &Path) -> Result<(), String> {
+        let _measurement = wabou_telemetry::span("reload", "module.load-swap");
         let directory = tempfile::Builder::new()
             .prefix("wabou-capability-")
             .tempdir()
@@ -117,6 +126,7 @@ impl CapabilityModule {
         let mut output = Buffer::default();
         let mut host = HostContext {
             operations: &self.host,
+            waiting_for_host: false,
         };
         let task = unsafe {
             (generation.api.start)(
@@ -134,6 +144,7 @@ impl CapabilityModule {
             host: Some(self.host.clone()),
             task,
             _local: PhantomData,
+            waiting_for_host: false,
         };
         if let Some(error) = output.failure.take() {
             invocation.cancel();
@@ -142,12 +153,31 @@ impl CapabilityModule {
         Ok(invocation)
     }
     /// Invoke asynchronously; polling and scheduling belong to the stable host.
-    /// The initial implementation polls at 2ms intervals rather than exposing
-    /// plugin wakers. Host operations should start/query long-running work.
+    /// Resident tasks use completion notifications when configured. Custom tasks
+    /// without host waits retain a 2ms polling fallback; plugin wakers never cross the ABI.
     pub async fn call(&self, method: &str, request: &[u8]) -> Result<Vec<u8>, String> {
+        let mut measurement = wabou_telemetry::span("capability.module", method);
+        measurement.attribute("requestBytes", request.len() as u64);
         let mut invocation = self.start(method, request)?;
         loop {
+            if let Some(completion) = &self.completion {
+                let notified = completion.notified();
+                tokio::pin!(notified);
+                // Register before polling so completion cannot race the pending check.
+                notified.as_mut().enable();
+                if let Some(result) = invocation.poll()? {
+                    measurement.attribute("responseBytes", result.len() as u64);
+                    return Ok(result);
+                }
+                if invocation.waiting_for_host {
+                    notified.await;
+                } else {
+                    tokio::time::sleep(Duration::from_millis(2)).await;
+                }
+                continue;
+            }
             if let Some(result) = invocation.poll()? {
+                measurement.attribute("responseBytes", result.len() as u64);
                 return Ok(result);
             }
             tokio::time::sleep(Duration::from_millis(2)).await;
@@ -163,6 +193,7 @@ pub struct ModuleInvocation {
     task: *mut c_void,
     // Tasks stay on their start thread. No unsafe Send/Sync assertion is needed.
     _local: PhantomData<Rc<()>>,
+    waiting_for_host: bool,
 }
 impl ModuleInvocation {
     /// Poll once. None means pending. Completion/error destroys the task.
@@ -173,12 +204,14 @@ impl ModuleInvocation {
         let mut output = Buffer::default();
         let mut host = HostContext {
             operations: self.host.as_ref().ok_or("invocation already finished")?,
+            waiting_for_host: false,
         };
         let generation = self
             .generation
             .as_ref()
             .ok_or("invocation already finished")?;
         let status = unsafe { (generation.api.poll)(self.task, host.api(), output.sink()) };
+        self.waiting_for_host = host.waiting_for_host;
         if status == abi::PENDING && output.bytes.is_empty() && output.failure.is_none() {
             return Ok(None);
         }
@@ -196,6 +229,7 @@ impl ModuleInvocation {
             let operations = self.host.take().expect("live task has host operations");
             let mut host = HostContext {
                 operations: &operations,
+                waiting_for_host: false,
             };
             unsafe { (generation.api.drop_task)(task, host.api()) };
         }
@@ -246,6 +280,7 @@ unsafe extern "C" fn write(context: *mut c_void, bytes: Bytes) -> i32 {
 }
 struct HostContext<'a> {
     operations: &'a Arc<HostOperations>,
+    waiting_for_host: bool,
 }
 impl HostContext<'_> {
     fn api(&mut self) -> HostApi {
@@ -261,12 +296,22 @@ unsafe extern "C" fn host_call(
     request: Bytes,
     output: Output,
 ) -> i32 {
-    let host = unsafe { &*context.cast::<HostContext<'_>>() };
-    let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-        let method = std::str::from_utf8(unsafe { borrowed(method) }).map_err(|e| e.to_string())?;
-        (host.operations)(method, unsafe { borrowed(request) })
-    }))
-    .unwrap_or_else(|_| Err("host operation panicked".into()));
+    let host = unsafe { &mut *context.cast::<HostContext<'_>>() };
+    let result: Result<Vec<u8>, String> =
+        std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            let method =
+                std::str::from_utf8(unsafe { borrowed(method) }).map_err(|e| e.to_string())?;
+            let result = (host.operations)(method, unsafe { borrowed(request) })?;
+            if method == "task.poll"
+                && serde_json::from_slice::<serde_json::Value>(&result)
+                    .ok()
+                    .is_some_and(|value| value["status"] == "pending")
+            {
+                host.waiting_for_host = true;
+            }
+            Ok(result)
+        }))
+        .unwrap_or_else(|_| Err("host operation panicked".into()));
     let (status, bytes) = match result {
         Ok(bytes) => (abi::READY, bytes),
         Err(error) => (abi::FAILED, error.into_bytes()),

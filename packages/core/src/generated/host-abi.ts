@@ -37,6 +37,7 @@ declare global {
   function __wabou_fetch(
     url: string,
     initJson: string,
+    id?: number,
   ): Promise<{
     status: number;
     statusText: string;
@@ -81,4 +82,20 @@ declare global {
     status: number,
     payloadJson: string,
   ): void;
+  function __wabou_url(
+    input: string,
+    base: string,
+    field: string,
+    value: string,
+  ): Record<string, string>;
+  function __wabou_form_decode(input: string): string;
+  function __wabou_form_encode(input: string): string;
+  function __wabou_utf8_encode_into(
+    input: string,
+    output: Uint8Array,
+  ): { read: number; written: number };
+  function __wabou_fetch_start(id: number): void;
+  function __wabou_fetch_cancel(id: number): void;
+  function __wabou_profile_enabled(): boolean;
+  function __wabou_profile_batch(raw: string): void;
 }

@@ -837,3 +837,75 @@ fn stabby_rejects_same_size_different_type_before_entry_and_keeps_current_genera
     assert!(invocation.poll().unwrap().is_none());
     assert_eq!(invocation.poll().unwrap(), Some(b"current".to_vec()));
 }
+
+#[tokio::test]
+async fn resident_task_completion_wakes_invocation_without_periodic_polls() {
+    use crate::capability_tasks::CapabilityTasks;
+    unsafe extern "C" fn start(host: HostApi, _: Bytes, _: Bytes, _: Output) -> *mut c_void {
+        let mut key = Buffer::default();
+        let status = unsafe {
+            (host.call)(
+                host.context,
+                Bytes::new(b"task.sleep"),
+                Bytes::new(b"50"),
+                key.sink(),
+            )
+        };
+        assert_eq!(status, abi::READY);
+        Box::into_raw(Box::new(key.bytes)).cast()
+    }
+    unsafe extern "C" fn poll(task: *mut c_void, host: HostApi, output: Output) -> i32 {
+        let key = unsafe { &*task.cast::<Vec<u8>>() };
+        let mut result = Buffer::default();
+        let status = unsafe {
+            (host.call)(
+                host.context,
+                Bytes::new(b"task.poll"),
+                Bytes::new(key),
+                result.sink(),
+            )
+        };
+        assert_eq!(status, abi::READY);
+        let value: serde_json::Value = serde_json::from_slice(&result.bytes).unwrap();
+        if value["status"] == "pending" {
+            return abi::PENDING;
+        }
+        unsafe { (output.write)(output.context, Bytes::new(b"done")) }
+    }
+    unsafe extern "C" fn destroy(task: *mut c_void, _: HostApi) {
+        unsafe {
+            drop(Box::from_raw(task.cast::<Vec<u8>>()));
+        }
+    }
+    let tasks = CapabilityTasks::new(tokio::runtime::Handle::current());
+    let completion = tasks.completion_notification();
+    let polls = Arc::new(std::sync::atomic::AtomicUsize::new(0));
+    let count = polls.clone();
+    let module = CapabilityModule::new(
+        1,
+        Arc::new(move |operation, request| {
+            if operation == "task.poll" {
+                count.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+            }
+            tasks.call(operation, request)
+        }),
+    )
+    .with_completion_notification(completion);
+    unsafe {
+        module
+            .install_linked(ModuleApi {
+                abi_version: abi::ABI_VERSION,
+                contract_version: 1,
+                start,
+                poll,
+                drop_task: destroy,
+            })
+            .unwrap();
+    }
+    let result = tokio::time::timeout(Duration::from_secs(3), module.call("sleep", b""))
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(result, b"done");
+    assert_eq!(polls.load(std::sync::atomic::Ordering::SeqCst), 2);
+}

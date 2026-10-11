@@ -4,9 +4,9 @@ import { A as writer, E as runSweep, F as defaultHost, I as useHost, L as PathBu
 import { a as subscribeAll, i as subscribe, n as dispatchHostMessage, o as subscribeJson, r as hostMessages, t as dispatchResizeObservation } from "./resize-observer-CyzWK08I.mjs";
 import { n as effectOps } from "./effect-abi-BzPW8STE.mjs";
 import "./registry.mjs";
+import { flushPerformance, measureAsyncPerformance, measurePerformance } from "./performance.mjs";
 import AbortControllerPolyfill, { AbortSignal } from "abort-controller/dist/abort-controller";
-import { ByteLengthQueuingStrategy, CountQueuingStrategy, ReadableByteStreamController, ReadableStream as ReadableStream$1, ReadableStreamBYOBReader, ReadableStreamBYOBRequest, ReadableStreamDefaultController, ReadableStreamDefaultReader, TransformStream, TransformStreamDefaultController, WritableStream, WritableStreamDefaultController, WritableStreamDefaultWriter } from "web-streams-polyfill";
-import { TextDecoderStream, TextEncoderStream } from "@stardazed/streams-text-encoding";
+import { ByteLengthQueuingStrategy, CountQueuingStrategy, ReadableByteStreamController, ReadableStream as ReadableStream$1, ReadableStreamBYOBReader, ReadableStreamBYOBRequest, ReadableStreamDefaultController, ReadableStreamDefaultReader, TransformStream as TransformStream$1, TransformStreamDefaultController, WritableStream, WritableStreamDefaultController, WritableStreamDefaultWriter } from "web-streams-polyfill";
 import { For, createComponent, createContext, createEffect, createMemo, createSignal, flush, getOwner, latest, onCleanup, refresh, resolve, untrack, useContext } from "solid-js";
 //#region src/polyfills/globals.ts
 /** Install a writable runtime global without replacing a host implementation. */
@@ -39,11 +39,64 @@ function installDOMExceptionPolyfill() {
 installDOMExceptionPolyfill();
 //#endregion
 //#region src/polyfills/abort-controller.ts
+const reasons = /* @__PURE__ */ new WeakMap();
+const Signal = AbortSignal;
+Object.defineProperties(Signal.prototype, {
+	reason: {
+		configurable: true,
+		get() {
+			return reasons.get(this);
+		}
+	},
+	throwIfAborted: {
+		configurable: true,
+		value() {
+			if (this.aborted) throw this.reason;
+		}
+	}
+});
+var Controller = class extends AbortControllerPolyfill {
+	abort(reason = new DOMException("The operation was aborted", "AbortError")) {
+		if (this.signal.aborted) return;
+		reasons.set(this.signal, reason);
+		super.abort();
+	}
+};
+Signal.abort = (reason) => {
+	const c = new Controller();
+	c.abort(reason);
+	return c.signal;
+};
+Signal.timeout = (milliseconds) => {
+	if (!Number.isSafeInteger(milliseconds) || milliseconds < 0) throw new RangeError("Invalid timeout");
+	const c = new Controller();
+	setTimeout(() => c.abort(new DOMException("The operation timed out", "TimeoutError")), milliseconds);
+	return c.signal;
+};
+Signal.any = (signals) => {
+	const c = new Controller();
+	const cleanups = [];
+	for (const signal of signals) {
+		if (signal.aborted) {
+			c.abort(signal.reason);
+			break;
+		}
+		const abort = () => c.abort(signal.reason);
+		signal.addEventListener("abort", abort, { once: true });
+		cleanups.push(() => signal.removeEventListener("abort", abort));
+	}
+	const cleanup = () => {
+		for (const remove of cleanups) remove();
+	};
+	if (c.signal.aborted) cleanup();
+	else c.signal.addEventListener("abort", cleanup, { once: true });
+	return c.signal;
+};
 /** Install cancellation primitives when the embedding runtime lacks them. */
 function installAbortControllerPolyfill() {
 	installMissingGlobals({
-		AbortController: AbortControllerPolyfill,
-		AbortSignal
+		AbortController: Controller,
+		AbortSignal: Signal
 	});
 }
 installAbortControllerPolyfill();
@@ -107,7 +160,7 @@ const streamGlobals = {
 	ReadableStreamBYOBRequest,
 	ReadableStreamDefaultController,
 	ReadableStreamDefaultReader,
-	TransformStream,
+	TransformStream: TransformStream$1,
 	TransformStreamDefaultController,
 	WritableStream,
 	WritableStreamDefaultController,
@@ -120,13 +173,85 @@ function installStreamsPolyfill() {
 installStreamsPolyfill();
 //#endregion
 //#region src/polyfills/encoding-streams.ts
-const encodingStreamGlobals = {
-	TextDecoderStream,
-	TextEncoderStream
+/** Stream wrapper over the runtime's stateful native TextDecoder. */
+var WabouTextDecoderStream = class {
+	decoder;
+	transform;
+	constructor(label = "utf-8", options = {}) {
+		this.decoder = new TextDecoder(label, options);
+		this.transform = new TransformStream({
+			transform: (chunk, controller) => {
+				const text = this.decoder.decode(chunk, { stream: true });
+				if (text) controller.enqueue(text);
+			},
+			flush: (controller) => {
+				const text = this.decoder.decode();
+				if (text) controller.enqueue(text);
+			}
+		});
+	}
+	get encoding() {
+		return this.decoder.encoding;
+	}
+	get fatal() {
+		return this.decoder.fatal;
+	}
+	get ignoreBOM() {
+		return this.decoder.ignoreBOM;
+	}
+	get readable() {
+		return this.transform.readable;
+	}
+	get writable() {
+		return this.transform.writable;
+	}
+	get [Symbol.toStringTag]() {
+		return "TextDecoderStream";
+	}
 };
-/** Install the Encoding Standard stream transforms missing from QuickJS. */
+/** Keep a trailing high surrogate until the next chunk or stream flush. */
+var WabouTextEncoderStream = class {
+	transform;
+	constructor() {
+		const encoder = new TextEncoder();
+		let pending = "";
+		this.transform = new TransformStream({
+			transform(chunk, controller) {
+				if (typeof chunk === "symbol") throw new TypeError("Cannot encode a Symbol");
+				let text = pending + String(chunk);
+				pending = "";
+				const last = text.charCodeAt(text.length - 1);
+				if (last >= 55296 && last <= 56319) {
+					pending = text.slice(-1);
+					text = text.slice(0, -1);
+				}
+				if (text) controller.enqueue(encoder.encode(text));
+			},
+			flush(controller) {
+				if (pending) controller.enqueue(encoder.encode(pending));
+				pending = "";
+			}
+		});
+	}
+	get encoding() {
+		return "utf-8";
+	}
+	get readable() {
+		return this.transform.readable;
+	}
+	get writable() {
+		return this.transform.writable;
+	}
+	get [Symbol.toStringTag]() {
+		return "TextEncoderStream";
+	}
+};
+/** Install the Encoding Standard transforms missing from QuickJS. */
 function installEncodingStreamsPolyfill() {
-	installMissingGlobals(encodingStreamGlobals);
+	installMissingGlobals({
+		TextDecoderStream: WabouTextDecoderStream,
+		TextEncoderStream: WabouTextEncoderStream
+	});
 }
 installEncodingStreamsPolyfill();
 //#endregion
@@ -202,14 +327,17 @@ var WabouResponse = class WabouResponse {
 		this.url = url;
 		if (body === null) this.body = null;
 		else {
+			const bytes = this.bodyBytes;
 			const stream = new ReadableStream({ start: (controller) => {
-				controller.enqueue(this.bodyBytes);
+				controller.enqueue(bytes);
 				controller.close();
 			} });
 			const getReader = stream.getReader.bind(stream);
 			stream.getReader = ((...args) => {
+				const reader = getReader(...args);
 				this.consumed = true;
-				return getReader(...args);
+				this.bodyBytes = null;
+				return reader;
 			});
 			this.body = stream;
 		}
@@ -239,6 +367,7 @@ var WabouResponse = class WabouResponse {
 		} finally {
 			reader.releaseLock();
 		}
+		if (chunks.length === 1) return chunks[0];
 		const bytes = new Uint8Array(length);
 		let offset = 0;
 		for (const chunk of chunks) {
@@ -257,11 +386,13 @@ var WabouResponse = class WabouResponse {
 		return this.consumeBody();
 	}
 	async arrayBuffer() {
-		return (await this.consumeBody()).slice().buffer;
+		const bytes = await this.consumeBody();
+		if (bytes.byteOffset === 0 && bytes.byteLength === bytes.buffer.byteLength) return bytes.buffer;
+		return bytes.slice().buffer;
 	}
 	clone() {
 		if (this.bodyUsed) throw new TypeError("Cannot clone a consumed Response body");
-		return new WabouResponse(this.bodyBytes, {
+		return new WabouResponse(this.body === null ? null : this.bodyBytes, {
 			status: this.status,
 			statusText: this.statusText,
 			headers: this.headers
@@ -283,6 +414,7 @@ var WabouResponse = class WabouResponse {
 		}, url, false);
 	}
 };
+let nextFetchId = 0;
 /** Install the host-backed Fetch API surface. Safe to call again in tests. */
 function installFetchPolyfill() {
 	installMissingGlobals({
@@ -291,12 +423,26 @@ function installFetchPolyfill() {
 	});
 	if (!("__wabou_fetch" in globalThis)) return;
 	globalThis.fetch = ((input, init) => {
-		const url = typeof input === "string" ? input : input.url;
+		const signal = init?.signal;
+		if (signal?.aborted) return Promise.reject(signal.reason);
+		const runtime = globalThis;
+		const id = ++nextFetchId;
+		const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
 		const serializedInit = init ? {
-			...init,
+			method: init.method,
+			body: init.body,
 			headers: init.headers instanceof WabouHeaders ? init.headers.toRecord() : init.headers
 		} : {};
-		return globalThis.__wabou_fetch(url, JSON.stringify(serializedInit)).then((data) => {
+		const initJson = JSON.stringify(serializedInit);
+		runtime.__wabou_fetch_start?.(id);
+		return new Promise((resolve, reject) => {
+			const abort = () => {
+				runtime.__wabou_fetch_cancel?.(id);
+				reject(signal.reason);
+			};
+			signal?.addEventListener("abort", abort, { once: true });
+			runtime.__wabou_fetch(url, initJson, id).then(resolve, reject).finally(() => signal?.removeEventListener("abort", abort));
+		}).then((data) => {
 			const ResponseConstructor = globalThis.Response;
 			if (ResponseConstructor === WabouResponse) return WabouResponse.fromHost(data, url);
 			return new ResponseConstructor(data.body, {
@@ -2059,6 +2205,6 @@ function reconcileKeyedList(current, patch, keyOf) {
 	return ordered;
 }
 //#endregion
-export { AsyncActionConflictError, CapabilityError, ColorThemeProvider, Dynamic, ForEntity, HostProvider, INLINE_STYLE_CONTRACT, KvAtomicOperation, PathBuilder, PlatformProvider, Portal, RevisionedHostWaitError, STYLE_VALUE, StyleValueKind, VirtualList, appDirs, application, assertInlineStyleValue, auto, bindCapability, bindJsonCapability, bool, classes, clipboard, colorTheme, createAsyncAction, createAsyncQuery, createEventEffect, createFps, createKeyedAsyncAction, createKvSignal, createLatestAsyncResource, createRevisionedHostResource, createWindow, createWindowMatch, currentWindow, currentWindowOptions, defaultHost, dialog, hostMessages, intl, isDirectEvent, isTypedStyleValue, isVectorPath, mergeClasses, mount, notification, number, observeGlobalPointerEvent, openKv, percent, px, reconcileKeyedList, rgba, rotate2d, scale2d, setTransform2D, shadow, showNativeMenu, subscribeAll as subscribeAllHostMessages, subscribeAppLifecycle, subscribeFileDrop, subscribeGesture, subscribe as subscribeHostMessages, subscribeJson as subscribeJsonHostMessages, subscribeKeyboardModifiers, translate2d, useAppLifecycle, useClipboard, useColorTheme, useDialog, useFileDrop, useGesture, useHost, useKeyboardModifierChanges, useKeyboardModifiers, useNotification, useWindow, utilityConflictProperties, validateEntityKeys };
+export { AsyncActionConflictError, CapabilityError, ColorThemeProvider, Dynamic, ForEntity, HostProvider, INLINE_STYLE_CONTRACT, KvAtomicOperation, PathBuilder, PlatformProvider, Portal, RevisionedHostWaitError, STYLE_VALUE, StyleValueKind, VirtualList, appDirs, application, assertInlineStyleValue, auto, bindCapability, bindJsonCapability, bool, classes, clipboard, colorTheme, createAsyncAction, createAsyncQuery, createEventEffect, createFps, createKeyedAsyncAction, createKvSignal, createLatestAsyncResource, createRevisionedHostResource, createWindow, createWindowMatch, currentWindow, currentWindowOptions, defaultHost, dialog, flushPerformance, hostMessages, intl, isDirectEvent, isTypedStyleValue, isVectorPath, measureAsyncPerformance, measurePerformance, mergeClasses, mount, notification, number, observeGlobalPointerEvent, openKv, percent, px, reconcileKeyedList, rgba, rotate2d, scale2d, setTransform2D, shadow, showNativeMenu, subscribeAll as subscribeAllHostMessages, subscribeAppLifecycle, subscribeFileDrop, subscribeGesture, subscribe as subscribeHostMessages, subscribeJson as subscribeJsonHostMessages, subscribeKeyboardModifiers, translate2d, useAppLifecycle, useClipboard, useColorTheme, useDialog, useFileDrop, useGesture, useHost, useKeyboardModifierChanges, useKeyboardModifiers, useNotification, useWindow, utilityConflictProperties, validateEntityKeys };
 
 //# sourceMappingURL=index.mjs.map

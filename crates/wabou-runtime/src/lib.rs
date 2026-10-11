@@ -10,18 +10,21 @@
 
 mod actor;
 mod bundle;
-#[cfg(feature = "capability-modules")]
+#[cfg(all(
+    feature = "capability-modules",
+    any(test, feature = "capability-development")
+))]
 pub mod capability_development;
+#[cfg(feature = "capability-modules")]
+pub mod capability_files;
 #[cfg(feature = "capability-modules")]
 pub mod capability_module;
 #[cfg(feature = "capability-modules")]
-pub mod capability_state;
-#[cfg(feature = "capability-modules")]
 pub mod capability_resources;
 #[cfg(feature = "capability-modules")]
-pub mod capability_tasks;
+pub mod capability_state;
 #[cfg(feature = "capability-modules")]
-pub mod capability_files;
+pub mod capability_tasks;
 #[cfg(feature = "capability-modules")]
 pub mod capability_tcp;
 #[doc(hidden)]
@@ -121,3 +124,7 @@ pub use wabou_shell_api::{HostService, HostServiceContext};
 #[doc(hidden)]
 #[allow(missing_docs)]
 pub mod intl;
+
+mod web_url;
+
+mod web_encoding;
