@@ -52,12 +52,8 @@ test("failed partial update keeps current module resources alive", async () => {
       ) => Promise<boolean>;
     }
   ).__wabou_apply_hmr;
-  const accepted = await apply(
-    owner,
-    `/missing-wabou-hmr-module-${Date.now()}.tsx`,
-    Date.now(),
-  );
-
-  expect(accepted).toBe(false);
+  await expect(
+    apply(owner, `/missing-wabou-hmr-module-${Date.now()}.tsx`, Date.now()),
+  ).rejects.toThrow();
   expect(disposals).toBe(0);
 });

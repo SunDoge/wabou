@@ -17,6 +17,7 @@ mod behavior_test;
 mod clean;
 mod config;
 mod devtools;
+mod distribution;
 mod doctor;
 mod frontend;
 #[cfg(feature = "embedded-renderer")]
@@ -105,7 +106,19 @@ enum Commands {
         #[arg(value_name = "CONFIG_JSON")]
         config: PathBuf,
         #[arg(long, value_name = "LIBRARY")]
-        runtime: PathBuf,
+        runtime: Option<PathBuf>,
+    },
+    /// Build a portable application using the embedded runtime and capability libraries.
+    Bundle {
+        #[arg(value_name = "APP")]
+        app: Option<PathBuf>,
+        #[arg(long)]
+        config: PathBuf,
+        #[arg(long)]
+        out: PathBuf,
+        /// Link the runtime and project capabilities into a generated application host.
+        #[arg(long = "static")]
+        static_link: bool,
     },
     /// Create a standalone Wabou application pinned to a Git revision.
     New {
@@ -156,10 +169,10 @@ enum Commands {
         #[arg(long)]
         rust_hot_reload: bool,
         /// Run a trusted precompiled runtime instead of compiling the app host.
-        #[arg(long, value_name = "LIBRARY", requires = "runtime_config")]
+        #[arg(long, value_name = "LIBRARY")]
         runtime_library: Option<PathBuf>,
         /// Capability/window launch configuration; Vite source is set by dev.
-        #[arg(long, value_name = "JSON", requires = "runtime_library")]
+        #[arg(long, value_name = "JSON")]
         runtime_config: Option<PathBuf>,
         /// Vite mode used to select an application-owned development entry.
         #[arg(long)]
@@ -539,7 +552,18 @@ fn main() -> Result<()> {
                 Err("Rust native command failed".into())
             }
         }
-        Commands::Launch { config, runtime } => launch_runtime(&runtime, &config),
+        Commands::Launch { config, runtime } => launch_application(runtime.as_deref(), &config),
+        Commands::Bundle {
+            app,
+            config,
+            out,
+            static_link,
+        } => {
+            let frontend_root = project::find_frontend_root(&cwd).unwrap_or_else(|| cwd.clone());
+            let workspace = find_workspace(&cwd).unwrap_or(frontend_root);
+            let app = project::load_frontend_app(&workspace, &cwd, app.as_deref())?;
+            distribution::bundle(&workspace, &app, &config, &out, static_link)
+        }
         Commands::New {
             path,
             wabou_repository,
@@ -569,15 +593,19 @@ fn main() -> Result<()> {
             mode,
             cargo_features,
         } => {
-            let (workspace, app) = if runtime_library.is_some() {
-                let frontend_root =
-                    project::find_frontend_root(&cwd).unwrap_or_else(|| cwd.clone());
-                let workspace = find_workspace(&cwd).unwrap_or(frontend_root);
-                let app = project::load_frontend_app(&workspace, &cwd, app.as_deref())?;
-                (workspace, app)
-            } else {
-                resolve_app(app.as_deref())?
-            };
+            let frontend_root = project::find_frontend_root(&cwd).unwrap_or_else(|| cwd.clone());
+            let workspace = find_workspace(&cwd).unwrap_or(frontend_root);
+            let app = project::load_frontend_app(&workspace, &cwd, app.as_deref())?;
+            let configured = config::load_dev_config(&app)?;
+            let runtime_library = runtime_library.or(configured.runtime_library);
+            let runtime_config = runtime_config.or(configured.runtime_config);
+            if runtime_library.is_some() && runtime_config.is_none() {
+                return Err("an external runtime-library requires runtime-config, through flags or [dev] in wabou.toml".into());
+            }
+            if runtime_config.is_none() && !app.root.join("Cargo.toml").is_file() {
+                return Err("frontend-only dev needs [dev] runtime-config in wabou.toml".into());
+            }
+            let rust_hot_reload = rust_hot_reload || configured.rust_hot_reload;
             dev(
                 &workspace,
                 app,
@@ -1288,12 +1316,18 @@ fn load_launch_config(path: &Path) -> Result<wabou_launch::LaunchConfig> {
     Ok(config)
 }
 
-fn launch_runtime(runtime: &Path, configuration: &Path) -> Result<()> {
+fn launch_application(runtime: Option<&Path>, configuration: &Path) -> Result<()> {
     let config = load_launch_config(configuration)?;
     // The user explicitly selects a trusted native library. Stabby checks the
     // launch signature; it is not a security sandbox for native code.
-    let library = unsafe { wabou_launch::RuntimeLibrary::load(runtime) }?;
-    library.run(&config).map_err(Into::into)
+    if let Some(runtime) = runtime {
+        let library = unsafe { wabou_launch::RuntimeLibrary::load(runtime) }?;
+        return library.run(&config).map_err(Into::into);
+    }
+    #[cfg(feature = "embedded-renderer")]
+    return wabou_runtime_library::run_config(config).map_err(Into::into);
+    #[cfg(not(feature = "embedded-renderer"))]
+    Err("this CLI has no embedded runtime; supply --runtime or install the default CLI".into())
 }
 
 struct DevOptions<'a> {
@@ -1333,13 +1367,14 @@ fn dev(workspace: &Path, app: App, options: DevOptions<'_>) -> Result<()> {
 
     // Keep the generated configuration alive for the supervised host process.
     let mut runtime_configuration = None;
-    let mut host_command = if let (Some(runtime), Some(configuration)) =
-        (options.runtime_library, options.runtime_config)
-    {
+    let mut host_command = if let Some(configuration) = options.runtime_config {
         if !options.cargo_features.is_empty() {
             return Err("--features applies to a linked host; configure module features in the runtime JSON".into());
         }
-        let runtime = runtime.canonicalize()?;
+        let runtime = options
+            .runtime_library
+            .map(Path::canonicalize)
+            .transpose()?;
         let mut config = load_launch_config(configuration)?;
         if options.rust_hot_reload
             && !config.capabilities.iter().any(|capability| {
@@ -1360,11 +1395,10 @@ fn dev(workspace: &Path, app: App, options: DevOptions<'_>) -> Result<()> {
         let file = tempfile::NamedTempFile::new()?;
         serde_json::to_writer(file.as_file(), &config)?;
         let mut command = Command::new(env::current_exe()?);
-        command
-            .arg("launch")
-            .arg(file.path())
-            .arg("--runtime")
-            .arg(runtime);
+        command.arg("launch").arg(file.path());
+        if let Some(runtime) = runtime {
+            command.arg("--runtime").arg(runtime);
+        }
         runtime_configuration = Some(file);
         command
     } else {
@@ -1459,9 +1493,36 @@ fn ensure(status: ExitStatus, label: &str) -> Result<()> {
 #[cfg(test)]
 mod tests {
     #[test]
-    fn prebuilt_dev_requires_both_runtime_and_configuration() {
-        assert!(Cli::try_parse_from(["wabou", "dev", "--runtime-library", "runtime.so"]).is_err());
-        assert!(Cli::try_parse_from(["wabou", "dev", "--runtime-config", "app.json"]).is_err());
+    fn embedded_launch_and_static_bundle_flags() {
+        assert!(matches!(
+            Cli::try_parse_from(["wabou", "launch", "app.json"])
+                .unwrap()
+                .command,
+            Commands::Launch { runtime: None, .. }
+        ));
+        assert!(matches!(
+            Cli::try_parse_from([
+                "wabou",
+                "bundle",
+                "app",
+                "--config",
+                "app/app.json",
+                "--out",
+                "dist",
+                "--static"
+            ])
+            .unwrap()
+            .command,
+            Commands::Bundle {
+                static_link: true,
+                ..
+            }
+        ));
+    }
+    #[test]
+    fn prebuilt_dev_flags_can_override_project_configuration() {
+        assert!(Cli::try_parse_from(["wabou", "dev", "--runtime-library", "runtime.so"]).is_ok());
+        assert!(Cli::try_parse_from(["wabou", "dev", "--runtime-config", "app.json"]).is_ok());
         let parsed = Cli::try_parse_from([
             "wabou",
             "dev",

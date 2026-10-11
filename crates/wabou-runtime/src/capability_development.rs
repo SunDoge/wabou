@@ -8,7 +8,7 @@ use std::{
     process::{Command, Stdio},
     sync::{Arc, Condvar, Mutex},
     thread::JoinHandle,
-    time::Duration,
+    time::{Duration, Instant},
 };
 
 /// A Cargo project whose `cdylib` is replaceable while the host stays running.
@@ -42,12 +42,17 @@ struct Worker {
     thread: JoinHandle<()>,
 }
 /// Last completed build attempt, available to development diagnostics.
-#[derive(Clone, Default)]
+#[derive(Clone, Default, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct DevelopmentStatus {
     /// Number of completed build/reload attempts since service construction.
     pub attempts: u64,
     /// Error from the last attempt; None means it installed successfully.
     pub error: Option<String>,
+    /// Whether Cargo is currently compiling a replacement.
+    pub building: bool,
+    /// Compilation and implementation replacement time of the last attempt.
+    pub elapsed_ms: u64,
 }
 /// A host-lifetime Cargo builder and source watcher. Failed builds leave code live.
 pub struct CapabilityDevelopment {
@@ -55,6 +60,7 @@ pub struct CapabilityDevelopment {
     project: ModuleProject,
     worker: Mutex<Option<Worker>>,
     status: Arc<Mutex<DevelopmentStatus>>,
+    messages: Arc<Mutex<Vec<crate::HostMessageHandle>>>,
 }
 impl CapabilityDevelopment {
     /// Construct development support for a trusted project.
@@ -68,6 +74,21 @@ impl CapabilityDevelopment {
             project,
             worker: Mutex::new(None),
             status: Arc::new(Mutex::new(DevelopmentStatus::default())),
+            messages: Arc::new(Mutex::new(Vec::new())),
+        }
+    }
+    /// Connect build diagnostics to every window through the existing host inbox.
+    /// Register the returned producer before starting the host.
+    pub fn diagnostics(&self) -> impl Fn(crate::HostMessageContext) + Send + Sync + 'static {
+        let status = self.status.clone();
+        let messages = self.messages.clone();
+        let target = self.project.manifest.display().to_string();
+        move |context| {
+            let status = status.lock().unwrap_or_else(|e| e.into_inner());
+            let mut messages = messages.lock().unwrap_or_else(|e| e.into_inner());
+            let handle = context.messages().clone();
+            let _ = handle.send(status_message(&target, &status));
+            messages.push(handle);
         }
     }
     /// Read completed build/reload diagnostics.
@@ -93,18 +114,22 @@ impl HostService for CapabilityDevelopment {
             &self.project.watch,
             self.project.target_directory.as_deref(),
         )?;
+        publish_status(&self.status, &self.messages, &self.project.manifest, None);
+        let started = Instant::now();
         let initial =
             build(&self.project, &stop).and_then(|path| unsafe { self.module.reload(&path) });
-        {
-            let mut status = self.status.lock().unwrap_or_else(|e| e.into_inner());
-            status.attempts += 1;
-            status.error = initial.as_ref().err().cloned();
-        }
+        publish_status(
+            &self.status,
+            &self.messages,
+            &self.project.manifest,
+            Some((&initial, started.elapsed())),
+        );
         initial?;
         let module = self.module.clone();
         let project = self.project.clone();
         let stopped = stop.clone();
         let status = self.status.clone();
+        let messages = self.messages.clone();
         let thread = std::thread::Builder::new().name("wabou-module-build".into()).spawn(move || {
             let mut previous = baseline;
             loop {
@@ -120,12 +145,10 @@ impl HostService for CapabilityDevelopment {
                 };
                 if next == previous { continue; }
                 previous = next;
+                publish_status(&status, &messages, &project.manifest, None);
+                let started = Instant::now();
                 let result = build(&project, &stopped).and_then(|path| unsafe { module.reload(&path) });
-                {
-                    let mut status = status.lock().unwrap_or_else(|e| e.into_inner());
-                    status.attempts += 1;
-                    status.error = result.as_ref().err().cloned();
-                }
+                publish_status(&status, &messages, &project.manifest, Some((&result, started.elapsed())));
                 match result {
                     Ok(()) => tracing::info!(manifest = %project.manifest.display(), "capability implementation replaced"),
                     Err(error) => tracing::warn!(%error, "module build/reload failed; previous implementation retained"),
@@ -153,6 +176,44 @@ impl Drop for CapabilityDevelopment {
         let _ = self.shutdown();
     }
 }
+fn status_message(target: &str, status: &DevelopmentStatus) -> crate::HostMessage {
+    // Bound transported diagnostics; retain the complete rustc output in status().
+    let error = status
+        .error
+        .as_ref()
+        .map(|value| value.chars().take(8000).collect::<String>());
+    crate::HostMessage::str("wabou:reload-status", serde_json::json!({
+        "source": "rust", "target": target, "attempt": status.attempts,
+        "phase": if status.building { "building" } else if error.is_some() { "error" } else { "ready" },
+        "elapsedMs": status.elapsed_ms, "error": error,
+    }).to_string())
+}
+fn publish_status(
+    state: &Mutex<DevelopmentStatus>,
+    messages: &Mutex<Vec<crate::HostMessageHandle>>,
+    target: &Path,
+    result: Option<(&Result<(), String>, Duration)>,
+) {
+    let mut status = state.lock().unwrap_or_else(|e| e.into_inner());
+    status.building = result.is_none();
+    if let Some((result, elapsed)) = result {
+        status.attempts += 1;
+        status.error = result.as_ref().err().cloned();
+        status.elapsed_ms = elapsed.as_millis().min(u64::MAX as u128) as u64;
+    }
+    let message = status_message(&target.display().to_string(), &status);
+    messages
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
+        .retain(|handle| {
+            !matches!(
+                handle.send(message.clone()),
+                Err(crate::HostMessageError::Disconnected)
+            )
+        });
+    tracing::info!(target: "hmr", source = "rust", manifest = %target.display(), building = status.building, attempt = status.attempts, elapsed_ms = status.elapsed_ms, error = ?status.error, "capability development status");
+}
+
 fn fingerprint(paths: &[PathBuf], excluded: Option<&Path>) -> Result<u64, String> {
     fn normalize(path: &Path) -> std::io::Result<PathBuf> {
         path.canonicalize().or_else(|_| std::path::absolute(path))
@@ -293,6 +354,65 @@ fn compilation_error(log: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn diagnostics_replay_latest_status_and_publish_build_failure_and_recovery() {
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .build()
+            .unwrap();
+        let module = CapabilityModule::new(1, Arc::new(|_, _| Ok(Vec::new())));
+        let service = unsafe {
+            CapabilityDevelopment::new(module, ModuleProject::new("functions/Cargo.toml"))
+        };
+        let (handle, inbox) = crate::host_message::host_message_channel(16);
+        let context = crate::HostMessageContext::new(
+            wabou_shell_api::WindowResourceKey::from_parts(1, 1).unwrap(),
+            handle,
+            tokio_util::sync::CancellationToken::new(),
+            runtime.handle().clone(),
+            Arc::new(crate::host_message::HostTaskTracker::default()),
+        );
+        let failed: Result<(), String> =
+            Err("error[E0425]: missing value\n --> src/lib.rs:8:3".into());
+        publish_status(
+            &service.status,
+            &service.messages,
+            &service.project.manifest,
+            Some((&failed, Duration::from_millis(123))),
+        );
+        service.diagnostics()(context);
+        let decode = |message: crate::HostMessage| {
+            assert_eq!(message.topic, "wabou:reload-status");
+            let crate::HostMessagePayload::Str(json) = message.payload else {
+                panic!("JSON status")
+            };
+            serde_json::from_str::<serde_json::Value>(&json).unwrap()
+        };
+        let replay = decode(inbox.drain_batch().pop().unwrap());
+        assert_eq!(replay["phase"], "error");
+        assert_eq!(replay["elapsedMs"], 123);
+        assert!(replay["error"].as_str().unwrap().contains("src/lib.rs:8:3"));
+        publish_status(
+            &service.status,
+            &service.messages,
+            &service.project.manifest,
+            None,
+        );
+        assert_eq!(
+            decode(inbox.drain_batch().pop().unwrap())["phase"],
+            "building"
+        );
+        publish_status(
+            &service.status,
+            &service.messages,
+            &service.project.manifest,
+            Some((&Ok(()), Duration::from_millis(20))),
+        );
+        let ready = decode(inbox.drain_batch().pop().unwrap());
+        assert_eq!(ready["phase"], "ready");
+        assert_eq!(ready["attempt"], 2);
+        assert!(ready["error"].is_null());
+    }
+
     #[test]
     fn compiler_errors_preserve_source_locations_without_json_noise() {
         let log = [

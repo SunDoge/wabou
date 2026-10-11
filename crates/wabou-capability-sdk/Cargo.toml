@@ -17,3 +17,6 @@ crate-type = ["cdylib"]
 [[example]]
 name = "services"
 crate-type = ["cdylib"]
+
+[features]
+static-link = []

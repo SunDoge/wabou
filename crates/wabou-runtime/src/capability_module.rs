@@ -24,9 +24,9 @@ const MAX_OUTPUT: usize = 1024 * 1024;
 
 struct Generation {
     api: ModuleApi,
-    _library: libloading::Library,
+    _library: Option<libloading::Library>,
     // Library unload precedes removal of its private on-disk generation.
-    _directory: tempfile::TempDir,
+    _directory: Option<tempfile::TempDir>,
 }
 
 /// A stable dispatcher shared by all JS method wrappers of one capability.
@@ -75,13 +75,35 @@ impl CapabilityModule {
         }
         let next = Arc::new(Generation {
             api,
-            _library: library,
-            _directory: directory,
+            _library: Some(library),
+            _directory: Some(directory),
         });
         *self
             .current
             .write()
             .map_err(|_| "module dispatcher poisoned")? = Some(next);
+        Ok(())
+    }
+    /// Install a statically linked implementation whose code lives for the process lifetime.
+    ///
+    /// # Safety
+    /// The table must honor the capability ABI and all function pointers must
+    /// remain valid for the process lifetime.
+    pub unsafe fn install_linked(&self, api: ModuleApi) -> Result<(), String> {
+        if api.abi_version != abi::ABI_VERSION || api.size != std::mem::size_of::<ModuleApi>() {
+            return Err("incompatible capability module ABI".into());
+        }
+        if api.contract_version != self.contract_version {
+            return Err("incompatible capability contract version".into());
+        }
+        *self
+            .current
+            .write()
+            .map_err(|_| "module dispatcher poisoned")? = Some(Arc::new(Generation {
+            api,
+            _library: None,
+            _directory: None,
+        }));
         Ok(())
     }
     /// Start using the current generation, independent of later replacements.

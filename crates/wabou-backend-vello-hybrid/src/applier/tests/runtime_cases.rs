@@ -734,6 +734,85 @@ fn hybrid_hmr_reexecutes_generated_style_module_without_an_accept_boundary() {
     assert_eq!(revision, 42);
 }
 
+#[cfg(feature = "vite")]
+#[test]
+fn failed_partial_hmr_keeps_scene_and_handlers_then_recovers() {
+    let js = JsRuntime::new_vite("http://127.0.0.1:5173/").unwrap();
+    js.with(|ctx| {
+        rquickjs::Module::evaluate(
+            ctx.clone(),
+            "http://127.0.0.1:5173/Counter.js",
+            r#"
+        import { createHotContext } from '/@vite/client';
+        const hot = createHotContext('/Counter.js');
+        hot.data.count = 7;
+        globalThis.clickOld = () => ++hot.data.count;
+        globalThis.rendered = 'old';
+        hot.accept(module => rendered = module.view(hot.data));
+    "#,
+        )
+        .unwrap()
+        .finish::<()>()
+        .unwrap()
+    });
+    let mut applier = Applier::from_runtime(js, Color::BLACK);
+    let view = applier.document.atoms.borrow_mut().intern("view");
+    let child = NodeKey::new(2, 1);
+    applier.apply_op(&Op::CreateElement {
+        id: child,
+        tag: view,
+    });
+    applier.apply_op(&Op::AppendChild {
+        parent: NodeKey::ROOT,
+        child,
+    });
+    let update = |timestamp, source: &str| {
+        plan_hmr_batch([ReloadMsg::HmrUpdate {
+            path: "/Counter.js".into(),
+            accepted_path: "/Counter.js".into(),
+            timestamp,
+            source: source.into(),
+        }])
+    };
+    let result = applier.apply_hmr_batch(update(41, "throw new Error('broken implementation');"));
+    let HmrDrainResult::Error { diagnostic } = result else {
+        panic!("failed import must not request full reload")
+    };
+    assert!(diagnostic.contains("broken implementation"), "{diagnostic}");
+    assert!(
+        applier
+            .document
+            .node_store
+            .solid_to_node
+            .contains_key(&child)
+    );
+    assert_eq!(
+        applier
+            .runtime
+            .js
+            .with(|ctx| ctx.eval::<u32, _>("clickOld()"))
+            .unwrap(),
+        8
+    );
+    let result = applier.apply_hmr_batch(update(
+        42,
+        r#"
+        import { createHotContext } from '/@vite/client';
+        createHotContext('/Counter.js').accept(() => {});
+        export function view(state) { return `new:${state.count}`; }
+    "#,
+    ));
+    assert_eq!(result, HmrDrainResult::Applied { js_updates: 1 });
+    assert_eq!(
+        applier
+            .runtime
+            .js
+            .with(|ctx| ctx.eval::<String, _>("rendered"))
+            .unwrap(),
+        "new:8"
+    );
+}
+
 #[test]
 fn vite_transform_error_does_not_reload_or_duplicate_the_last_good_scene() {
     let js = JsRuntime::new().expect("runtime");

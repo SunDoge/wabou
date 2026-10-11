@@ -258,11 +258,23 @@ macro_rules! export_handlers {
 }
 
 /// Export one application module from a `cdylib` crate.
+#[cfg(not(feature = "static-link"))]
 #[macro_export]
 macro_rules! export_module {
     ($module:ty) => {
         #[unsafe(no_mangle)]
         pub extern "C" fn wabou_capability_v1() -> $crate::abi::ModuleApi {
+            $crate::module_api::<$module>()
+        }
+    };
+}
+
+/// Register the same module as ordinary linked Rust code without a global export symbol.
+#[cfg(feature = "static-link")]
+#[macro_export]
+macro_rules! export_module {
+    ($module:ty) => {
+        pub fn wabou_capability_v1() -> $crate::abi::ModuleApi {
             $crate::module_api::<$module>()
         }
     };

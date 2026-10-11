@@ -103,7 +103,14 @@ fn generations_preserve_host_state_and_pending_calls_and_clean_up() {
         module.reload(&first).unwrap();
     }
     let old = Arc::downgrade(module.current.read().unwrap().as_ref().unwrap());
-    let old_path = old.upgrade().unwrap()._directory.path().to_owned();
+    let old_path = old
+        .upgrade()
+        .unwrap()
+        ._directory
+        .as_ref()
+        .unwrap()
+        .path()
+        .to_owned();
     let mut pending = module.start("tick", b"").unwrap();
     assert_eq!(pending.poll().unwrap(), None);
     unsafe {
@@ -130,6 +137,8 @@ fn generations_preserve_host_state_and_pending_calls_and_clean_up() {
         .upgrade()
         .unwrap()
         ._directory
+        .as_ref()
+        .unwrap()
         .path()
         .to_owned();
     unsafe {
@@ -147,6 +156,8 @@ fn generations_preserve_host_state_and_pending_calls_and_clean_up() {
         .as_ref()
         .unwrap()
         ._directory
+        .as_ref()
+        .unwrap()
         .path()
         .to_owned();
     drop(module);
@@ -737,4 +748,40 @@ export_module!(Application);
     assert_eq!(Arc::strong_count(&connection), 1);
     assert!(module.start("increment", b"null").is_err());
     service.shutdown().unwrap();
+}
+
+#[test]
+fn linked_implementation_checks_contract_and_executes_without_a_library() {
+    unsafe extern "C" fn start(_: HostApi, _: Bytes, _: Bytes, _: Output) -> *mut c_void {
+        Box::into_raw(Box::new(())).cast()
+    }
+    unsafe extern "C" fn poll(_: *mut c_void, _: HostApi, output: Output) -> i32 {
+        unsafe { (output.write)(output.context, Bytes::new(b"linked result")) }
+    }
+    unsafe extern "C" fn drop_task(task: *mut c_void, _: HostApi) {
+        unsafe {
+            drop(Box::from_raw(task.cast::<()>()));
+        }
+    }
+    let api = ModuleApi {
+        abi_version: abi::ABI_VERSION,
+        size: std::mem::size_of::<ModuleApi>(),
+        contract_version: 7,
+        start,
+        poll,
+        drop_task,
+    };
+    let module = CapabilityModule::new(7, Arc::new(|_, _| Ok(Vec::new())));
+    unsafe {
+        module.install_linked(api).unwrap();
+    }
+    let mut invocation = module.start("test", b"").unwrap();
+    let mut invalid = api;
+    invalid.contract_version = 8;
+    assert!(unsafe { module.install_linked(invalid) }.is_err());
+    assert_eq!(invocation.poll().unwrap(), Some(b"linked result".to_vec()));
+    assert_eq!(
+        module.start("test", b"").unwrap().poll().unwrap(),
+        Some(b"linked result".to_vec())
+    );
 }

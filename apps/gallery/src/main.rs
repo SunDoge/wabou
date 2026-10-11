@@ -34,7 +34,8 @@ fn main() -> Result<(), Whatever> {
             .push(root.join("../../crates/wabou-capability-abi"));
         // Only this repository's trusted application module is loaded.
         let development = unsafe { CapabilityDevelopment::new(module.clone(), project) };
-        host.service(development)
+        host.host_message_producer(development.diagnostics())
+            .service(development)
             .capability(gallery::bindings::CAPABILITY, move |capability| {
                 capability.json_module_method(gallery::bindings::DESCRIBE_PALETTE, module.clone())
             })

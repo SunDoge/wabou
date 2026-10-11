@@ -90,7 +90,7 @@ wabouGlobal.__wabou_apply_hmr = async (path, acceptedPath, timestamp) => {
     return true;
   } catch (error) {
     console.error(`[wabou-hmr] failed to import ${acceptedPath}`, error);
-    return false;
+    throw error;
   } finally {
     record.loading = false;
     record.next = null;

@@ -12204,6 +12204,7 @@ dependencies = [
  "wabou-backend-vello-hybrid",
  "wabou-devtools",
  "wabou-launch",
+ "wabou-runtime-library",
  "wabou-shell-api",
  "wabou-shell-vello",
  "wabou-widgets-vello",
@@ -12338,6 +12339,7 @@ dependencies = [
  "tokio",
  "wabou-backend-vello-hybrid",
  "wabou-bindgen",
+ "wabou-capability-abi",
  "wabou-launch",
  "wabou-runtime",
 ]

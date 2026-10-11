@@ -100,8 +100,9 @@ export function removeStyle(id: string): void {
 /**
  * Apply one Vite JS HMR update. Returns:
  * - `true` — Solid refresh (or another accept handler) took the update
- * - `false` — no hot context / declined / invalidate / import error → host
+ * - `false` — no hot context / declined / invalidate → host
  *   should full-reload the entry rather than leave a half-applied tree
+ * - rejection — replacement import failed; keep the current boundary alive
  */
 wabouGlobal.__wabou_apply_hmr = async (path, acceptedPath, timestamp) => {
   const record = records.get(path);
@@ -154,7 +155,7 @@ wabouGlobal.__wabou_apply_hmr = async (path, acceptedPath, timestamp) => {
     return true;
   } catch (error) {
     console.error(`[wabou-hmr] failed to import ${acceptedPath}`, error);
-    return false;
+    throw error;
   } finally {
     record.loading = false;
     record.next = null;

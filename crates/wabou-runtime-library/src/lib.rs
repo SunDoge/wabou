@@ -22,7 +22,22 @@ pub extern "C" fn wabou_runtime_launch(config: stabby::string::String) -> Launch
         .into()
 }
 fn run(config: &str) -> Result<(), String> {
-    let config: LaunchConfig = serde_json::from_str(config).map_err(|e| e.to_string())?;
+    run_config(serde_json::from_str(config).map_err(|e| e.to_string())?)
+}
+
+/// Run a trusted application on the main thread using the linked resident runtime.
+pub fn run_config(config: LaunchConfig) -> Result<(), String> {
+    unsafe { run_linked(config, &[]) }
+}
+
+/// Run with trusted, statically linked capability tables. Matching names bypass dynamic loading.
+///
+/// # Safety
+/// Tables must honor the ABI and their code must remain resident for the process lifetime.
+pub unsafe fn run_linked(
+    config: LaunchConfig,
+    linked: &[(String, wabou_capability_abi::ModuleApi)],
+) -> Result<(), String> {
     if config.version != LAUNCH_VERSION {
         return Err("incompatible runtime launch contract".into());
     }
@@ -67,22 +82,31 @@ fn run(config: &str) -> Result<(), String> {
                 }
             }),
         );
-        match capability.implementation {
-            Implementation::Library { path } => unsafe {
-                module.reload(&path)?;
-            },
-            Implementation::Project {
-                manifest,
-                watch,
-                features,
-                target_directory,
-            } => {
-                let mut project = ModuleProject::new(manifest);
-                project.watch.extend(watch);
-                project.features = features;
-                project.target_directory = target_directory;
-                let development = unsafe { CapabilityDevelopment::new(module.clone(), project) };
-                host = host.service(development);
+        if let Some((_, api)) = linked.iter().find(|(name, _)| name == &capability.name) {
+            unsafe {
+                module.install_linked(*api)?;
+            }
+        } else {
+            match capability.implementation {
+                Implementation::Library { path } => unsafe {
+                    module.reload(&path)?;
+                },
+                Implementation::Project {
+                    manifest,
+                    watch,
+                    features,
+                    target_directory,
+                } => {
+                    let mut project = ModuleProject::new(manifest);
+                    project.watch.extend(watch);
+                    project.features = features;
+                    project.target_directory = target_directory;
+                    let development =
+                        unsafe { CapabilityDevelopment::new(module.clone(), project) };
+                    host = host
+                        .host_message_producer(development.diagnostics())
+                        .service(development);
+                }
             }
         }
         host = host.capability_named(capability.name, capability.version, move |native| {

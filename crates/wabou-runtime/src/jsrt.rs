@@ -1314,9 +1314,13 @@ impl JsRuntime {
         accepted_path: &str,
         timestamp: u64,
         source: String,
-    ) -> JsResult<bool> {
+    ) -> Result<bool, String> {
         let vite = self.vite.as_ref().expect("vite runtime");
-        self.with(|ctx| vite.apply_hmr(&ctx, path, accepted_path, timestamp, source))
+        self.with(|ctx| {
+            vite.apply_hmr(&ctx, path, accepted_path, timestamp, source)
+                .catch(&ctx)
+                .map_err(hmr_diagnostic)
+        })
     }
 
     /// Apply an HMR module whose evaluation is the whole update, such as the
@@ -1327,9 +1331,13 @@ impl JsRuntime {
         accepted_path: &str,
         timestamp: u64,
         source: String,
-    ) -> JsResult<()> {
+    ) -> Result<(), String> {
         let vite = self.vite.as_ref().expect("vite runtime");
-        self.with(|ctx| vite.apply_side_effect_update(&ctx, accepted_path, timestamp, source))
+        self.with(|ctx| {
+            vite.apply_side_effect_update(&ctx, accepted_path, timestamp, source)
+                .catch(&ctx)
+                .map_err(hmr_diagnostic)
+        })
     }
 
     /// In-process full reload: clear the Vite module cache and re-import `entry`
@@ -1338,6 +1346,24 @@ impl JsRuntime {
     pub fn reboot_vite_entry(&mut self, entry: &str) -> JsResult<()> {
         let vite = self.vite.as_ref().expect("vite runtime");
         self.with(|ctx| vite.boot_full_reload(&ctx, entry))
+    }
+}
+
+#[cfg(feature = "vite")]
+fn hmr_diagnostic(error: rquickjs::CaughtError<'_>) -> String {
+    match error {
+        rquickjs::CaughtError::Exception(exception) => format!(
+            "{}\n{}",
+            exception
+                .message()
+                .unwrap_or_else(|| "JavaScript exception".into()),
+            exception.stack().unwrap_or_default()
+        ),
+        rquickjs::CaughtError::Value(value) => value
+            .as_string()
+            .and_then(|value| value.to_string().ok())
+            .unwrap_or_else(|| "JavaScript threw a non-string value".into()),
+        rquickjs::CaughtError::Error(error) => error.to_string(),
     }
 }
 

@@ -425,3 +425,89 @@ HostBuilder::new().capability(WORKSPACE, |capability| {
 Application capabilities always use this structured adapter. Framework-owned
 synchronous QuickJS functions are declared explicitly in the native host API;
 applications do not receive a raw `rquickjs::Object` escape hatch.
+
+### Project development defaults
+
+Store local prebuilt-runtime selection in the application's `wabou.toml`:
+
+```toml
+[dev]
+runtime-library = "../../target/debug/libwabou_runtime_library.so"
+runtime-config = "app.json"
+rust-hot-reload = true
+```
+
+Then use `wabou dev APP` (or `wabou dev` inside the frontend). Paths in `[dev]`
+are relative to that application's directory; command-line paths remain relative
+to the invocation directory and override the corresponding configuration value.
+The library and JSON configuration must both resolve. Missing/incompatible
+artifacts produce an error rather than falling back to a runtime build. Without
+prebuilt configuration, a linked Cargo application keeps its existing development
+path. A dev-only file needs no `[package]` section; packaging still requires one.
+`rust-hot-reload` requires Project implementations in the launch JSON. This does
+not download runtime artifacts or make arbitrary Rust host code reloadable.
+
+Rust capability development publishes building/ready/error status, attempt count,
+combined compile-and-replace time and compiler diagnostics through
+`wabou:reload-status`. The runtime-library host and Gallery module host register
+this producer. Other linked hosts can register `development.diagnostics()` with
+`host_message_producer`. ComponentsProvider's development overlay shows JS and
+Rust errors; a successful JS update does not dismiss an unrelated Rust error.
+A matching Rust project's successful replacement clears its diagnostic. Completed
+status is replayed when a window attaches after initial compilation.
+
+Replacement import/evaluation failures now retain the JS hot boundary and return
+an error with guest message/stack, instead of requesting a full reload. Missing,
+declined or invalidated hot boundaries still request full reload. This is not a
+transactional rollback of arbitrary top-level module side effects or accept
+callbacks that have already run.
+
+### Embedded runtime development and distribution
+
+The default CLI includes QuickJS, windowing, layout and rendering. A frontend-only
+project can select its launch contract without specifying a runtime library:
+
+```toml
+[dev]
+runtime-config = "app.json"
+```
+
+Run `wabou dev path/to/app`. The CLI starts Vite and a supervised copy of itself
+as the GUI host. Capability `project` implementations are built and watched inside
+that resident host. Only application capability code is rebuilt. Native code is
+trusted; use the capability SDK's host-owned resources and task lifetime contract.
+`--runtime-library` remains available for an explicitly selected external runtime.
+A CLI installed with `--no-default-features` requires that external runtime.
+
+Portable distribution using the installed CLI and separately loaded capabilities:
+
+```sh
+wabou bundle path/to/app --config path/to/app/app.json --out dist/my-app
+./dist/my-app/wabou launch ./dist/my-app/app.json
+```
+
+The output contains the runtime executable, production UI/resources, relative
+capability library paths and launch configuration. Project capabilities build in
+release mode. The output directory must not already exist. Build failures leave
+no partial distribution. This bundles the CLI you are running: use a release CLI
+for production. Bundles target the current operating system and architecture;
+third-party native dependencies are not collected automatically.
+
+Link the runtime and capability Rust libraries into a generated application:
+
+```sh
+wabou bundle path/to/app --config path/to/app/app.json --out dist/my-app --static
+./dist/my-app/wabou
+```
+
+Static mode requires `project` capabilities whose crates provide an `rlib` and
+use the SDK's `export_module!` or `export_handlers!`. The generated host enables
+SDK `static-link` to avoid duplicate exported plugin symbols. The same handlers
+and host-owned services run through the existing function table; this first
+version does not eliminate its encoding/polling overhead. No capability dynamic
+libraries are required at runtime. UI/resources remain beside the executable.
+System libraries may still be dynamically linked. Static mode currently retains
+the runtime's development support code; it does not yet produce a minimal runtime.
+Compilation uses the PATH Cargo and reuses the workspace target directory.
+Existing Rust-host applications can continue using `wabou build --release` and
+`wabou package` for application-owned registration and native installers.

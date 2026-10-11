@@ -702,6 +702,24 @@ mod tests {
     }
 
     #[test]
+    fn quickjs_ng_evaluates_module_top_level_await() {
+        let runtime = rquickjs::AsyncRuntime::new().unwrap();
+        let context =
+            futures_lite::future::block_on(rquickjs::AsyncContext::full(&runtime)).unwrap();
+        futures_lite::future::block_on(context.with(|ctx| {
+            Module::evaluate(
+                ctx.clone(),
+                "top-level-await.js",
+                "globalThis.answer = await Promise.resolve(42);",
+            )
+            .unwrap()
+            .finish::<()>()
+            .unwrap();
+            assert_eq!(ctx.eval::<u32, _>("answer").unwrap(), 42);
+        }));
+    }
+
+    #[test]
     fn generated_hmr_client_is_a_valid_quickjs_module() {
         let runtime = rquickjs::AsyncRuntime::new().unwrap();
         let context =
@@ -789,11 +807,12 @@ mod tests {
             "#)?.finish::<()>()?;
             // Evaluation fails after registering a replacement hot context. The
             // old context must still own disposal and acceptance for the fix.
-            assert!(!vite.apply_hmr(&ctx, "/Recover.js", "/Recover.js", 41, r#"
+            assert!(vite.apply_hmr(&ctx, "/Recover.js", "/Recover.js", 41, r#"
                 import { createHotContext } from '/@vite/client';
                 createHotContext('/Recover.js').accept(() => {});
                 throw new Error('broken implementation');
-            "#.into())?);
+            "#.into()).is_err());
+            let _ = ctx.catch();
             assert!(ctx.eval::<bool, _>(
                 "rendered === 'old' && disposals === 0 && __wabou_hmr_records.get('/Recover.js').current === savedContext"
             )?);

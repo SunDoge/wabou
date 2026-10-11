@@ -5,7 +5,7 @@ license.workspace = true
 edition = "2024"
 
 [lib]
-crate-type = ["cdylib"]
+crate-type = ["rlib", "cdylib"]
 
 [dependencies]
 stabby = "=72.1.16"
@@ -15,3 +15,4 @@ wabou-launch = { path = "../wabou-launch" }
 wabou-runtime = { workspace = true, features = ["capability-modules", "vite", "devtools"] }
 wabou-backend-vello-hybrid = { workspace = true, features = ["vite", "devtools"] }
 wabou-bindgen = { workspace = true }
+wabou-capability-abi = { path = "../wabou-capability-abi" }

@@ -327,13 +327,63 @@ function KbdGroup(props) {
 	}));
 }
 //#endregion
-//#region src/components/dev-server-error.tsx
-function decodeDiagnostic(value) {
-	if (!value || typeof value !== "object") throw new TypeError("Vite diagnostic must be an object");
-	const source = value;
-	if (typeof source.message !== "string") throw new TypeError("Vite diagnostic must contain a message");
-	return source;
+//#region src/components/development-diagnostics.ts
+/** Errors survive unrelated successful reloads and disappear on their own recovery. */
+function useDevelopmentDiagnostics() {
+	const errors = /* @__PURE__ */ new Map();
+	const [diagnostic, setDiagnostic] = createSignal();
+	const refresh = () => setDiagnostic([...errors.values()].at(-1));
+	const onError = (error) => console.error("[wabou-hmr] invalid development diagnostic", error);
+	const unsubscribeError = subscribeJsonHostMessages("wabou:dev-server-error", (value) => {
+		errors.set("js:Vite", value);
+		refresh();
+	}, {
+		decode(value) {
+			if (!value || typeof value !== "object" || typeof value.message !== "string") throw new TypeError("diagnostic must contain a message");
+			return value;
+		},
+		onError
+	});
+	const unsubscribeReady = subscribeHostMessages("wabou:dev-server-ready", () => {
+		for (const key of errors.keys()) if (key.startsWith("js:")) errors.delete(key);
+		refresh();
+	});
+	const unsubscribeStatus = subscribeJsonHostMessages("wabou:reload-status", (status) => {
+		const key = `${status.source}:${status.target}`;
+		if (status.phase === "error") errors.set(key, {
+			message: status.error ?? "Replacement failed",
+			id: status.target,
+			plugin: status.source === "rust" ? "Rust" : "JavaScript"
+		});
+		else if (status.phase === "ready") errors.delete(key);
+		refresh();
+	}, {
+		decode(value) {
+			const status = value;
+			if (!status || !["rust", "js"].includes(status.source) || typeof status.target !== "string" || ![
+				"building",
+				"ready",
+				"error"
+			].includes(status.phase) || status.error != null && typeof status.error !== "string") throw new TypeError("invalid reload status");
+			return status;
+		},
+		onError
+	});
+	onCleanup(() => {
+		unsubscribeError();
+		unsubscribeReady();
+		unsubscribeStatus();
+	});
+	return {
+		diagnostic,
+		dismiss: () => {
+			errors.clear();
+			refresh();
+		}
+	};
 }
+//#endregion
+//#region src/components/dev-server-error.tsx
 function diagnosticLocation(diagnostic) {
 	const file = diagnostic.loc?.file ?? diagnostic.id;
 	if (!file) return diagnostic.plugin ?? "Vite";
@@ -343,22 +393,13 @@ function diagnosticLocation(diagnostic) {
 }
 /** Native equivalent of Vite's browser error overlay. */
 function DevServerErrorOverlay() {
-	const [diagnostic, setDiagnostic] = createSignal();
-	const unsubscribeError = subscribeJsonHostMessages("wabou:dev-server-error", setDiagnostic, {
-		decode: decodeDiagnostic,
-		onError: (error) => console.error("[wabou-hmr] invalid Vite diagnostic", error)
-	});
-	const unsubscribeReady = subscribeHostMessages("wabou:dev-server-ready", () => setDiagnostic(void 0));
-	onCleanup(() => {
-		unsubscribeError();
-		unsubscribeReady();
-	});
+	const { diagnostic, dismiss } = useDevelopmentDiagnostics();
 	return createComponent$1(Modal, {
 		get open() {
 			return diagnostic() !== void 0;
 		},
 		onOpenChange: (open) => {
-			if (!open) setDiagnostic(void 0);
+			if (!open) dismiss();
 		},
 		"aria-label": "Development build failed",
 		contentRole: "alertdialog",
@@ -379,7 +420,9 @@ function DevServerErrorOverlay() {
 						get children() {
 							return [createComponent$1(Text, {
 								class: "text-lg font-semibold text-danger-primary",
-								children: "Vite could not update the app"
+								get children() {
+									return error.plugin === "Rust" ? "Rust could not update the app" : "JavaScript could not update the app";
+								}
 							}), createComponent$1(Text, {
 								class: "text-xs text-muted whitespace-normal",
 								get children() {
@@ -418,7 +461,7 @@ function DevServerErrorOverlay() {
 							}), createComponent$1(Button$1, {
 								"aria-label": "Dismiss development error",
 								class: "flex-none h-8 px-3 rounded-lg bg-control text-sm text-primary",
-								onClick: () => setDiagnostic(void 0),
+								onClick: () => dismiss(),
 								children: "Dismiss"
 							})];
 						}
