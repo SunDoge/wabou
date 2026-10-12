@@ -267,7 +267,7 @@ function semanticPrimitive(
   const node = createElement(tag);
   // Primitive semantics are authored here in JavaScript. The native runtime
   // projects explicit roles; it does not infer behavior from tag names.
-  spread(node, { role }, false);
+  spread(node, { role }, true);
   spread(node, props, false);
   return node as unknown as JSX.Element;
 }
@@ -288,7 +288,7 @@ export function View(props: ViewProps): JSX.Element {
 export function ProjectionBoundary(props: ViewProps): JSX.Element {
   const node = createElement("view");
   spread(node, props, false);
-  spread(node, { projectionBoundary: true }, false);
+  spread(node, { projectionBoundary: true }, true);
   return node as unknown as JSX.Element;
 }
 
@@ -326,7 +326,7 @@ export function Text(props: TextProps): JSX.Element {
         return resolvedTextBehavior(props.maxLines);
       },
     },
-    false,
+    true,
   );
   return node as unknown as JSX.Element;
 }
@@ -353,7 +353,7 @@ export function RichText(props: RichTextProps): JSX.Element {
         };
       },
     },
-    false,
+    true,
   );
   return node as unknown as JSX.Element;
 }
@@ -432,7 +432,7 @@ export function Icon(props: IconProps): JSX.Element {
         return props.label ? undefined : "true";
       },
     },
-    false,
+    true,
   );
   return node as unknown as JSX.Element;
 }
@@ -441,7 +441,7 @@ export function Icon(props: IconProps): JSX.Element {
 export function Image(props: ImageProps): JSX.Element {
   const rest = omit(props, "resource");
   const node = createElement("img");
-  spread(node, { role: "img" }, false);
+  spread(node, { role: "img" }, true);
   spread(node, rest, false);
   spread(
     node,
@@ -450,7 +450,7 @@ export function Image(props: ImageProps): JSX.Element {
         return props.resource;
       },
     },
-    false,
+    true,
   );
   return node as unknown as JSX.Element;
 }
@@ -615,7 +615,7 @@ export function NativeWidget<Config extends NativeWidgetConfig = object>(
         return props.config;
       },
     },
-    false,
+    true,
   );
   return node as unknown as JSX.Element;
 }

@@ -8,9 +8,9 @@ fn rio_parser_preserves_text_and_sgr_cells() {
 
     let terminal = widget.terminal.lock();
     let rows = terminal.visible_rows();
-    let style = terminal.grid.style_set.get(rows[0][Column(0)].style_id());
+    let style = terminal.grid.style_of(&rows[0][Column(0)]);
     assert_eq!(style.fg, AnsiColor::Named(NamedColor::Red));
-    let decorated = terminal.grid.style_set.get(rows[1][Column(0)].style_id());
+    let decorated = terminal.grid.style_of(&rows[1][Column(0)]);
     assert!(decorated.flags.contains(StyleFlags::ITALIC));
     assert!(decorated.flags.contains(StyleFlags::UNDERLINE));
     assert!(decorated.flags.contains(StyleFlags::STRIKEOUT));

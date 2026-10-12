@@ -973,6 +973,16 @@ pub trait Widget {
         false
     }
 
+    /// Drain background changes with precise layout/repaint invalidation.
+    /// Existing widgets retain their boolean poll behavior by default.
+    fn poll_async_changes(&mut self) -> WidgetChanges {
+        if self.poll_async() {
+            WidgetChanges::REDRAW
+        } else {
+            WidgetChanges::empty()
+        }
+    }
+
     /// Drain one asynchronous request for the native window host.
     fn take_host_action(&mut self) -> Option<HostAction> {
         None

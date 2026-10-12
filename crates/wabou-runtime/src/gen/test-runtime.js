@@ -3298,7 +3298,7 @@
   }
   installFetchPolyfill();
 
-  // node_modules/.bun/@solidjs+signals@2.0.0-rc.7/node_modules/@solidjs/signals/dist/dev.js
+  // node_modules/.bun/@solidjs+signals@2.0.0-rc.14/node_modules/@solidjs/signals/dist/dev-shared.js
   class NotReadyError extends Error {
     source;
     constructor(source) {
@@ -3338,12 +3338,19 @@
   var REACTIVE_IN_HEAP_HEIGHT = 1 << 4;
   var REACTIVE_ZOMBIE = 1 << 5;
   var REACTIVE_DISPOSED = 1 << 6;
-  var REACTIVE_OPTIMISTIC_DIRTY = 1 << 7;
+  var REACTIVE_JOINED = 1 << 7;
   var REACTIVE_SNAPSHOT_STALE = 1 << 8;
   var REACTIVE_LAZY = 1 << 9;
   var REACTIVE_MANUAL_WRITE = 1 << 10;
-  var REACTIVE_REASK = 1 << 11;
+  var REACTIVE_FRAME_READ = 1 << 11;
   var REACTIVE_MISSED_WAKE = 1 << 12;
+  var REACTIVE_REASK = 1 << 13;
+  var REACTIVE_STAGED_READ = 1 << 14;
+  var REACTIVE_PROBED = 1 << 15;
+  var REACTIVE_LANE_DIRTY = 1 << 16;
+  var REACTIVE_LANE_READ = 1 << 17;
+  var REACTIVE_SCREEN_READ = 1 << 18;
+  var REACTIVE_PROBE_UNANSWERED = 1 << 19;
   var CONFIG_OWNED_WRITE = 1 << 0;
   var CONFIG_NO_SNAPSHOT = 1 << 1;
   var CONFIG_TRANSPARENT = 1 << 2;
@@ -3351,18 +3358,22 @@
   var CONFIG_CHILDREN_FORBIDDEN = 1 << 4;
   var CONFIG_AUTO_DISPOSE = 1 << 5;
   var CONFIG_SYNC = 1 << 6;
-  var CONFIG_OPTIMISTIC = 1 << 7;
-  var CONFIG_HAS_COMPANIONS = 1 << 8;
+  var CONFIG_STAGED = 1 << 7;
+  var CONFIG_HELD = 1 << 8;
+  var CONFIG_INPUTS_PUBLISHED = 1 << 10;
+  var CONFIG_OVERRIDE = 1 << 11;
+  var CONFIG_SLOT_NODE = 1 << 12;
+  var CONFIG_MANUAL_WRITE = 1 << 18;
+  var CONFIG_GUESS = 1 << 13;
+  var CONFIG_VERDICT = 1 << 14;
+  var CONFIG_REDERIVE = 1 << 15;
+  var CONFIG_AUTHORITATIVE = 1 << 17;
   var CONFIG_HAS_SNAPSHOT = 1 << 9;
-  var CONFIG_HAS_LANE = 1 << 10;
-  var CONFIG_CHILD_COMPANIONS = 1 << 11;
-  var CONFIG_FW_CHILDREN = 1 << 12;
-  var CONFIG_AUTHORITATIVE_READ = 1 << 13;
-  var CONFIG_AUTHORITATIVE_OBSERVED = 1 << 14;
-  var CONFIG_DIRECT_COMMIT = 1 << 15;
   var CONFIG_FRESH_READ = 1 << 16;
-  var CONFIG_HELD_TRUTH = 1 << 17;
-  var CONFIG_SLOT_NODE = 1 << 18;
+  var CONFIG_PROMOTED = 1 << 22;
+  var CONFIG_PLUMBING = 1 << 25;
+  var CONFIG_WIDE = 1 << 26;
+  var CONFIG_SUPERSEDES = 1 << 27;
   var STATUS_PENDING = 1 << 0;
   var STATUS_ERROR = 1 << 1;
   var STATUS_UNINITIALIZED = 1 << 2;
@@ -3371,1498 +3382,38 @@
   var EFFECT_TRACKED = 3;
   var NOT_PENDING = {};
   var NO_SNAPSHOT = {};
-  var OVERRIDE_UNDEFINED = {};
-  function unwrapOverride(v2) {
-    return v2 === OVERRIDE_UNDEFINED ? undefined : v2;
-  }
   var SUPPORTS_PROXY = typeof Proxy === "function";
   var defaultContext = {};
   var $REFRESH = Symbol("refresh");
   var attrHooks = null;
-  function setAttributionHooks(hooks) {
-    attrHooks = hooks;
-  }
-  var changeSeq = 0;
-  var runSeq = 0;
-  var defaultOptions = {
-    log: true,
-    stacks: false,
-    historyLimit: 200,
-    hotRuns: { count: 120, windowMs: 1000 },
-    wideDeps: 30,
-    hotTime: { budgetMs: 8, windowMs: 1000 },
-    unstableMemos: 4,
-    wideWrites: 250,
-    waterfalls: { minFlightMs: 50 },
-    holds: { infoMs: 100, warnMs: 200 },
-    longHolds: { infoMs: 500, warnMs: 1000 }
-  };
-  var options = { ...defaultOptions };
-  var listeners = new Set;
-  var history = [];
-  var now = typeof performance !== "undefined" ? () => performance.now() : () => Date.now();
-  var frames = [];
-  var scopeCosts = new Map;
-  var writeCosts = new Map;
-  function rootsOf(causes, out) {
-    for (const c2 of causes) {
-      if (c2.kind === "derived" && c2.causes && c2.causes.length > 0)
-        rootsOf(c2.causes, out);
-      else
-        out.add(c2.name);
-    }
-  }
-  function recordCosts(event) {
-    let scope = scopeCosts.get(event.node);
-    if (scope === undefined) {
-      scope = {
-        name: event.nodeName,
-        kind: event.nodeKind,
-        runs: 0,
-        selfMs: 0,
-        wastedMs: 0,
-        overlayMs: 0
-      };
-      scopeCosts.set(event.node, scope);
-    }
-    scope.runs++;
-    scope.selfMs += event.selfMs;
-    if (event.phase !== "plain")
-      scope.overlayMs += event.selfMs;
-    else if (!event.changed && !event.held)
-      scope.wastedMs += event.selfMs;
-    const roots = new Set;
-    rootsOf(event.causes, roots);
-    for (const name of roots) {
-      let write = writeCosts.get(name);
-      if (write === undefined)
-        writeCosts.set(name, write = { name, runs: 0, downstreamMs: 0 });
-      write.runs++;
-      write.downstreamMs += event.selfMs;
-    }
-  }
-  function nodeName(node) {
-    return node._name ?? "anonymous";
-  }
-  function preview(v2) {
-    if (v2 === null)
-      return "null";
-    switch (typeof v2) {
-      case "undefined":
-        return "undefined";
-      case "string":
-        return JSON.stringify(v2.length > 40 ? v2.slice(0, 40) + "…" : v2);
-      case "number":
-      case "boolean":
-      case "bigint":
-        return String(v2);
-      case "function":
-        return "[function]";
-      case "symbol":
-        return v2.toString();
-      default:
-        return Array.isArray(v2) ? `Array(${v2.length})` : `[${v2.constructor?.name ?? "object"}]`;
-    }
-  }
-  function captureStack() {
-    if (!options.stacks)
-      return;
-    const raw = new Error().stack?.split(`
-`) ?? [];
-    return raw.slice(1).filter((line) => !/(?:^|[/\\])(?:packages[/\\])?signals[/\\](src|dist)[/\\]/.test(line)).slice(0, 3).map((line) => line.trim());
-  }
-  var NO_VALUES = Symbol("no-values");
-  var EXTERNAL_ORIGIN = { kind: "external" };
-  var originFrames = [];
-  var actionInteractions = new WeakMap;
-  var currentInteraction = null;
-  function interactionOf(origin) {
-    if (origin === undefined)
-      return;
-    return origin.kind === "interaction" ? origin : origin.interaction;
-  }
-  function interactionIn(causes) {
-    for (const c2 of causes) {
-      const found = c2.kind === "derived" ? c2.causes !== undefined ? interactionIn(c2.causes) : undefined : interactionOf(c2.origin);
-      if (found !== undefined)
-        return found;
-    }
-    return;
-  }
-  function currentOrigin() {
-    const frame = originFrames[originFrames.length - 1];
-    if (frame !== undefined)
-      return frame;
-    return currentInteraction ?? EXTERNAL_ORIGIN;
-  }
-  var effectFrames = new WeakMap;
-  function pushFrame(kind, name, interaction, effect) {
-    const frame = { kind };
-    if (name)
-      frame.name = name;
-    const under = interaction ?? currentInteraction ?? undefined;
-    if (under !== undefined)
-      frame.interaction = under;
-    if (effect !== undefined) {
-      const node = effect;
-      if (node._devRunSeq !== undefined)
-        frame.run = node._devRunSeq;
-      effectFrames.set(frame, { node: effect, causes: node._devRunCauses });
-    }
-    originFrames.push(frame);
-  }
-  function popFrame(kind) {
-    const top = originFrames[originFrames.length - 1];
-    if (top !== undefined && top.kind === kind)
-      originFrames.pop();
-  }
+  var INSTALLED = Symbol.for("@solidjs/signals/observe/attribution");
   function withInteraction(ref, fn) {
-    const prev = currentInteraction;
-    const origin = { kind: "interaction", name: ref.type, at: ref.at ?? now() };
-    if (ref.target)
-      origin.target = ref.target;
-    currentInteraction = origin;
+    const hooks = attrHooks;
+    if (hooks === null)
+      return fn();
+    hooks.interactionStart(ref);
+    let returned;
+    try {
+      return returned = fn();
+    } finally {
+      hooks.interactionEnd(returned);
+    }
+  }
+  function withOrigin(ref, fn) {
+    const hooks = attrHooks;
+    if (hooks === null)
+      return fn();
+    hooks.originStart(ref);
     try {
       return fn();
     } finally {
-      currentInteraction = prev;
+      hooks.originEnd();
     }
   }
-  function formatOrigin(origin) {
-    switch (origin.kind) {
-      case "interaction":
-        return `${origin.name} on ${origin.target ?? "an element"}`;
-      case "effect":
-        return `effect${origin.name ? ` "${origin.name}"` : ""}`;
-      case "action":
-        return `action${origin.name ? ` "${origin.name}"` : ""}`;
-      case "async":
-        return `async landing${origin.name ? ` on "${origin.name}"` : ""}`;
-      default:
-        return "outside the reactive system";
-    }
+  function currentOrigin() {
+    const hooks = attrHooks;
+    return hooks === null ? undefined : hooks.currentOrigin();
   }
-  function checkWideWrite(node, kind) {
-    const limit = options.wideWrites;
-    if (typeof limit !== "number")
-      return;
-    const subs = node._subCount ?? 0;
-    const attributed = node;
-    if (subs < limit || subs < (attributed._devWideWriteWarnedAt ?? 0) * 2)
-      return;
-    attributed._devWideWriteWarnedAt = subs;
-    const verb = kind === "refresh" ? "refresh of" : kind === "async" ? "async landing on" : "write to";
-    const message = `[WIDE_WRITE] ${verb} "${nodeName(node)}" reached ${subs} subscribers — every one ` + `re-runs this flush. If consumers ask keyed questions of this value (for example every ` + `row comparing against one selected id), invert it: keep the answer in a store used as a ` + `map keyed by id, so each consumer reads its own key and only the keys that flipped update.`;
-    reportDiagnostic(emitDiagnostic({
-      code: "WIDE_WRITE",
-      kind: "perf",
-      severity: "warn",
-      message,
-      nodeName: nodeName(node),
-      data: { subscribers: subs, write: kind }
-    }, node));
-  }
-  function stampWrite(node, kind, prev = NO_VALUES, value = NO_VALUES) {
-    const record = { seq: ++changeSeq, kind, name: nodeName(node) };
-    if (value !== NO_VALUES) {
-      record.prev = prev === NO_VALUES ? undefined : preview(prev);
-      record.value = preview(value);
-    }
-    record.origin = kind === "async" ? asyncOrigin(node) : currentOrigin();
-    record.at = now();
-    record.stack = captureStack();
-    node._devChange = record;
-    if (kind === "write")
-      trackEffectWrite(node, record, value);
-    checkWideWrite(node, kind);
-  }
-  function stampDerived(node, causes) {
-    node._devChange = {
-      seq: ++changeSeq,
-      kind: "derived",
-      name: nodeName(node),
-      causes
-    };
-  }
-  function collectCauses(el) {
-    const seen = el._devSeenSeq ?? 0;
-    const causes = [];
-    const self2 = el._devChange;
-    if (self2 !== undefined && self2.seq > seen && self2.kind === "refresh")
-      causes.push(self2);
-    for (let l2 = el._deps;l2 !== null; l2 = l2._nextDep) {
-      const change = l2._dep._devChange;
-      if (change !== undefined && change.seq > seen)
-        causes.push(change);
-    }
-    return causes;
-  }
-  function markSeen(el) {
-    el._devSeenSeq = changeSeq;
-  }
-  function captureDeps(el) {
-    const deps = [];
-    for (let l2 = el._deps;l2 !== null; l2 = l2._nextDep)
-      deps.push(l2._dep);
-    return deps;
-  }
-  function checkDepWidth(el) {
-    const limit = options.wideDeps;
-    if (limit === false)
-      return;
-    let count = 0;
-    const names = [];
-    for (let l2 = el._deps;l2 !== null; l2 = l2._nextDep) {
-      count++;
-      if (names.length < 12)
-        names.push(nodeName(l2._dep));
-    }
-    const node = el;
-    if (count < limit || count < (node._devWideWarnedAt ?? 0) * 1.5)
-      return;
-    node._devWideWarnedAt = count;
-    const kind = el._type ? "effect" : "memo";
-    const message = `[WIDE_SCOPE_DEPS] ${kind} "${nodeName(el)}" is subscribed to ${count} sources — ` + `it re-runs when any of them change. Narrow its reads or split it into smaller memos. ` + `Sources: ${names.join(", ")}${count > names.length ? ", …" : ""}`;
-    reportDiagnostic(emitDiagnostic({
-      code: "WIDE_SCOPE_DEPS",
-      kind: "perf",
-      severity: "warn",
-      message,
-      nodeName: nodeName(el),
-      data: { depCount: count, deps: names }
-    }, el));
-  }
-  var hotCauses = new Map;
-  var HOT_FANOUT_FIRST_MILESTONE = 5;
-  function checkHotRuns(el, event) {
-    const cfg = options.hotRuns;
-    if (cfg === false)
-      return;
-    const node = el;
-    const now2 = Date.now();
-    if (node._devWinStart === undefined || now2 - node._devWinStart > cfg.windowMs) {
-      node._devWinStart = now2;
-      node._devWinCount = 0;
-      node._devHotWarned = false;
-    }
-    node._devWinCount = (node._devWinCount ?? 0) + 1;
-    if (node._devHotWarned || node._devWinCount < cfg.count)
-      return;
-    node._devHotWarned = true;
-    const roots = new Set;
-    rootsOf(event.causes, roots);
-    const causeKey = roots.size > 0 ? [...roots].sort().join(", ") : "(untracked)";
-    let window2 = hotCauses.get(causeKey);
-    if (window2 === undefined || now2 - window2.winStart > cfg.windowMs) {
-      window2 = { winStart: now2, scopes: 0, runs: 0, nextMilestone: HOT_FANOUT_FIRST_MILESTONE };
-      hotCauses.set(causeKey, window2);
-    }
-    window2.scopes++;
-    window2.runs += node._devWinCount;
-    if (window2.scopes === 1) {
-      const rootCause = event.causes.map((c2) => `"${c2.name}" (${c2.kind})`).join(", ");
-      const message2 = `[HOT_SCOPE_RERUNS] ${event.nodeKind} "${event.nodeName}" re-ran ${node._devWinCount} times ` + `in ${Math.max(1, now2 - node._devWinStart)}ms — a hot signal is likely leaking into this ` + `scope. Latest cause: ${rootCause || "(untracked pull)"}`;
-      reportDiagnostic(emitDiagnostic({
-        code: "HOT_SCOPE_RERUNS",
-        kind: "perf",
-        severity: "warn",
-        message: message2,
-        nodeName: event.nodeName,
-        data: {
-          runs: node._devWinCount,
-          windowMs: cfg.windowMs,
-          causes: event.causes.map((c2) => c2.name)
-        }
-      }, el));
-      return;
-    }
-    if (window2.scopes < window2.nextMilestone)
-      return;
-    window2.nextMilestone *= 10;
-    const message = `[HOT_SCOPE_FANOUT] ${window2.scopes} scopes have gone hot (${window2.runs} re-runs) within ` + `${cfg.windowMs}ms, all driven by ${causeKey} — one hot cause is re-running a large part ` + `of the graph. Per-scope warnings are suppressed; fix the cause. If consumers ask keyed ` + `questions of it, invert it: a store used as a map keyed by id, one key per consumer.`;
-    reportDiagnostic(emitDiagnostic({
-      code: "HOT_SCOPE_FANOUT",
-      kind: "perf",
-      severity: "warn",
-      message,
-      nodeName: causeKey,
-      data: { cause: causeKey, scopes: window2.scopes, runs: window2.runs, windowMs: cfg.windowMs }
-    }, null));
-  }
-  function checkHotTime(el, event) {
-    const cfg = options.hotTime;
-    if (cfg === false)
-      return;
-    const node = el;
-    const at2 = now();
-    if (node._devTimeWinStart === undefined || at2 - node._devTimeWinStart > cfg.windowMs) {
-      node._devTimeWinStart = at2;
-      node._devTimeWinMs = 0;
-      node._devTimeWarned = false;
-    }
-    node._devTimeWinMs = (node._devTimeWinMs ?? 0) + event.selfMs;
-    if (node._devTimeWarned || node._devTimeWinMs < cfg.budgetMs)
-      return;
-    node._devTimeWarned = true;
-    const rootCause = event.causes.map((c2) => `"${c2.name}" (${c2.kind})`).join(", ");
-    const message = `[HOT_SCOPE_TIME] ${event.nodeKind} "${event.nodeName}" spent ` + `${node._devTimeWinMs.toFixed(1)}ms of compute inside one ${cfg.windowMs}ms window ` + `(budget ${cfg.budgetMs}ms). Latest cause: ${rootCause || "(untracked pull)"}`;
-    reportDiagnostic(emitDiagnostic({
-      code: "HOT_SCOPE_TIME",
-      kind: "perf",
-      severity: "warn",
-      message,
-      nodeName: event.nodeName,
-      data: {
-        spentMs: node._devTimeWinMs,
-        budgetMs: cfg.budgetMs,
-        windowMs: cfg.windowMs,
-        causes: event.causes.map((c2) => c2.name)
-      }
-    }, el));
-  }
-  function recordRerun(el, causes, prevDeps, timing, changed, phase, held) {
-    const node = el;
-    const prevCauses = node._devRunCauses;
-    const newDeps = captureDeps(el);
-    const prevSet = new Set(prevDeps);
-    const newSet = new Set(newDeps);
-    const depsAdded = [];
-    const depsRemoved = [];
-    for (const d2 of newDeps)
-      if (!prevSet.has(d2))
-        depsAdded.push(nodeName(d2));
-    for (const d2 of prevDeps)
-      if (!newSet.has(d2))
-        depsRemoved.push(nodeName(d2));
-    const event = {
-      run: ++runSeq,
-      nodeRuns: node._devRunCount = (node._devRunCount ?? 0) + 1,
-      nodeKind: el._type ? "effect" : "memo",
-      nodeName: nodeName(el),
-      node: el,
-      causes,
-      depCount: newDeps.length,
-      depsAdded,
-      depsRemoved,
-      selfMs: timing.selfMs,
-      totalMs: timing.totalMs,
-      changed,
-      phase,
-      held
-    };
-    const interaction = interactionIn(causes);
-    if (interaction !== undefined)
-      event.interaction = interaction;
-    node._devRunInteraction = interaction;
-    node._devRunSeq = event.run;
-    node._devRunCauses = causes;
-    history.push(event);
-    if (history.length > options.historyLimit)
-      history.shift();
-    recordCosts(event);
-    recordFeedbackRun(event);
-    if (event.nodeKind === "effect")
-      checkEffectCycle(el, causes);
-    checkRelayTear(el, causes, prevCauses);
-    checkHotRuns(el, event);
-    checkHotTime(el, event);
-    checkDepWidth(el);
-    for (const listener of listeners)
-      listener(event);
-    if (options.log)
-      logRerun(event);
-  }
-  function formatCause(cause, depth, out) {
-    const pad = "  ".repeat(depth + 1);
-    let line = `${pad}← ${cause.kind === "derived" ? "memo" : "signal"} "${cause.name}" ${cause.kind === "derived" ? "changed" : cause.kind} (#${cause.seq})`;
-    if (cause.prev !== undefined)
-      line += ` ${cause.prev} → ${cause.value}`;
-    if (cause.origin !== undefined && cause.origin.kind !== "external") {
-      line += ` — ${formatOrigin(cause.origin)}`;
-      const under = cause.origin.interaction;
-      if (under !== undefined)
-        line += ` (under ${formatOrigin(under)})`;
-    }
-    out.push(line);
-    if (cause.stack)
-      for (const frame of cause.stack)
-        out.push(`${pad}    ${frame}`);
-    if (cause.causes && depth < 10) {
-      for (const upstream of cause.causes)
-        formatCause(upstream, depth + 1, out);
-    }
-  }
-  function formatRerun(event) {
-    const out = [
-      `[why-run] ${event.nodeKind} "${event.nodeName}" ran (run ${event.nodeRuns}, ` + `${event.selfMs.toFixed(2)}ms${event.changed ? "" : ", unchanged"}` + `${event.phase === "plain" ? "" : `, ${event.phase}`}${event.held ? ", held" : ""})` + (event.causes.length === 0 ? " — no tracked cause (pull or retry)" : "")
-    ];
-    for (const cause of event.causes)
-      formatCause(cause, 0, out);
-    if (event.depsAdded.length > 0 || event.depsRemoved.length > 0) {
-      const delta = [
-        ...event.depsAdded.map((n2) => `+"${n2}"`),
-        ...event.depsRemoved.map((n2) => `-"${n2}"`)
-      ].join(" ");
-      out.push(`  deps changed: ${delta} (${event.depCount} total)`);
-    }
-    return out.join(`
-`);
-  }
-  function logRerun(event) {
-    const text = formatRerun(event);
-    const nl = text.indexOf(`
-`);
-    if (nl === -1 || typeof console.groupCollapsed !== "function") {
-      console.log(text);
-      return;
-    }
-    console.groupCollapsed(text.slice(0, nl));
-    console.log(text.slice(nl + 1));
-    console.groupEnd();
-  }
-  function isPlainShape(v2) {
-    if (v2 === null || typeof v2 !== "object")
-      return false;
-    if (Array.isArray(v2))
-      return true;
-    const proto = Object.getPrototypeOf(v2);
-    return proto === Object.prototype || proto === null;
-  }
-  var UNSTABLE_KEY_CAP = 64;
-  function shallowEquivalent(a2, b2) {
-    const aArr = Array.isArray(a2);
-    if (aArr !== Array.isArray(b2))
-      return false;
-    if (aArr) {
-      const arrA = a2;
-      const arrB = b2;
-      if (arrA.length !== arrB.length || arrA.length > UNSTABLE_KEY_CAP)
-        return false;
-      for (let i2 = 0;i2 < arrA.length; i2++)
-        if (arrA[i2] !== arrB[i2])
-          return false;
-      return true;
-    }
-    const keys = Object.keys(a2);
-    if (keys.length > UNSTABLE_KEY_CAP || keys.length !== Object.keys(b2).length)
-      return false;
-    for (const key of keys) {
-      if (!(key in b2) || a2[key] !== b2[key])
-        return false;
-    }
-    return true;
-  }
-  function checkUnstableOutput(el, prevValue, newValue) {
-    const limit = options.unstableMemos;
-    if (typeof limit !== "number")
-      return;
-    const node = el;
-    if (prevValue === newValue || !isPlainShape(prevValue) || !isPlainShape(newValue) || !shallowEquivalent(prevValue, newValue)) {
-      node._devUnstableRuns = 0;
-      node._devUnstableWarned = false;
-      return;
-    }
-    node._devUnstableRuns = (node._devUnstableRuns ?? 0) + 1;
-    if (node._devUnstableWarned || node._devUnstableRuns < limit)
-      return;
-    node._devUnstableWarned = true;
-    const shape = Array.isArray(newValue) ? "array" : "object";
-    const message = `[UNSTABLE_MEMO_OUTPUT] memo "${nodeName(el)}" produced a new-but-equivalent ${shape} on ` + `${node._devUnstableRuns} consecutive runs — its equality gate never closes, so every ` + `subscriber re-runs on every upstream change. Return stable references or pass an ` + `\`equals\` option.`;
-    reportDiagnostic(emitDiagnostic({
-      code: "UNSTABLE_MEMO_OUTPUT",
-      kind: "perf",
-      severity: "warn",
-      message,
-      nodeName: nodeName(el),
-      data: { runs: node._devUnstableRuns, shape }
-    }, el));
-  }
-  var EFFECT_CYCLE_MAX_HOPS = 6;
-  var reportedCycles = new Set;
-  var nextDevId = 0;
-  var devIds = new WeakMap;
-  function devId(node) {
-    let id = devIds.get(node);
-    if (id === undefined)
-      devIds.set(node, id = ++nextDevId);
-    return id;
-  }
-  function rootWrites(causes, out) {
-    for (const c2 of causes) {
-      if (c2.kind === "derived") {
-        if (c2.causes !== undefined)
-          rootWrites(c2.causes, out);
-      } else
-        out.push(c2);
-    }
-  }
-  function findEffectCycle(target, causes, visited, hops) {
-    const roots = [];
-    rootWrites(causes, roots);
-    for (const write of roots) {
-      const origin = write.origin;
-      if (origin === undefined || origin.kind !== "effect")
-        continue;
-      const info = effectFrames.get(origin);
-      if (info === undefined)
-        continue;
-      if (info.node === target)
-        return [{ effect: info.node, write }];
-      if (hops >= EFFECT_CYCLE_MAX_HOPS || visited.has(info.node) || info.causes === undefined)
-        continue;
-      visited.add(info.node);
-      const rest = findEffectCycle(target, info.causes, visited, hops + 1);
-      if (rest !== null) {
-        rest.push({ effect: info.node, write });
-        return rest;
-      }
-    }
-    return null;
-  }
-  function derivedPath(causes, write, path) {
-    for (const c2 of causes) {
-      if (c2 === write)
-        return true;
-      if (c2.kind === "derived" && c2.causes !== undefined) {
-        path.unshift(c2.name);
-        if (derivedPath(c2.causes, write, path))
-          return true;
-        path.shift();
-      }
-    }
-    return false;
-  }
-  function describeWrite(write) {
-    if (write.kind === "refresh")
-      return `refreshed "${write.name}"`;
-    const values = write.prev !== undefined ? ` (${write.prev} → ${write.value})` : "";
-    return `wrote "${write.name}"${values}`;
-  }
-  function checkEffectCycle(el, causes) {
-    const links = findEffectCycle(el, causes, new Set([el]), 0);
-    if (links === null)
-      return;
-    const key = links.map((link) => devId(link.effect)).sort((a2, b2) => a2 - b2).join(",");
-    if (reportedCycles.has(key))
-      return;
-    reportedCycles.add(key);
-    const flushes = links.length + 1;
-    let message;
-    if (links.length === 1) {
-      const [{ write }] = links;
-      const path = [];
-      derivedPath(causes, write, path);
-      const via = path.length > 0 ? ` through ${path.map((n2) => `memo "${n2}"`).join(" → ")}` : "";
-      message = `[EFFECT_WRITES_OWN_SOURCE] effect "${nodeName(el)}" re-ran because of its own write: it ` + `${describeWrite(write)}, which fed back into its inputs${via}. Two flushes to settle, ` + `and the screen rendered the pre-write value in between. The written value is a function ` + `of what the effect reads — compute it in a memo (or normalize where the source is ` + `written) instead of correcting it after the fact.`;
-    } else {
-      const names = links.map((link) => `"${nodeName(link.effect)}"`);
-      const steps = links.map((link, i2) => `effect ${names[i2]}${i2 > 0 ? " re-ran and" : ""} ${describeWrite(link.write)}`).join("; ");
-      message = `[EFFECT_WRITES_OWN_SOURCE] effects ${[...names, names[0]].join(" → ")} relay writes in a ` + `cycle: ${steps}; which fed back into effect ${names[0]}'s inputs — ${flushes} flushes to ` + `settle after each change, each rendering an intermediate state. Every relayed value is a ` + `function of the original inputs: derive them in memos and drop the writes.`;
-    }
-    const severity = links.length === 1 ? "warn" : "info";
-    const entry = emitDiagnostic({
-      code: "EFFECT_WRITES_OWN_SOURCE",
-      kind: "perf",
-      severity,
-      message,
-      nodeName: nodeName(el),
-      data: {
-        effects: links.map((link) => nodeName(link.effect)),
-        writes: links.map((link) => ({
-          effect: nodeName(link.effect),
-          kind: link.write.kind,
-          name: link.write.name,
-          prev: link.write.prev,
-          value: link.write.value
-        })),
-        flushes
-      }
-    }, el);
-    if (severity === "warn")
-      reportDiagnostic(entry);
-  }
-  var RELAY_WARN_AT = 3;
-  var relays = new Map;
-  var copyWrites = new WeakSet;
-  var copyReported = new WeakSet;
-  var recordNodes = new WeakMap;
-  function trackEffectWrite(node, record, value) {
-    const n2 = node;
-    const origin = record.origin;
-    const info = origin !== undefined && origin.kind === "effect" ? effectFrames.get(origin) : undefined;
-    const writer = info === undefined ? 0 : devId(info.node);
-    recordNodes.set(record, node);
-    n2._devSoleWriter = n2._devSoleWriter === undefined || n2._devSoleWriter === writer ? writer : null;
-    if (info !== undefined && value !== undefined && value === info.node._value) {
-      copyWrites.add(record);
-      n2._devCopyRuns = n2._devCopyFrom === writer ? (n2._devCopyRuns ?? 0) + 1 : 1;
-      n2._devCopyFrom = writer;
-      if (n2._devCopyRuns >= 2 && n2._devSoleWriter === writer)
-        checkCopyEffect(info.node, node);
-    } else
-      n2._devCopyRuns = 0;
-  }
-  function passthroughSource(effect) {
-    for (let l2 = effect._deps;l2 !== null; l2 = l2._nextDep)
-      if (l2._dep._value === effect._value)
-        return nodeName(l2._dep);
-    return;
-  }
-  function copyRepair(effect, target) {
-    const source = passthroughSource(effect);
-    return source !== undefined ? `The written value is "${source}" itself: read "${source}" where "${target}" is read ` + `(or createMemo it if a stable derivation is needed) and delete the effect.` : `The written value is the effect's compute output — by contract a pure function of ` + `what it tracks: make "${target}" a memo of that computation and delete the effect.`;
-  }
-  function checkCopyEffect(effect, target) {
-    if (copyReported.has(target))
-      return;
-    copyReported.add(target);
-    const name = nodeName(target);
-    const message = `[EFFECT_RELAY_TEAR] effect "${nodeName(effect)}" writes its compute output into ` + `"${name}" on every run, and nothing else writes "${name}" — it is derived state kept ` + `one flush late: everything reading it paints a frame behind everything reading the ` + `source. ${copyRepair(effect, name)}`;
-    reportDiagnostic(emitDiagnostic({
-      code: "EFFECT_RELAY_TEAR",
-      kind: "perf",
-      severity: "warn",
-      message,
-      nodeName: nodeName(effect),
-      data: {
-        relay: nodeName(effect),
-        wrote: name,
-        copy: true,
-        passthrough: passthroughSource(effect) ?? null,
-        soleWriter: true
-      }
-    }, effect));
-  }
-  function checkRelayTear(victim, causes, prevCauses) {
-    if (prevCauses === undefined || causes.length === 0)
-      return;
-    const roots = [];
-    rootWrites(causes, roots);
-    if (roots.length === 0)
-      return;
-    let relay;
-    let write;
-    let shared;
-    for (const root of roots) {
-      const origin = root.origin;
-      if (origin === undefined || origin.kind !== "effect")
-        return;
-      const info = effectFrames.get(origin);
-      if (info === undefined || info.node === victim || info.causes === undefined)
-        return;
-      if (shared === undefined) {
-        const relayRoots = [];
-        rootWrites(info.causes, relayRoots);
-        const prevRoots = [];
-        rootWrites(prevCauses, prevRoots);
-        const hit = relayRoots.find((r2) => prevRoots.includes(r2));
-        if (hit !== undefined) {
-          shared = hit;
-          relay = info;
-          write = root;
-        }
-      }
-    }
-    if (shared === undefined || relay === undefined || write === undefined)
-      return;
-    const key = `${devId(relay.node)}:${write.name}`;
-    let state = relays.get(key);
-    if (state === undefined)
-      relays.set(key, state = { count: 0, warned: false });
-    state.count++;
-    const copy = copyWrites.has(write);
-    const target = recordNodes.get(write);
-    const soleWriter = target !== undefined && target._devSoleWriter === devId(relay.node);
-    const derivable = copy && soleWriter;
-    const severity = derivable || state.count >= RELAY_WARN_AT ? "warn" : "info";
-    if (state.count > 1 && (severity !== "warn" || state.warned))
-      return;
-    if (derivable && target !== undefined) {
-      if (copyReported.has(target))
-        return;
-      copyReported.add(target);
-    }
-    if (severity === "warn")
-      state.warned = true;
-    const victimKind = victim._type ? "effect" : "memo";
-    const relayName = nodeName(relay.node);
-    const repair = derivable ? copyRepair(relay.node, write.name) : copy ? `The written value is the effect's compute output, but "${write.name}" has other ` + `writers — editable state reset from a source. If the reset is the intent, the tear ` + `is its cost; if "${write.name}" only ever mirrors the source, drop the local copy ` + `and read the source.` : soleWriter ? `Nothing else writes "${write.name}" — it is derived state: make it a memo over what ` + `the effect reads and every reader gets it in the same flush.` : `If "${write.name}" is computed from what the effect reads, make it a memo so readers ` + `get it in the same flush; if the write reads something outside the graph (layout, ` + `time), the tear is the cost of measuring.`;
-    const message = `[EFFECT_RELAY_TEAR] ${victimKind} "${nodeName(victim)}" ran twice for one write of ` + `"${shared.name}": once in the flush where "${shared.name}" changed, and again after ` + `effect "${relayName}" relayed it by writing "${write.name}" — the first frame showed the ` + `new "${shared.name}" with the stale "${write.name}"` + (state.count > 1 ? ` (${state.count} times so far)` : "") + `. ${repair}`;
-    const entry = emitDiagnostic({
-      code: "EFFECT_RELAY_TEAR",
-      kind: "perf",
-      severity,
-      message,
-      nodeName: nodeName(victim),
-      data: {
-        victim: nodeName(victim),
-        root: shared.name,
-        relay: relayName,
-        wrote: write.name,
-        copy,
-        passthrough: copy ? passthroughSource(relay.node) ?? null : null,
-        soleWriter,
-        occurrences: state.count
-      }
-    }, victim);
-    if (severity === "warn")
-      reportDiagnostic(entry);
-  }
-  var immutableReported = new Set;
-  function checkImmutableUpdate(path, isArray, total, same, prevTotal) {
-    if (immutableReported.has(path) || total < 2)
-      return;
-    if (isArray && Math.abs(prevTotal - total) > Math.max(1, total >> 2))
-      return;
-    if (same === 0 || same * 2 < total)
-      return;
-    immutableReported.add(path);
-    const changed = total - same;
-    const shape = isArray ? "array" : "object";
-    const repair = isArray ? `mutate the draft in place (push/splice/index assignment) so only the touched ` + `indices notify` : `assign the leaf on the draft (\`${path}.<key> = …\`) so only readers of that key re-run`;
-    const message = `[IMMUTABLE_UPDATE_IN_STORE] "${path}" was replaced with a fresh ${shape} whose ` + `${isArray ? "items" : "leaves"} are mostly the same values (${same} of ${total} unchanged` + `${changed > 0 ? `, ${changed} changed` : ""}) — a spread-copy update. The store already ` + `tracks ${isArray ? "items" : "leaves"}; a new container makes every reader of "${path}" ` + `re-run for the ${changed === 1 ? "one that" : "few that"} moved. Instead, ${repair}. For ` + `data arriving from outside (a fetch result), merge it with reconcile(data, key)(${path}).`;
-    reportDiagnostic(emitDiagnostic({
-      code: "IMMUTABLE_UPDATE_IN_STORE",
-      kind: "perf",
-      severity: "warn",
-      message,
-      nodeName: path,
-      data: { path, shape, total, unchanged: same, changed }
-    }));
-  }
-  var LIST_CHURN_SAMPLE = 8;
-  var listIdentityWarned = new WeakSet;
-  function recordId(item) {
-    if (item === null || typeof item !== "object")
-      return;
-    const o2 = item;
-    return o2.id ?? o2.key ?? o2._id ?? undefined;
-  }
-  function checkListIdentity(el, removed, created, newLen, keyed) {
-    if (listIdentityWarned.has(el))
-      return;
-    if (created.length < 2 || created.length * 2 < newLen)
-      return;
-    if (Math.abs(removed.length - created.length) > Math.max(1, created.length >> 2))
-      return;
-    const byId = new Map;
-    for (const item of removed) {
-      const id = recordId(item);
-      if (id !== undefined)
-        byId.set(id, item);
-    }
-    let sampled = 0;
-    let equivalent = 0;
-    const step = Math.max(1, Math.floor(created.length / LIST_CHURN_SAMPLE));
-    for (let i2 = 0;i2 < created.length && sampled < LIST_CHURN_SAMPLE; i2 += step) {
-      const item = created[i2];
-      const id = recordId(item);
-      const prev = id !== undefined ? byId.get(id) : removed[i2];
-      if (prev === undefined || !isPlainShape(prev) || !isPlainShape(item))
-        continue;
-      sampled++;
-      if (shallowEquivalent(prev, item))
-        equivalent++;
-    }
-    if (sampled === 0 || equivalent * 2 < sampled)
-      return;
-    listIdentityWarned.add(el);
-    const name = nodeName(el);
-    const repair = keyed ? `The key function returned different keys for equivalent records — return a stable ` + `field (\`keyed: item => item.id\`), not the object or a computed value that changes ` + `with the fetch.` : `Key the list by a stable field (\`keyed: item => item.id\`), or merge the data into ` + `a store with reconcile(data, "id") so the same records keep the same identity.`;
-    const message = `[UNSTABLE_LIST_IDENTITY] list "${name}" recreated ${created.length} of ${newLen} rows on ` + `an update where the entering items are equivalent to the ones they replaced ` + `(${equivalent} of ${sampled} sampled pairs identical field-for-field) — fresh objects ` + `for the same records, so identity keying threw away every row's DOM and state and ` + `rebuilt it. ${repair}`;
-    reportDiagnostic(emitDiagnostic({
-      code: "UNSTABLE_LIST_IDENTITY",
-      kind: "perf",
-      severity: "warn",
-      message,
-      nodeName: name,
-      data: {
-        removed: removed.length,
-        created: created.length,
-        length: newLen,
-        sampled,
-        equivalent,
-        keyed
-      }
-    }, el));
-  }
-  function asyncOrigin(el) {
-    const origin = { kind: "async", name: nodeName(el) };
-    const interaction = liveFlights.get(el)?.interaction;
-    if (interaction !== undefined)
-      origin.interaction = interaction;
-    return origin;
-  }
-  var liveFlights = new WeakMap;
-  var landedFlights = new WeakMap;
-  var flightOrigins = new WeakMap;
-  var waterfallLog = [];
-  function flightCauseIn(causes) {
-    let best = null;
-    for (const c2 of causes) {
-      let found = null;
-      if (c2.kind === "async")
-        found = landedFlights.get(c2) ?? null;
-      else if (c2.kind === "derived" && c2.causes)
-        found = flightCauseIn(c2.causes);
-      if (found !== null && (best === null || found.chain.length > best.chain.length))
-        best = found;
-    }
-    return best;
-  }
-  function trackFlightStart(el, flight) {
-    const at2 = now();
-    const origin = flightOrigins.get(flight) ?? at2;
-    if (origin === at2)
-      flightOrigins.set(flight, at2);
-    const stats = flightBucket(el);
-    stats.flights++;
-    if (liveFlights.has(el))
-      stats.abandoned++;
-    let causes = null;
-    for (let i2 = frames.length - 1;i2 >= 0; i2--) {
-      if (frames[i2].causes !== null) {
-        causes = frames[i2].causes;
-        break;
-      }
-    }
-    const live = { origin, startSeq: changeSeq, chain: [] };
-    const interaction = causes !== null ? interactionIn(causes) : currentInteraction ?? undefined;
-    if (interaction !== undefined)
-      live.interaction = interaction;
-    if (options.waterfalls !== false && causes !== null) {
-      let parent = flightCauseIn(causes);
-      if (parent !== null && origin < parent.landedAt)
-        parent = null;
-      if (parent !== null)
-        live.chain = [...parent.chain, { name: parent.name, ms: parent.ms }];
-    }
-    liveFlights.set(el, live);
-  }
-  function finalizeFlight(el) {
-    const flight = liveFlights.get(el);
-    if (flight === undefined)
-      return;
-    liveFlights.delete(el);
-    const landedAt = now();
-    const ms = landedAt - flight.origin;
-    const stats = flightBucket(el);
-    stats.landed++;
-    stats.landedMs += ms;
-    if (ms > stats.worstMs)
-      stats.worstMs = ms;
-    const record = el._devChange;
-    if (record !== undefined && record.kind === "async" && record.seq > flight.startSeq)
-      landedFlights.set(record, { name: nodeName(el), ms, chain: flight.chain, landedAt });
-    checkWaterfall(el, flight.chain, ms);
-  }
-  function checkWaterfall(el, chain, ms) {
-    const cfg = options.waterfalls;
-    if (cfg === false)
-      return;
-    if (chain.length > 0) {
-      waterfallLog.push({
-        chain: [...chain, { name: nodeName(el), ms }],
-        sequentialMs: chain.reduce((sum, l2) => sum + l2.ms, ms)
-      });
-      if (waterfallLog.length > options.historyLimit)
-        waterfallLog.shift();
-    }
-    if (ms < cfg.minFlightMs)
-      return;
-    let seq = 1;
-    let totalMs = ms;
-    for (let i2 = chain.length - 1;i2 >= 0 && chain[i2].ms >= cfg.minFlightMs; i2--) {
-      seq++;
-      totalMs += chain[i2].ms;
-    }
-    if (seq < 2)
-      return;
-    const node = el;
-    if ((node._devWaterfallWarnedAt ?? 0) >= seq)
-      return;
-    node._devWaterfallWarnedAt = seq;
-    const links = [...chain.slice(chain.length - (seq - 1)), { name: nodeName(el), ms }];
-    const path = links.map((l2) => `"${l2.name}" (${l2.ms.toFixed(0)}ms)`).join(" → ");
-    const message = `[ASYNC_WATERFALL] ${seq} sequential async flights — ${path} — ` + `${totalMs.toFixed(0)}ms serialized: each began only after the previous resolved ` + `(as far as this graph can see). If a later request doesn't need the earlier ` + `response, derive both from the same inputs so they start together; if the ` + `dependency is intrinsic, preload the dependent data or join the requests ` + `server-side. If this work WAS already started elsewhere (a preloader or request ` + `cache), have that layer stamp its promises with DEV.attribution.markFlight().`;
-    const severity = seq > 2 ? "warn" : "info";
-    const entry = emitDiagnostic({
-      code: "ASYNC_WATERFALL",
-      kind: "perf",
-      severity,
-      message,
-      nodeName: nodeName(el),
-      data: { chain: links.map((l2) => ({ name: l2.name, ms: l2.ms })), sequentialMs: totalMs }
-    }, el);
-    if (severity === "warn")
-      reportDiagnostic(entry);
-  }
-  var holdStates = new WeakMap;
-  var activeHold = null;
-  var holdLog = [];
-  function isCompanion(node) {
-    return !!node._x && node._x._parentSource !== undefined;
-  }
-  function censusRegistrations(t2, state) {
-    for (const node of t2._optimisticNodes)
-      if (!isCompanion(node))
-        state.acknowledgedBy.add(`optimistic:${nodeName(node)}`);
-    for (const store of t2._optimisticStores)
-      state.acknowledgedBy.add(`optimistic:${store?._name ?? "store"}`);
-    for (const node of t2._affectsNodes)
-      state.acknowledgedBy.add(`affects:${nodeName(node)}`);
-  }
-  var HOLD_CENSUS_CAP = 1e4;
-  function censusCompanions(roots, out) {
-    const visited = new Set;
-    const stack = [...roots];
-    while (stack.length > 0 && visited.size < HOLD_CENSUS_CAP) {
-      const node = stack.pop();
-      if (visited.has(node))
-        continue;
-      visited.add(node);
-      const x2 = node._x;
-      if (x2) {
-        if (x2._pendingSignal !== undefined && x2._pendingSignal._subs !== null)
-          out.add(`isPending:${nodeName(node)}`);
-        if (x2._latestValueComputed !== undefined && x2._latestValueComputed._subs !== null)
-          out.add(`latest:${nodeName(node)}`);
-        for (let child = x2._child ?? null;child !== null; child = child._nextChild ?? null)
-          stack.push(child);
-      }
-      for (let s2 = node._subs;s2 !== null; s2 = s2._nextSub)
-        stack.push(s2._sub);
-    }
-  }
-  function holdState(t2) {
-    let state = holdStates.get(t2);
-    if (state === undefined) {
-      state = {
-        start: now(),
-        flushes: 0,
-        blockers: new Set,
-        acknowledgedBy: new Set,
-        painted: 0,
-        action: false
-      };
-      holdStates.set(t2, state);
-    }
-    return state;
-  }
-  function trackHoldStart(t2) {
-    if (options.holds === false)
-      return;
-    const state = holdState(t2);
-    state.flushes++;
-    if (t2._actions.length > 0)
-      state.action = true;
-    for (const [source, reporters] of t2._asyncReporters)
-      if (reporters.size > 0)
-        state.blockers.add(source);
-    censusRegistrations(t2, state);
-    activeHold = state;
-  }
-  function trackHoldMerge(target, outgoing) {
-    const from = holdStates.get(outgoing);
-    if (from === undefined)
-      return;
-    holdStates.delete(outgoing);
-    const into = holdState(target);
-    if (from.start < into.start)
-      into.start = from.start;
-    into.flushes += from.flushes;
-    into.painted += from.painted;
-    into.action ||= from.action;
-    for (const b2 of from.blockers)
-      into.blockers.add(b2);
-    for (const a2 of from.acknowledgedBy)
-      into.acknowledgedBy.add(a2);
-  }
-  function trackHoldSettled(t2) {
-    const state = holdStates.get(t2);
-    if (state === undefined)
-      return;
-    holdStates.delete(t2);
-    const heldWrites = [];
-    let subject = null;
-    let interaction;
-    let lastJoinAt = -Infinity;
-    for (const node of t2._pendingNodes) {
-      if (typeof node._fn === "function" || isCompanion(node))
-        continue;
-      const change = node._devChange;
-      if (change === undefined || change.kind !== "write")
-        continue;
-      if (subject === null)
-        subject = node;
-      const held = { name: nodeName(node), prev: change.prev, value: change.value };
-      if (change.origin !== undefined)
-        held.origin = change.origin;
-      heldWrites.push(held);
-      const under = interactionOf(change.origin);
-      if (under !== undefined && (interaction === undefined || under.at < interaction.at))
-        interaction = under;
-      if (change.at !== undefined && change.at > lastJoinAt)
-        lastJoinAt = change.at;
-    }
-    if (heldWrites.length === 0)
-      return;
-    censusRegistrations(t2, state);
-    censusCompanions([...t2._pendingNodes, ...state.blockers], state.acknowledgedBy);
-    const end = now();
-    const holdMs = end - Math.min(state.start, interaction !== undefined ? interaction.at : Infinity);
-    const event = {
-      holdMs,
-      tailMs: lastJoinAt === -Infinity ? holdMs : Math.min(holdMs, end - lastJoinAt),
-      flushes: state.flushes,
-      heldWrites,
-      blockers: [...state.blockers].map(nodeName),
-      acknowledgedBy: [...state.acknowledgedBy],
-      paintedDuringHold: state.painted,
-      action: state.action
-    };
-    if (interaction !== undefined)
-      event.interaction = interaction;
-    holdLog.push(event);
-    if (holdLog.length > options.historyLimit)
-      holdLog.shift();
-    recordFeedbackHold(event);
-    if (isSilentHold(event))
-      checkSilentHold(event, subject);
-    else
-      checkLongHold(event, subject);
-  }
-  function isLongHold(event) {
-    const cfg = options.longHolds;
-    return cfg !== false && cfg !== undefined && event.tailMs >= cfg.infoMs;
-  }
-  function describeHeldWrites(event) {
-    return event.heldWrites.map((w2) => w2.prev !== undefined ? `"${w2.name}" (${w2.prev} → ${w2.value})` : `"${w2.name}"`).join(", ");
-  }
-  function describeBlockers(event, lead) {
-    return event.blockers.length > 0 ? ` ${lead} ${event.blockers.map((b2) => `"${b2}"`).join(", ")}` : "";
-  }
-  function boundaryRepair(event) {
-    const key = event.heldWrites[0]?.name ?? "key";
-    return `A wait this long is past what a stale screen should carry: show a fallback instead. Put ` + `the reader behind a Loading boundary keyed on what changed — <Loading on={${key}()} ` + `fallback={…}> — so the write commits at once and the fallback shows where the data lands; ` + `a boundary that has already revealed keeps the old content unless \`on\` changes. If the ` + `data itself is the problem, preload it or cache it so the wait never gets this long.`;
-  }
-  function holdData(event) {
-    const data = {
-      holdMs: event.holdMs,
-      tailMs: event.tailMs,
-      flushes: event.flushes,
-      heldWrites: event.heldWrites.map((w2) => w2.name),
-      blockers: event.blockers,
-      action: event.action
-    };
-    if (event.interaction !== undefined)
-      data.interaction = { type: event.interaction.name, target: event.interaction.target };
-    return data;
-  }
-  function checkSilentHold(event, subject) {
-    const cfg = options.holds;
-    if (cfg === false)
-      return;
-    if (event.holdMs < cfg.infoMs)
-      return;
-    const ms = event.holdMs.toFixed(0);
-    const writes = describeHeldWrites(event);
-    const waitedOn = describeBlockers(event, "waiting on");
-    const who = event.interaction !== undefined ? `${formatOrigin(event.interaction)} ` : "";
-    let message = event.action ? `[SILENT_HOLD] ${who}${who ? "started an action that" : "an action"} held ${writes} for ` + `${ms}ms${waitedOn} and the screen showed nothing for the whole round-trip: no optimistic ` + `value, no isPending() reader, no affects() mark, and no effect ran while it was held. ` + `Pair the action with a createOptimistic/createOptimisticStore write for the expected ` + `outcome (it reverts on failure), or co-write a createOptimistic(false) "saving" flag ` + `the UI reads.` : `[SILENT_HOLD] ${who}${who ? "wrote" : "writes to"} ${writes}${who ? "; the write was" : " were"} ` + `held ${ms}ms${waitedOn} and the screen showed nothing for the wait: no ` + `isPending()/latest() reader downstream, no optimistic value, no affects() mark, and no ` + `effect ran while it was held — the interaction was dead for ${ms}ms. Show the wait: ` + `read isPending(() => ${event.blockers[0] ?? "source"}()) to render a busy state, or ` + `latest(${event.heldWrites[0].name}) to reveal the new input immediately while the data ` + `catches up. The hold itself is correct — do not "fix" this by moving the write off the ` + `async path.`;
-    const long = isLongHold(event);
-    if (long)
-      message += ` ${boundaryRepair(event)}`;
-    const severity = event.holdMs >= cfg.warnMs ? "warn" : "info";
-    const data = holdData(event);
-    data.long = long;
-    const entry = emitDiagnostic({
-      code: "SILENT_HOLD",
-      kind: "responsiveness",
-      severity,
-      message,
-      nodeName: nodeName(subject),
-      data
-    }, subject);
-    if (severity === "warn")
-      reportDiagnostic(entry);
-  }
-  function checkLongHold(event, subject) {
-    const cfg = options.longHolds;
-    if (cfg === false || cfg === undefined)
-      return;
-    if (event.tailMs < cfg.infoMs)
-      return;
-    const tail = event.tailMs.toFixed(0);
-    const writes = describeHeldWrites(event);
-    const waitedOn = describeBlockers(event, "waiting on");
-    const who = event.interaction !== undefined ? `${formatOrigin(event.interaction)} ` : "";
-    const answered = event.acknowledgedBy.length > 0 ? `${event.acknowledgedBy.map((a2) => `"${a2}"`).join(", ")} said it was pending` : `an effect painted meanwhile`;
-    const sinceLast = event.tailMs < event.holdMs - 1 ? ` after the last input (${event.holdMs.toFixed(0)}ms in all)` : "";
-    const message = `[LONG_HOLD] ${who}${who ? "wrote" : "writes to"} ${writes}; the screen kept the old ` + `content for ${tail}ms${sinceLast}${waitedOn} — ${answered}, but the hold ran on well past ` + `the point where "loading" over stale content reads as broken. ${boundaryRepair(event)}`;
-    const severity = event.tailMs >= cfg.warnMs ? "warn" : "info";
-    const data = holdData(event);
-    data.acknowledgedBy = event.acknowledgedBy;
-    const entry = emitDiagnostic({
-      code: "LONG_HOLD",
-      kind: "responsiveness",
-      severity,
-      message,
-      nodeName: nodeName(subject),
-      data
-    }, subject);
-    if (severity === "warn")
-      reportDiagnostic(entry);
-  }
-  var feedbackSources = new Map;
-  var feedbackInteractions = new Map;
-  var flightStats = new Map;
-  var fallbackStats = new Map;
-  var FALLBACK_FLASH_MS = 150;
-  function flightBucket(el) {
-    let row = flightStats.get(el);
-    if (row === undefined) {
-      row = { source: nodeName(el), flights: 0, landed: 0, abandoned: 0, landedMs: 0, worstMs: 0 };
-      flightStats.set(el, row);
-    }
-    return row;
-  }
-  function trackFallback(boundary, tree, shown) {
-    let bucket = fallbackStats.get(boundary);
-    if (bucket === undefined) {
-      bucket = {
-        row: { boundary: "boundary", shows: 0, shownMs: 0, worstMs: 0, flashes: 0 },
-        shownAt: null
-      };
-      fallbackStats.set(boundary, bucket);
-    }
-    if (bucket.row.boundary === "boundary" && tree !== undefined) {
-      const path = ownerPath(tree);
-      if (path !== undefined)
-        bucket.row.boundary = path.join(" › ");
-    }
-    if (shown) {
-      if (bucket.shownAt === null) {
-        bucket.shownAt = now();
-        bucket.row.shows++;
-      }
-      return;
-    }
-    if (bucket.shownAt === null)
-      return;
-    const ms = now() - bucket.shownAt;
-    bucket.shownAt = null;
-    bucket.row.shownMs += ms;
-    if (ms > bucket.row.worstMs)
-      bucket.row.worstMs = ms;
-    if (ms < FALLBACK_FLASH_MS)
-      bucket.row.flashes++;
-  }
-  function isSilentHold(event) {
-    return event.paintedDuringHold === 0 && event.acknowledgedBy.length === 0;
-  }
-  function interactionBucket(interaction) {
-    const key = formatOrigin(interaction);
-    let bucket = feedbackInteractions.get(key);
-    if (bucket === undefined) {
-      bucket = {
-        row: {
-          interaction: key,
-          dispatches: 0,
-          runs: 0,
-          selfMs: 0,
-          worstDispatchMs: 0,
-          holds: 0,
-          heldMs: 0,
-          silentMs: 0,
-          worstHoldMs: 0
-        },
-        dispatches: new Map
-      };
-      feedbackInteractions.set(key, bucket);
-    }
-    const at2 = interaction.at ?? 0;
-    if (!bucket.dispatches.has(at2)) {
-      bucket.dispatches.set(at2, 0);
-      bucket.row.dispatches++;
-    }
-    return bucket;
-  }
-  function recordFeedbackRun(event) {
-    if (event.interaction === undefined)
-      return;
-    const bucket = interactionBucket(event.interaction);
-    bucket.row.runs++;
-    bucket.row.selfMs += event.selfMs;
-    const at2 = event.interaction.at ?? 0;
-    const dispatchMs = bucket.dispatches.get(at2) + event.selfMs;
-    bucket.dispatches.set(at2, dispatchMs);
-    if (dispatchMs > bucket.row.worstDispatchMs)
-      bucket.row.worstDispatchMs = dispatchMs;
-  }
-  function recordFeedbackHold(event) {
-    const sources = [...event.blockers].sort();
-    const key = sources.join("\x00");
-    let bucket = feedbackSources.get(key);
-    if (bucket === undefined) {
-      bucket = {
-        row: {
-          sources,
-          holds: 0,
-          heldMs: 0,
-          worstMs: 0,
-          silent: 0,
-          silentMs: 0,
-          latestOnly: 0,
-          long: 0,
-          longMs: 0,
-          acknowledgedBy: [],
-          interactions: [],
-          writes: [],
-          actions: 0
-        },
-        acks: new Map,
-        interactions: new Map,
-        writes: new Set
-      };
-      feedbackSources.set(key, bucket);
-    }
-    const row = bucket.row;
-    const silent = isSilentHold(event);
-    row.holds++;
-    row.heldMs += event.holdMs;
-    if (event.holdMs > row.worstMs)
-      row.worstMs = event.holdMs;
-    if (silent) {
-      row.silent++;
-      row.silentMs += event.holdMs;
-    } else if (event.acknowledgedBy.length > 0 && event.acknowledgedBy.every((by) => by.startsWith("latest:")))
-      row.latestOnly++;
-    if (isLongHold(event)) {
-      row.long++;
-      row.longMs += event.tailMs;
-    }
-    if (event.action)
-      row.actions++;
-    for (const by of event.acknowledgedBy)
-      bucket.acks.set(by, (bucket.acks.get(by) ?? 0) + 1);
-    for (const w2 of event.heldWrites)
-      bucket.writes.add(w2.name);
-    if (event.interaction !== undefined) {
-      const key2 = formatOrigin(event.interaction);
-      bucket.interactions.set(key2, (bucket.interactions.get(key2) ?? 0) + 1);
-      const ib = interactionBucket(event.interaction);
-      ib.row.holds++;
-      ib.row.heldMs += event.holdMs;
-      if (silent)
-        ib.row.silentMs += event.holdMs;
-      if (event.holdMs > ib.row.worstHoldMs)
-        ib.row.worstHoldMs = event.holdMs;
-    }
-  }
-  function rankedCounts(counts, key) {
-    return [...counts].sort((a2, b2) => b2[1] - a2[1]).map(([name, holds]) => ({ [key]: name, holds }));
-  }
-  function feedbackTables() {
-    const flights = [...flightStats.values()].map((row) => ({ ...row })).sort((a2, b2) => b2.abandoned - a2.abandoned || b2.flights - a2.flights);
-    const fallbacks = [...fallbackStats.values()].map((bucket) => ({ ...bucket.row })).sort((a2, b2) => b2.flashes - a2.flashes || b2.shownMs - a2.shownMs);
-    const sources = [...feedbackSources.values()].map((bucket) => ({
-      ...bucket.row,
-      acknowledgedBy: rankedCounts(bucket.acks, "by"),
-      interactions: rankedCounts(bucket.interactions, "interaction"),
-      writes: [...bucket.writes]
-    })).sort((a2, b2) => b2.silentMs - a2.silentMs || b2.heldMs - a2.heldMs);
-    const interactions = [...feedbackInteractions.values()].map((bucket) => ({ ...bucket.row })).sort((a2, b2) => b2.heldMs + b2.selfMs - (a2.heldMs + a2.selfMs));
-    return { sources, interactions, flights, fallbacks };
-  }
-  var asyncStartSeq = 0;
-  var asyncStartTime = 0;
-  var asyncStartValue;
-  var engineHooks = {
-    recomputeStart(el, create) {
-      frames.push({
-        start: now(),
-        childMs: 0,
-        causes: create ? null : collectCauses(el),
-        prevDeps: create ? null : captureDeps(el),
-        prevValue: el._pendingValue !== NOT_PENDING ? el._pendingValue : el._value
-      });
-    },
-    derivedChanged(el) {
-      const frame = frames[frames.length - 1];
-      stampDerived(el, frame !== undefined && frame.causes !== null ? frame.causes : []);
-    },
-    recomputeEnd(el, _create, changed, optimistic, transition, held) {
-      const frame = frames.pop();
-      if (frame === undefined)
-        return;
-      const totalMs = now() - frame.start;
-      if (frames.length > 0)
-        frames[frames.length - 1].childMs += totalMs;
-      const selfMs = Math.max(0, totalMs - frame.childMs);
-      if (changed && frame.causes !== null && el._type) {
-        const committed = el._pendingValue !== NOT_PENDING ? el._pendingValue : el._value;
-        if (committed !== undefined && committed === frame.prevValue)
-          changed = false;
-      }
-      if (frame.causes !== null && changed && !optimistic && !transition && !el._type)
-        checkUnstableOutput(el, frame.prevValue, el._pendingValue !== NOT_PENDING ? el._pendingValue : el._value);
-      if (frame.causes !== null)
-        recordRerun(el, frame.causes, frame.prevDeps, { selfMs, totalMs }, changed, optimistic ? "optimistic" : transition ? "held" : "plain", held);
-      else
-        checkDepWidth(el);
-      markSeen(el);
-    },
-    write(el, prev, value) {
-      stampWrite(el, "write", prev, value);
-    },
-    refreshed(el) {
-      stampWrite(el, "refresh");
-    },
-    flightStart(el, flight) {
-      trackFlightStart(el, flight);
-    },
-    asyncStart(el) {
-      asyncStartSeq = el._devChange?.seq ?? 0;
-      asyncStartTime = el._time;
-      asyncStartValue = el._value;
-    },
-    asyncEnd(el, prev, value, direct) {
-      if (direct) {
-        const committed = el._value !== asyncStartValue || el._time !== asyncStartTime || el._pendingValue === value;
-        if (committed)
-          stampWrite(el, "async", prev === undefined ? NO_VALUES : prev, value);
-        finalizeFlight(el);
-        return;
-      }
-      const change = el._devChange;
-      if (change !== undefined && change.seq > asyncStartSeq && change.kind === "write")
-        stampWrite(el, "async", NO_VALUES, value);
-      finalizeFlight(el);
-    },
-    effectRunStart(el) {
-      pushFrame("effect", nodeName(el), el._devRunInteraction, el);
-    },
-    effectRunEnd() {
-      popFrame("effect");
-      if (activeHold !== null)
-        activeHold.painted++;
-    },
-    actionStepStart(it2, name) {
-      let interaction = actionInteractions.get(it2);
-      if (interaction === undefined && !actionInteractions.has(it2)) {
-        interaction = currentInteraction ?? undefined;
-        actionInteractions.set(it2, interaction);
-      }
-      pushFrame("action", name, interaction);
-    },
-    actionStepEnd() {
-      popFrame("action");
-    },
-    holdStart(t2) {
-      trackHoldStart(t2);
-    },
-    holdEnd() {
-      activeHold = null;
-    },
-    transitionSettled(t2) {
-      trackHoldSettled(t2);
-    },
-    transitionMerged(target, outgoing) {
-      trackHoldMerge(target, outgoing);
-    },
-    storeReplaced(path, isArray, total, unchanged, prevTotal) {
-      checkImmutableUpdate(path, isArray, total, unchanged, prevTotal);
-    },
-    listChurn(el, removed, created, newLen, keyed) {
-      checkListIdentity(el, removed, created, newLen, keyed);
-    },
-    boundaryFallback(boundary, tree, shown) {
-      trackFallback(boundary, tree, shown);
-    }
-  };
-  var attribution = {
-    enable(opts) {
-      options = { ...defaultOptions, ...opts };
-      frames.length = 0;
-      scopeCosts.clear();
-      writeCosts.clear();
-      waterfallLog = [];
-      holdLog = [];
-      activeHold = null;
-      feedbackSources.clear();
-      feedbackInteractions.clear();
-      reportedCycles.clear();
-      relays.clear();
-      immutableReported.clear();
-      flightStats.clear();
-      fallbackStats.clear();
-      originFrames.length = 0;
-      hotCauses.clear();
-      setAttributionHooks(engineHooks);
-    },
-    disable() {
-      listeners.clear();
-      history = [];
-      frames.length = 0;
-      scopeCosts.clear();
-      writeCosts.clear();
-      waterfallLog = [];
-      holdLog = [];
-      activeHold = null;
-      feedbackSources.clear();
-      feedbackInteractions.clear();
-      reportedCycles.clear();
-      relays.clear();
-      immutableReported.clear();
-      flightStats.clear();
-      fallbackStats.clear();
-      originFrames.length = 0;
-      hotCauses.clear();
-      setAttributionHooks(null);
-    },
-    subscribe(listener) {
-      listeners.add(listener);
-      return () => listeners.delete(listener);
-    },
-    history() {
-      return history;
-    },
-    why(target) {
-      const node = target?.[$REFRESH] ?? target;
-      return history.filter((event) => event.node === node);
-    },
-    subscriptions(target) {
-      const node = target?.[$REFRESH] ?? target;
-      const names = [];
-      for (let l2 = node?._deps ?? null;l2 !== null; l2 = l2._nextDep)
-        names.push(nodeName(l2._dep));
-      return names;
-    },
-    costs() {
-      return {
-        scopes: [...scopeCosts.values()].sort((a2, b2) => b2.selfMs - a2.selfMs),
-        writes: [...writeCosts.values()].sort((a2, b2) => b2.downstreamMs - a2.downstreamMs)
-      };
-    },
-    waterfalls() {
-      return waterfallLog;
-    },
-    holds() {
-      return holdLog;
-    },
-    feedback() {
-      return feedbackTables();
-    },
-    markFlight(flight, startedAt = now()) {
-      const existing = flightOrigins.get(flight);
-      if (existing === undefined || startedAt < existing)
-        flightOrigins.set(flight, startedAt);
-    },
-    withInteraction,
-    format: formatRerun,
-    formatOrigin
-  };
   var GRAPH_SIZE_WARN_AT = 2000;
   var GRAPH_SIZE_WARN_EVERY = 500;
   var hooks = {};
@@ -4871,14 +3422,17 @@
   var diagnosticSequence = 0;
   var consoleFooter;
   var footeredCodes = new Set;
+  function setConsoleFooter(footer) {
+    consoleFooter = footer;
+    footeredCodes.clear();
+  }
   var diagnostics = {
     subscribe(listener) {
       diagnosticListeners.add(listener);
       return () => diagnosticListeners.delete(listener);
     },
-    setConsoleFooter(footer) {
-      consoleFooter = footer;
-      footeredCodes.clear();
+    emit(event, subject = null) {
+      return emitDiagnostic(event, subject);
     },
     capture() {
       const events = [];
@@ -4897,18 +3451,119 @@
       };
     }
   };
-  var DEV$1 = {
-    hooks,
-    diagnostics,
-    get attribution() {
-      return attribution;
+  var attributionSlot = {
+    get installed() {
+      return attrHooks;
     },
+    withInteraction,
+    withOrigin,
+    currentOrigin
+  };
+  var RECORDS = Symbol.for("@solidjs/signals/observe/records");
+  function recordsChannel() {
+    const g2 = globalThis;
+    if (g2[RECORDS])
+      return g2[RECORDS];
+    const listeners = new Map;
+    const bodyListeners = new Map;
+    return g2[RECORDS] = {
+      subscribe(type, listener, options) {
+        const current = listeners.get(type);
+        if (current === undefined || !current.includes(listener)) {
+          listeners.set(type, current === undefined ? [listener] : [...current, listener]);
+          if (options !== undefined && options.bodies) {
+            let wanting = bodyListeners.get(type);
+            if (wanting === undefined)
+              bodyListeners.set(type, wanting = new Set);
+            wanting.add(listener);
+          }
+        }
+        return () => {
+          const list = listeners.get(type);
+          if (list === undefined || !list.includes(listener))
+            return;
+          const next = list.filter((l2) => l2 !== listener);
+          if (next.length > 0)
+            listeners.set(type, next);
+          else
+            listeners.delete(type);
+          const wanting = bodyListeners.get(type);
+          if (wanting !== undefined && wanting.delete(listener) && wanting.size === 0)
+            bodyListeners.delete(type);
+        };
+      },
+      observed(type, facet) {
+        return facet === "bodies" ? bodyListeners.has(type) : listeners.has(type);
+      },
+      emit(type, event, live) {
+        const list = listeners.get(type);
+        if (list === undefined)
+          return;
+        for (let i2 = 0;i2 < list.length; i2++) {
+          try {
+            list[i2](event, live);
+          } catch (error) {
+            console.error(error);
+          }
+        }
+      }
+    };
+  }
+  var OBSERVE = {
+    diagnostics,
+    records: recordsChannel(),
+    attribution: attributionSlot,
+    server: {},
+    exclude(owner) {
+      markedOwners.set(owner, true);
+      hasExclusions = true;
+    },
+    include(owner) {
+      markedOwners.set(owner, false);
+    },
+    isExcluded,
+    ownerPath
+  };
+  var markedOwners = new WeakMap;
+  var hasExclusions = false;
+  var suppressedEvents = new WeakSet;
+  function isExcluded(subject) {
+    if (!hasExclusions || !subject)
+      return false;
+    let owner = "_parent" in subject ? subject : subject._owner ?? null;
+    for (;owner !== null; owner = owner._parent) {
+      const marked = markedOwners.get(owner);
+      if (marked !== undefined)
+        return marked;
+    }
+    return false;
+  }
+  var GUIDE_URL = "https://github.com/solidjs/solid/blob/main/packages/solid/skills/reactivity-diagnostics/SKILL.md";
+  var DEV = {
+    hooks,
     getChildren,
     getSignals,
     getParent,
     getSources,
-    getObservers
+    getObservers,
+    report: reportDiagnostic,
+    guideUrl(code) {
+      return `${GUIDE_URL}#${code.toLowerCase()}`;
+    }
   };
+  function assertInvariant(condition, name, message) {
+    if (condition)
+      return;
+    const full = `[INVARIANT_VIOLATION] ${name}: ${message}`;
+    const entry = emitDiagnostic({
+      code: "INVARIANT_VIOLATION",
+      kind: "error",
+      severity: "error",
+      message: full,
+      data: { invariant: name }
+    });
+    reportDiagnostic(entry);
+  }
   function ownerPath(subject) {
     if (!subject)
       return;
@@ -4926,13 +3581,20 @@
       sequence: ++diagnosticSequence,
       ...event
     };
-    const path = ownerPath(subject);
-    if (path)
-      entry.ownerPath = path;
-    if (subject)
-      eventSubjects.set(entry, subject);
+    if (isExcluded(subject)) {
+      suppressedEvents.add(entry);
+      return entry;
+    }
+    if (entry.ownerPath === undefined) {
+      const path = ownerPath(subject);
+      if (path)
+        entry.ownerPath = path;
+    }
+    const live = subject ?? undefined;
+    if (live !== undefined)
+      eventSubjects.set(entry, live);
     for (const listener of diagnosticListeners)
-      listener(entry);
+      listener(entry, live);
     for (const capture of diagnosticCaptures)
       capture.push(entry);
     if (entry.severity === "error" && consoleFooter && !footeredCodes.has(entry.code)) {
@@ -4952,6 +3614,8 @@
   }
   var eventSubjects = new WeakMap;
   function reportDiagnostic(entry) {
+    if (suppressedEvents.has(entry))
+      return;
     let text = entry.message;
     if (entry.ownerPath)
       text += `
@@ -4977,7 +3641,9 @@ ${footer}`;
     throw new Error(message);
   }
   function warnStrictReadUntracked(strictReadLabel, fields) {
-    const message = `[STRICT_READ_UNTRACKED] Reactive value read directly in ${strictReadLabel} will not update. ` + `Move it into a tracking scope (JSX, a memo, or an effect's compute function).`;
+    const nodeName = fields?.nodeName;
+    const named = nodeName !== undefined && nodeName !== "signal" && nodeName !== "computed";
+    const message = `[STRICT_READ_UNTRACKED] Reactive value${named ? ` "${nodeName}"` : ""} read directly in ` + `${strictReadLabel} will not update. ` + `Move it into a tracking scope (JSX, a memo, or an effect's compute function).`;
     reportDiagnostic(emitDiagnostic({
       code: "STRICT_READ_UNTRACKED",
       kind: "strict-read",
@@ -4989,15 +3655,36 @@ ${footer}`;
   }
   function registerGraph(value, owner) {
     value._owner = owner;
-    if (owner) {
-      if (!owner._signals)
-        owner._signals = [];
-      owner._signals.push(value);
+    {
+      if (owner) {
+        if (!owner._signals)
+          owner._signals = [];
+        owner._signals.push(value);
+      }
+      DEV.hooks.onGraph?.(value, owner);
     }
-    DEV$1.hooks.onGraph?.(value, owner);
   }
   function clearSignals(node) {
     node._signals = undefined;
+  }
+  var liveRoots = new Set;
+  var rootRefs = new WeakMap;
+  var rootReaper = typeof FinalizationRegistry === "function" ? new FinalizationRegistry((ref) => liveRoots.delete(ref)) : null;
+  function registerRoot(owner) {
+    if (typeof WeakRef !== "function")
+      return;
+    const ref = new WeakRef(owner);
+    rootRefs.set(owner, ref);
+    liveRoots.add(ref);
+    rootReaper?.register(owner, ref, ref);
+  }
+  function unregisterRoot(owner) {
+    const ref = rootRefs.get(owner);
+    if (ref === undefined)
+      return;
+    rootRefs.delete(owner);
+    liveRoots.delete(ref);
+    rootReaper?.unregister(ref);
   }
   function getChildren(owner) {
     const children = [];
@@ -5032,237 +3719,355 @@ ${footer}`;
     }
     return observers;
   }
-  function shouldWarnGraphSize(count) {
-    return count >= GRAPH_SIZE_WARN_AT && (count - GRAPH_SIZE_WARN_AT) % GRAPH_SIZE_WARN_EVERY === 0;
+  var graphSizeWarnedAt = new WeakMap;
+  function shouldWarnGraphSize(node, count) {
+    const last = graphSizeWarnedAt.get(node);
+    if (last !== undefined && count < last + GRAPH_SIZE_WARN_EVERY)
+      return false;
+    graphSizeWarnedAt.set(node, count);
+    return true;
   }
-  function noteGraphLink(dep, sub) {
-    const fanOut = dep._subCount = (dep._subCount || 0) + 1;
-    const fanIn = sub._depCount = (sub._depCount || 0) + 1;
-    if (shouldWarnGraphSize(fanOut)) {
-      const name = dep._name;
-      const message = `[HUGE_FAN_OUT] ${name ? `Signal "${name}"` : "A signal"} has ${fanOut} subscribers. ` + `Each will re-run when it changes. If many independent computations read the same value ` + `(for example every row of a list comparing against one selected id), prefer a per-key ` + `store or projection so only the items whose result flipped update.`;
-      reportDiagnostic(emitDiagnostic({
-        code: "HUGE_FAN_OUT",
-        kind: "graph",
-        severity: "warn",
-        message,
-        nodeName: name,
-        ownerId: dep.id,
-        ownerName: name,
-        data: { count: fanOut }
-      }, dep));
+  function noteFanOut(node, count, write) {
+    if (!shouldWarnGraphSize(node, count))
+      return;
+    const name = node._name;
+    const message = `[HUGE_FAN_OUT] ${name ? `Signal "${name}"` : "A signal"} changed with ${count} subscribers — ` + `every one re-runs this flush. If many independent computations read the same value ` + `(for example every row of a list comparing against one selected id), prefer a per-key ` + `store or projection so only the items whose result flipped update.`;
+    reportDiagnostic(emitDiagnostic({
+      code: "HUGE_FAN_OUT",
+      kind: "graph",
+      severity: "warn",
+      message,
+      nodeName: name,
+      ownerId: node.id,
+      ownerName: name,
+      data: write === undefined ? { count } : { count, write }
+    }, node));
+  }
+  function noteFanIn(node, count) {
+    if (!shouldWarnGraphSize(node, count))
+      return;
+    const name = node._name;
+    const message = `[HUGE_FAN_IN] ${name ? `Computation "${name}"` : "A computation"} tracked ${count} sources. ` + `It will re-run when any of them change. Narrow the read or split the derivation so each ` + `computation tracks only what it needs.`;
+    reportDiagnostic(emitDiagnostic({
+      code: "HUGE_FAN_IN",
+      kind: "graph",
+      severity: "warn",
+      message,
+      nodeName: name,
+      ownerId: node.id,
+      ownerName: name,
+      data: { count }
+    }, node));
+  }
+  var asyncTailFlights = 0;
+  var tailFlights = new Map;
+  var warnedTailReads = new WeakMap;
+  var tailFlightId = 0;
+  var TAIL_FRAME = /^__solidAsyncCompute_(\d+)$/;
+  function watchAsyncTail(el, flight) {
+    if (!(flight instanceof Promise) || flight.constructor !== Promise)
+      return flight;
+    return {
+      then(onFulfilled, onRejected) {
+        const id = ++tailFlightId;
+        const name = `__solidAsyncCompute_${id}`;
+        const done = () => {
+          if (tailFlights.delete(id))
+            asyncTailFlights--;
+        };
+        if (tailFlights.size >= nextTailSweep)
+          sweepTailFlights();
+        asyncTailFlights++;
+        tailFlights.set(id, { el: new WeakRef(el), flight: new WeakRef(flight) });
+        ({
+          async[name]() {
+            let value;
+            try {
+              value = await flight;
+            } catch (error) {
+              done();
+              return onRejected(error);
+            }
+            done();
+            onFulfilled(value);
+          }
+        })[name]();
+        return;
+      }
+    };
+  }
+  function checkPostAwaitRead(dep, holder, key, nodeName, throwsPending) {
+    if (context !== null)
+      return;
+    if (callbackDepth !== 0)
+      return;
+    if (disposalDepth !== 0) {
+      if (!disposalHealQueued) {
+        disposalHealQueued = true;
+        queueMicrotask(healDisposalDepth);
+      }
+      return;
     }
-    if (shouldWarnGraphSize(fanIn)) {
-      const name = sub._name;
-      const message = `[HUGE_FAN_IN] ${name ? `Computation "${name}"` : "A computation"} has ${fanIn} sources. ` + `It will re-run when any of them change. Narrow the read or split the derivation so each ` + `computation tracks only what it needs.`;
-      reportDiagnostic(emitDiagnostic({
-        code: "HUGE_FAN_IN",
-        kind: "graph",
-        severity: "warn",
-        message,
-        nodeName: name,
-        ownerId: sub.id,
-        ownerName: name,
-        data: { count: fanIn }
-      }, sub));
+    let id = windowFlight;
+    if (id === undefined) {
+      id = windowFlight = attributedFlight();
+      queueMicrotask(resetWindowFlight);
+    } else if (id !== 0)
+      id = attributedFlight();
+    if (id === 0)
+      return;
+    const entry = tailFlights.get(id);
+    const el = entry?.el.deref();
+    if (!el || throwsPending || el === dep)
+      return;
+    const flight = entry.flight.deref();
+    if (!flight || el._x?._inFlight !== flight)
+      return;
+    if (dep !== undefined) {
+      for (let d2 = el._deps;d2 !== null; d2 = d2._nextDep)
+        if (d2._dep === dep)
+          return;
     }
+    let byHolder = warnedTailReads.get(el);
+    if (!byHolder)
+      warnedTailReads.set(el, byHolder = new WeakMap);
+    let keys = byHolder.get(holder);
+    if (!keys)
+      byHolder.set(holder, keys = new Set);
+    if (keys.has(key))
+      return;
+    keys.add(key);
+    reportDiagnostic(emitDiagnostic({
+      code: "UNTRACKED_READ_AFTER_AWAIT",
+      kind: "async",
+      severity: "warn",
+      message: `[UNTRACKED_READ_AFTER_AWAIT] ${nodeName ? `"${nodeName}"` : "A reactive value"} was ` + `first read after an \`await\` in an async computation, so it is not a dependency: ` + `the computation will not re-run when it changes. Read it before the first \`await\`, ` + `or wrap the read in untrack() if a one-time value is intended.`,
+      ownerId: el.id,
+      ownerName: el._name,
+      nodeName
+    }, el));
   }
-  function unnoteGraphLink(link) {
-    const dep = link._dep;
-    const sub = link._sub;
-    if (dep._subCount)
-      dep._subCount--;
-    if (sub._depCount)
-      sub._depCount--;
+  var nextTailSweep = 64;
+  function sweepTailFlights() {
+    for (const [id, { el, flight }] of tailFlights) {
+      const node = el.deref();
+      const current = flight.deref();
+      if (!node || !current || node._x?._inFlight !== current) {
+        tailFlights.delete(id);
+        asyncTailFlights--;
+      }
+    }
+    nextTailSweep = Math.max(64, tailFlights.size * 2);
   }
-  function createAsyncReporters() {
-    return new Map;
+  var windowFlight;
+  function resetWindowFlight() {
+    windowFlight = undefined;
   }
-  function devCheckActiveOverrides(isRegisteredForRevert) {
-    return;
+  var disposalHealQueued = false;
+  function healDisposalDepth() {
+    disposalHealQueued = false;
+    if (disposalDepth !== 0)
+      resetDisposalDepth();
   }
-  function devCheckFlushStart() {
-    return;
-  }
-  typeof globalThis !== "undefined" && globalThis.process?.env?.COMPANION_CENSUS;
-  function devCensusCompanions(isQueuedForCommit) {
-    return;
+  function attributedFlight() {
+    const V8Error = Error;
+    if (!V8Error.captureStackTrace)
+      return 0;
+    const prevPrepare = V8Error.prepareStackTrace;
+    const prevLimit = V8Error.stackTraceLimit;
+    const target = {};
+    let sites;
+    V8Error.prepareStackTrace = (_2, callSites) => callSites;
+    V8Error.stackTraceLimit = 50;
+    try {
+      V8Error.captureStackTrace(target, attributedFlight);
+      sites = target.stack;
+    } finally {
+      V8Error.prepareStackTrace = prevPrepare;
+      V8Error.stackTraceLimit = prevLimit;
+    }
+    if (!Array.isArray(sites))
+      return 0;
+    for (const site of sites) {
+      const match = TAIL_FRAME.exec(site.getFunctionName?.() ?? "");
+      if (match)
+        return +match[1];
+    }
+    return 0;
   }
   function devCheckQuiescent(isQueuedForCommit) {
     return;
   }
-  var signalLanes = new WeakMap;
-  var activeLanes = new Set;
-  function getOrCreateLane(signal) {
-    let lane = signalLanes.get(signal);
-    if (lane) {
-      return findLane(lane);
-    }
-    const parentSource = signal._x?._parentSource;
-    const parentOptLane = parentSource?._x?._optimisticLane;
-    const parentLane = parentOptLane ? findLane(parentOptLane) : null;
-    lane = {
-      _source: signal,
-      _pendingAsync: new Set,
-      _effectQueues: [[], []],
-      _mergedInto: null,
-      _transition: activeTransition,
-      _parentLane: parentLane
+  var transactions = [];
+  var holding = false;
+  function newTransaction(lane, parent = null) {
+    const t2 = {
+      _nodes: [],
+      _queues: [[], []],
+      _reruns: [],
+      _into: null,
+      _parent: parent,
+      _lane: lane,
+      _verdict: null,
+      _open: 0,
+      _acted: false,
+      _links: null,
+      _shown: false,
+      _held: false,
+      _marks: null
     };
-    signalLanes.set(signal, lane);
-    activeLanes.add(lane);
-    adoptCompanionLane(signal._x?._pendingSignal, lane);
-    adoptCompanionLane(signal._x?._latestValueComputed, lane);
-    return lane;
+    if (!lane)
+      transactions.push(t2);
+    return t2;
   }
-  function adoptCompanionLane(companion, parent) {
-    if (!companion)
+  var passLane = null;
+  function setPassLane(l2) {
+    passLane = l2;
+  }
+  var flushTransaction = null;
+  var passTx = null;
+  function joinPassTx(t2, own) {
+    if (globalQueue._running && !own || flushTransaction !== null)
+      return joinFuture(t2);
+    if (passTx === null)
+      passTx = resolveTx(t2);
+    else
+      merge(resolveTx(t2), passTx);
+    schedule();
+  }
+  function txOf(n2) {
+    return n2._x._transaction = resolveTx(n2._x._transaction);
+  }
+  function liveTx(t2) {
+    t2 = resolveTx(t2);
+    return transactions.indexOf(t2) !== -1 ? t2 : null;
+  }
+  function resolveTx(t2) {
+    while (t2._into !== null)
+      t2 = t2._into;
+    return t2;
+  }
+  function joinFuture(t2) {
+    const f2 = flushTransaction;
+    if (f2 === null) {
+      flushTransaction = t2 === null ? newTransaction(false) : resolveTx(t2);
+    } else if (t2 !== null)
+      merge(resolveTx(t2), f2);
+    if (!globalQueue._running)
+      schedule();
+  }
+  function merge(t2, f2) {
+    t2 = resolveTx(t2);
+    f2 = resolveTx(f2);
+    if (t2 === f2 || t2._lane || f2._lane)
       return;
-    const companionLane = signalLanes.get(companion);
-    if (!companionLane)
-      return;
-    const root = findLane(companionLane);
-    if (root !== parent && root._source === companion && !root._parentLane)
-      root._parentLane = parent;
+    if (attrHooks !== null)
+      attrHooks.transitionMerged(f2, t2);
+    t2._into = f2;
+    f2._open += t2._open;
+    f2._acted ||= t2._acted;
+    append(f2._nodes, t2._nodes);
+    append(f2._queues[0], t2._queues[0]);
+    append(f2._queues[1], t2._queues[1]);
+    append(f2._reruns, t2._reruns);
+    if (t2._marks !== null)
+      append(f2._marks ??= [], t2._marks);
+    transactions.splice(transactions.indexOf(t2), 1);
   }
-  function findLane(lane) {
-    while (lane._mergedInto)
-      lane = lane._mergedInto;
-    return lane;
+  function blocked(t2) {
+    const prev = judge;
+    judge ??= t2;
+    const r2 = t2._open !== 0 || blockedBy(t2._nodes, t2) || !!GlobalQueue._lanesBlocked && GlobalQueue._lanesBlocked(t2);
+    judge = prev;
+    return r2;
   }
-  function laneHeld(lane) {
-    const t2 = lane._transition;
-    if (t2) {
-      for (const node of lane._pendingAsync)
-        if (currentTransition(t2)._asyncReporters.has(node))
-          return true;
+  var judge = null;
+  function ownFlights(t2) {
+    return blockedBy(t2._nodes, t2, true);
+  }
+  function ownSource(n2, t2) {
+    const sources = n2._x?._pendingSources;
+    if (sources === undefined)
+      return true;
+    for (const s2 of sources) {
+      const u2 = s2._x?._transaction;
+      if (u2 == null || resolveTx(u2) === t2)
+        return true;
     }
     return false;
   }
-  function mergeLanes(lane1, lane2) {
-    lane1 = findLane(lane1);
-    lane2 = findLane(lane2);
-    if (lane1 === lane2)
-      return lane1;
-    lane2._mergedInto = lane1;
-    for (const node of lane2._pendingAsync)
-      lane1._pendingAsync.add(node);
-    lane2._pendingAsync.clear();
-    lane1._effectQueues[0].push(...lane2._effectQueues[0]);
-    lane1._effectQueues[1].push(...lane2._effectQueues[1]);
-    lane2._effectQueues[0].length = 0;
-    lane2._effectQueues[1].length = 0;
-    return lane1;
+  function blockedBy(nodes, owner, own = false) {
+    for (let i2 = 0;i2 < nodes.length; i2++) {
+      const n2 = nodes[i2];
+      if (!(n2._statusFlags & STATUS_PENDING) || n2._flags & REACTIVE_DISPOSED || n2._config & CONFIG_GUESS || n2._x._transaction !== null && txOf(n2) !== owner || own && !ownSource(n2, owner))
+        continue;
+      if (n2._type === EFFECT_RENDER) {
+        if (onScreen(n2, judge ?? owner))
+          return true;
+        continue;
+      }
+      for (let s2 = n2._subs;s2 !== null; s2 = s2._nextSub) {
+        const r2 = s2._sub;
+        if ((r2._type === EFFECT_RENDER || r2._flags & REACTIVE_FRAME_READ || r2._config & CONFIG_REDERIVE && r2._statusFlags === STATUS_PENDING) && (s2._gen === r2._depGen || r2._x?._error != null) && !(r2._flags & REACTIVE_DISPOSED) && onScreen(r2, judge ?? owner))
+          return true;
+      }
+    }
+    return false;
   }
-  function resolveLane(el) {
-    const lane = el._x?._optimisticLane;
-    if (!lane)
+  function onScreen(r2, t2) {
+    return !(r2._flags & REACTIVE_ZOMBIE && removalStagedBy(r2, t2)) && !(GlobalQueue._hidden && GlobalQueue._hidden(r2));
+  }
+  function removalStagedBy(r2, t2) {
+    let o2 = r2;
+    while (o2 !== null && o2._flags & REACTIVE_ZOMBIE)
+      o2 = o2._parent;
+    return o2 !== null && (o2._config & CONFIG_HELD) !== 0 && o2._x?._transaction != null && txOf(o2) === resolveTx(t2);
+  }
+  var heldTrims = [];
+  function heldTrim(el) {
+    heldTrims.push(el);
+  }
+  var deferredZombies = [];
+  function deferZombie(el) {
+    deleteFromHeap(el, dirtyQueue);
+    el._flags &= -4;
+    deferredZombies.push(el);
+  }
+  function holdNode(n2, t2) {
+    n2._config |= CONFIG_HELD;
+    list(n2, t2);
+  }
+  function list(n2, t2) {
+    const x2 = ext(n2);
+    if (x2._transaction === t2)
       return;
-    const root = findLane(lane);
-    if (activeLanes.has(root))
-      return root;
-    if (el._x !== null)
-      el._x._optimisticLane = undefined;
-    return;
+    x2._transaction = t2;
+    t2._nodes.push(n2);
   }
-  function resolveTransition(el) {
-    if (hasActiveOverride$1(el) && el._x?._overrideOwner) {
-      const owner = ext(el)._overrideOwner = currentTransition(el._x?._overrideOwner);
-      if (owner._done !== true)
-        return owner;
-      if (el._x !== null)
-        el._x._overrideOwner = null;
+  function holdFrame(owner, t2) {
+    for (let c2 = owner._firstChild;c2 !== null; c2 = c2._nextSibling) {
+      if (c2._x?._transaction?._lane)
+        continue;
+      if (c2._fn !== undefined && !(c2._config & CONFIG_HELD))
+        holdNode(c2, t2);
+      holdFrame(c2, t2);
     }
-    return resolveLane(el)?._transition ?? el._transition;
   }
-  function hasActiveOverride$1(el) {
-    const x2 = el._x;
-    return x2 !== null && x2._overrideValue !== undefined && x2._overrideValue !== NOT_PENDING;
-  }
-  function assignOrMergeLane(el, sourceLane) {
-    const sourceRoot = findLane(sourceLane);
-    const existing = el._x?._optimisticLane;
-    if (existing) {
-      if (existing._mergedInto) {
-        ext(el)._optimisticLane = sourceLane;
-        el._config |= CONFIG_HAS_LANE;
-        return;
-      }
-      const existingRoot = findLane(existing);
-      if (activeLanes.has(existingRoot)) {
-        if (existingRoot !== sourceRoot && !hasActiveOverride$1(el)) {
-          if (sourceRoot._parentLane && findLane(sourceRoot._parentLane) === existingRoot) {
-            ext(el)._optimisticLane = sourceLane;
-            el._config |= CONFIG_HAS_LANE;
-          } else if (existingRoot._parentLane && findLane(existingRoot._parentLane) === sourceRoot)
-            ;
-          else
-            mergeLanes(sourceRoot, existingRoot);
-        }
-        return;
-      }
-    }
-    ext(el)._optimisticLane = sourceLane;
-    el._config |= CONFIG_HAS_LANE;
-  }
-  var transitions = new Set;
   var dirtyQueue = {
     _heap: new Array(2000).fill(undefined),
     _marked: false,
     _min: 0,
     _max: 0
   };
-  var zombieQueue = {
-    _heap: new Array(2000).fill(undefined),
-    _marked: false,
-    _min: 0,
-    _max: 0
-  };
-  function cancelZombieRecompute(el) {
-    if (el._flags & REACTIVE_IN_HEAP_HEIGHT)
-      el._flags &= -12;
-    else {
-      deleteFromHeap(el, zombieQueue);
-      el._flags &= -4;
-    }
-  }
   var clock = 0;
-  var activeTransition = null;
   var scheduled = false;
   var halted = false;
   var haltNotified = false;
   var syncDepth = 0;
-  var projectionWriteActive = false;
   var inTrackedQueueCallback = false;
   var _enforceLoadingBoundary = false;
   var _hitUnhandledAsync = false;
   var _reportedUnhandledAsync = false;
-  var transientStoreNodes = new Set;
-  function canUseSimpleSyncFlush(queue) {
-    const batch = queue._batch;
-    return transitions.size === 0 && activeLanes.size === 0 && queue._children.length === 0 && batch._optimisticNodes.length === 0 && batch._affectsNodes.length === 0 && batch._optimisticStores.size === 0 && transientStoreNodes.size === 0;
-  }
-  function sweepTransientStoreNodes() {
-    if (transientStoreNodes.size === 0)
-      return;
-    for (const node of transientStoreNodes) {
-      if (node._subs !== null) {
-        transientStoreNodes.delete(node);
-        continue;
-      }
-      if (node._pendingValue !== NOT_PENDING)
-        continue;
-      if (node._x?._overrideValue !== undefined && node._x?._overrideValue !== NOT_PENDING)
-        continue;
-      if (node._x?._affectsCount)
-        continue;
-      transientStoreNodes.delete(node);
-      if (node._config & CONFIG_SLOT_NODE)
-        slotUnobservedHook(node);
-      else
-        node._x?._unobserved?.();
-    }
-  }
   function resetUnhandledAsync() {
     _hitUnhandledAsync = false;
     if (_reportedUnhandledAsync)
@@ -5270,51 +4075,16 @@ ${footer}`;
     _reportedUnhandledAsync = true;
     return true;
   }
+  var actionDepth = 0;
+  var question = 0;
+  var questions = 0;
+  function nextQuestion() {
+    return ++questions;
+  }
+  var MAINLINE_QUESTION = 2147483647;
   var inEffectCallback = false;
   function setEffectCallback(value) {
     inEffectCallback = value;
-  }
-  function createBatch() {
-    return {
-      _time: clock,
-      _pendingNodes: [],
-      _asyncReporters: createAsyncReporters(),
-      _optimisticNodes: [],
-      _affectsNodes: [],
-      _optimisticStores: new Set,
-      _actions: [],
-      _queueStash: { _queues: [[], []], _children: [] },
-      _done: false,
-      _gatedSubs: new Set
-    };
-  }
-  function mergeTransitionState(target, outgoing) {
-    if (attrHooks !== null)
-      attrHooks.transitionMerged(target, outgoing);
-    outgoing._done = target;
-    target._actions.push(...outgoing._actions);
-    for (const lane of activeLanes)
-      if (lane._transition === outgoing)
-        lane._transition = target;
-    if (outgoing._optimisticNodes.length) {
-      target._optimisticNodes.push(...outgoing._optimisticNodes);
-      outgoing._optimisticNodes.length = 0;
-    }
-    if (outgoing._affectsNodes.length) {
-      target._affectsNodes.push(...outgoing._affectsNodes);
-      outgoing._affectsNodes.length = 0;
-    }
-    for (const store of outgoing._optimisticStores)
-      target._optimisticStores.add(store);
-    for (const [source, reporters] of outgoing._asyncReporters) {
-      let targetReporters = target._asyncReporters.get(source);
-      if (!targetReporters)
-        target._asyncReporters.set(source, targetReporters = new Set);
-      for (const reporter of reporters)
-        targetReporters.add(reporter);
-    }
-    for (const sub of outgoing._gatedSubs)
-      target._gatedSubs.add(sub);
   }
   function schedule() {
     if (halted) {
@@ -5324,16 +4094,18 @@ ${footer}`;
     if (scheduled)
       return;
     scheduled = true;
-    if (!syncDepth && !globalQueue._running && !projectionWriteActive)
+    if (!syncDepth && !globalQueue._running) {
       queueMicrotask(flush);
+    }
   }
+  var ROOT_ERROR_HOOK = Symbol.for("solid-js/root-error-hook");
   function haltReactivity(cause) {
     if (halted)
       return;
     halted = true;
     let message = "[REACTIVITY_HALTED]";
     {
-      message += " An uncaught error halted the reactive system. No further updates will be processed. Handle errors with createErrorBoundary/<Errored> or treat this as a crash.";
+      message += " An uncaught error halted the reactive system. No further updates will be processed. Handle errors with <Errored> or treat this as a crash.";
       emitDiagnostic({
         code: "REACTIVITY_HALTED",
         kind: "error",
@@ -5341,7 +4113,9 @@ ${footer}`;
         message
       });
     }
-    cause === undefined ? console.error(message) : console.error(message, cause);
+    const report = cause !== undefined && globalThis.reportError;
+    report || cause === undefined ? console.error(message) : console.error(message, cause);
+    report && report(cause);
   }
   function notifyHalted() {
     if (haltNotified)
@@ -5349,434 +4123,278 @@ ${footer}`;
     haltNotified = true;
     console.error("[REACTIVITY_HALTED] Update ignored: the reactive system was halted by an earlier uncaught error.");
   }
-  var queueRunToken = 0;
-
-  class Queue {
-    _parent = null;
+  class GlobalQueue {
     _queues = [[], []];
-    _children = [];
-    _ranAt = 0;
-    created = clock;
-    addChild(child) {
-      this._children.push(child);
-      child._parent = this;
-    }
-    removeChild(child) {
-      const index = this._children.indexOf(child);
-      if (index >= 0) {
-        this._children.splice(index, 1);
-        child._parent = null;
-      }
-    }
-    notify(node, mask, flags, error) {
-      if (this._parent)
-        return this._parent.notify(node, mask, flags, error);
-      return false;
-    }
-    run(type) {
-      if (this._queues[type - 1].length) {
-        const effects = this._queues[type - 1];
-        this._queues[type - 1] = [];
-        runQueue$1(effects, type);
-      }
-      const children = this._children;
-      const token = ++queueRunToken;
-      for (let i2 = 0;i2 < children.length; ) {
-        const child = children[i2];
-        if (child._ranAt !== token) {
-          child._ranAt = token;
-          child.run?.(type);
-          if (children[i2] !== child) {
-            i2 = 0;
-            continue;
-          }
-        }
-        i2++;
-      }
-    }
-    enqueue(type, fn) {
-      if (type) {
-        if (currentOptimisticLane) {
-          const lane = findLane(currentOptimisticLane);
-          lane._effectQueues[type - 1].push(fn);
-        } else {
-          this._queues[type - 1].push(fn);
-        }
-      }
-      schedule();
-    }
-    stashQueues(stub) {
-      if (attrHooks !== null && this === globalQueue)
-        attrHooks.holdEnd();
-      stub._queues[0].push(...this._queues[0]);
-      stub._queues[1].push(...this._queues[1]);
-      this._queues = [[], []];
-      for (let i2 = 0;i2 < this._children.length; i2++) {
-        let child = this._children[i2];
-        let childStub = stub._children[i2];
-        if (!childStub) {
-          childStub = { _queues: [[], []], _children: [] };
-          stub._children[i2] = childStub;
-        }
-        child.stashQueues(childStub);
-      }
-    }
-    restoreQueues(stub) {
-      this._queues[0].push(...stub._queues[0]);
-      this._queues[1].push(...stub._queues[1]);
-      for (let i2 = 0;i2 < stub._children.length; i2++) {
-        const childStub = stub._children[i2];
-        let child = this._children[i2];
-        if (child)
-          child.restoreQueues(childStub);
-      }
-    }
-  }
-
-  class GlobalQueue extends Queue {
     _running = false;
-    _batch = createBatch();
-    static _update;
-    static _dispose;
-    static _runEffect;
-    static _clearOptimisticStores = null;
-    static _releaseAffectsScope = null;
-    static _releaseAffectsMarks = null;
-    static _markAffects = null;
-    static _releaseAffectsMark = null;
-    static _wireExternalSource = null;
-    static _externalUntrack = null;
-    static _syncCompanions = null;
-    static _updatePendingSignal = null;
-    static _updateChildCompanions = null;
-    static _snapCompanions = null;
-    static _latestRead = null;
-    static _pendingCheck = null;
-    static _recordFresh = null;
-    static _applyReask = null;
-    static _repollVerdicts = null;
-    static _witnessAffects = null;
-    static _wakeSuppressedProbes = null;
-    static _optimisticWrite = null;
-    static _resolveOptimistic = null;
-    static _transitionBlocked = null;
-    static _cleanupLanes = null;
-    static _runLaneEffects = null;
-    static _drainPatchOptimistic = null;
-    static _gatedRead = null;
-    static _laneSuspends = null;
-    static _laneReadsCommitted = null;
-    static _recomputeLane = null;
-    static _laneAsyncPending = null;
-    static _notifyAuthoritativeObservers = null;
-    static _laneAsyncSettled = null;
-    static _trackOptimisticStore = null;
     flush() {
       if (this._running)
         return;
       this._running = true;
+      resyncUnflushedCompanions();
+      passLane = null;
+      passTx = null;
       try {
-        if (true)
-          devCheckFlushStart();
         sweepDormant();
         runHeap(dirtyQueue, GlobalQueue._update);
-        if (activeTransition) {
-          const isComplete = transitionComplete(activeTransition);
-          if (!isComplete) {
-            const stashedTransition = activeTransition;
-            runHeap(zombieQueue, this._batch === stashedTransition ? cancelZombieRecompute : GlobalQueue._update);
-            if (this._batch === stashedTransition)
-              currentBatch = this._batch = createBatch();
-            if (activeLanes.size) {
-              GlobalQueue._runLaneEffects(EFFECT_RENDER);
-              GlobalQueue._runLaneEffects(EFFECT_USER);
-            }
-            this.stashQueues(stashedTransition._queueStash);
-            clock++;
-            scheduled = dirtyQueue._max >= dirtyQueue._min || this._batch._pendingNodes.length > 0;
-            reassignPendingTransition(stashedTransition._pendingNodes);
-            activeTransition = null;
-            finalizePureQueue(null, true);
-            return;
-          }
-          const completingTransition = activeTransition;
-          const batch = this._batch;
-          batch !== completingTransition && batch._pendingNodes.push(...completingTransition._pendingNodes);
-          this.restoreQueues(completingTransition._queueStash);
-          transitions.delete(completingTransition);
-          activeTransition = null;
-          reassignPendingTransition(batch._pendingNodes);
-          finalizePureQueue(completingTransition);
-          if (batch === completingTransition) {
-            const fresh = createBatch();
-            fresh._pendingNodes = batch._pendingNodes;
-            fresh._optimisticNodes = batch._optimisticNodes;
-            fresh._affectsNodes = batch._affectsNodes;
-            fresh._optimisticStores = batch._optimisticStores;
-            currentBatch = this._batch = fresh;
-          }
-        } else {
-          if (canUseSimpleSyncFlush(this)) {
-            commitPendingNodes();
-            if (dirtyQueue._max >= dirtyQueue._min) {
-              runHeap(dirtyQueue, GlobalQueue._update);
-              commitPendingNodes();
-            }
-          } else {
-            if (transitions.size)
-              runHeap(zombieQueue, GlobalQueue._update);
-            finalizePureQueue();
-          }
-        }
+        this.settle();
         clock++;
-        scheduled = dirtyQueue._max >= dirtyQueue._min;
-        activeLanes.size && GlobalQueue._runLaneEffects(EFFECT_RENDER);
+        scheduled = dirtyQueue._max >= dirtyQueue._min || pendingNodes.length !== 0;
         this.run(EFFECT_RENDER);
-        activeLanes.size && GlobalQueue._runLaneEffects(EFFECT_USER);
         this.run(EFFECT_USER);
-        if (true) {
-          devCheckActiveOverrides((n2) => {
-            if (this._batch._optimisticNodes.includes(n2))
-              return true;
-            if (activeTransition?._optimisticNodes.includes(n2))
-              return true;
-            for (const t2 of transitions)
-              if (t2._optimisticNodes.includes(n2))
-                return true;
-            return false;
-          });
-          devCensusCompanions((n2) => this._batch._pendingNodes.includes(n2));
+        if (holding) {
+          holding = false;
+          attrHooks.holdEnd();
         }
-        if (!scheduled && !activeTransition && transitions.size === 0 && activeLanes.size === 0) {
-          devCheckQuiescent((n2) => this._batch._pendingNodes.includes(n2));
+        if (!scheduled) {
+          devCheckQuiescent((n2) => pendingNodes.includes(n2) || (n2._config & (CONFIG_HELD | CONFIG_OVERRIDE)) !== 0);
         }
         if (true)
-          DEV$1.hooks.onUpdate?.();
+          DEV.hooks.onUpdate?.();
       } finally {
         this._running = false;
+        passTx = null;
       }
     }
+    settle() {
+      if (GlobalQueue._laneCorrections?.())
+        runHeap(dirtyQueue, GlobalQueue._update);
+      const joined = flushTransaction;
+      flushTransaction = null;
+      GlobalQueue._applyGuesses?.(joined);
+      const t2 = joined !== null && !joined._lane ? resolveTx(joined) : null;
+      if (t2 !== null) {
+        const count = pendingNodes.length;
+        for (let i2 = 0;i2 < count; i2++) {
+          const n2 = pendingNodes[i2];
+          if (!(n2._config & (CONFIG_HELD | CONFIG_OVERRIDE)) && (n2._x === null || n2._x._transaction === null || !n2._x._transaction._lane)) {
+            if (n2._pendingValue === NOT_PENDING && n2._statusFlags & STATUS_UNINITIALIZED && n2._type !== EFFECT_RENDER)
+              continue;
+            if (n2._pendingValue !== NOT_PENDING && !(n2._statusFlags & (STATUS_PENDING | STATUS_UNINITIALIZED)) && n2._equals && n2._equals(n2._value, n2._pendingValue) && n2._x?._pendingFirstChild == null && n2._x?._pendingDisposal == null) {
+              n2._pendingValue = NOT_PENDING;
+              n2._config &= ~CONFIG_STAGED;
+              continue;
+            }
+            holdNode(n2, t2);
+          }
+          if (n2._config & CONFIG_STAGED)
+            holdFrame(n2, t2);
+        }
+        pendingNodes.length = 0;
+        GlobalQueue._storePark?.(t2);
+        const zombies = deferredZombies.splice(0).sort((a2, b2) => a2._height - b2._height);
+        for (let i2 = 0;i2 < zombies.length; i2++)
+          if ((zombies[i2]._flags & (REACTIVE_DISPOSED | REACTIVE_ZOMBIE)) === REACTIVE_ZOMBIE && zombies[i2]._config & CONFIG_VERDICT)
+            recompute(zombies[i2]);
+      } else {
+        commitPendingNodes();
+        for (let i2 = 0;i2 < heldTrims.length; i2++) {
+          const t3 = heldTrims[i2];
+          if (t3._x?._error == null && !t3._modified)
+            trimStaleDeps(t3);
+        }
+      }
+      if (heldTrims.length)
+        heldTrims.length = 0;
+      const own = this._queues;
+      const lanes = this._queues = [[], []];
+      GlobalQueue._laneSeams?.(t2 !== null ? stagedReaders : null);
+      if (stagedReaders.length)
+        stagedReaders.length = 0;
+      this._queues = [[], []];
+      for (let k2 = transactions.length - 1;k2 >= 0; k2--) {
+        const u3 = transactions[k2];
+        if (blocked(u3))
+          continue;
+        transactions.splice(k2, 1);
+        GlobalQueue._endLanes?.(u3);
+        land(u3);
+        k2 = transactions.length;
+      }
+      GlobalQueue._storeCommit?.();
+      GlobalQueue._releaseAmbientMarks?.(t2 !== null && transactions.indexOf(t2) !== -1 ? t2 : null);
+      const u2 = t2 && liveTx(t2);
+      const parked = u2 !== null;
+      if (parked && attrHooks !== null) {
+        attrHooks.holdStart(u2);
+        holding = true;
+      }
+      for (let i2 = 0;i2 < 2; i2++) {
+        if (parked)
+          append(u2._queues[i2], own[i2]);
+        this._queues[i2] = parked || lanes[i2].length || this._queues[i2].length ? lanes[i2].concat(parked ? [] : own[i2], this._queues[i2]) : own[i2];
+      }
+      if (deferredZombies.length !== 0) {
+        const zombies = deferredZombies.splice(0).sort((a2, b2) => a2._height - b2._height);
+        for (let i2 = 0;i2 < zombies.length; i2++) {
+          if (!(zombies[i2]._flags & REACTIVE_DISPOSED))
+            recompute(zombies[i2]);
+        }
+      }
+      GlobalQueue._boundarySeam?.();
+    }
+    run(type) {
+      const effects = this._queues[type - 1];
+      if (effects.length) {
+        this._queues[type - 1] = [];
+        runQueue(effects, type);
+      }
+    }
+    enqueue(type, fn, lane = passLane) {
+      if (type)
+        (lane !== null ? lane : this)._queues[type - 1].push(fn);
+      schedule();
+    }
     notify(node, mask, flags, error) {
+      if (GlobalQueue._catch && GlobalQueue._catch(node, flags & mask, error))
+        return true;
       if (mask & STATUS_PENDING) {
         if (flags & STATUS_PENDING) {
-          const actualError = error ?? node._x?._error;
-          if (actualError?._markVisual)
-            return true;
-          if (actualError) {
-            if (!activeTransition && !node._transition && currentBatch._pendingNodes.length)
-              this.initTransition();
-            if (activeTransition) {
-              const source = actualError.source;
-              let reporters = activeTransition._asyncReporters.get(source);
-              if (!reporters)
-                activeTransition._asyncReporters.set(source, reporters = new Set);
-              const prevSize = reporters.size;
-              reporters.add(node);
-              if (reporters.size !== prevSize) {
-                schedule();
-                GlobalQueue._wakeSuppressedProbes?.(activeTransition);
-              }
-            }
-          }
           if (_enforceLoadingBoundary)
             _hitUnhandledAsync = true;
+          if (passLane === null)
+            joinFuture(null);
         }
         return true;
       }
       return false;
     }
-    initTransition(transition) {
-      if (transition) {
-        transition = currentTransition(transition);
-        if (transition._done === true || transition === activeTransition)
-          return;
+  }
+  function reruns(u2) {
+    for (let i2 = 0;i2 < u2._reruns.length; i2++) {
+      const r2 = u2._reruns[i2];
+      if (r2._flags & REACTIVE_DISPOSED)
+        continue;
+      if (r2._flags & REACTIVE_FRAME_READ) {
+        r2._flags &= ~REACTIVE_FRAME_READ;
+        r2._modified = false;
+        for (let c2 = r2._firstChild;c2 !== null; c2 = c2._nextSibling)
+          if (c2._type)
+            c2._modified = false;
+        enqueueSub(r2);
       }
-      if (!transition && activeTransition && activeTransition._time === clock)
-        return;
-      if (!activeTransition) {
-        activeTransition = transition ?? createBatch();
-      } else if (transition) {
-        const outgoing = activeTransition;
-        mergeTransitionState(transition, outgoing);
-        this.restoreQueues(outgoing._queueStash);
-        transitions.delete(outgoing);
-        activeTransition = transition;
-      }
-      transitions.add(activeTransition);
-      activeTransition._time = clock;
-      const batch = this._batch;
-      if (batch !== activeTransition) {
-        for (let i2 = 0;i2 < batch._pendingNodes.length; i2++) {
-          const node = batch._pendingNodes[i2];
-          node._transition = activeTransition;
-          activeTransition._pendingNodes.push(node);
-        }
-        for (let i2 = 0;i2 < batch._optimisticNodes.length; i2++) {
-          const node = batch._optimisticNodes[i2];
-          node._transition = activeTransition;
-          activeTransition._optimisticNodes.push(node);
-        }
-        if (batch._affectsNodes.length)
-          activeTransition._affectsNodes.push(...batch._affectsNodes);
-        for (const store of batch._optimisticStores)
-          activeTransition._optimisticStores.add(store);
-        if (batch._gatedSubs.size) {
-          for (const sub of batch._gatedSubs)
-            activeTransition._gatedSubs.add(sub);
-          batch._gatedSubs.clear();
-        }
-        currentBatch = this._batch = activeTransition;
-      }
-      for (const lane of activeLanes) {
-        if (!lane._transition)
-          lane._transition = activeTransition;
-      }
-      schedule();
+    }
+    u2._reruns.length = 0;
+  }
+  function land(u2) {
+    if (attrHooks !== null)
+      attrHooks.transitionSettled(u2);
+    reruns(u2);
+    if (u2._marks !== null)
+      GlobalQueue._releaseMarks(u2._marks);
+    for (let i2 = 0;i2 < u2._nodes.length; i2++) {
+      const n2 = u2._nodes[i2];
+      if (n2._x._transaction === null || txOf(n2) !== u2)
+        continue;
+      n2._x._transaction = null;
+      commitPendingNode(n2);
+    }
+    releaseQueues(u2);
+  }
+  function releaseQueues(u2) {
+    for (let i2 = 0;i2 < 2; i2++) {
+      append(globalQueue._queues[i2], u2._queues[i2]);
+      u2._queues[i2] = [];
+    }
+  }
+  function append(a2, b2) {
+    for (let i2 = 0;i2 < b2.length; i2++)
+      a2.push(b2[i2]);
+  }
+  var pendingNodes = [];
+  var stagedReaders = [];
+  function staleReader(c2, t2) {
+    if (!(c2._flags & REACTIVE_FRAME_READ)) {
+      c2._flags |= REACTIVE_FRAME_READ;
+      t2._reruns.push(c2);
     }
   }
   function queuePendingNode(node) {
     lastStagedNodeName = node._name ?? null;
-    currentBatch._pendingNodes.push(node);
+    pendingNodes.push(node);
+    if (!globalQueue._running)
+      markUnflushedStaged();
   }
   var lastStagedNodeName = null;
-  var reaskArmed = false;
   var notifyEpoch = 0;
   function bumpNotifyEpoch() {
     notifyEpoch++;
   }
-  function insertSubs(node, optimistic = false) {
+  function insertSubs(node) {
     node._notifiedAt = notifyEpoch;
     const cfg = node._config;
-    const sourceLane = (cfg & CONFIG_HAS_LANE ? node._x?._optimisticLane : undefined) || currentOptimisticLane;
     const hasSnapshot = (cfg & CONFIG_HAS_SNAPSHOT) !== 0 && node._x?._snapshotValue !== undefined;
-    const clearReask = reaskArmed;
+    let fanOut = 0;
     for (let s2 = node._subs;s2 !== null; s2 = s2._nextSub) {
       const sub = s2._sub;
-      if (clearReask)
-        sub._flags &= ~REACTIVE_REASK;
+      fanOut++;
       if (sub._flags & REACTIVE_RECOMPUTING_DEPS && s2._gen === sub._depGen && s2 !== sub._depsTail)
         sub._flags |= REACTIVE_MISSED_WAKE;
       if (hasSnapshot && sub._config & CONFIG_IN_SNAPSHOT_SCOPE) {
         sub._flags |= REACTIVE_SNAPSHOT_STALE;
         continue;
       }
-      if (optimistic && sourceLane) {
-        sub._flags |= REACTIVE_OPTIMISTIC_DIRTY;
-        assignOrMergeLane(sub, sourceLane);
-      } else if (optimistic) {
-        sub._flags |= REACTIVE_OPTIMISTIC_DIRTY;
-        if (sub._x)
-          sub._x._optimisticLane = undefined;
-      }
       enqueueSub(sub);
     }
+    if (fanOut >= GRAPH_SIZE_WARN_AT)
+      noteFanOut(node, fanOut);
+  }
+  function laneDirty(node, l2) {
+    for (let s2 = node._subs;s2 !== null; s2 = s2._nextSub) {
+      const t2 = s2._sub._x?._transaction;
+      if (t2?._lane ? sameLane(t2, l2) : s2._sub._type)
+        s2._sub._flags |= REACTIVE_LANE_DIRTY;
+    }
+  }
+  function sameLane(a2, b2) {
+    return a2 === b2 || a2._links !== null && a2._links === b2._links;
   }
   function commitPendingNode(n2) {
     const c2 = n2;
     if (!c2._fn) {
+      n2._config &= -385;
       if (n2._pendingValue !== NOT_PENDING) {
         n2._value = n2._pendingValue;
         n2._pendingValue = NOT_PENDING;
       }
-      if (n2._config & CONFIG_HAS_COMPANIONS)
-        GlobalQueue._snapCompanions(n2);
       return;
     }
+    const inFlight = n2._pendingValue === NOT_PENDING && (c2._statusFlags & STATUS_PENDING) !== 0;
+    n2._config = inFlight ? n2._config & ~CONFIG_HELD | CONFIG_INPUTS_PUBLISHED : n2._config & -1409;
     if (n2._pendingValue !== NOT_PENDING) {
       n2._value = n2._pendingValue;
       n2._pendingValue = NOT_PENDING;
-      if (n2._type && n2._type !== EFFECT_TRACKED)
+      c2._statusFlags &= ~STATUS_UNINITIALIZED;
+      if (c2._x != null)
+        c2._x._reask = false, c2._x._flushed = NOT_PENDING;
+      if (n2._type && n2._type !== EFFECT_TRACKED) {
         n2._modified = true;
-      if (n2._x)
-        n2._x._reask = false;
+        globalQueue.enqueue(n2._type, n2._boundRunEffect ??= GlobalQueue._runEffect.bind(null, c2));
+      }
     }
     c2._loading = false;
     c2._flags &= ~REACTIVE_MANUAL_WRITE;
+    if (c2._x?._error == null)
+      trimStaleDeps(c2);
     if (!(c2._statusFlags & STATUS_PENDING))
       c2._statusFlags &= ~STATUS_UNINITIALIZED;
-    if (c2._x != null && (c2._x._pendingFirstChild !== null || c2._x._pendingDisposal !== null))
+    if (!inFlight && c2._x != null && (c2._x._pendingFirstChild !== null || c2._x._pendingDisposal !== null))
       GlobalQueue._dispose(c2, false, true);
-    if (n2._config & CONFIG_HAS_COMPANIONS)
-      GlobalQueue._snapCompanions(n2);
   }
-  var storeCommitHook = null;
-  var heldRevealed = [];
   function commitPendingNodes() {
-    const pendingNodes = currentBatch._pendingNodes;
     for (let i2 = 0;i2 < pendingNodes.length; i2++) {
-      const node = pendingNodes[i2];
-      commitPendingNode(node);
-      node._transition = null;
-      if (node._config & CONFIG_HELD_TRUTH) {
-        node._config &= ~CONFIG_HELD_TRUTH;
-        heldRevealed.push(node);
-      }
+      const n2 = pendingNodes[i2];
+      if (!(n2._config & (CONFIG_OVERRIDE | CONFIG_HELD)))
+        commitPendingNode(n2);
     }
     pendingNodes.length = 0;
-    storeCommitHook?.();
-  }
-  function finalizePureQueue(completingTransition = null, incomplete = false) {
-    const resolvePending = !incomplete;
-    if (resolvePending)
-      commitPendingNodes();
-    if (!incomplete && globalQueue._children.length)
-      checkBoundaryChildren(globalQueue);
-    const ranHeap = dirtyQueue._max >= dirtyQueue._min;
-    if (ranHeap)
-      runHeap(dirtyQueue, GlobalQueue._update);
-    if (resolvePending) {
-      if (ranHeap)
-        commitPendingNodes();
-      const batch = completingTransition ?? globalQueue._batch;
-      if (batch._optimisticNodes.length)
-        GlobalQueue._resolveOptimistic(batch._optimisticNodes);
-      if (batch._gatedSubs.size) {
-        for (const sub of batch._gatedSubs) {
-          if (sub._flags & REACTIVE_DISPOSED)
-            continue;
-          enqueueSub(sub);
-        }
-        batch._gatedSubs.clear();
-        schedule();
-      }
-      if (batch._affectsNodes.length) {
-        GlobalQueue._releaseAffectsMarks(batch._affectsNodes);
-        if (globalQueue._children.length)
-          checkBoundaryChildren(globalQueue);
-      }
-      if (batch._optimisticStores.size)
-        GlobalQueue._clearOptimisticStores(batch._optimisticStores, completingTransition);
-      if (heldRevealed.length !== 0) {
-        while (heldRevealed.length)
-          insertSubs(heldRevealed.pop());
-        if (dirtyQueue._max >= dirtyQueue._min) {
-          runHeap(dirtyQueue, GlobalQueue._update);
-          commitPendingNodes();
-        }
-      }
-      sweepTransientStoreNodes();
-      if (activeLanes.size)
-        GlobalQueue._cleanupLanes(completingTransition);
-    }
-  }
-  function checkBoundaryChildren(queue) {
-    for (const child of queue._children) {
-      child._checkSources?.();
-      checkBoundaryChildren(child);
-    }
-  }
-  var activeAffectsMarks = 0;
-  function shiftAffectsMarks(delta) {
-    activeAffectsMarks += delta;
-  }
-  function reassignPendingTransition(pendingNodes) {
-    for (let i2 = 0;i2 < pendingNodes.length; i2++) {
-      pendingNodes[i2]._transition = activeTransition;
-    }
   }
   var globalQueue = new GlobalQueue;
-  var currentBatch = globalQueue._batch;
   function flush(fn) {
+    if (actionDepth > 0) {
+      {
+        throw new Error("[FLUSH_IN_ACTION] flush() inside an action body is not allowed. An action's writes are held in its " + "transaction and commit when the action settles: flush() cannot reveal them, and draining here would " + "detach the writes that follow from the transaction. Remove the flush(); to observe the result, read " + "after the action resolves.");
+      }
+    }
     if (fn) {
       syncDepth++;
       try {
@@ -5807,87 +4425,27 @@ ${footer}`;
     if (halted)
       return;
     let count = 0;
-    while (scheduled || activeTransition) {
+    let drained = false;
+    if (attrHooks !== null && scheduled)
+      attrHooks.flushStart();
+    while (scheduled) {
       if (++count === 1e5) {
-        const t2 = activeTransition;
-        throw new Error(`Potential Infinite Loop Detected. Kept alive by ${scheduled ? "scheduled work" : "an active transition"}${t2 ? `; transition: done=${t2._done === true}, pending=${t2._pendingNodes.length}, optimistic=${t2._optimisticNodes.length}, asyncReporters=${t2._asyncReporters.size}` : ""}${lastStagedNodeName ? `; last staged node: ${lastStagedNodeName}` : ""}`);
+        throw new Error(`Potential Infinite Loop Detected. Kept alive by scheduled work${lastStagedNodeName ? `; last staged node: ${lastStagedNodeName}` : ""}`);
       }
       globalQueue.flush();
+      drained = true;
     }
+    if (drained && attrHooks !== null)
+      attrHooks.flushEnd();
   }
-  function runQueue$1(queue, type) {
+  function runQueue(queue, type) {
     for (let i2 = 0;i2 < queue.length; i2++)
       queue[i2](type);
   }
-  function reporterBlocksSource(reporter, source) {
-    if (reporter._flags & (REACTIVE_ZOMBIE | REACTIVE_DISPOSED))
-      return false;
-    if (reporter._x?._pendingSources?.has(source))
-      return true;
-    for (let dep = reporter._deps;dep; dep = dep._nextDep) {
-      let current = dep._dep;
-      while (current) {
-        if (current === source || current._firewall === source)
-          return true;
-        current = current._x?._parentSource;
-      }
-    }
-    return !!(reporter._statusFlags & STATUS_PENDING && reporter._x?._error instanceof NotReadyError && reporter._x?._error.source === source);
-  }
-  function transitionComplete(transition) {
-    if (transition._done)
-      return true;
-    if (transition._actions.length) {
-      if (attrHooks !== null)
-        attrHooks.holdStart(transition);
-      return false;
-    }
-    let done = true;
-    for (const [source, reporters] of transition._asyncReporters) {
-      let hasLive = false;
-      for (const reporter of reporters) {
-        if (reporterBlocksSource(reporter, source)) {
-          hasLive = true;
-          break;
-        }
-        reporters.delete(reporter);
-      }
-      if (!hasLive)
-        transition._asyncReporters.delete(source);
-      else if (source._statusFlags & STATUS_PENDING && source._x?._error?.source === source) {
-        done = false;
-        break;
-      }
-    }
-    if (done && GlobalQueue._transitionBlocked?.(transition))
-      done = false;
-    if (attrHooks !== null)
-      done ? attrHooks.transitionSettled(transition) : attrHooks.holdStart(transition);
-    done && (transition._done = true);
-    return done;
-  }
-  function currentTransition(transition) {
-    while (transition._done && typeof transition._done === "object")
-      transition = transition._done;
-    return transition;
-  }
-  function runInTransition(transition, fn) {
-    const prevTransition = activeTransition;
-    try {
-      activeTransition = currentTransition(transition);
-      return fn();
-    } finally {
-      activeTransition = prevTransition;
-    }
-  }
-  function queueFor(n2) {
-    return n2._flags & REACTIVE_ZOMBIE ? zombieQueue : dirtyQueue;
-  }
   function enqueueSub(node) {
-    const queue = queueFor(node);
-    if (queue._min > node._height)
-      queue._min = node._height;
-    insertIntoHeap(node, queue);
+    if (dirtyQueue._min > node._height)
+      dirtyQueue._min = node._height;
+    insertIntoHeap(node, dirtyQueue);
   }
   function actualInsertIntoHeap(n2, heap) {
     const parentHeight = (n2._parent?._root ? n2._parent._parentComputed?._height : n2._parent?._height) ?? -1;
@@ -5908,21 +4466,21 @@ ${footer}`;
   }
   function insertIntoHeap(n2, heap) {
     let flags = n2._flags;
-    if (flags & (REACTIVE_IN_HEAP | REACTIVE_RECOMPUTING_DEPS | REACTIVE_MANUAL_WRITE))
+    if (flags & (REACTIVE_IN_HEAP | REACTIVE_RECOMPUTING_DEPS))
       return;
     if (flags & REACTIVE_CHECK) {
       n2._flags = flags & -4 | REACTIVE_DIRTY | REACTIVE_IN_HEAP;
     } else {
       n2._flags = flags | REACTIVE_IN_HEAP;
-      if (heap._marked && !(flags & REACTIVE_DIRTY))
-        heap._marked = false;
+      if (heap._marked)
+        markNode(n2);
     }
     if (!(flags & REACTIVE_IN_HEAP_HEIGHT))
       actualInsertIntoHeap(n2, heap);
   }
   function insertIntoHeapHeight(n2, heap) {
     let flags = n2._flags;
-    if (flags & (REACTIVE_IN_HEAP | REACTIVE_RECOMPUTING_DEPS | REACTIVE_IN_HEAP_HEIGHT | REACTIVE_MANUAL_WRITE))
+    if (flags & (REACTIVE_IN_HEAP | REACTIVE_RECOMPUTING_DEPS | REACTIVE_IN_HEAP_HEIGHT))
       return;
     n2._flags = flags | REACTIVE_IN_HEAP_HEIGHT;
     actualInsertIntoHeap(n2, heap);
@@ -5967,13 +4525,6 @@ ${footer}`;
     for (let link = el._subs;link !== null; link = link._nextSub) {
       markNode(link._sub, REACTIVE_CHECK);
     }
-    if (el._config & CONFIG_FW_CHILDREN) {
-      for (let child = el._x._child;child !== null; child = child._nextChild) {
-        for (let link = child._subs;link !== null; link = link._nextSub) {
-          markNode(link._sub, REACTIVE_CHECK);
-        }
-      }
-    }
   }
   function runHeap(heap, recompute) {
     heap._marked = false;
@@ -5993,30 +4544,20 @@ ${footer}`;
     deleteFromHeap(el, heap);
     let newHeight = el._height;
     for (let d2 = el._deps;d2; d2 = d2._nextDep) {
-      const dep1 = d2._dep;
-      const dep = dep1._firewall || dep1;
+      const dep = d2._dep;
       if (dep._fn && dep._height >= newHeight)
         newHeight = dep._height + 1;
     }
     if (el._height !== newHeight) {
       el._height = newHeight;
-      for (let s2 = el._subs;s2 !== null; s2 = s2._nextSub) {
-        insertIntoHeapHeight(s2._sub, queueFor(s2._sub));
-      }
+      for (let s2 = el._subs;s2 !== null; s2 = s2._nextSub)
+        insertIntoHeapHeight(s2._sub, heap);
     }
   }
   function markDisposal(el) {
     let child = el._firstChild;
     while (child) {
-      const flags = child._flags;
-      child._flags = flags | REACTIVE_ZOMBIE;
-      if (flags & (REACTIVE_IN_HEAP | REACTIVE_IN_HEAP_HEIGHT)) {
-        deleteFromHeap(child, flags & REACTIVE_ZOMBIE ? zombieQueue : dirtyQueue);
-        if (flags & REACTIVE_IN_HEAP)
-          insertIntoHeap(child, zombieQueue);
-        else
-          insertIntoHeapHeight(child, zombieQueue);
-      }
+      child._flags |= REACTIVE_ZOMBIE;
       markDisposal(child);
       child = child._nextSibling;
     }
@@ -6025,36 +4566,41 @@ ${footer}`;
     const flags = node._flags;
     if (flags & REACTIVE_DISPOSED)
       return;
+    if (self2 && !zombie && node._x !== null && (node._x._pendingFirstChild !== null || node._x._pendingDisposal !== null))
+      disposeChildren(node, false, true);
     if (self2) {
       node._flags = flags | REACTIVE_DISPOSED;
-      const n2 = node;
-      if (n2._x?._pendingSignal || n2._x?._latestValueComputed)
-        GlobalQueue._snapCompanions(n2);
+      if (node._parent === null && node._root)
+        unregisterRoot(node);
     }
     if (self2 && true)
       clearSignals(node);
-    if (self2 && node._fn && node._x !== null)
-      node._x._inFlight = null;
-    let child = zombie ? node._x?._pendingFirstChild ?? null : node._firstChild;
+    if (self2 && node._fn) {
+      if (node._x !== null)
+        node._x._inFlight = null;
+      if (node._statusFlags & STATUS_PENDING && node._x?._transaction != null || flags & REACTIVE_FRAME_READ)
+        schedule();
+    }
+    let child = zombie ? node._x._pendingFirstChild : node._firstChild;
+    if (zombie)
+      node._x._pendingFirstChild = null;
+    else
+      node._firstChild = null;
     while (child) {
-      const nextChild = child._nextSibling;
       const n2 = child;
       n2._config &= ~CONFIG_AUTO_DISPOSE;
-      deleteFromHeap(n2, queueFor(n2));
+      deleteFromHeap(n2, dirtyQueue);
       clearDeps(n2);
+      child._prevSibling = child;
       disposeChildren(child, true);
-      child = nextChild;
+      child = child._nextSibling;
     }
-    if (zombie) {
-      if (node._x !== null)
-        node._x._pendingFirstChild = null;
-    } else {
-      node._firstChild = null;
+    if (!zombie)
       node._childCount = 0;
-    }
     if (self2 && !zombie && !(flags & REACTIVE_ZOMBIE) && node._parent !== null && !(node._parent._flags & REACTIVE_DISPOSED)) {
       const prev = node._prevSibling;
       const next = node._nextSibling;
+      assertInvariant(prev !== null || node._parent._firstChild === node, "owner-chain-head", "head node is not parent._firstChild — a node was spliced while flagged live but not in the chain (see #3543)");
       if (prev !== null)
         prev._nextSibling = next;
       else
@@ -6067,26 +4613,37 @@ ${footer}`;
     if (self2 && node._cleanup) {
       const effectCleanup = node._cleanup;
       node._cleanup = undefined;
+      enterDisposal();
       effectCleanup();
+      exitDisposal();
     }
   }
+  function linkChild(parent, node) {
+    const head = parent._firstChild;
+    node._prevSibling = null;
+    node._nextSibling = head;
+    if (head !== null)
+      head._prevSibling = node;
+    parent._firstChild = node;
+  }
   function runDisposal(node, zombie) {
-    let disposal = zombie ? node._x?._pendingDisposal : node._disposal;
+    const disposal = zombie ? node._x._pendingDisposal : node._disposal;
     if (!disposal)
       return;
+    if (zombie)
+      node._x._pendingDisposal = null;
+    else
+      node._disposal = null;
+    enterDisposal();
     if (Array.isArray(disposal)) {
-      for (let i2 = 0;i2 < disposal.length; i2++) {
+      for (let i2 = disposal.length - 1;i2 >= 0; i2--) {
         const callable = disposal[i2];
         callable.call(callable);
       }
     } else {
       disposal.call(disposal);
     }
-    if (zombie) {
-      if (node._x !== null)
-        node._x._pendingDisposal = null;
-    } else
-      node._disposal = null;
+    exitDisposal();
   }
   function childId(owner, consume) {
     let counter = owner;
@@ -6099,12 +4656,15 @@ ${footer}`;
   function getNextChildId(owner) {
     return childId(owner, true);
   }
-  function inheritId(options2, transparent, parent) {
-    return options2?.id ?? (transparent ? parent?.id : parent?.id != null ? getNextChildId(parent) : undefined);
+  function inheritId(options, transparent, parent) {
+    return options?.id ?? (transparent ? parent?.id : parent?.id != null ? getNextChildId(parent) : undefined);
   }
   function formatId(prefix, id) {
     const num = id.toString(36), len = num.length - 1;
     return prefix + (len ? String.fromCharCode(64 + len) : "") + num;
+  }
+  function getObserver() {
+    return tracking ? context : null;
   }
   function getOwner() {
     return context;
@@ -6123,11 +4683,11 @@ ${footer}`;
   function disposeRootSelf(self2 = true) {
     disposeChildren(this, self2);
   }
-  function createOwner(options2) {
+  function createOwner(options) {
     const parent = context;
-    const transparent = options2?.transparent ?? false;
+    const transparent = options?.transparent ?? false;
     const owner = {
-      id: inheritId(options2, transparent, parent),
+      id: inheritId(options, transparent, parent),
       _config: transparent ? CONFIG_TRANSPARENT : 0,
       _root: true,
       _parentComputed: parent?._root ? parent._parentComputed : parent,
@@ -6135,12 +4695,12 @@ ${footer}`;
       _nextSibling: null,
       _prevSibling: null,
       _disposal: null,
-      _queue: parent?._queue ?? globalQueue,
       _context: parent?._context || defaultContext,
       _childCount: 0,
       _x: null,
       _parent: parent,
-      dispose: disposeRootSelf
+      dispose: disposeRootSelf,
+      _name: undefined
     };
     if (parent && parent._config & CONFIG_CHILDREN_FORBIDDEN) {
       emitDiagnostic({
@@ -6153,25 +4713,23 @@ ${footer}`;
       });
       throw new Error(PRIMITIVE_IN_FORBIDDEN_SCOPE_MESSAGE);
     }
-    if (parent) {
-      const lastChild = parent._firstChild;
-      if (lastChild === null) {
-        parent._firstChild = owner;
-      } else {
-        owner._nextSibling = lastChild;
-        lastChild._prevSibling = owner;
-        parent._firstChild = owner;
-      }
-    }
-    DEV$1.hooks.onOwner?.(owner);
+    assertNotInEffectCallback();
+    if (parent)
+      linkChild(parent, owner);
+    else
+      registerRoot(owner);
+    DEV.hooks.onOwner?.(owner);
     return owner;
   }
-  function createRoot(init, options2) {
-    const owner = createOwner(options2);
+  function createRoot(init, options) {
+    const owner = createOwner(options);
     return runWithOwner(owner, () => init(() => owner.dispose()));
   }
+  var slotUnobservedHook;
+  function setSlotUnobserved(fn) {
+    slotUnobservedHook = fn;
+  }
   function unlinkSubs(link) {
-    unnoteGraphLink(link);
     const dep = link._dep;
     const nextDep = link._nextDep;
     const nextSub = link._nextSub;
@@ -6219,7 +4777,7 @@ ${footer}`;
     el._depsTail = null;
   }
   function unobserved(el) {
-    deleteFromHeap(el, queueFor(el));
+    deleteFromHeap(el, dirtyQueue);
     clearDeps(el);
     disposeChildren(el, true);
   }
@@ -6234,12 +4792,10 @@ ${footer}`;
     }
     dormantNodes.clear();
   }
-  function link(dep, sub, pendingObserver = false) {
+  function link(dep, sub) {
     const prevDep = sub._depsTail;
-    if (prevDep !== null && prevDep._dep === dep) {
-      prevDep._pendingObserver &&= pendingObserver;
+    if (prevDep !== null && prevDep._dep === dep)
       return;
-    }
     let nextDep = null;
     const isRecomputing = sub._flags & REACTIVE_RECOMPUTING_DEPS;
     if (isRecomputing) {
@@ -6247,26 +4803,19 @@ ${footer}`;
       if (nextDep !== null && nextDep._dep === dep) {
         nextDep._gen = sub._depGen;
         sub._depsTail = nextDep;
-        nextDep._pendingObserver = pendingObserver;
         return;
       }
     }
     const prevSub = dep._subsTail;
-    if (prevSub !== null && prevSub._sub === sub && (!isRecomputing || prevSub._gen === sub._depGen)) {
-      if (isRecomputing)
-        prevSub._pendingObserver &&= pendingObserver;
-      else
-        prevSub._pendingObserver = pendingObserver;
+    if (prevSub !== null && prevSub._sub === sub && (!isRecomputing || prevSub._gen === sub._depGen))
       return;
-    }
     const newLink = sub._depsTail = dep._subsTail = {
       _dep: dep,
       _sub: sub,
       _nextDep: nextDep,
       _prevSub: prevSub,
       _nextSub: null,
-      _gen: sub._depGen,
-      _pendingObserver: pendingObserver
+      _gen: sub._depGen
     };
     if (prevDep !== null)
       prevDep._nextDep = newLink;
@@ -6277,7 +4826,6 @@ ${footer}`;
     else
       dep._subs = newLink;
     bumpNotifyEpoch();
-    noteGraphLink(dep, sub);
   }
   function addPendingSource(el, source) {
     if (el._x?._pendingSources?.has(source))
@@ -6299,7 +4847,7 @@ ${footer}`;
   }
   function retryReaches(el, source) {
     for (let d2 = el._deps;d2; d2 = d2._nextDep) {
-      const dep = d2._dep._firewall || d2._dep;
+      const dep = d2._dep;
       if (dep === source || dep._x?._pendingSources?.has(source))
         return true;
     }
@@ -6330,10 +4878,6 @@ ${footer}`;
   function forEachDependent(el, fn) {
     for (let s2 = el._subs;s2 !== null; s2 = s2._nextSub)
       fn(s2._sub, s2);
-    for (let child = el._x?._child ?? null;child !== null; child = child._nextChild) {
-      for (let s2 = child._subs;s2 !== null; s2 = s2._nextSub)
-        fn(s2._sub, s2);
-    }
   }
   function releaseIfSettledUnobserved(node) {
     node._fn && node._config & CONFIG_AUTO_DISPOSE && !node._subs && !(node._flags & REACTIVE_ZOMBIE) && !(node._statusFlags & STATUS_PENDING) && unobserved(node);
@@ -6371,28 +4915,27 @@ ${footer}`;
     if (scheduled2)
       schedule();
   }
-  function settlePendingSource(el) {
+  function settlePendingSource(el, source = el) {
     {
       const sources = el._x?._pendingSources;
-      if (el._statusFlags & STATUS_UNINITIALIZED && el._pendingValue === NOT_PENDING && !el._x?._error && !(sources?.size && (sources.size > 1 || !sources.has(el)))) {
-        emitDiagnostic({
+      if (el._statusFlags & STATUS_UNINITIALIZED && el._pendingValue === NOT_PENDING && !el._x?._error && !((el._config & (CONFIG_OVERRIDE | CONFIG_GUESS)) === CONFIG_OVERRIDE && el._x._lane !== NOT_PENDING) && !(sources?.size && (sources.size > 1 || !sources.has(el)))) {
+        reportDiagnostic(emitDiagnostic({
           code: "SETTLE_WALK_UNINITIALIZED_SOURCE",
           kind: "lifecycle",
           severity: "error",
           message: "[SETTLE_WALK_UNINITIALIZED_SOURCE] settlePendingSource was called on a source that " + "never produced a value. Settling parked readers requires truth to reveal — an " + "uninitialized source waking its dependents serves them its initial face instead of " + "settled data.",
           ownerId: el.id,
           ownerName: el._name
-        });
+        }, el));
       }
     }
-    removePendingSource(el, el);
+    removePendingSource(el, source);
     let scheduled2 = false;
     let released;
     const visited = new Set;
-    const updateCompanions = GlobalQueue._updatePendingSignal;
     const settle = (node) => {
-      if (visited.has(node) || !removePendingSource(node, el))
-        return;
+      if (visited.has(node) || source !== el && retryReaches(node, source) || !removePendingSource(node, source))
+        return node._config & CONFIG_VERDICT && enqueueSub(node);
       visited.add(node);
       node._time = clock;
       const remaining = node._x?._pendingSources?.values().next().value;
@@ -6400,12 +4943,12 @@ ${footer}`;
       if (remaining) {
         if (!errored)
           setPendingError(node, remaining);
-        updateCompanions?.(node);
       } else {
         node._statusFlags &= ~STATUS_PENDING;
         if (!errored)
           setPendingError(node);
-        updateCompanions?.(node);
+        if (node._config & CONFIG_HELD)
+          joinFuture(txOf(node));
         if (node._x?._blocked) {
           enqueueSub(node);
           scheduled2 = true;
@@ -6434,7 +4977,7 @@ ${footer}`;
       teardown();
     }
   }
-  function handleAsync(el, result, setter) {
+  function handleAsync(el, result, setter, onError) {
     let iterator = false;
     let thenable = false;
     if (typeof result === "object" && result !== null) {
@@ -6462,17 +5005,11 @@ ${footer}`;
       throw new Error(message);
     }
     ext(el)._inFlight = result;
+    el._x._q = question || MAINLINE_QUESTION;
+    el._x._pendingSources = undefined;
     if (attrHooks !== null)
       attrHooks.flightStart(el, result);
     let syncValue;
-    const settleTransition = () => {
-      const transition = resolveTransition(el);
-      if (transition && el._statusFlags & STATUS_UNINITIALIZED && !currentTransition(transition)._asyncReporters.has(el)) {
-        el._transition = null;
-        return;
-      }
-      globalQueue.initTransition(transition);
-    };
     const handleError = (error) => {
       if (el._x?._inFlight !== result)
         return;
@@ -6488,29 +5025,21 @@ ${footer}`;
         el._time = clock;
         return;
       }
-      settleTransition();
       notifyStatus(el, stillPending ? STATUS_PENDING : STATUS_ERROR, error);
       if (stillPending)
         settlePendingSource(el);
       el._time = clock;
       if (!stillPending)
         releaseSettledDependents(el);
+      onError?.(error, stillPending);
     };
     const asyncWrite = (value, then) => {
       if (el._x?._inFlight !== result)
         return;
-      if (el._flags & (REACTIVE_DIRTY | REACTIVE_OPTIMISTIC_DIRTY))
+      if (el._flags & REACTIVE_DIRTY)
         return;
-      settleTransition();
       const wasUninitialized = !!(el._statusFlags & STATUS_UNINITIALIZED);
-      const wasReask = el._x?._reask;
-      trimStaleDeps(el);
-      clearStatus(el);
-      if (wasReask)
-        el._x._reask = true;
-      const lane = resolveLane(el);
-      if (lane)
-        lane._pendingAsync.delete(el);
+      landStatus(el);
       if (attrHooks !== null)
         attrHooks.asyncStart(el);
       if (setter) {
@@ -6521,37 +5050,12 @@ ${footer}`;
           return;
         }
         if (wasUninitialized)
-          clearStatus(el, true);
-      } else if (el._x?._overrideValue !== undefined) {
-        if (el._pendingValue === NOT_PENDING)
-          queuePendingNode(el);
-        el._pendingValue = value;
-        GlobalQueue._syncCompanions?.(el, value);
-        if (!hasActiveOverride$1(el)) {
-          if (attrHooks !== null)
-            attrHooks.asyncEnd(el, undefined, value, true);
-          insertSubs(el);
-        } else if (el._config & CONFIG_AUTHORITATIVE_OBSERVED) {
-          GlobalQueue._notifyAuthoritativeObservers?.(el);
-        }
-        el._time = clock;
-      } else if (lane) {
-        const isEffect = el._type;
-        const prevValue = el._value;
-        const equals = el._equals;
-        try {
-          if (!isEffect && wasUninitialized || !equals || !equals(value, prevValue)) {
-            el._value = value;
-            el._time = clock;
-            GlobalQueue._syncCompanions?.(el, value);
-            insertSubs(el, true);
-          }
-        } catch (e2) {
-          notifyStatus(el, STATUS_ERROR, e2);
-        }
-        if (attrHooks !== null)
-          attrHooks.asyncEnd(el, prevValue, value, true);
+          landStatus(el, true);
       } else {
+        let t2 = el._x._bornIn;
+        el._x._bornIn = null;
+        if (wasUninitialized && t2 && (t2 = liveTx(t2)))
+          holdNode(el, t2);
         try {
           setSignal(el, () => value);
         } catch (e2) {
@@ -6562,8 +5066,7 @@ ${footer}`;
       }
       if (el._pendingValue === NOT_PENDING) {
         el._loading = false;
-        if (wasReask)
-          el._x._reask = false;
+        trimStaleDeps(el);
       }
       settlePendingSource(el);
       schedule();
@@ -6677,7 +5180,7 @@ ${footer}`;
         else
           el._disposal = [el._disposal, fn];
       };
-      result.then((v2) => {
+      watchAsyncTail(el, result).then((v2) => {
         if (isSync) {
           syncValue = v2;
           resolved = true;
@@ -6703,7 +5206,6 @@ ${footer}`;
       } else if (!resolved) {
         if (el._loading)
           return el._value;
-        globalQueue.initTransition(resolveTransition(el));
         throw new NotReadyError(context);
       } else if (!flattenIfIterable(syncValue)) {
         el._loading = false;
@@ -6715,7 +5217,6 @@ ${footer}`;
       if (!liveLanded) {
         if (el._loading)
           return el._value;
-        globalQueue.initTransition(resolveTransition(el));
         throw new NotReadyError(context);
       }
       el._loading = false;
@@ -6729,27 +5230,28 @@ ${footer}`;
       if (el._x !== null)
         el._x._blocked = false;
     }
-    if (el._x !== null)
-      el._x._reask = false;
     el._statusFlags = clearUninitialized ? 0 : el._statusFlags & STATUS_UNINITIALIZED;
     if (el._x?._error)
       setPendingError(el);
-    if (el._x?._pendingSignal || el._x?._latestValueComputed)
-      GlobalQueue._updatePendingSignal(el);
-    if (el._x?._child && el._config & CONFIG_CHILD_COMPANIONS && GlobalQueue._updateChildCompanions !== null)
-      GlobalQueue._updateChildCompanions(el);
     const notify = statusNotifierOf(el);
     if (notify)
       notify.call(el);
   }
-  function notifyStatus(el, status, error, blockStatus, lane) {
+  function landStatus(el, clearUninitialized = false) {
+    const sources = el._x?._pendingSources;
+    if (sources && (sources.delete(el), sources.size)) {
+      el._x._blocked = false;
+      if (clearUninitialized)
+        el._statusFlags = STATUS_PENDING;
+      setPendingError(el, sources.values().next().value);
+    } else
+      clearStatus(el, clearUninitialized);
+  }
+  function notifyStatus(el, status, error, blockStatus) {
     if (status === STATUS_ERROR && !(error instanceof StatusError) && !(error instanceof NotReadyError))
       error = new StatusError(el, error);
     const pendingSource = status === STATUS_PENDING && error instanceof NotReadyError ? error.source : undefined;
-    const isSource = pendingSource === el;
-    const isOptimisticBoundary = status === STATUS_PENDING && el._x?._overrideValue !== undefined && !isSource;
-    const startsBlocking = isOptimisticBoundary && hasActiveOverride$1(el);
-    if (!blockStatus) {
+    {
       if (status === STATUS_PENDING && pendingSource) {
         addPendingSource(el, pendingSource);
         el._statusFlags = STATUS_PENDING | el._statusFlags & STATUS_UNINITIALIZED;
@@ -6759,68 +5261,77 @@ ${footer}`;
         el._statusFlags = status | (status !== STATUS_ERROR ? el._statusFlags & STATUS_UNINITIALIZED : 0);
         ext(el)._error = error;
       }
-      GlobalQueue._updatePendingSignal?.(el);
-      if (el._x?._child && el._config & CONFIG_CHILD_COMPANIONS && GlobalQueue._updateChildCompanions !== null)
-        GlobalQueue._updateChildCompanions(el);
     }
-    if (lane && !blockStatus) {
-      assignOrMergeLane(el, lane);
+    if (status === STATUS_PENDING && el._config & CONFIG_GUESS) {
+      if (passLane === null)
+        joinFuture(null);
+      return;
     }
-    const downstreamBlockStatus = blockStatus || startsBlocking;
-    const downstreamLane = blockStatus || isOptimisticBoundary ? undefined : lane;
     const elNotify = statusNotifierOf(el);
     if (elNotify) {
-      if (blockStatus && status === STATUS_PENDING) {
-        return;
-      }
-      if (downstreamBlockStatus) {
-        elNotify.call(el, status, error);
-      } else {
+      {
         elNotify.call(el);
       }
       return;
     }
+    propagateStatus(el, status, error);
+  }
+  function propagateStatus(el, status, error, downstreamBlockStatus) {
+    const pendingSource = status === STATUS_PENDING && error instanceof NotReadyError ? error.source : undefined;
     forEachDependent(el, (sub, link2) => {
       sub._time = clock;
-      if (status === STATUS_PENDING && pendingSource && !sub._x?._pendingSources?.has(pendingSource) || status !== STATUS_PENDING && (sub._x?._error !== error || sub._x?._pendingSources)) {
-        if (link2._pendingObserver && status !== STATUS_PENDING && !(error instanceof NotReadyError)) {
-          enqueueSub(sub);
-          schedule();
-          return;
+      if (sub._config & (CONFIG_REDERIVE | CONFIG_VERDICT) || status === STATUS_PENDING && link2._gen !== sub._depGen) {
+        enqueueSub(sub);
+        schedule();
+        return;
+      }
+      if (status === STATUS_PENDING && pendingSource && sub._x?._pendingSources?.has(pendingSource)) {
+        if (passLane === null && (sub._config & (CONFIG_HELD | CONFIG_OVERRIDE)) === CONFIG_HELD && globalQueue._running)
+          joinFuture(txOf(sub));
+        return;
+      }
+      if (status === STATUS_PENDING && pendingSource || status !== STATUS_PENDING && (sub._x?._error !== error || sub._x?._pendingSources)) {
+        {
+          if (passLane !== null)
+            GlobalQueue._laneStage(sub, passLane, true, el);
+          else {
+            queuePendingNode(sub);
+            if (status === STATUS_PENDING && (sub._config & (CONFIG_HELD | CONFIG_OVERRIDE)) === CONFIG_HELD && !sub._type)
+              joinFuture(txOf(sub));
+          }
         }
-        if (!downstreamBlockStatus && !sub._transition)
-          queuePendingNode(sub);
-        notifyStatus(sub, status, error, downstreamBlockStatus, downstreamLane);
+        notifyStatus(sub, status, error);
       }
     });
   }
   GlobalQueue._update = (el) => {
     if (el._type === EFFECT_TRACKED) {
-      deleteFromHeap(el, queueFor(el));
+      deleteFromHeap(el, dirtyQueue);
       el._modified = true;
-      el._queue.enqueue(EFFECT_USER, el._run);
-    } else
+      globalQueue.enqueue(EFFECT_USER, el._run);
+    } else if (el._flags & REACTIVE_ZOMBIE && !(el._flags & REACTIVE_LANE_DIRTY))
+      deferZombie(el);
+    else
       recompute(el);
   };
   GlobalQueue._dispose = disposeChildren;
   var PRIMITIVE_IN_FORBIDDEN_SCOPE_MESSAGE = "[PRIMITIVE_IN_FORBIDDEN_SCOPE] Cannot create reactive primitives inside createTrackedEffect or owner-backed onSettled";
+  var PRIMITIVE_IN_EFFECT_CALLBACK_MESSAGE = "[PRIMITIVE_IN_EFFECT_CALLBACK] Cannot create a memo, effect or root with no owner inside an effect callback. The effect " + "phase runs with no ambient owner, so a computation created here belongs to nobody: it is never disposed and never held. " + "Create it in the compute (a flow component owns its children), or parent it explicitly with runWithOwner.";
+  function assertNotInEffectCallback() {
+    if (inEffectCallback && context === null) {
+      emitDiagnostic({
+        code: "PRIMITIVE_IN_EFFECT_CALLBACK",
+        kind: "lifecycle",
+        severity: "error",
+        message: PRIMITIVE_IN_EFFECT_CALLBACK_MESSAGE
+      });
+      throw new Error(PRIMITIVE_IN_EFFECT_CALLBACK_MESSAGE);
+    }
+  }
   var REACTIVE_WRITE_IN_OWNED_SCOPE_SIGNAL_MESSAGE = "[REACTIVE_WRITE_IN_OWNED_SCOPE] Writing to reactive state inside an owned scope (component, computation) is not allowed. " + "Move the write outside or set the `ownedWrite` option if this is intentional.";
   var REACTIVE_WRITE_IN_OWNED_SCOPE_REFRESH_MESSAGE = "[REACTIVE_WRITE_IN_OWNED_SCOPE] Calling refresh() inside an owned scope (component, computation) is not allowed. " + "Move the invalidation outside pure computation.";
   var tracking = false;
-  function setPendingCheckActive(v2) {
-    pendingCheckActive = v2;
-  }
-  function setLatestReadActive(v2) {
-    latestReadActive = v2;
-  }
-  function setContextInternal(v2) {
-    context = v2;
-  }
-  var stale = false;
-  var pendingCheckActive = false;
-  var latestReadActive = false;
   var context = null;
-  var currentOptimisticLane = null;
   var snapshotCaptureActive = false;
   var snapshotSources = null;
   function ownerInSnapshotScope(owner) {
@@ -6834,74 +5345,61 @@ ${footer}`;
   function recompute(el, create = false) {
     bumpNotifyEpoch();
     const isEffect = el._type;
+    const prevLane = passLane;
+    setPassLane((el._flags & REACTIVE_LANE_DIRTY || (el._config & (CONFIG_OVERRIDE | CONFIG_GUESS)) === CONFIG_OVERRIDE) && el._x?._transaction?._lane ? el._x._transaction : create && prevLane?._parent._verdict != prevLane && (creatorPass(context)?._flags ?? 0) & REACTIVE_RECOMPUTING_DEPS ? prevLane : null);
     let devChanged = false;
-    if (attrHooks !== null)
-      attrHooks.recomputeStart(el, create);
+    {
+      el._devWindows = 0;
+      if (attrHooks !== null)
+        attrHooks.recomputeStart(el, create);
+    }
     if (!create) {
-      if (el._transition && (!isEffect || activeTransition) && activeTransition !== el._transition)
-        globalQueue.initTransition(el._transition);
-      deleteFromHeap(el, queueFor(el));
+      deleteFromHeap(el, dirtyQueue);
       if (el._x !== null) {
         el._x._inFlight = null;
         releaseFlightTeardown(el);
       }
-      if (el._transition || isEffect === EFFECT_TRACKED)
+      if (el._config & CONFIG_HELD) {
+        const tx = txOf(el);
+        if (tx._lane)
+          ;
+        else if (isEffect !== EFFECT_RENDER && !(el._config & CONFIG_VERDICT))
+          joinPassTx(tx);
+        else if (tx !== flushTransaction && !(el._statusFlags & STATUS_UNINITIALIZED)) {
+          el._pendingValue = NOT_PENDING;
+          if (isEffect === EFFECT_RENDER)
+            el._config &= ~CONFIG_HELD;
+        }
+      }
+      if (isEffect === EFFECT_TRACKED || el._config & CONFIG_STAGED)
         disposeChildren(el);
-      else if (el._firstChild !== null || el._disposal !== null) {
-        markDisposal(el);
-        const x2 = ext(el);
-        x2._pendingDisposal = el._disposal;
-        x2._pendingFirstChild = el._firstChild;
-        el._disposal = null;
-        el._firstChild = null;
-        el._childCount = 0;
-        clearSignals(el);
-      } else
-        clearSignals(el);
+      else if (el._firstChild !== null || el._disposal !== null)
+        parkChildren(el);
+      clearSignals(el);
     }
-    let isOptimisticDirty = !!(el._flags & REACTIVE_OPTIMISTIC_DIRTY);
-    const hasOverride = (el._config & CONFIG_OPTIMISTIC) !== 0 && el._x?._overrideValue !== NOT_PENDING && el._x?._overrideValue !== undefined;
     const wasUninitialized = !!(el._statusFlags & STATUS_UNINITIALIZED);
     const outgoingError = el._statusFlags & STATUS_ERROR ? el._x?._error : undefined;
+    const wasPending = (el._statusFlags & STATUS_PENDING) !== 0;
+    const outgoingPendingSources = wasPending ? el._x?._pendingSources : undefined;
     const wasPendingSource = el._x?._pendingSources?.has(el);
-    const hadReask = (el._flags & REACTIVE_REASK) !== 0;
-    const wasLoading = el._loading;
+    const reask = (el._flags & REACTIVE_REASK) !== 0 && !(el._statusFlags & STATUS_PENDING && el._x !== null && !el._x._reask);
     const oldcontext = context;
     context = el;
     el._depsTail = null;
     el._depGen++;
-    el._flags = REACTIVE_RECOMPUTING_DEPS;
+    el._flags = REACTIVE_RECOMPUTING_DEPS | el._flags & REACTIVE_ZOMBIE;
     el._time = clock;
-    let value = el._pendingValue === NOT_PENDING ? el._value : el._pendingValue;
+    let value = el._pendingValue !== NOT_PENDING ? el._pendingValue : el._config & CONFIG_OVERRIDE ? el._x._lane : el._value;
     let oldHeight = el._height;
     let missedWake = false;
+    let joined = false;
     let prevTracking = tracking;
-    let prevLane = currentOptimisticLane;
     let prevStrictRead = false;
     {
       prevStrictRead = strictRead;
       strictRead = false;
     }
     tracking = true;
-    const prevLatestRead = latestReadActive;
-    latestReadActive = false;
-    if (isOptimisticDirty) {
-      const lane = GlobalQueue._recomputeLane(el, true);
-      if (lane)
-        currentOptimisticLane = lane;
-      else if (lane === false)
-        isOptimisticDirty = false;
-    } else if (activeTransition && !create && activeTransition._optimisticNodes.length) {
-      const lane = GlobalQueue._recomputeLane(el, false);
-      if (lane) {
-        isOptimisticDirty = true;
-        currentOptimisticLane = lane;
-      }
-    }
-    const isStaleEffect = isEffect && isEffect !== EFFECT_USER;
-    const prevStale = stale;
-    if (isStaleEffect)
-      stale = true;
     try {
       if (false)
         ;
@@ -6909,9 +5407,9 @@ ${footer}`;
         const prevInFlight = el._x?._inFlight;
         const fnResult = el._fn(value);
         const isAsyncResult = typeof fnResult === "object" && fnResult !== null;
-        const inFlightChanged = el._x?._inFlight !== prevInFlight;
-        value = inFlightChanged || !isAsyncResult ? fnResult : handleAsync(el, fnResult);
-        if (!inFlightChanged && !isAsyncResult) {
+        const selfRegistered = el._x?._inFlight !== prevInFlight;
+        value = selfRegistered || !isAsyncResult ? fnResult : handleAsync(el, fnResult);
+        if (!selfRegistered && !isAsyncResult) {
           if (el._x !== null)
             el._x._inFlight = null;
           el._loading = false;
@@ -6919,40 +5417,63 @@ ${footer}`;
       }
       if (el._statusFlags !== 0 || el._x !== null)
         clearStatus(el, create);
-      if (el._config & CONFIG_HAS_LANE && el._x?._optimisticLane)
-        GlobalQueue._laneAsyncSettled(el);
     } catch (e2) {
       const notReady = e2 instanceof NotReadyError;
       if (notReady && el._loading) {
         parkLoadingWindow(el, e2);
       } else {
-        if (notReady && currentOptimisticLane)
-          GlobalQueue._laneAsyncPending(el);
-        let reaskChanged = false;
-        if (notReady) {
+        if (notReady)
           ext(el)._blocked = true;
-          if (GlobalQueue._applyReask !== null)
-            reaskChanged = GlobalQueue._applyReask(el, hadReask);
-        }
-        notifyStatus(el, notReady ? STATUS_PENDING : STATUS_ERROR, e2, undefined, notReady ? el._x?._optimisticLane : undefined);
+        notifyStatus(el, notReady ? STATUS_PENDING : STATUS_ERROR, e2);
         if (notReady && wasPendingSource && !el._x?._inFlight)
           settlePendingSource(el);
-        if (reaskChanged)
-          GlobalQueue._repollVerdicts(el);
+        if (notReady && outgoingPendingSources) {
+          for (const source of outgoingPendingSources)
+            if (source !== el && !el._x?._pendingSources?.has(source))
+              settlePendingSource(el, source);
+        }
       }
     } finally {
       tracking = prevTracking;
-      latestReadActive = prevLatestRead;
       strictRead = prevStrictRead;
-      if (isStaleEffect)
-        stale = prevStale;
       missedWake = (el._flags & REACTIVE_MISSED_WAKE) !== 0;
-      el._flags = REACTIVE_NONE | (create ? el._flags & REACTIVE_SNAPSHOT_STALE : 0);
+      joined = (el._flags & REACTIVE_JOINED) !== 0;
+      if (!(el._flags & REACTIVE_PROBED))
+        el._config &= ~CONFIG_VERDICT;
+      el._flags = el._flags & (REACTIVE_ZOMBIE | REACTIVE_DISPOSED | REACTIVE_FRAME_READ | REACTIVE_STAGED_READ | REACTIVE_LANE_READ | REACTIVE_SCREEN_READ | REACTIVE_PROBE_UNANSWERED) | (create ? el._flags & REACTIVE_SNAPSHOT_STALE : 0);
       context = oldcontext;
+      if (el._x !== null)
+        el._x._reask = reask && (el._statusFlags & STATUS_PENDING) !== 0;
+    }
+    if (el._flags & REACTIVE_DISPOSED) {
+      clearDeps(el);
+      if (el._x !== null)
+        el._x._inFlight = null;
+      if (attrHooks !== null)
+        attrHooks.recomputeEnd(el, create, false, false, false, false);
+      setPassLane(prevLane);
+      return;
+    }
+    let lane = passLane;
+    const errored = !!el._x?._error;
+    if (lane !== null) {
+      if (GlobalQueue._laneStage(el, lane, create, errored))
+        setPassLane(lane);
+      else
+        lane = null;
     }
     if (!el._x?._error) {
-      trimStaleDeps(el);
-      const compareValue = hasOverride ? unwrapOverride(el._x?._overrideValue) : el._pendingValue === NOT_PENDING ? el._value : el._pendingValue;
+      {
+        let fanIn = 0;
+        for (let d2 = el._deps;d2 !== null; d2 = d2._nextDep) {
+          fanIn++;
+          if (d2 === el._depsTail)
+            break;
+        }
+        if (fanIn >= GRAPH_SIZE_WARN_AT)
+          noteFanIn(el, fanIn);
+      }
+      const compareValue = el._pendingValue !== NOT_PENDING ? el._pendingValue : el._config & CONFIG_OVERRIDE && el._x._lane !== NOT_PENDING ? el._x._lane : el._value;
       let valueChanged = false;
       try {
         valueChanged = !isEffect && wasUninitialized || !el._equals || !el._equals(compareValue, value);
@@ -6964,54 +5485,69 @@ ${footer}`;
         if (devChanged && !isEffect && !create)
           attrHooks.derivedChanged(el);
       }
-      if (isEffect && valueChanged) {
+      if (isEffect && valueChanged && !(el._flags & REACTIVE_SCREEN_READ && !el._modified && Object.is(el._prevValue, value)) && el._pendingValue === NOT_PENDING) {
         el._modified = !el._x?._error;
-        if (!create)
-          el._queue.enqueue(isEffect, el._boundRunEffect ??= GlobalQueue._runEffect.bind(null, el));
+        if (!create || lane !== null)
+          globalQueue.enqueue(isEffect, el._boundRunEffect ??= GlobalQueue._runEffect.bind(null, el), lane);
       }
-      if (el._x?._error)
+      if (!create && lane === null && el._config & CONFIG_GUESS && GlobalQueue._laneOutcome(el, value, errored))
+        ;
+      else if (errored)
         ;
       else if (valueChanged) {
-        const prevVisible = hasOverride ? el._x?._overrideValue : undefined;
-        if (create || isEffect && (activeTransition !== el._transition || activeTransition === null || el._config & CONFIG_DIRECT_COMMIT) || isOptimisticDirty) {
+        if (lane !== null) {
+          if (isEffect && el._pendingValue === NOT_PENDING)
+            el._value = value;
+          else if (isEffect || lane._shown)
+            el._pendingValue = value;
+          else
+            el._x._lane = value;
+        } else if (create ? !((flushTransaction !== null || passTx !== null) && (joined || prevLane && el._flags & REACTIVE_STAGED_READ || (creatorPass(oldcontext)?._flags ?? 0) & REACTIVE_JOINED)) : isEffect && el._pendingValue === NOT_PENDING) {
           el._value = value;
-          if (hasOverride && isOptimisticDirty) {
-            ext(el)._overrideValue = value === undefined ? OVERRIDE_UNDEFINED : value;
-            el._pendingValue = NOT_PENDING;
-          }
         } else {
           el._pendingValue = value;
-          if (wasLoading)
-            el._loading = true;
-          if ((activeTransition || el._transition) && GlobalQueue._syncCompanions !== null)
-            GlobalQueue._syncCompanions(el, value);
+          if (create) {
+            holdNode(el, flushTransaction ?? passTx);
+            el._statusFlags |= STATUS_UNINITIALIZED;
+          }
         }
-        if (el._subs !== null && (!hasOverride || isOptimisticDirty || el._x?._overrideValue !== prevVisible))
-          insertSubs(el, isOptimisticDirty || hasOverride);
-      } else if (hasOverride) {
-        if (el._pendingValue === NOT_PENDING)
-          queuePendingNode(el);
-        el._pendingValue = value;
-        if (wasLoading)
-          el._loading = true;
-        if (el._config & CONFIG_AUTHORITATIVE_OBSERVED)
-          GlobalQueue._notifyAuthoritativeObservers(el);
+        if (el._subs !== null) {
+          insertSubs(el);
+          if (lane !== null)
+            laneDirty(el, lane);
+        }
       } else if (el._height != oldHeight) {
-        for (let s2 = el._subs;s2 !== null; s2 = s2._nextSub) {
-          insertIntoHeapHeight(s2._sub, queueFor(s2._sub));
+        for (let s2 = el._subs;s2 !== null; s2 = s2._nextSub)
+          insertIntoHeapHeight(s2._sub, dirtyQueue);
+      }
+      if (!valueChanged && !el._x?._error) {
+        if (outgoingError !== undefined)
+          settleErroredDependents(el, outgoingError);
+        if (outgoingPendingSources) {
+          for (const source of outgoingPendingSources)
+            if (source !== el)
+              settlePendingSource(el, source);
         }
       }
-      if (outgoingError !== undefined && !valueChanged && !el._x?._error)
-        settleErroredDependents(el, outgoingError);
       if (wasPendingSource && !(el._statusFlags & (STATUS_PENDING | STATUS_UNINITIALIZED)))
         settlePendingSource(el);
     }
+    if (create && lane === null && (joined || prevLane && el._flags & REACTIVE_STAGED_READ) && el._statusFlags & STATUS_PENDING)
+      ext(el)._bornIn = flushTransaction ?? passTx;
+    if (!el._x?._error && el._pendingValue === NOT_PENDING && !(isEffect && el._modified)) {
+      if (create || isEffect === EFFECT_TRACKED)
+        trimStaleDeps(el);
+      else
+        heldTrim(el);
+    }
     if (attrHooks !== null)
-      attrHooks.recomputeEnd(el, create, devChanged, isOptimisticDirty || currentOptimisticLane !== null, activeTransition !== null || el._transition !== null, el._pendingValue !== NOT_PENDING);
-    currentOptimisticLane = prevLane;
-    const needsPendingCommit = el._pendingValue !== NOT_PENDING || el._x !== null && (el._x._pendingFirstChild !== null || el._x._pendingDisposal !== null) || (el._statusFlags & (STATUS_PENDING | STATUS_UNINITIALIZED)) !== 0;
-    needsPendingCommit && (!create || el._statusFlags & STATUS_PENDING) && (!el._transition || hasOverride) && queuePendingNode(el);
-    el._transition && isEffect && activeTransition !== el._transition && runInTransition(el._transition, () => recompute(el));
+      attrHooks.recomputeEnd(el, create, devChanged, lane !== null, flushTransaction !== null || passTx !== null || (el._config & CONFIG_HELD) !== 0, el._pendingValue !== NOT_PENDING);
+    if (el._pendingValue !== NOT_PENDING || el._x !== null && (el._x._pendingFirstChild !== null || el._x._pendingDisposal !== null) || (el._statusFlags & (STATUS_PENDING | STATUS_UNINITIALIZED)) !== 0 && (!create || (el._statusFlags & STATUS_PENDING) !== 0)) {
+      el._config |= CONFIG_STAGED;
+      if (lane === null)
+        queuePendingNode(el);
+    }
+    setPassLane(prevLane);
     if (missedWake) {
       enqueueSub(el);
       schedule();
@@ -7022,8 +5558,7 @@ ${footer}`;
       return;
     if (el._flags & REACTIVE_CHECK) {
       for (let d2 = el._deps;d2; d2 = d2._nextDep) {
-        const dep1 = d2._dep;
-        const dep = dep1._firewall || dep1;
+        const dep = d2._dep;
         if (dep._fn) {
           updateIfNecessary(dep);
         }
@@ -7032,24 +5567,23 @@ ${footer}`;
         }
       }
     }
-    if (el._flags & (REACTIVE_DIRTY | REACTIVE_OPTIMISTIC_DIRTY) || el._x?._error && el._time < clock && !el._x?._inFlight) {
+    if (el._flags & REACTIVE_DIRTY || el._x?._error && el._time < clock && !el._x?._inFlight) {
       recompute(el);
     }
-    el._flags = el._flags & (REACTIVE_SNAPSHOT_STALE | REACTIVE_IN_HEAP | REACTIVE_IN_HEAP_HEIGHT);
+    el._flags = el._flags & (REACTIVE_SNAPSHOT_STALE | REACTIVE_IN_HEAP | REACTIVE_IN_HEAP_HEIGHT | REACTIVE_ZOMBIE | REACTIVE_DISPOSED | REACTIVE_MANUAL_WRITE | REACTIVE_FRAME_READ | REACTIVE_STAGED_READ | REACTIVE_LANE_READ | REACTIVE_SCREEN_READ | REACTIVE_PROBE_UNANSWERED);
   }
-  function computed(fn, options2) {
-    const transparent = options2?.transparent ?? false;
-    const loading = options2 !== null && typeof options2 === "object" && "loadingValue" in options2;
+  function computed(fn, options) {
+    const transparent = options?.transparent ?? false;
+    const loading = options !== null && typeof options === "object" && "loadingValue" in options;
     const self2 = {
-      id: inheritId(options2, transparent, context),
-      _config: (transparent ? CONFIG_TRANSPARENT : 0) | (options2?.ownedWrite ? CONFIG_OWNED_WRITE : 0) | (!context || options2?.lazy ? CONFIG_AUTO_DISPOSE : 0) | (options2?.sync ? CONFIG_SYNC : 0) | (options2?._noSnapshot ? CONFIG_NO_SNAPSHOT : 0) | (snapshotCaptureActive && ownerInSnapshotScope(context) ? CONFIG_IN_SNAPSHOT_SCOPE : 0),
-      _equals: options2?.equals ?? isEqual,
+      id: inheritId(options, transparent, context),
+      _config: (transparent ? CONFIG_TRANSPARENT : 0) | (options?.ownedWrite ? CONFIG_OWNED_WRITE : 0) | (!context || options?.lazy ? CONFIG_AUTO_DISPOSE : 0) | (options?.sync ? CONFIG_SYNC : 0) | (options?._noSnapshot ? CONFIG_NO_SNAPSHOT : 0) | (options?._plumbing ? CONFIG_PLUMBING : 0) | (options?._extraConfig ?? 0) | (snapshotCaptureActive && ownerInSnapshotScope(context) ? CONFIG_IN_SNAPSHOT_SCOPE : 0),
+      _equals: options?.equals ?? isEqual,
       _disposal: null,
-      _queue: context?._queue ?? globalQueue,
       _context: context?._context ?? defaultContext,
       _childCount: 0,
       _fn: fn,
-      _value: loading ? options2.loadingValue : undefined,
+      _value: loading ? options.loadingValue : undefined,
       _height: 0,
       _nextHeap: undefined,
       _prevHeap: null,
@@ -7062,53 +5596,78 @@ ${footer}`;
       _nextSibling: null,
       _prevSibling: null,
       _firstChild: null,
-      _flags: options2?.lazy ? REACTIVE_LAZY : REACTIVE_NONE,
+      _flags: options?.lazy ? REACTIVE_LAZY : REACTIVE_NONE,
       _statusFlags: loading ? 0 : STATUS_UNINITIALIZED,
       _time: clock,
       _pendingValue: NOT_PENDING,
-      _transition: null,
       _notifiedAt: -1,
       _loading: loading,
-      _x: null
+      _x: null,
+      _name: options?._plumbing ? undefined : options?.name ?? "computed",
+      _devWindows: 0
     };
-    self2._name = options2?.name ?? "computed";
-    if (options2?.unobserved)
-      ext(self2)._unobserved = options2.unobserved;
-    setupComputedNode(self2, options2);
+    if (options?.unobserved)
+      ext(self2)._unobserved = options.unobserved;
+    if (options?._supersedes)
+      self2._config |= CONFIG_SUPERSEDES;
+    setupComputedNode(self2, options);
     return self2;
   }
   function ext(el) {
     return el._x ??= {
-      _overrideValue: undefined,
-      _overrideOwner: undefined,
-      _optimisticLane: undefined,
-      _pendingSignal: undefined,
-      _latestValueComputed: undefined,
-      _parentSource: undefined,
-      _affectsCount: 0,
       _inFlight: null,
       _flightTeardown: null,
       _error: undefined,
       _blocked: undefined,
       _pendingSources: undefined,
-      _notifyStatus: undefined,
-      _reask: false,
-      _child: null,
       _unobserved: undefined,
       _snapshotValue: undefined,
-      _pendingDisposal: null,
       _pendingFirstChild: null,
-      _companionChildren: undefined
+      _pendingDisposal: null,
+      _transaction: null,
+      _bornIn: null,
+      _reask: false,
+      _flushed: NOT_PENDING,
+      _flushedAt: -1,
+      _q: 0,
+      _lane: NOT_PENDING,
+      _marks: 0
     };
   }
-  function createEffectNode(fn, effectFn, errorFn, type, options2) {
-    const transparent = options2?.transparent ?? false;
+  function joinPass(c2, el) {
+    c2._flags |= REACTIVE_JOINED;
+    if (el._statusFlags & STATUS_UNINITIALIZED || c2._type !== EFFECT_RENDER)
+      joinPassTx(txOf(el), GlobalQueue._fresh?.(c2));
+  }
+  function frameRead(c2, el) {
+    const verdict = c2._config & CONFIG_VERDICT;
+    if ((passLane === null || c2._statusFlags & STATUS_UNINITIALIZED && el._statusFlags & STATUS_PENDING) && !verdict && (c2._type !== EFFECT_RENDER || el._config & CONFIG_INPUTS_PUBLISHED))
+      return false;
+    const t2 = txOf(el);
+    if (t2 === flushTransaction && passLane === null && !verdict || c2._statusFlags & STATUS_UNINITIALIZED && c2._config & CONFIG_HELD && txOf(c2) === t2)
+      return false;
+    staleReader(c2, t2);
+    return true;
+  }
+  function creatorPass(owner) {
+    return owner !== null && owner._root ? owner._parentComputed : owner;
+  }
+  function parkChildren(el) {
+    markDisposal(el);
+    const x2 = ext(el);
+    x2._pendingDisposal = el._disposal;
+    x2._pendingFirstChild = el._firstChild;
+    el._disposal = null;
+    el._firstChild = null;
+    el._childCount = 0;
+  }
+  function createEffectNode(fn, effectFn, errorFn, type, options) {
+    const transparent = options?.transparent ?? false;
     const self2 = {
-      id: inheritId(options2, transparent, context),
-      _config: (transparent ? CONFIG_TRANSPARENT : 0) | (options2?.ownedWrite ? CONFIG_OWNED_WRITE : 0) | (options2?.sync ? CONFIG_SYNC : 0) | (options2?._extraConfig ?? 0) | (snapshotCaptureActive && ownerInSnapshotScope(context) ? CONFIG_IN_SNAPSHOT_SCOPE : 0),
+      id: inheritId(options, transparent, context),
+      _config: (transparent ? CONFIG_TRANSPARENT : 0) | (options?.ownedWrite ? CONFIG_OWNED_WRITE : 0) | (options?.sync ? CONFIG_SYNC : 0) | (options?._extraConfig ?? 0) | (snapshotCaptureActive && ownerInSnapshotScope(context) ? CONFIG_IN_SNAPSHOT_SCOPE : 0),
       _equals: false,
       _disposal: null,
-      _queue: context?._queue ?? globalQueue,
       _context: context?._context ?? defaultContext,
       _childCount: 0,
       _fn: fn,
@@ -7129,7 +5688,6 @@ ${footer}`;
       _statusFlags: STATUS_UNINITIALIZED,
       _time: clock,
       _pendingValue: NOT_PENDING,
-      _transition: null,
       _notifiedAt: -1,
       _loading: false,
       _modified: false,
@@ -7138,11 +5696,14 @@ ${footer}`;
       _errorFn: errorFn,
       _cleanup: undefined,
       _type: type,
-      _x: null
+      _x: null,
+      _name: options?.name ?? "effect",
+      _devWindows: 0
     };
-    self2._name = options2?.name ?? "effect";
-    if (options2?.unobserved)
-      ext(self2)._unobserved = options2.unobserved;
+    if (options?.unobserved)
+      ext(self2)._unobserved = options.unobserved;
+    if (options?._wide)
+      self2._config |= CONFIG_WIDE;
     setupComputedNode(self2, lazyOptions);
     return self2;
   }
@@ -7151,13 +5712,10 @@ ${footer}`;
     effectStatusNotify = fn;
   }
   function statusNotifierOf(el) {
-    const own = el._x?._notifyStatus;
-    if (own !== undefined)
-      return own;
     return el._type ? effectStatusNotify ?? undefined : undefined;
   }
   var lazyOptions = { lazy: true };
-  function setupComputedNode(self2, options2) {
+  function setupComputedNode(self2, options) {
     self2._prevHeap = self2;
     const parent = context?._root ? context._parentComputed : context;
     if (context && context._config & CONFIG_CHILDREN_FORBIDDEN) {
@@ -7171,23 +5729,15 @@ ${footer}`;
       });
       throw new Error(PRIMITIVE_IN_FORBIDDEN_SCOPE_MESSAGE);
     }
-    if (context) {
-      const lastChild = context._firstChild;
-      if (lastChild === null) {
-        context._firstChild = self2;
-      } else {
-        self2._nextSibling = lastChild;
-        lastChild._prevSibling = self2;
-        context._firstChild = self2;
-      }
-    }
-    DEV$1.hooks.onOwner?.(self2);
+    assertNotInEffectCallback();
+    if (context)
+      linkChild(context, self2);
+    DEV.hooks.onOwner?.(self2);
     if (parent)
       self2._height = parent._height + 1;
-    if (GlobalQueue._wireExternalSource !== null)
-      GlobalQueue._wireExternalSource(self2);
-    !options2?.lazy && recompute(self2, true);
-    if (snapshotCaptureActive && !options2?.lazy) {
+    GlobalQueue._wireExternalSource?.(self2);
+    !options?.lazy && recompute(self2, true);
+    if (snapshotCaptureActive && !options?.lazy) {
       if (!(self2._statusFlags & STATUS_PENDING) && !(self2._config & CONFIG_NO_SNAPSHOT)) {
         ext(self2)._snapshotValue = self2._value === undefined ? NO_SNAPSHOT : self2._value;
         self2._config |= CONFIG_HAS_SNAPSHOT;
@@ -7195,43 +5745,34 @@ ${footer}`;
       }
     }
   }
-  function signal(v2, options2, firewall = null) {
+  function signal(v2, options) {
     const s2 = {
-      _equals: options2?.equals ?? isEqual,
-      _config: (options2?.ownedWrite ? CONFIG_OWNED_WRITE : 0) | (options2?._noSnapshot ? CONFIG_NO_SNAPSHOT : 0),
+      _equals: options?.equals ?? isEqual,
+      _config: (options?.ownedWrite ? CONFIG_OWNED_WRITE : 0) | (options?._noSnapshot ? CONFIG_NO_SNAPSHOT : 0),
       _value: v2,
       _subs: null,
       _subsTail: null,
       _time: clock,
-      _firewall: firewall,
-      _nextChild: firewall?._x?._child || null,
       _pendingValue: NOT_PENDING,
-      _transition: null,
       _notifiedAt: -1,
-      _x: null
+      _x: null,
+      _name: options?.name ?? "signal",
+      _owner: null
     };
-    {
-      s2._name = options2?.name ?? "signal";
-      s2._internal = !!firewall;
-    }
-    if (options2?.unobserved)
-      ext(s2)._unobserved = options2.unobserved;
-    if (firewall) {
-      ext(firewall)._child = s2;
-      firewall._config |= CONFIG_FW_CHILDREN;
-    }
-    if (snapshotCaptureActive && !(s2._config & CONFIG_NO_SNAPSHOT) && !((firewall?._statusFlags ?? 0) & STATUS_PENDING)) {
+    s2._internal = false;
+    if (options?.unobserved)
+      ext(s2)._unobserved = options.unobserved;
+    if (snapshotCaptureActive && !(s2._config & CONFIG_NO_SNAPSHOT)) {
       ext(s2)._snapshotValue = v2 === undefined ? NO_SNAPSHOT : v2;
       s2._config |= CONFIG_HAS_SNAPSHOT;
       snapshotSources.add(s2);
     }
     return s2;
   }
-  var slotUnobservedHook;
-  function setSlotUnobserved(fn) {
-    slotUnobservedHook = fn;
+  function isEqual(a2, b2) {
+    return a2 === b2;
   }
-  function slotSignal(v2, equals, host, key, acc, firewall = null) {
+  function slotSignal(v2, equals, host, key, acc) {
     const s2 = {
       _equals: equals,
       _config: CONFIG_OWNED_WRITE | CONFIG_SLOT_NODE,
@@ -7239,121 +5780,197 @@ ${footer}`;
       _subs: null,
       _subsTail: null,
       _time: clock,
-      _firewall: firewall,
-      _nextChild: firewall?._x?._child || null,
       _pendingValue: NOT_PENDING,
-      _transition: null,
       _notifiedAt: -1,
       _x: null,
       _host: host,
       _key: key,
       acc,
       px: undefined,
-      pxv: undefined
+      pxv: undefined,
+      _name: "signal",
+      _owner: null
     };
-    {
-      s2._name = "signal";
-      s2._internal = !!firewall;
-    }
-    if (firewall) {
-      ext(firewall)._child = s2;
-      firewall._config |= CONFIG_FW_CHILDREN;
-    }
-    if (snapshotCaptureActive && !((firewall?._statusFlags ?? 0) & STATUS_PENDING)) {
-      ext(s2)._snapshotValue = v2 === undefined ? NO_SNAPSHOT : v2;
-      s2._config |= CONFIG_HAS_SNAPSHOT;
-      snapshotSources.add(s2);
-    }
+    s2._internal = false;
     return s2;
   }
-  function optimisticComputed(fn, options2) {
-    const c2 = computed(fn, options2);
-    ext(c2)._overrideValue = NOT_PENDING;
-    c2._config |= CONFIG_OPTIMISTIC;
-    return c2;
-  }
-  function isEqual(a2, b2) {
-    return a2 === b2;
-  }
+  var verdict = null;
   var strictRead = false;
+  var untrackDepth = 0;
+  var callbackDepth = 0;
+  function enterCallback() {
+    callbackDepth++;
+  }
+  function exitCallback() {
+    callbackDepth--;
+  }
+  var disposalDepth = 0;
+  function enterDisposal() {
+    disposalDepth++;
+  }
+  function exitDisposal() {
+    disposalDepth--;
+  }
+  function resetDisposalDepth() {
+    disposalDepth = 0;
+  }
   function setStrictRead(v2) {
     const prev = strictRead;
     strictRead = v2;
     return prev;
   }
   function untrack(fn, strictReadLabel) {
-    if (GlobalQueue._externalUntrack === null && !tracking && !strictRead && !strictReadLabel)
+    if (GlobalQueue._externalUntrack === null && !tracking && !strictRead && !strictReadLabel && asyncTailFlights === 0)
       return fn();
     const prevTracking = tracking;
     const prevStrictRead = strictRead;
     tracking = false;
-    strictRead = strictReadLabel || false;
+    {
+      strictRead = strictReadLabel || false;
+      untrackDepth++;
+    }
     try {
-      if (GlobalQueue._externalUntrack !== null)
+      if (GlobalQueue._externalUntrack)
         return GlobalQueue._externalUntrack(fn);
       return fn();
     } finally {
       tracking = prevTracking;
-      strictRead = prevStrictRead;
+      {
+        strictRead = prevStrictRead;
+        untrackDepth--;
+      }
     }
   }
+  var spectating = false;
   function prepareComputed(comp, refresh) {
     if (comp._flags & REACTIVE_LAZY) {
       comp._flags &= ~REACTIVE_LAZY;
       recompute(comp, true);
     } else if (comp._flags & REACTIVE_DISPOSED) {
-      if (comp._config & CONFIG_AUTO_DISPOSE)
+      if (comp._config & CONFIG_AUTO_DISPOSE) {
+        const parent = comp._parent;
+        if (parent !== null) {
+          if (parent._flags & REACTIVE_DISPOSED) {
+            comp._config &= ~CONFIG_AUTO_DISPOSE;
+            return;
+          }
+          if (!(comp._flags & REACTIVE_ZOMBIE))
+            linkChild(parent, comp);
+        }
         recompute(comp, true);
-    } else if (refresh) {
-      updateIfNecessary(comp);
+      }
     }
   }
-  var READ_SLOW = Symbol("read-slow");
+  function readerSeesCommitted(el, c2) {
+    return !!(!c2 || el._pendingValue === NOT_PENDING || c2._config & CONFIG_CHILDREN_FORBIDDEN);
+  }
+  var unflushedStaged = false;
+  function markUnflushedStaged() {
+    unflushedStaged = true;
+  }
+  function unflushedValue(el) {
+    if (globalQueue._running || el._pendingValue === NOT_PENDING || el._config & CONFIG_PROMOTED)
+      return NOT_PENDING;
+    if (el._config & CONFIG_HELD)
+      return el._x._flushedAt === clock ? el._x._flushed : NOT_PENDING;
+    return el._value;
+  }
+  function stashFlushed(el) {
+    const x2 = el._x;
+    if (x2._flushedAt !== clock) {
+      x2._flushed = el._pendingValue;
+      x2._flushedAt = clock;
+      unflushedStaged = true;
+    }
+  }
+  var promotedWrites = [];
+  function markLateLinker(c2) {
+    c2._flags |= REACTIVE_MISSED_WAKE;
+    return true;
+  }
+  function resyncUnflushedCompanions() {
+    unflushedStaged = false;
+    if (promotedWrites.length !== 0) {
+      for (const el of promotedWrites)
+        el._config &= ~CONFIG_PROMOTED;
+      promotedWrites.length = 0;
+    }
+  }
+  function pullComputed(owner, c2) {
+    if (owner._height >= dirtyQueue._min) {
+      markNode(c2);
+      markHeap(dirtyQueue);
+      updateIfNecessary(owner);
+    } else if (c2._config & CONFIG_FRESH_READ)
+      updateIfNecessary(owner);
+    const height = owner._height;
+    if (height >= c2._height && owner._parent !== c2)
+      c2._height = height + 1;
+  }
   function read(el) {
-    if (latestReadActive)
-      return GlobalQueue._latestRead(el);
+    if (asyncTailFlights !== 0 && !tracking && untrackDepth === 0)
+      checkPostAwaitRead(el, el, undefined, el._name, (el._statusFlags & (STATUS_PENDING | STATUS_UNINITIALIZED)) === (STATUS_PENDING | STATUS_UNINITIALIZED));
     let c2 = context;
     if (c2?._root)
       c2 = c2._parentComputed;
     const computed2 = el;
-    const firewall = el._firewall;
-    const owner = firewall || el;
-    if (pendingCheckActive) {
-      GlobalQueue._pendingCheck(el, c2, owner, firewall);
-    } else if (typeof computed2._fn === "function") {
-      prepareComputed(el, false);
+    const owner = el;
+    if (typeof computed2._fn === "function")
+      prepareComputed(el);
+    if (verdict !== null)
+      return verdict(el, c2);
+    if (!computed2._fn && el._x?._snapshotValue === undefined && !snapshotCaptureActive && (!unflushedStaged || el._pendingValue === NOT_PENDING) && !(el._config & CONFIG_OVERRIDE) && !strictRead) {
+      if (c2) {
+        if (tracking)
+          link(el, c2);
+        if (el._config & CONFIG_HELD && !(c2._config & CONFIG_CHILDREN_FORBIDDEN)) {
+          if (frameRead(c2, el))
+            return el._value;
+          joinPass(c2, el);
+        }
+      }
+      if (!c2 || el._pendingValue === NOT_PENDING || c2._config & CONFIG_CHILDREN_FORBIDDEN)
+        return el._value;
+      if (c2._config & CONFIG_VERDICT && stagedScreen(c2))
+        return el._value;
+      stagedRead(c2);
+      return el._pendingValue;
     }
-    if (!computed2._fn && owner === el && el._x?._overrideValue === undefined && el._x?._snapshotValue === undefined && activeTransition === null && currentOptimisticLane === null && !snapshotCaptureActive && !strictRead) {
-      if (c2 && tracking)
-        link(el, c2);
-      return !c2 || el._pendingValue === NOT_PENDING || c2._config & CONFIG_CHILDREN_FORBIDDEN ? el._value : el._pendingValue;
-    }
-    if (strictRead && !pendingCheckActive && owner._statusFlags & STATUS_PENDING)
+    if (strictRead && owner._statusFlags & STATUS_PENDING)
       throwPendingUntrackedRead(strictRead, {
         ownerId: c2?.id,
         ownerName: c2?._name,
         nodeName: owner?._name
       });
-    if (c2 && tracking) {
-      link(el, c2, pendingCheckActive);
-      if (owner._fn) {
-        const elQueue = queueFor(el);
-        if (owner._height >= elQueue._min) {
-          markNode(c2);
-          markHeap(elQueue);
-          updateIfNecessary(owner);
-        } else if (c2._config & CONFIG_FRESH_READ)
-          updateIfNecessary(owner);
-        const height = owner._height;
-        if (height >= c2._height && el._parent !== c2) {
-          c2._height = height + 1;
-        }
+    let committed = false;
+    if (c2) {
+      if (tracking) {
+        link(el, c2);
+        if (owner._fn)
+          pullComputed(owner, c2);
+      }
+      if (el._config & CONFIG_HELD && !(el._config & CONFIG_OVERRIDE) && !(c2._config & CONFIG_CHILDREN_FORBIDDEN)) {
+        if (owner._statusFlags & STATUS_UNINITIALIZED || !frameRead(c2, el))
+          joinPass(c2, el);
+        else
+          committed = true;
       }
     }
-    if (owner._statusFlags & STATUS_PENDING) {
-      if (c2 && !(stale && owner._transition && activeTransition !== owner._transition)) {
-        if (c2 && c2._config & CONFIG_CHILDREN_FORBIDDEN) {
-          const message = "[PENDING_ASYNC_FORBIDDEN_SCOPE] Reading a pending async value inside createTrackedEffect or onSettled will throw. " + "Use createEffect instead which supports async-aware reactivity.";
+    if (el._config & CONFIG_OVERRIDE) {
+      const v2 = GlobalQueue._laneRead(c2, el);
+      if (v2 !== NOT_PENDING)
+        return v2;
+    }
+    if (owner._statusFlags & STATUS_PENDING && !committed && !(el._config & CONFIG_OVERRIDE) && !(owner._statusFlags & STATUS_UNINITIALIZED)) {
+      if (passLane !== null && !(c2?._statusFlags & STATUS_UNINITIALIZED))
+        committed = true;
+      else if (c2 !== null && c2._config & CONFIG_VERDICT)
+        committed = GlobalQueue._observeFlight(c2, owner);
+    }
+    if (owner._statusFlags & STATUS_PENDING && !committed) {
+      if (c2) {
+        if (c2._config & CONFIG_CHILDREN_FORBIDDEN) {
+          const message = "[PENDING_ASYNC_FORBIDDEN_SCOPE] Reading a pending async value inside createTrackedEffect or onSettled serves the committed value (and throws while uninitialized). " + "Use createEffect instead which supports async-aware reactivity.";
           reportDiagnostic(emitDiagnostic({
             code: "PENDING_ASYNC_FORBIDDEN_SCOPE",
             kind: "async",
@@ -7364,26 +5981,28 @@ ${footer}`;
             nodeName: owner?._name
           }, c2));
         }
-        if (currentOptimisticLane === null || GlobalQueue._laneSuspends(owner)) {
-          if (!tracking && el !== c2)
+        if (!(c2._config & CONFIG_CHILDREN_FORBIDDEN) || owner._statusFlags & STATUS_UNINITIALIZED) {
+          if (!tracking && !spectating && el !== c2)
             link(el, c2);
           throw owner._x?._error;
         }
-      } else if (c2 && owner._statusFlags & STATUS_UNINITIALIZED) {
-        if (!tracking && el !== c2)
-          link(el, c2);
-        throw owner._x?._error;
-      } else if (!c2 && owner._statusFlags & STATUS_UNINITIALIZED) {
+      } else if (owner._statusFlags & STATUS_UNINITIALIZED) {
         throw owner._x?._error;
       }
     }
     if (owner._fn && owner._statusFlags & STATUS_ERROR) {
-      if (tracking && !pendingCheckActive && owner._time < clock) {
+      if (tracking && owner._time < clock) {
         recompute(owner);
         return read(el);
       } else
         throw owner._x?._error;
     }
+    if (strictRead)
+      warnStrictReadUntracked(strictRead, {
+        ownerId: c2?.id,
+        ownerName: c2?._name,
+        nodeName: owner?._name
+      });
     if (snapshotCaptureActive && c2 && c2._config & CONFIG_IN_SNAPSHOT_SCOPE) {
       const sv = el._x?._snapshotValue;
       if (sv !== undefined) {
@@ -7394,35 +6013,60 @@ ${footer}`;
         return snapshot;
       }
     }
-    if (strictRead)
-      warnStrictReadUntracked(strictRead, {
-        ownerId: c2?.id,
-        ownerName: c2?._name,
-        nodeName: owner?._name
-      });
-    if (el._x?._overrideValue !== undefined && el._x?._overrideValue !== NOT_PENDING) {
-      if (!(c2 && c2._config & CONFIG_AUTHORITATIVE_READ))
-        return unwrapOverride(el._x?._overrideValue);
-      el._config |= CONFIG_AUTHORITATIVE_OBSERVED;
-    }
-    if (currentOptimisticLane !== null && activeTransition !== null && c2 !== null && GlobalQueue._gatedRead(el, owner, c2)) {
+    if (committed)
       return el._value;
-    }
-    const value = !c2 || currentOptimisticLane !== null && GlobalQueue._laneReadsCommitted(el, owner, c2) || el._pendingValue === NOT_PENDING || c2._config & CONFIG_CHILDREN_FORBIDDEN || stale && el._transition && activeTransition !== el._transition || el._config & CONFIG_HELD_TRUTH && !latestReadActive && !(c2._config & CONFIG_AUTHORITATIVE_READ) ? el._value : el._pendingValue;
-    if (pendingCheckActive)
-      GlobalQueue._recordFresh(el, value);
-    if (!c2 && owner === el && typeof computed2._fn === "function" && el._config & CONFIG_AUTO_DISPOSE && !(owner._statusFlags & STATUS_PENDING) && !el._subs) {
+    const value = serve(el, c2);
+    if (!c2 && typeof computed2._fn === "function" && el._config & CONFIG_AUTO_DISPOSE && !(owner._statusFlags & STATUS_PENDING) && !el._subs) {
       dormantNodes.add(el);
       schedule();
     }
     return value;
   }
+  function serve(el, c2) {
+    if (el._pendingValue !== NOT_PENDING && el._statusFlags & STATUS_UNINITIALIZED && (!c2 || spectating || c2._config & CONFIG_CHILDREN_FORBIDDEN))
+      throw new NotReadyError(null);
+    const u2 = c2 && unflushedStaged ? unflushedValue(el) : NOT_PENDING;
+    if (u2 !== NOT_PENDING) {
+      markLateLinker(c2);
+      return u2;
+    }
+    if (readerSeesCommitted(el, c2))
+      return el._value;
+    if (c2._config & CONFIG_VERDICT && !(el._statusFlags & STATUS_UNINITIALIZED) && stagedScreen(c2))
+      return el._value;
+    stagedRead(c2, el);
+    return el._pendingValue;
+  }
+  function stagedRead(c2, el) {
+    c2._flags |= REACTIVE_STAGED_READ;
+    if (passLane !== null && !(el?._statusFlags & STATUS_UNINITIALIZED))
+      stagedReaders.push(c2);
+  }
+  function stagedScreen(c2) {
+    if (flushTransaction === null)
+      return false;
+    staleReader(c2, flushTransaction);
+    return true;
+  }
   function ownedScopeWriteMessage(owner) {
     const name = owner._name;
     return name ? `${REACTIVE_WRITE_IN_OWNED_SCOPE_SIGNAL_MESSAGE} (in ${name})` : REACTIVE_WRITE_IN_OWNED_SCOPE_SIGNAL_MESSAGE;
   }
+  function notePromotedWrite(el) {
+    if (globalQueue._running || el._config & CONFIG_PROMOTED)
+      return;
+    el._config |= CONFIG_PROMOTED;
+    promotedWrites.push(el);
+  }
+  function captureWriteSnapshot(el, current) {
+    if (el._config & CONFIG_NO_SNAPSHOT || el._fn !== undefined || el._x?._snapshotValue !== undefined)
+      return;
+    ext(el)._snapshotValue = current === undefined ? NO_SNAPSHOT : current;
+    el._config |= CONFIG_HAS_SNAPSHOT;
+    snapshotSources.add(el);
+  }
   function setSignal(el, v2) {
-    if (!(el._config & CONFIG_OWNED_WRITE) && !(context && context._config & CONFIG_CHILDREN_FORBIDDEN) && context && el._firewall !== context) {
+    if (!(el._config & CONFIG_OWNED_WRITE) && !(context && context._config & CONFIG_CHILDREN_FORBIDDEN) && context) {
       emitDiagnostic({
         code: "REACTIVE_WRITE_IN_OWNED_SCOPE",
         kind: "write",
@@ -7435,43 +6079,47 @@ ${footer}`;
       });
       throw new Error(ownedScopeWriteMessage(context));
     }
-    if (el._transition && activeTransition !== el._transition)
-      globalQueue.initTransition(el._transition);
-    if (el._config & CONFIG_OPTIMISTIC && !projectionWriteActive)
-      return GlobalQueue._optimisticWrite(el, v2);
     const currentValue = el._pendingValue === NOT_PENDING ? el._value : el._pendingValue;
     if (typeof v2 === "function")
       v2 = v2(currentValue);
+    if (el._config & CONFIG_OVERRIDE)
+      return GlobalQueue._laneWrite(el, v2);
+    if (el._config & CONFIG_HELD)
+      joinFuture(txOf(el));
     const valueChanged = !!(el._statusFlags & STATUS_UNINITIALIZED) || !el._equals || !el._equals(currentValue, v2);
     if (!valueChanged)
       return v2;
     if (attrHooks !== null)
       attrHooks.write(el, currentValue, v2);
+    if (snapshotCaptureActive)
+      captureWriteSnapshot(el, currentValue);
     const wasStaged = el._pendingValue !== NOT_PENDING;
     if (!wasStaged)
       queuePendingNode(el);
+    else if (el._config & CONFIG_HELD && !globalQueue._running)
+      stashFlushed(el);
     el._pendingValue = v2;
-    el._config & CONFIG_HAS_COMPANIONS && GlobalQueue._syncCompanions !== null && GlobalQueue._syncCompanions(el, v2);
+    if (context !== null)
+      notePromotedWrite(el);
     if (el._fn !== undefined)
       el._time = clock;
-    if (wasStaged && el._notifiedAt === notifyEpoch && currentOptimisticLane === null && !reaskArmed)
+    if (wasStaged && el._notifiedAt === notifyEpoch)
       return v2;
     insertSubs(el);
     schedule();
     return v2;
   }
-  function suppressComputedRecompute(el) {
-    deleteFromHeap(el, queueFor(el));
-    if (!(el._flags & REACTIVE_MANUAL_WRITE) && el._pendingValue === NOT_PENDING) {
-      queuePendingNode(el);
-      schedule();
-    }
-    el._flags = el._flags & -4 | REACTIVE_MANUAL_WRITE;
-    el._manualWriteTime = clock;
-  }
   function setMemo(el, v2) {
+    const held = el._config & CONFIG_HELD && !(el._flags & REACTIVE_MANUAL_WRITE) && txOf(el) !== flushTransaction;
+    if (held && typeof v2 === "function")
+      v2 = v2(el._value);
     const result = setSignal(el, v2);
-    suppressComputedRecompute(el);
+    if (held) {
+      el._flags = el._flags & ~REACTIVE_CHECK | REACTIVE_DIRTY;
+      insertIntoHeap(el, dirtyQueue);
+      schedule();
+    } else if (el._pendingValue !== NOT_PENDING)
+      el._flags |= REACTIVE_MANUAL_WRITE;
     return result;
   }
   function runWithOwner(owner, fn) {
@@ -7497,6 +6145,511 @@ ${footer}`;
       tracking = prevTracking;
     }
   }
+
+  // node_modules/.bun/@solidjs+signals@2.0.0-rc.14/node_modules/@solidjs/signals/dist/dev.js
+  var lanes = [];
+  function newLane(parent) {
+    const l2 = newTransaction(true, parent);
+    lanes.push(l2);
+    return l2;
+  }
+  function laneValueOf(el) {
+    if (!(el._config & CONFIG_GUESS) && el._pendingValue !== NOT_PENDING)
+      return el._pendingValue;
+    const v2 = el._x._lane;
+    return v2 !== NOT_PENDING ? v2 : el._value;
+  }
+  function display(el) {
+    const v2 = el._x._lane;
+    return el._x._transaction._shown && v2 !== NOT_PENDING ? v2 : el._value;
+  }
+  var pendingGuesses = [];
+  function guessedValueOf(n2) {
+    const g2 = pendingGuessOf(n2);
+    if (g2 !== NOT_PENDING)
+      return g2;
+    return n2._config & CONFIG_OVERRIDE ? laneValueOf(n2) : n2._value;
+  }
+  function pendingGuessOf(n2) {
+    for (let i2 = pendingGuesses.length - 3;i2 >= 0; i2 -= 3)
+      if (pendingGuesses[i2] === n2)
+        return pendingGuesses[i2 + 1];
+    return NOT_PENDING;
+  }
+  function optimisticWrite(n2, v2) {
+    const prev = guessedValueOf(n2);
+    if (typeof v2 === "function")
+      v2 = v2(prev);
+    if (n2._equals && n2._equals(prev, v2) && !(n2._config & CONFIG_GUESS))
+      return v2;
+    pendingGuesses.push(n2, v2, question || nextQuestion());
+    schedule();
+    return v2;
+  }
+  function inFlight$1(n2) {
+    return (n2._statusFlags & STATUS_PENDING) !== 0 || (n2._config & CONFIG_SLOT_NODE) !== 0 && GlobalQueue._slotFlight?.(n2) === true;
+  }
+  function applyGuesses(parent) {
+    let lane = null;
+    for (let i2 = 0;i2 < pendingGuesses.length; i2 += 3) {
+      const n2 = pendingGuesses[i2];
+      const v2 = pendingGuesses[i2 + 1];
+      let changed = true;
+      if (n2._config & CONFIG_OVERRIDE) {
+        changed = !n2._equals || !n2._equals(laneValueOf(n2), v2);
+        if (!(n2._config & CONFIG_GUESS)) {
+          n2._pendingValue = NOT_PENDING;
+          n2._config |= CONFIG_GUESS;
+        }
+        n2._x._lane = v2;
+        const holder = txOf(n2)._parent;
+        if (parent !== null && holder !== null)
+          merge(parent, holder);
+      } else {
+        let l2;
+        if (n2._config & CONFIG_HELD)
+          l2 = newLane(txOf(n2));
+        else {
+          if (parent === null && inFlight$1(n2))
+            parent = newTransaction(false);
+          if (parent === null)
+            continue;
+          l2 = lane ??= newLane(parent);
+        }
+        ext(n2)._lane = v2;
+        n2._config |= CONFIG_OVERRIDE | CONFIG_GUESS;
+        list(n2, l2);
+      }
+      ext(n2)._q = pendingGuesses[i2 + 2];
+      if (changed) {
+        insertSubs(n2);
+        laneDirty(n2, txOf(n2));
+      }
+    }
+    pendingGuesses.length = 0;
+  }
+  function enterLane(l2, c2) {
+    c2._flags |= REACTIVE_LANE_READ;
+    const p2 = passLane;
+    if (p2 === null) {
+      setPassLane(l2);
+      if (c2._flags & REACTIVE_JOINED)
+        stagedRead(c2);
+      return;
+    }
+    if (sameLane(p2, l2))
+      return setPassLane(l2);
+    if (under(p2, l2))
+      return;
+    if (under(l2, p2))
+      return setPassLane(l2);
+    linkLanes(p2, l2);
+    setPassLane(l2);
+  }
+  function under(l2, a2) {
+    for (let t2 = l2._parent;t2 !== null && t2._lane; t2 = t2._parent)
+      if (t2 === a2)
+        return true;
+    return false;
+  }
+  function linkLanes(a2, b2) {
+    const ga = a2._links ?? (a2._links = [a2]);
+    const gb = b2._links;
+    if (gb === ga)
+      return;
+    if (gb === null) {
+      ga.push(b2);
+      b2._links = ga;
+    } else
+      for (let i2 = 0;i2 < gb.length; i2++) {
+        ga.push(gb[i2]);
+        gb[i2]._links = ga;
+      }
+  }
+  function linkBlocked(l2) {
+    const g2 = l2._links;
+    if (g2 !== null)
+      for (let i2 = 0;i2 < g2.length; i2++) {
+        const k2 = g2[i2];
+        if (k2 !== l2 && (k2._open !== 0 || ownFlights(k2) || nestedBlocked(k2)))
+          return true;
+      }
+    return false;
+  }
+  function unlink(l2) {
+    const g2 = l2._links;
+    if (g2 === null)
+      return;
+    const k2 = g2.indexOf(l2);
+    if (k2 !== -1)
+      g2.splice(k2, 1);
+    l2._links = null;
+  }
+  function verdictLane(t2) {
+    return t2._verdict ??= newLane(t2);
+  }
+  function laneStage(el, l2, create, errored) {
+    if (!(create || errored || el._flags & REACTIVE_LANE_READ || el._config & CONFIG_GUESS)) {
+      if (el._x !== null) {
+        if (el._x._transaction?._lane)
+          el._x._transaction = null;
+        el._x._lane = NOT_PENDING;
+      }
+      el._config &= -2305;
+      return false;
+    }
+    if (!el._type) {
+      if (!(el._config & CONFIG_OVERRIDE)) {
+        el._pendingValue = NOT_PENDING;
+        el._config = el._config & ~CONFIG_HELD | CONFIG_OVERRIDE;
+        ext(el);
+      }
+      if (!errored)
+        el._config &= ~CONFIG_GUESS;
+    } else if (errored) {
+      if (errored !== true && !(errored._statusFlags & STATUS_UNINITIALIZED) && (el._config & CONFIG_HELD || el._flags & REACTIVE_RECOMPUTING_DEPS) && !el._x?._transaction?._lane) {
+        queuePendingNode(el);
+        return false;
+      }
+      el._flags |= REACTIVE_LANE_DIRTY;
+    }
+    list(el, l2);
+    return true;
+  }
+  var reverting = false;
+  function supersede(n2, value, changed) {
+    const l2 = txOf(n2);
+    const parent = resolveTx(l2._parent ?? l2);
+    if (changed) {
+      if (l2._shown && attrHooks !== null)
+        attrHooks.optimisticReverted(n2, n2._x._lane, value, reverting ? "reverted" : "superseded");
+      dissolveLane(l2, parent, n2);
+      if (l2._shown)
+        n2._value = n2._x._lane;
+      n2._config &= -10241;
+      n2._x._lane = NOT_PENDING;
+      n2._pendingValue = value;
+      holdNode(n2, parent);
+      joinFuture(parent);
+      if (n2._subs !== null)
+        insertSubs(n2);
+    } else {
+      n2._pendingValue = value;
+      n2._config |= CONFIG_HELD;
+      joinFuture(parent);
+      for (let s2 = n2._subs;s2 !== null; s2 = s2._nextSub)
+        if (s2._sub._config & CONFIG_AUTHORITATIVE)
+          enqueueSub(s2._sub);
+    }
+  }
+  function dissolveLane(l2, into, except) {
+    const k2 = lanes.indexOf(l2);
+    if (k2 !== -1)
+      lanes.splice(k2, 1);
+    unlink(l2);
+    const v2 = l2._verdict;
+    if (v2 !== null) {
+      l2._verdict = null;
+      if (lanes.indexOf(v2) !== -1)
+        dissolveLane(v2, null);
+    }
+    for (let i2 = 0;i2 < l2._nodes.length; i2++) {
+      const n2 = l2._nodes[i2];
+      const x2 = n2._x;
+      if (n2 === except || x2._transaction !== l2)
+        continue;
+      const effect = n2._type;
+      const guess = n2._config & CONFIG_GUESS;
+      const slot = x2._lane;
+      const shown = l2._shown && !effect ? slot : n2._value;
+      const latest = laneValueOf(n2);
+      x2._lane = NOT_PENDING;
+      n2._config &= -10241;
+      if (into === null) {
+        if (guess && l2._shown && attrHooks !== null) {
+          const truth = n2._pendingValue !== NOT_PENDING ? n2._pendingValue : n2._value;
+          if (truth !== slot)
+            attrHooks.optimisticReverted(n2, slot, truth, n2._pendingValue !== NOT_PENDING ? "superseded" : "reverted");
+        }
+        x2._transaction = null;
+        if (!effect && !guess)
+          n2._pendingValue = latest;
+        commitPendingNode(n2);
+        if (!effect) {
+          if (n2._flags & (REACTIVE_IN_HEAP | REACTIVE_DIRTY | REACTIVE_CHECK) || n2._statusFlags & STATUS_PENDING)
+            n2._config |= CONFIG_INPUTS_PUBLISHED;
+          if (shown !== NOT_PENDING && (!n2._equals || !n2._equals(shown, n2._value)))
+            insertSubs(n2);
+        }
+      } else if (guess) {
+        if (n2._pendingValue === NOT_PENDING)
+          n2._pendingValue = covered(n2);
+        if (l2._shown)
+          n2._value = slot;
+        holdNode(n2, into);
+        insertSubs(n2);
+      } else {
+        x2._transaction = null;
+        if (!effect) {
+          if (shown !== NOT_PENDING && l2._shown)
+            n2._pendingValue = shown;
+          if (n2._statusFlags & STATUS_PENDING) {
+            x2._inFlight = null;
+            enqueueSub(n2);
+          }
+        }
+        if (l2._shown) {
+          commitPendingNode(n2);
+          if (!effect)
+            n2._config |= CONFIG_INPUTS_PUBLISHED;
+        } else {
+          if (x2._pendingFirstChild !== null || x2._pendingDisposal !== null)
+            GlobalQueue._dispose(n2, false, true);
+          n2._config &= -385;
+        }
+      }
+    }
+    if (into === null || l2._shown && !l2._held)
+      releaseQueues(l2);
+    else
+      l2._queues[0].length = l2._queues[1].length = 0;
+  }
+  function laneRead(c2, el) {
+    const guess = el._config & CONFIG_GUESS;
+    if (c2 !== null && c2._config & CONFIG_AUTHORITATIVE)
+      return guess && el._pendingValue !== NOT_PENDING ? el._pendingValue : el._value;
+    if (c2 === null)
+      return laneValueOf(el);
+    const l2 = txOf(el);
+    const status = el._statusFlags;
+    if (!tracking || c2._config & CONFIG_CHILDREN_FORBIDDEN) {
+      if (passLane === null || c2._config & CONFIG_CHILDREN_FORBIDDEN)
+        return display(el);
+      enterLane(l2, c2);
+      if (!guess && status & STATUS_PENDING)
+        return NOT_PENDING;
+      return laneValueOf(el);
+    }
+    if (c2._type === EFFECT_RENDER && (passLane === null || !sameLane(passLane, l2))) {
+      if (!guess) {
+        if (status & STATUS_PENDING && el._x._lane === NOT_PENDING)
+          return NOT_PENDING;
+        if (el._pendingValue !== NOT_PENDING && c2._config & CONFIG_HELD && flushTransaction !== null && resolveTx(flushTransaction) === txOf(c2))
+          return el._pendingValue;
+      }
+      if (l2._held || !guess && status & STATUS_PENDING) {
+        if (!guess && !l2._shown && status & STATUS_UNINITIALIZED)
+          throw new NotReadyError(null);
+        if (!(c2._flags & REACTIVE_SCREEN_READ)) {
+          c2._flags |= REACTIVE_FRAME_READ | REACTIVE_SCREEN_READ;
+          l2._reruns.push(c2);
+        }
+        return display(el);
+      }
+    }
+    enterLane(l2, c2);
+    if (!guess && status & STATUS_PENDING)
+      return NOT_PENDING;
+    return laneValueOf(el);
+  }
+  function covered(n2) {
+    return n2._config & CONFIG_SLOT_NODE && GlobalQueue._slotCovered !== undefined ? GlobalQueue._slotCovered(n2) : n2._value;
+  }
+  function guessFlights(l2) {
+    for (let i2 = 0;i2 < l2._nodes.length; i2++) {
+      const n2 = l2._nodes[i2];
+      if (n2._config & CONFIG_GUESS && n2._x._transaction === l2 && inFlight$1(n2))
+        return true;
+    }
+    return false;
+  }
+  function laneCorrections() {
+    let judged = false;
+    const live = lanes.slice();
+    for (let k2 = 0;k2 < live.length; k2++) {
+      const l2 = live[k2];
+      if (lanes.indexOf(l2) === -1)
+        continue;
+      const p2 = resolveTx(l2._parent);
+      if (!p2._acted || p2._open !== 0 || p2._lane || ownFlights(p2) || guessFlights(l2))
+        continue;
+      judged = true;
+      for (let i2 = 0;i2 < l2._nodes.length && lanes.indexOf(l2) !== -1; i2++) {
+        const n2 = l2._nodes[i2];
+        if (n2._config & CONFIG_GUESS && n2._x._transaction === l2) {
+          const truth = n2._pendingValue !== NOT_PENDING ? n2._pendingValue : covered(n2);
+          reverting = n2._pendingValue === NOT_PENDING;
+          supersede(n2, truth, !n2._equals || !n2._equals(n2._x._lane, truth));
+          reverting = false;
+        }
+      }
+    }
+    return judged;
+  }
+  function laneSeam(l2, leaked) {
+    if (leaked || blocked(l2)) {
+      l2._held = true;
+      return;
+    }
+    l2._held = false;
+    l2._shown = true;
+    reruns(l2);
+    for (let i2 = 0;i2 < l2._nodes.length; i2++) {
+      const n2 = l2._nodes[i2];
+      const x2 = n2._x;
+      if (x2._transaction !== l2)
+        continue;
+      if (!(n2._config & CONFIG_GUESS) && !n2._type && n2._pendingValue !== NOT_PENDING) {
+        x2._lane = n2._pendingValue;
+        n2._pendingValue = NOT_PENDING;
+      }
+      if (x2._pendingFirstChild !== null || x2._pendingDisposal !== null)
+        GlobalQueue._dispose(n2, false, true);
+      n2._config &= ~CONFIG_STAGED;
+    }
+    releaseQueues(l2);
+  }
+  function endLanes(u2) {
+    for (let k2 = lanes.length - 1;k2 >= 0; k2--) {
+      const l2 = lanes[k2];
+      if (resolveTx(l2._parent) !== u2)
+        continue;
+      endLanes(l2);
+      dissolveLane(l2, null);
+    }
+  }
+  function lanesBlocked(t2) {
+    return t2._lane && linkBlocked(t2) || nestedBlocked(t2);
+  }
+  function nestedBlocked(t2) {
+    for (let i2 = 0;i2 < lanes.length; i2++) {
+      const l2 = lanes[i2];
+      if (resolveTx(l2._parent) !== t2)
+        continue;
+      if (blocked(l2) || guessFlights(l2))
+        return true;
+    }
+    return false;
+  }
+  function laneWrite(el, v2) {
+    if (el._config & CONFIG_GUESS) {
+      if (stale(el, question)) {
+        el._pendingValue = v2;
+        el._config |= CONFIG_HELD;
+        GlobalQueue._laneRebase?.(el, v2);
+        schedule();
+        return v2;
+      }
+      supersede(el, v2, !el._equals || !el._equals(el._x._lane, v2));
+    } else {
+      const l2 = txOf(el);
+      if (el._equals && el._equals(laneValueOf(el), v2))
+        return v2;
+      if (l2._shown)
+        el._pendingValue = v2;
+      else
+        el._x._lane = v2;
+      if (el._fn !== undefined)
+        el._time = clock;
+      insertSubs(el);
+      laneDirty(el, l2);
+    }
+    schedule();
+    return v2;
+  }
+  function laneOutcome(el, value, errored) {
+    if (errored)
+      return true;
+    if (stale(el, answered(el))) {
+      el._pendingValue = value;
+      el._config |= CONFIG_HELD;
+      return true;
+    }
+    supersede(el, value, !el._equals || !el._equals(el._x._lane, value));
+    return true;
+  }
+  function stale(el, q2) {
+    return q2 !== 0 && q2 < el._x._q;
+  }
+  function answered(el) {
+    let q2 = 0;
+    for (let l2 = el._deps;l2 !== null; l2 = l2._nextDep) {
+      const d2 = l2._dep;
+      if (d2._x !== null && d2._x._q > q2 && d2._time === clock)
+        q2 = d2._x._q;
+    }
+    return q2;
+  }
+  GlobalQueue._laneRead = laneRead;
+  GlobalQueue._laneStage = laneStage;
+  GlobalQueue._laneOutcome = laneOutcome;
+  GlobalQueue._laneWrite = laneWrite;
+  var judged = 0;
+  GlobalQueue._applyGuesses = (parent) => {
+    judged = lanes.length;
+    if (pendingGuesses.length !== 0)
+      applyGuesses(parent);
+  };
+  GlobalQueue._laneSeams = (leaks) => {
+    const leaked = [];
+    if (leaks !== null)
+      for (let i2 = 0;i2 < leaks.length; i2++) {
+        const r2 = leaks[i2];
+        const l2 = r2._x?._transaction;
+        if (r2._flags & REACTIVE_DISPOSED || l2 != null && l2._parent?._verdict === l2 && (r2._config & CONFIG_VERDICT ? !(r2._flags & REACTIVE_PROBE_UNANSWERED) : !blocked(l2._parent)))
+          continue;
+        enqueueSub(r2);
+        if (l2 != null && l2._lane && leaked.indexOf(l2) === -1)
+          leaked.push(l2);
+      }
+    for (let k2 = Math.min(judged, lanes.length) - 1;k2 >= 0; k2--)
+      laneSeam(lanes[k2], leaked.indexOf(lanes[k2]) !== -1);
+  };
+  GlobalQueue._laneCorrections = () => lanes.length !== 0 && laneCorrections();
+  GlobalQueue._endLanes = endLanes;
+  GlobalQueue._laneGuesses = (t2) => {
+    const out = [];
+    for (let i2 = 0;i2 < lanes.length; i2++) {
+      const l2 = lanes[i2];
+      if (resolveTx(l2._parent) !== t2)
+        continue;
+      for (let j2 = 0;j2 < l2._nodes.length; j2++)
+        if (l2._nodes[j2]._config & CONFIG_GUESS && l2._nodes[j2]._x._transaction === l2)
+          out.push(l2._nodes[j2]);
+    }
+    return out;
+  };
+  GlobalQueue._lanesBlocked = lanesBlocked;
+  GlobalQueue._verdictLane = verdictLane;
+  function route(c2, t2) {
+    if (passLane === null && !(c2._flags & (REACTIVE_JOINED | REACTIVE_STAGED_READ)))
+      setPassLane(verdictLane(t2));
+    c2._flags |= REACTIVE_LANE_READ;
+  }
+  function observeFlight(c2, el) {
+    if (el._config & CONFIG_INPUTS_PUBLISHED)
+      return false;
+    if (globalQueue._running) {
+      joinFuture(null);
+      if (!(el._config & CONFIG_HELD))
+        queuePendingNode(el);
+      verdictRead(c2, flushTransaction, true);
+    }
+    return true;
+  }
+  var probing = false;
+  var probeFound = false;
+  function verdictRead(c2, t2, rerun = probing) {
+    route(c2, t2);
+    if (rerun)
+      staleReader(c2, t2);
+  }
+  GlobalQueue._observeFlight = observeFlight;
+  GlobalQueue._witnessMark = () => {
+    if (probing)
+      probeFound = true;
+  };
+  var ACTION_CALLED_IN_OWNED_SCOPE_MESSAGE = "[ACTION_CALLED_IN_OWNED_SCOPE] Calling an action inside an owned scope (component, computation) is not allowed. " + "Call it from an event handler or another imperative scope.";
   function getContext(context2, owner = getOwner()) {
     if (!owner) {
       throw new NoOwnerError;
@@ -7518,502 +6671,11 @@ ${footer}`;
       [context2.id]: value === undefined ? context2.defaultValue : value
     };
   }
-  function optimisticWrite(el, v2) {
-    const hasOverride = el._x?._overrideValue !== NOT_PENDING;
-    const currentValue = hasOverride ? unwrapOverride(el._x?._overrideValue) : el._value;
-    if (typeof v2 === "function")
-      v2 = v2(currentValue);
-    const valueChanged = !!(el._statusFlags & STATUS_UNINITIALIZED) || !!((el._flags ?? 0) & (REACTIVE_DIRTY | REACTIVE_CHECK)) || !el._equals || !el._equals(currentValue, v2);
-    if (!valueChanged) {
-      if (hasOverride) {
-        const transition = resolveTransition(el);
-        if (transition && activeTransition !== transition)
-          globalQueue.initTransition(transition);
-      }
-      return v2;
-    }
-    if (hasOverride)
-      globalQueue.initTransition(resolveTransition(el));
-    else
-      globalQueue._batch._optimisticNodes.push(el);
-    ext(el)._overrideOwner = activeTransition;
-    const lane = getOrCreateLane(el);
-    ext(el)._optimisticLane = lane;
-    el._config |= CONFIG_HAS_LANE;
-    ext(el)._overrideValue = v2 === undefined ? OVERRIDE_UNDEFINED : v2;
-    (el._x?._pendingSignal !== undefined || el._x?._latestValueComputed !== undefined) && GlobalQueue._syncCompanions !== null && GlobalQueue._syncCompanions(el, v2);
-    if (el._fn !== undefined)
-      el._time = clock;
-    insertSubs(el, true);
-    schedule();
-    return v2;
-  }
-  function transitionBlocked(transition) {
-    for (let i2 = 0;i2 < transition._optimisticNodes.length; i2++) {
-      const node = transition._optimisticNodes[i2];
-      if (hasActiveOverride$1(node) && "_statusFlags" in node && node._statusFlags & STATUS_PENDING && node._x?._error instanceof NotReadyError) {
-        return true;
-      }
-    }
-    return false;
-  }
-  function resolveOptimisticNodes(nodes) {
-    const len = nodes.length;
-    for (let i2 = 0;i2 < len; i2++) {
-      const node = nodes[i2];
-      if (node._x !== null)
-        node._x._optimisticLane = undefined;
-      if (!(node._statusFlags & STATUS_PENDING))
-        node._statusFlags &= ~STATUS_UNINITIALIZED;
-      const prevOverride = node._x?._overrideValue;
-      ext(node)._overrideValue = NOT_PENDING;
-      if (prevOverride !== NOT_PENDING && node._value !== unwrapOverride(prevOverride))
-        insertSubs(node, true);
-      node._transition = null;
-      if (node._x !== null)
-        node._x._overrideOwner = null;
-    }
-    for (let i2 = 0;i2 < len; i2++) {
-      const node = nodes[i2];
-      if (node._x?._pendingSignal || node._x?._latestValueComputed)
-        GlobalQueue._snapCompanions(node);
-      const owner = node._x?._parentSource;
-      if (owner && (owner._x?._pendingSignal === node || owner._x?._latestValueComputed === node))
-        GlobalQueue._snapCompanions(owner);
-    }
-    nodes.splice(0, len);
-  }
-  function runQueue(queue, type) {
-    for (let i2 = 0;i2 < queue.length; i2++)
-      queue[i2](type);
-  }
-  function runLaneEffects(type) {
-    for (const lane of activeLanes) {
-      if (lane._mergedInto || laneHeld(lane))
-        continue;
-      const effects = lane._effectQueues[type - 1];
-      if (effects.length) {
-        lane._effectQueues[type - 1] = [];
-        runQueue(effects, type);
-      }
-    }
-    if (type === EFFECT_RENDER)
-      GlobalQueue._drainPatchOptimistic?.();
-  }
-  function cleanupCompletedLanes(completingTransition) {
-    for (const lane of activeLanes) {
-      const owned = completingTransition ? lane._transition === completingTransition : !lane._transition;
-      if (!owned)
-        continue;
-      if (!lane._mergedInto) {
-        if (lane._effectQueues[0].length)
-          runQueue(lane._effectQueues[0], EFFECT_RENDER);
-        if (lane._effectQueues[1].length)
-          runQueue(lane._effectQueues[1], EFFECT_USER);
-      }
-      if (lane._source._x?._optimisticLane === lane) {
-        if (lane._source._x !== null)
-          lane._source._x._optimisticLane = undefined;
-      }
-      lane._pendingAsync.clear();
-      lane._effectQueues[0].length = 0;
-      lane._effectQueues[1].length = 0;
-      activeLanes.delete(lane);
-      signalLanes.delete(lane._source);
-    }
-  }
-  function laneSuspends(owner) {
-    if (owner._statusFlags & STATUS_UNINITIALIZED)
-      return true;
-    const pendingLane = owner._x?._optimisticLane;
-    if (!pendingLane)
-      return false;
-    return findLane(pendingLane) === findLane(currentOptimisticLane) && !hasActiveOverride$1(owner);
-  }
-  function gatedRead(el, owner, c2) {
-    if (latestReadActive || el._pendingValue === NOT_PENDING || el._fn || owner !== el && !(owner._flags & REACTIVE_MANUAL_WRITE)) {
-      return false;
-    }
-    activeTransition._gatedSubs.add(c2);
-    return true;
-  }
-  function laneReadsCommitted(el, owner, c2) {
-    if (el._x?._overrideValue !== undefined || !!el._x?._optimisticLane || !!(owner._statusFlags & STATUS_PENDING)) {
-      if (el._pendingValue !== NOT_PENDING)
-        (activeTransition ?? globalQueue._batch)._gatedSubs.add(c2);
-      return true;
-    }
-    if (owner === el && stale && c2._x?._parentSource !== el) {
-      if (el._pendingValue !== NOT_PENDING)
-        (activeTransition ?? globalQueue._batch)._gatedSubs.add(c2);
-      return true;
-    }
-    return false;
-  }
-  function recomputeLane(el, own) {
-    if (own) {
-      const lane = resolveLane(el);
-      if (!lane)
-        return null;
-      if (!globalQueue._running && !activeTransition && !lane._transition && lane._source._x?._parentSource !== undefined && el._x?._overrideValue === undefined) {
-        if (el._x !== null)
-          el._x._optimisticLane = undefined;
-        return false;
-      }
-      return lane;
-    }
-    for (let d2 = el._deps;d2; d2 = d2._nextDep) {
-      const dep = d2._dep;
-      if (dep._flags & REACTIVE_OPTIMISTIC_DIRTY) {
-        const depLane = resolveLane(dep);
-        if (depLane) {
-          el._flags |= REACTIVE_OPTIMISTIC_DIRTY;
-          assignOrMergeLane(el, depLane);
-          return depLane;
-        }
-      }
-    }
-    return null;
-  }
-  function laneAsyncPending(el) {
-    const lane = findLane(currentOptimisticLane);
-    if (lane._source !== el) {
-      lane._pendingAsync.add(el);
-      ext(el)._optimisticLane = lane;
-      el._config |= CONFIG_HAS_LANE;
-    }
-  }
-  function laneAsyncSettled(el) {
-    const resolvedLane = resolveLane(el);
-    if (resolvedLane) {
-      resolvedLane._pendingAsync.delete(el);
-    }
-  }
-  function trackOptimisticStore(store) {
-    globalQueue._batch._optimisticStores.add(store);
-    schedule();
-  }
-  function installOptimisticEngine() {
-    if (GlobalQueue._optimisticWrite !== null)
-      return;
-    GlobalQueue._optimisticWrite = optimisticWrite;
-    GlobalQueue._resolveOptimistic = resolveOptimisticNodes;
-    GlobalQueue._transitionBlocked = transitionBlocked;
-    GlobalQueue._cleanupLanes = cleanupCompletedLanes;
-    GlobalQueue._runLaneEffects = runLaneEffects;
-    GlobalQueue._gatedRead = gatedRead;
-    GlobalQueue._laneSuspends = laneSuspends;
-    GlobalQueue._laneReadsCommitted = laneReadsCommitted;
-    GlobalQueue._recomputeLane = recomputeLane;
-    GlobalQueue._laneAsyncPending = laneAsyncPending;
-    GlobalQueue._laneAsyncSettled = laneAsyncSettled;
-    GlobalQueue._trackOptimisticStore = trackOptimisticStore;
-  }
-  installOptimisticEngine();
-  var pendingProbe = null;
-  var suppressedProbes = new Map;
-  function markFirewallChildCompanions(el) {
-    const fw = el._firewall;
-    if (!fw)
-      return;
-    fw._config |= CONFIG_CHILD_COMPANIONS;
-    (ext(fw)._companionChildren ??= new Set).add(el);
-  }
-  function collectPendingSources(el) {
-    if (!pendingProbe)
-      return;
-    pendingProbe.sources.add(el);
-    const owner = el._firewall || el;
-    if (owner !== el)
-      pendingProbe.sources.add(owner);
-  }
-  function witnessAffects(node) {
-    pendingProbe?.sources.add(node);
-  }
-  function markWalk(el, seen) {
-    if (el._x?._affectsCount)
-      return true;
-    if (el._statusFlags & STATUS_ERROR)
-      return false;
-    if (seen.has(el))
-      return false;
-    seen.add(el);
-    const firewall = el._firewall;
-    if (firewall && markWalk(firewall, seen))
-      return true;
-    const comp = el;
-    const tail = comp._flags & REACTIVE_RECOMPUTING_DEPS ? comp._depsTail : undefined;
-    if (tail !== null) {
-      for (let d2 = comp._deps ?? null;d2 !== null; d2 = d2._nextDep) {
-        if (!d2._pendingObserver && markWalk(d2._dep, seen))
-          return true;
-        if (d2 === tail)
-          break;
-      }
-    }
-    return false;
-  }
-  function quietPending(el) {
-    if (el._x?._pendingSources) {
-      for (const source of el._x._pendingSources)
-        if (!source._x?._reask)
-          return false;
-      return true;
-    }
-    return el._x?._reask ?? false;
-  }
-  function newQuestionInFlight(comp) {
-    return !!(comp._statusFlags & STATUS_PENDING) && !(comp._statusFlags & STATUS_UNINITIALIZED) && !quietPending(comp);
-  }
-  function computePendingState(el) {
-    const comp = el;
-    if (comp._flags & REACTIVE_DISPOSED)
-      return false;
-    if (activeAffectsMarks !== 0 && markWalk(el, new Set))
-      return true;
-    const firewall = el._firewall;
-    if (el._x?._parentSource) {
-      const parentNode = el._x?._parentSource;
-      const parent = parentNode._firewall || parentNode;
-      return newQuestionInFlight(parent);
-    }
-    if (firewall && el._pendingValue !== NOT_PENDING && !hasActiveOverride$1(el)) {
-      return !!(firewall._flags & REACTIVE_MANUAL_WRITE) || !firewall._x?._inFlight && !(firewall._statusFlags & STATUS_PENDING) || !!(firewall._statusFlags & STATUS_PENDING) && quietPending(firewall);
-    }
-    if (el._pendingValue !== NOT_PENDING && !(comp._statusFlags & STATUS_UNINITIALIZED) && !comp._loading) {
-      if (hasActiveOverride$1(el))
-        return !el._equals || !el._equals(el._pendingValue, unwrapOverride(el._x?._overrideValue));
-      if (!comp._x?._reask)
-        return true;
-    }
-    return newQuestionInFlight(comp);
-  }
-  function syncCompanions(el, value) {
-    if (el._x?._pendingSignal)
-      updatePendingSignal(el);
-    if (el._x?._latestValueComputed)
-      setSignal(el._x?._latestValueComputed, value);
-  }
-  function updatePendingSignal(el) {
-    if (el._x?._pendingSignal) {
-      setSignal(el._x?._pendingSignal, computePendingState(el));
-    }
-    if (el._x?._latestValueComputed)
-      updatePendingSignal(el._x?._latestValueComputed);
-  }
-  function updateChildCompanions(el) {
-    const companions = el._x?._companionChildren;
-    if (companions === undefined)
-      return;
-    for (const child of companions)
-      updatePendingSignal(child);
-  }
-  function repollDownstreamVerdicts(el, snap = false) {
-    const update = snap ? snapCompanionsToState : updatePendingSignal;
-    const visited = new Set;
-    const visit = (node) => {
-      if (visited.has(node))
-        return;
-      visited.add(node);
-      if (node._x?._pendingSignal || node._x?._latestValueComputed)
-        update(node);
-      for (let s2 = node._subs;s2 !== null; s2 = s2._nextSub)
-        visit(s2._sub);
-      for (let child = node._x?._child ?? null;child !== null; child = child._nextChild) {
-        visit(child);
-      }
-    };
-    visit(el);
-  }
-  function wakeSuppressedProbes(transition) {
-    if (suppressedProbes.size === 0)
-      return;
-    let woke = false;
-    for (const [node, probes] of suppressedProbes) {
-      const nt2 = node._transition;
-      const t2 = nt2 ? currentTransition(nt2) : null;
-      if (!t2) {
-        suppressedProbes.delete(node);
-        continue;
-      }
-      if (t2 !== transition)
-        continue;
-      suppressedProbes.delete(node);
-      const lane = node._x?._pendingSignal?._x?._optimisticLane;
-      for (const p2 of probes) {
-        if (p2._flags & REACTIVE_DISPOSED)
-          continue;
-        p2._flags |= REACTIVE_OPTIMISTIC_DIRTY;
-        if (lane)
-          assignOrMergeLane(p2, lane);
-        else if (p2._x !== null)
-          p2._x._optimisticLane = undefined;
-        enqueueSub(p2);
-        woke = true;
-      }
-    }
-    if (woke)
-      schedule();
-  }
-  function snapCompanionsToState(owner) {
-    suppressedProbes.size !== 0 && suppressedProbes.delete(owner);
-    const sig = owner._x?._pendingSignal;
-    if (sig && (sig._x?._overrideValue === undefined || sig._x?._overrideValue === NOT_PENDING)) {
-      const pending = computePendingState(owner);
-      if (sig._value !== pending || sig._pendingValue !== NOT_PENDING) {
-        sig._value = pending;
-        sig._pendingValue = NOT_PENDING;
-        insertSubs(sig);
-        schedule();
-      }
-    }
-    const shadow = owner._x?._latestValueComputed;
-    if (shadow && !(shadow._flags & REACTIVE_DISPOSED)) {
-      if ((shadow._x?._overrideValue === undefined || shadow._x?._overrideValue === NOT_PENDING) && shadow._pendingValue === NOT_PENDING && !Object.is(shadow._value, owner._value) && !(shadow._flags & (REACTIVE_DIRTY | REACTIVE_CHECK))) {
-        shadow._flags |= REACTIVE_DIRTY;
-        insertIntoHeap(shadow, queueFor(shadow));
-        insertSubs(shadow);
-        schedule();
-      }
-      snapCompanionsToState(shadow);
-    }
-  }
-  function getLatestValueComputed(el) {
-    let lvc = el._x?._latestValueComputed;
-    if (lvc && lvc._flags & REACTIVE_DISPOSED)
-      lvc = undefined;
-    if (!lvc) {
-      const prevPending = latestReadActive;
-      setLatestReadActive(false);
-      const prevCheck = pendingCheckActive;
-      setPendingCheckActive(false);
-      const prevContext = context;
-      setContextInternal(null);
-      lvc = optimisticComputed(() => read(el));
-      ext(el)._latestValueComputed = lvc;
-      el._config |= CONFIG_HAS_COMPANIONS;
-      markFirewallChildCompanions(el);
-      ext(lvc)._parentSource = el;
-      if (el._pendingValue !== NOT_PENDING && !hasActiveOverride$1(el))
-        setSignal(lvc, el._pendingValue);
-      setContextInternal(prevContext);
-      setPendingCheckActive(prevCheck);
-      setLatestReadActive(prevPending);
-    }
-    return lvc;
-  }
-  function latestRead(el) {
-    const pendingComputed = getLatestValueComputed(el);
-    const prevPending = latestReadActive;
-    setLatestReadActive(false);
-    const visibleValue = el._x?._overrideValue !== undefined && el._x?._overrideValue !== NOT_PENDING ? unwrapOverride(el._x?._overrideValue) : el._value;
-    let value;
-    try {
-      const queue = queueFor(pendingComputed);
-      if (pendingComputed._height >= queue._min && !(pendingComputed._flags & (REACTIVE_DISPOSED | REACTIVE_ZOMBIE))) {
-        markHeap(queue);
-        const prevCheck = pendingCheckActive;
-        setPendingCheckActive(false);
-        try {
-          prepareComputed(pendingComputed, true);
-        } finally {
-          setPendingCheckActive(prevCheck);
-        }
-      }
-      value = read(pendingComputed);
-    } catch (e2) {
-      if (e2 instanceof NotReadyError && (!context || !(el._statusFlags & STATUS_UNINITIALIZED)))
-        return visibleValue;
-      throw e2;
-    } finally {
-      setLatestReadActive(prevPending);
-    }
-    if (pendingComputed._statusFlags & STATUS_PENDING)
-      return visibleValue;
-    if (stale && currentOptimisticLane && pendingComputed._x?._optimisticLane) {
-      const pcLane = findLane(pendingComputed._x?._optimisticLane);
-      const curLane = findLane(currentOptimisticLane);
-      if (pcLane !== curLane && laneHeld(pcLane)) {
-        return visibleValue;
-      }
-    }
-    if (pendingComputed._pendingValue !== NOT_PENDING && !hasActiveOverride$1(pendingComputed) && !(stale && pendingComputed._transition && activeTransition !== pendingComputed._transition))
-      return pendingComputed._pendingValue;
-    return value;
-  }
-  function latestShadowWithInitializedParent(owner) {
-    if (typeof owner._fn !== "function")
-      return false;
-    const parentNode = owner._x?._parentSource;
-    if (parentNode === undefined)
-      return false;
-    const parent = parentNode._firewall || parentNode;
-    return !(parent._statusFlags & STATUS_UNINITIALIZED);
-  }
-  function pendingCheckRead(el, c2, owner, firewall) {
-    setPendingCheckActive(false);
-    if (typeof el._fn === "function")
-      prepareComputed(el, true);
-    const ownerStatus = owner._statusFlags;
-    if (c2 && ownerStatus & STATUS_PENDING && ownerStatus & STATUS_UNINITIALIZED && !latestShadowWithInitializedParent(owner)) {
-      if (tracking && el !== c2)
-        link(el, c2);
-      setPendingCheckActive(true);
-      throw owner._x?._error;
-    }
-    collectPendingSources(el);
-    if (firewall)
-      collectPendingSources(firewall);
-    setPendingCheckActive(true);
-  }
-  function heldAwaitingAsync(el) {
-    const et2 = el._transition;
-    const t2 = et2 ? currentTransition(et2) : activeTransition;
-    if (!t2 || t2._done)
-      return false;
-    if (t2._actions.length && !el._fn)
-      return true;
-    if (!et2)
-      return false;
-    for (const [source, reporters] of t2._asyncReporters) {
-      if (reporters.size && source._statusFlags & STATUS_PENDING && source._x?._error?.source === source)
-        return true;
-    }
-    return false;
-  }
-  function recordFreshRead(el, value) {
-    if (pendingProbe !== null && el._pendingValue !== NOT_PENDING && value === el._pendingValue) {
-      if (heldAwaitingAsync(el))
-        return;
-      pendingProbe.freshReads.add(el);
-    }
-  }
-  function applyReask(el, hadReask) {
-    const wasPending = !!(el._statusFlags & STATUS_PENDING);
-    const isReask = hadReask && !(wasPending && !el._x?._reask);
-    const changed = wasPending && (el._x?._reask ?? false) !== isReask;
-    if (isReask)
-      ext(el)._reask = true;
-    else if (el._x !== null)
-      el._x._reask = false;
-    return changed;
-  }
-  GlobalQueue._syncCompanions = syncCompanions;
-  GlobalQueue._updatePendingSignal = updatePendingSignal;
-  GlobalQueue._updateChildCompanions = updateChildCompanions;
-  GlobalQueue._snapCompanions = snapCompanionsToState;
-  GlobalQueue._latestRead = latestRead;
-  GlobalQueue._pendingCheck = pendingCheckRead;
-  GlobalQueue._recordFresh = recordFreshRead;
-  GlobalQueue._applyReask = applyReask;
-  GlobalQueue._repollVerdicts = repollDownstreamVerdicts;
-  GlobalQueue._witnessAffects = witnessAffects;
-  GlobalQueue._wakeSuppressedProbes = wakeSuppressedProbes;
-  function effect(compute, effect2, error, options2) {
-    const isUser = !!options2?.user;
-    const node = createEffectNode(compute, effect2, error, isUser ? EFFECT_USER : EFFECT_RENDER, options2);
+  function effect(compute, effect2, error, options) {
+    const isUser = !!options?.user;
+    const node = createEffectNode(compute, effect2, error, isUser ? EFFECT_USER : EFFECT_RENDER, options);
     recompute(node, true);
-    !options2?.defer && (node._type === EFFECT_USER || options2?.schedule ? node._queue.enqueue(node._type, runEffect.bind(null, node)) : runEffect(node));
+    !options?.defer && node._pendingValue === NOT_PENDING && !node._x?._transaction?._lane && (node._type === EFFECT_USER || options?.schedule ? globalQueue.enqueue(node._type, runEffect.bind(null, node)) : runEffect(node, node._type));
     if (!node._parent) {
       const message = "[NO_OWNER_EFFECT] Effects created outside a reactive context will never be disposed";
       reportDiagnostic(emitDiagnostic({
@@ -8031,20 +6693,20 @@ ${footer}`;
     const actualStatus = status !== undefined ? status : this._statusFlags;
     const actualError = error !== undefined ? error : this._x?._error;
     if (actualStatus & STATUS_ERROR) {
-      this._queue.notify(this, STATUS_PENDING, 0);
+      globalQueue.notify(this, STATUS_PENDING, 0);
       if (this._type === EFFECT_USER) {
         if (this._statusFlags & STATUS_ERROR) {
           this._modified = true;
-          this._queue.enqueue(this._type, this._boundRunEffect ??= runEffect.bind(null, this));
+          globalQueue.enqueue(this._type, this._boundRunEffect ??= runEffect.bind(null, this));
         }
         return;
       }
-      if (!this._queue.notify(this, STATUS_ERROR, STATUS_ERROR)) {
+      if (!globalQueue.notify(this, STATUS_ERROR, STATUS_ERROR)) {
         haltReactivity(unwrapStatusError(actualError));
         throw actualError;
       }
     } else if (this._type === EFFECT_RENDER) {
-      this._queue.notify(this, STATUS_PENDING | STATUS_ERROR, actualStatus, actualError);
+      globalQueue.notify(this, STATUS_PENDING | STATUS_ERROR, actualStatus, actualError);
       if (_hitUnhandledAsync && resetUnhandledAsync()) {
         const message = "[ASYNC_OUTSIDE_LOADING_BOUNDARY] An async value was read outside a Loading boundary. The root mount will be deferred until all pending async settles.";
         reportDiagnostic(emitDiagnostic({
@@ -8058,8 +6720,10 @@ ${footer}`;
       }
     }
   }
-  function runEffect(node) {
+  function runEffect(node, type) {
     if (!node._modified || node._flags & REACTIVE_DISPOSED)
+      return;
+    if (GlobalQueue._heldRun && GlobalQueue._heldRun(node))
       return;
     if (node._statusFlags & STATUS_ERROR && node._type === EFFECT_USER) {
       const err = unwrapStatusError(node._x?._error);
@@ -8072,20 +6736,22 @@ ${footer}`;
           prevCleanup2?.();
         }) : console.error(err);
       } catch (error) {
-        if (!node._queue.notify(node, STATUS_ERROR, STATUS_ERROR)) {
+        if (!globalQueue.notify(node, STATUS_ERROR, STATUS_ERROR)) {
           haltReactivity(error);
           throw error;
         }
       }
       return;
     }
+    const cleanPass = node._x?._error == null;
     let prevStrictRead = false;
     {
       prevStrictRead = setStrictRead("an effect callback");
       setEffectCallback(true);
-      if (attrHooks !== null)
-        attrHooks.effectRunStart(node);
+      enterCallback();
     }
+    if (attrHooks !== null)
+      attrHooks.effectRunStart(node);
     const prevCleanup = node._cleanup;
     node._cleanup = undefined;
     try {
@@ -8098,7 +6764,7 @@ ${footer}`;
     } catch (error) {
       ext(node)._error = new StatusError(node, error);
       node._statusFlags |= STATUS_ERROR;
-      if (!node._queue.notify(node, STATUS_ERROR, STATUS_ERROR)) {
+      if (!globalQueue.notify(node, STATUS_ERROR, STATUS_ERROR)) {
         haltReactivity(error);
         throw error;
       }
@@ -8106,16 +6772,60 @@ ${footer}`;
       {
         setStrictRead(prevStrictRead);
         setEffectCallback(false);
+        exitCallback();
       }
       node._prevValue = node._value;
       node._modified = false;
+      if (cleanPass)
+        trimStaleDeps(node);
     }
     if (attrHooks !== null)
       attrHooks.effectRunEnd(node);
   }
   GlobalQueue._runEffect = runEffect;
   setEffectStatusNotify(notifyEffectStatus);
-  var ACTION_CALLED_IN_OWNED_SCOPE_MESSAGE = "[ACTION_CALLED_IN_OWNED_SCOPE] Calling an action inside an owned scope (component, computation) is not allowed. " + "Call it from an event handler or another imperative scope.";
+  var ambientHook;
+  var reported = new WeakSet;
+  function hookFor(owner) {
+    for (let o2 = owner;o2; o2 = o2._parent) {
+      const hook = o2[ROOT_ERROR_HOOK];
+      if (hook !== undefined)
+        return hook;
+    }
+    return ambientHook;
+  }
+  function labels(owner) {
+    const path = [];
+    for (let o2 = owner;o2; o2 = o2._parent) {
+      const name = o2._name;
+      if (typeof name === "string" && name.length)
+        path.push(name);
+    }
+    return path.length ? path.reverse() : undefined;
+  }
+  function reportClientError(error, owner, thrower) {
+    const isObject = error !== null && (typeof error === "object" || typeof error === "function");
+    if (isObject) {
+      if (reported.has(error))
+        return;
+      reported.add(error);
+    }
+    const hook = hookFor(owner);
+    if (hook === undefined)
+      return;
+    const context2 = {};
+    const boundary = labels(owner);
+    const path = labels(thrower) ?? boundary;
+    if (path !== undefined)
+      context2.ownerPath = path;
+    if (boundary !== undefined)
+      context2.boundaryPath = boundary;
+    try {
+      hook(error, context2);
+    } catch (hookError) {
+      console.error(hookError);
+    }
+  }
   function accessor(node) {
     const fn = read.bind(null, node);
     fn[$REFRESH] = node;
@@ -8131,14 +6841,27 @@ ${footer}`;
     registerGraph(node, getOwner());
     return [accessor(node), setSignal.bind(null, node)];
   }
-  function createMemo(compute, options2) {
-    return accessor(computed(compute, options2));
+  function createMemo(compute, options) {
+    return accessor(computed(compute, options));
   }
-  function createRenderEffect(compute, effectFn, options2) {
-    effect(compute, effectFn, undefined, { ...options2, name: options2?.name ?? "effect" });
+  function createRenderEffect(compute, effectFn, options) {
+    effect(compute, effectFn, undefined, options);
   }
-  var ownedRaw = new WeakSet;
-  var storeNextLookup = new WeakMap;
+  var $OWNER = Symbol("STORE_OWNER");
+  var storeLookup = new WeakMap;
+  function setLookup(raw, t2) {
+    (t2.fam?.map ?? storeLookup).set(raw, t2);
+  }
+  function isOwned(raw) {
+    return raw[$OWNER] !== undefined;
+  }
+  function lookupTarget(raw, fam) {
+    const owner = raw[$OWNER];
+    return owner !== undefined && owner.fam === fam ? owner : (fam?.map ?? storeLookup).get(raw);
+  }
+  function devAssertNeverUserMutation(target) {
+    return;
+  }
   function markDescendants(target) {
     let t2 = target;
     while (t2 && !t2.d) {
@@ -8146,52 +6869,56 @@ ${footer}`;
       t2 = t2.u;
     }
   }
+  var storeOwners = new WeakMap;
   var $TRACK = Symbol("STORE_TRACK");
   var $TARGET = Symbol("STORE_TARGET");
   var $PROXY = Symbol("STORE_PROXY");
-  var $AFFECTS = Symbol("STORE_AFFECTS");
+  var $RECORD = Symbol("VIEW_RECORD");
   var rawValues = new WeakSet;
+  var rawValuesUsed = false;
+  function isRawValue(value) {
+    return rawValuesUsed && rawValues.has(value);
+  }
+  function markRawOne(v2) {
+    if (isWrappable(v2)) {
+      if (v2[$TARGET] !== undefined)
+        return;
+      if (lookupTarget(v2, null) !== undefined)
+        throw new Error("shallow store: an ingested record is already tracked as a deep store — one value cannot present both wrapped and raw");
+      rawValuesUsed = true;
+      rawValues.add(v2);
+    }
+  }
   var OBJECT_PROTO = Object.prototype;
   var wrappableProtos = new WeakMap;
+  function isWrappable(obj) {
+    if (obj == null || typeof obj !== "object" || Object.isFrozen(obj))
+      return false;
+    const proto = Object.getPrototypeOf(obj);
+    if (proto === OBJECT_PROTO || proto === null)
+      return true;
+    if (Array.isArray(obj))
+      return true;
+    let wrappable = wrappableProtos.get(proto);
+    if (wrappable === undefined) {
+      wrappable = Object.prototype.toString.call(obj) === "[object Object]" && (typeof Node === "undefined" || !(obj instanceof Node));
+      wrappableProtos.set(proto, wrappable);
+    }
+    return wrappable;
+  }
   function ownEnumerableKeys(o2) {
     return Reflect.ownKeys(o2).filter((k2) => Object.prototype.propertyIsEnumerable.call(o2, k2));
   }
-  function inheritAffectsMarks(node, raw, property) {
-    for (const [carrier, entry] of affectsScopes) {
-      if (carrier._x?._affectsCount && entry.scope.has(raw) && (entry.key === undefined || entry.key === property)) {
-        GlobalQueue._markAffects(node);
-        entry.inherited.push(node);
-      }
-    }
+  var writeOverride = false;
+  var optHooks = null;
+  function installOptHooks(hooks2) {
+    optHooks = hooks2;
   }
-  var affectsScopes = new Map;
-  var nextAffectsNodeResolver = null;
-  function setNextAffectsNodeResolver(fn) {
-    nextAffectsNodeResolver = fn;
+  var affectsHooks = null;
+  function installAffectsHooks(hooks2) {
+    affectsHooks = hooks2;
   }
-  function affectsScopesLive() {
-    return affectsScopes.size > 0;
-  }
-  function markAffects(node) {
-    ext(node)._affectsCount = (node._x?._affectsCount || 0) + 1;
-    shiftAffectsMarks(1);
-  }
-  function releaseAffectsMark(node) {
-    shiftAffectsMarks(-1);
-    node._x._affectsCount--;
-    if (!node._x._affectsCount) {
-      GlobalQueue._repollVerdicts !== null && GlobalQueue._repollVerdicts(node, true);
-      GlobalQueue._releaseAffectsScope?.(node);
-    }
-  }
-  function releaseAffectsMarks(nodes) {
-    for (let i2 = 0;i2 < nodes.length; i2++)
-      releaseAffectsMark(nodes[i2]);
-    nodes.length = 0;
-  }
-  GlobalQueue._releaseAffectsMarks = releaseAffectsMarks;
-  GlobalQueue._markAffects = markAffects;
-  GlobalQueue._releaseAffectsMark = releaseAffectsMark;
+  var $DEEP = Symbol("STORE_DEEP");
   function TargetShape() {
     this.v = undefined;
     this.ch = undefined;
@@ -8206,151 +6933,2426 @@ ${footer}`;
     this.d = undefined;
     this.a = undefined;
     this.sc = undefined;
+    this.kc = undefined;
     this.nc = undefined;
-    this.ab = undefined;
     this.fam = undefined;
     this.s = undefined;
     this.ovl = undefined;
     this.del = undefined;
     this.wk = undefined;
-    this.hv = undefined;
-    this.ht = undefined;
   }
   TargetShape.prototype = Object.prototype;
+  function createTarget(value, parent, parentKey, fam = parent?.fam ?? null) {
+    const t2 = Array.isArray(value) ? [] : new TargetShape;
+    t2.v = value;
+    t2.ch = value[$TARGET] !== undefined;
+    t2.pb = null;
+    t2.n = null;
+    t2.h = null;
+    t2.k = null;
+    t2.dk = null;
+    t2.wk = null;
+    t2.u = parent;
+    t2.pk = parentKey;
+    t2.px = null;
+    t2.d = false;
+    t2.a = false;
+    t2.sc = 0;
+    t2.kc = 0;
+    t2.nc = 0;
+    t2.fam = fam;
+    t2.s = false;
+    t2.ovl = false;
+    t2.del = null;
+    t2.px = new Proxy(t2, traps);
+    setLookup(value, t2);
+    return t2;
+  }
+  function wrap(value, parent = null, parentKey = null, fam = parent?.fam ?? null) {
+    if (rawValuesUsed && isRawValue(value))
+      return value;
+    const existing = lookupTarget(value, fam);
+    if (existing !== undefined)
+      return existing.px;
+    const t2 = value[$TARGET];
+    if (t2 !== undefined && t2.px === value) {
+      if (fam === null || t2.fam === fam)
+        return value;
+      return createTarget(value, parent, parentKey, fam).px;
+    }
+    return createTarget(value, parent, parentKey, fam).px;
+  }
+  function unwrapValue(v2) {
+    if (v2 == null || typeof v2 !== "object")
+      return v2;
+    const t2 = v2[$TARGET];
+    if (t2 !== undefined && (t2.px === v2 || lookupTarget(v2, t2.fam) === t2) && t2.v !== undefined) {
+      if (t2.ovl)
+        materializePB(t2);
+      return t2.pb ?? t2.v;
+    }
+    return v2;
+  }
   var slotNodeEquals = function(a2, b2) {
     return isEqual(a2, b2) || sameLogicalSlot(this._host, a2, b2);
   };
-  setSlotUnobserved((node) => {
-    if (node._x?._affectsCount)
-      return;
-    const t2 = node._host;
-    const key = node._key;
-    if (t2.n && t2.n[key] === node) {
-      delete t2.n[key];
-      t2.nc--;
-    }
-  });
-  function getNode(target, key, current, accKnown = -1) {
-    const nodes = target.n ??= Object.create(null);
-    let node = nodes[key];
-    if (node === undefined) {
-      const created = node = slotSignal(current, slotNodeEquals, target, key, accKnown === -1 ? isOwnAccessor(target.pb ?? target.v, key) : accKnown === 1, target.fam?.node ?? undefined);
-      if (attrHooks !== null)
-        created._name = "store." + String(key);
-      if (target.fam?.opt) {
-        ext(created)._overrideValue = NOT_PENDING;
-        created._config |= CONFIG_OPTIMISTIC;
-      }
-      if (key !== $AFFECTS && affectsScopesLive())
-        inheritAffectsMarks(created, target.v, key);
-      nodes[key] = node;
-      target.nc++;
-      markDescendants(target);
-    }
-    return node;
+  function sameKey(a2, b2) {
+    return a2 === b2 || a2 !== a2 && b2 !== b2;
   }
+
+  class LaneView {
+    rows;
+    base;
+    removed;
+    constructor(rows, base, removed = null) {
+      this.rows = rows;
+      this.base = base;
+      this.removed = removed;
+    }
+  }
+  function asBacking(v2) {
+    return v2 instanceof LaneView ? v2.base : v2;
+  }
+  var containerEquals = function(a2, b2) {
+    return a2 === b2 || optHooks !== null && optHooks.arrangement(this._host, a2, b2);
+  };
   function sameLogicalSlot(target, a2, b2) {
     if (a2 === null || typeof a2 !== "object" || b2 === null || typeof b2 !== "object")
       return false;
-    const map = target.fam?.map ?? storeNextLookup;
-    const at2 = map.get(a2);
-    return at2 !== undefined && at2 === map.get(b2);
+    const at2 = lookupTarget(a2, target.fam);
+    return at2 !== undefined && at2 === lookupTarget(b2, target.fam);
   }
-  var foldOlds = new Map;
-  var PLAIN_HOLD = Symbol("plainHold");
-  var WK_ALL = new Set;
-  var foldBatches = new WeakMap;
-  var stagedTruthPB = new WeakMap;
-  var tentativePBs = new WeakSet;
-  var FORCE = Symbol();
-  var pendingNotify = new Set;
-  var UNSAFE_KEYS = new Set(["__proto__", "prototype", "constructor"]);
-  var hasOwn = Object.prototype.hasOwnProperty;
+  var deferredReleases = new Set;
+  function releaseSlot(node) {
+    const t2 = node._host;
+    const key = node._key;
+    if (key === $TRACK) {
+      if (t2.k === node)
+        t2.k = null;
+    } else if (key === $DEEP) {
+      if (t2.dk === node)
+        t2.dk = null;
+    } else if (t2.n !== null && t2.n[key] === node) {
+      delete t2.n[key];
+      t2.nc--;
+    } else if (t2.h !== null && t2.h[key] === node)
+      delete t2.h[key];
+    if (t2.fam !== null && t2.nc === 0 && t2.k === null && t2.dk === null && (t2.h === null || Reflect.ownKeys(t2.h).length === 0))
+      t2.fam.live.delete(t2);
+  }
+  function noteNode(target, node, key) {
+    if (target.fam !== null)
+      target.fam.live.add(target);
+    markDescendants(target);
+    if (affectsHooks !== null)
+      affectsHooks.born(target, node, key);
+  }
+  setSlotUnobserved((node) => {
+    if (node._pendingValue !== NOT_PENDING || node._config & CONFIG_OVERRIDE)
+      deferredReleases.add(node);
+    else
+      releaseSlot(node);
+  });
+  function bornStaged(target, node, staged, key) {
+    if (node._equals && node._equals(node._value, staged))
+      return;
+    queuePendingNode(node);
+    node._pendingValue = staged;
+    const k2 = target.k;
+    if (k2 === null)
+      return;
+    if ((k2._config & (CONFIG_HELD | CONFIG_OVERRIDE)) === CONFIG_HELD && heldKeyChanged(target, key))
+      holdNode(node, txOf(k2));
+    if (k2._config & CONFIG_PROMOTED)
+      notePromotedWrite(node);
+  }
+  function getNode(target, key, accKnown = -1) {
+    const nodes = target.n ??= Object.create(null);
+    let node = nodes[key];
+    if (node === undefined) {
+      const pb = target.pb;
+      const created = node = slotSignal(committed(target)[key], slotNodeEquals, target, key, accKnown === -1 ? isOwnAccessor(pb ?? target.v, key) : accKnown === 1);
+      if (pb !== null && !created.acc)
+        bornStaged(target, created, target.del !== null && target.del.has(key) ? undefined : pb[key], key);
+      if (attrHooks !== null) {
+        created._name = storeLabel(target) + "." + String(key);
+        stampNodeOwner(created, target);
+      }
+      nodes[key] = node;
+      target.nc++;
+      noteNode(target, created, key);
+    }
+    return node;
+  }
+  function getHasNode(target, key) {
+    const nodes = target.h ??= Object.create(null);
+    let node = nodes[key];
+    if (node === undefined) {
+      const created = node = slotSignal(key in committed(target), isEqual, target, key, false);
+      const pb = target.pb;
+      if (pb !== null)
+        bornStaged(target, created, key in pb && !(target.del !== null && target.del.has(key)), key);
+      if (attrHooks !== null)
+        stampNodeOwner(created, target);
+      nodes[key] = node;
+      noteNode(target, created, key);
+    }
+    return node;
+  }
+  function getContainerNode(target) {
+    let k2 = target.k;
+    if (k2 === null) {
+      k2 = target.k = slotSignal(target.v, containerEquals, target, $TRACK, false);
+      if (attrHooks !== null)
+        stampNodeOwner(k2, target);
+      noteNode(target, k2, $TRACK);
+      if (target.pb !== null && !directCommit) {
+        k2._value = preBatch(target);
+        k2._pendingValue = target.pb;
+        queuePendingNode(k2);
+      }
+    }
+    return k2;
+  }
+  function stageOn(target, pb) {
+    if (target.k === null && passLane === null && (context === null || globalQueue._running) && !deriveHolds(target))
+      return;
+    const k2 = getContainerNode(target);
+    if (k2._pendingValue === NOT_PENDING)
+      queuePendingNode(k2);
+    k2._pendingValue = pb;
+    if (context !== null)
+      notePromotedWrite(k2);
+    if (target.fam !== null)
+      holdWithDerive(target, k2);
+  }
+  function deriveHolds(target) {
+    const fw = target.fam?.node;
+    return fw != null && !userWrite && (fw._config & CONFIG_HELD) !== 0;
+  }
+  GlobalQueue._storePark = (t2) => {
+    for (let i2 = 0;i2 < foldList.length; i2++) {
+      const target = foldList[i2];
+      if (target.k === null && target.pb !== null)
+        holdNode(getContainerNode(target), t2);
+    }
+  };
+  function bumpDeep(t2) {
+    if (t2.dk !== null)
+      setSignal(t2.dk, 1);
+  }
+  function notifyContainer(k2, pb) {
+    if (k2._config & CONFIG_OVERRIDE)
+      setSignal(k2, pb);
+    else {
+      if (k2._config & CONFIG_HELD)
+        joinFuture(txOf(k2));
+      insertSubs(k2);
+      schedule();
+    }
+  }
+  function storeRoot(target) {
+    let root = target;
+    while (root.u !== null)
+      root = root.u;
+    return root;
+  }
+  function storeRootOwner(target) {
+    return storeOwners.get(storeRoot(target));
+  }
+  function stampNodeOwner(created, target) {
+    created._owner = storeRootOwner(target) ?? null;
+  }
+  var storeNames = new WeakMap;
+  function storeLabel(target) {
+    return storeNames.get(storeRoot(target)) ?? "store";
+  }
+  var hasOwn$1 = Object.prototype.hasOwnProperty;
   var lookupGetter = Object.prototype.__lookupGetter__;
   var lookupSetter = Object.prototype.__lookupSetter__;
+  var propertyIsEnumerable$1 = Object.prototype.propertyIsEnumerable;
   function isOwnAccessor(src, key) {
-    return hasOwn.call(src, key) && (lookupGetter.call(src, key) !== undefined || lookupSetter.call(src, key) !== undefined);
+    return hasOwn$1.call(src, key) && (lookupGetter.call(src, key) !== undefined || lookupSetter.call(src, key) !== undefined);
   }
-  setNextAffectsNodeResolver((t2, key) => key === $AFFECTS ? getNode(t2, $AFFECTS, undefined) : getNode(t2, key, (t2.pb ?? t2.v)[key]));
+  function cloneRaw(source, t2) {
+    t2.sc || scanAccessorsOnce(t2);
+    if (t2.sc === 2) {
+      const clone2 = { ...source };
+      clone2[$OWNER] = t2;
+      return clone2;
+    }
+    const descs = Object.getOwnPropertyDescriptors(source);
+    for (const key of Reflect.ownKeys(descs)) {
+      const d2 = descs[key];
+      if (key === "length" && Array.isArray(source))
+        continue;
+      d2.configurable = true;
+      if (!d2.get && !d2.set)
+        d2.writable = true;
+      else
+        t2.a = true;
+    }
+    const clone = Array.isArray(source) ? Object.defineProperties([], descs) : Object.create(Object.getPrototypeOf(source), descs);
+    clone[$OWNER] = t2;
+    return clone;
+  }
+  function wideClone(source, t2) {
+    const clone = Object.create(null);
+    for (const key of Reflect.ownKeys(source))
+      clone[key] = source[key];
+    Object.setPrototypeOf(clone, Object.prototype);
+    clone[$OWNER] = t2;
+    return clone;
+  }
+  function copyOwn(to2, from, key) {
+    const d2 = Object.getOwnPropertyDescriptor(from, key);
+    if (d2.get || d2.set || !d2.enumerable || !d2.writable || !d2.configurable)
+      Object.defineProperty(to2, key, d2);
+    else
+      to2[key] = d2.value;
+  }
+  function scanAccessorsOnce(target) {
+    const src = target.v;
+    const keys = Reflect.ownKeys(src);
+    let plain = Object.getPrototypeOf(src) === Object.prototype;
+    for (const key of keys) {
+      if (lookupGetter.call(src, key) !== undefined || lookupSetter.call(src, key) !== undefined) {
+        target.a = true;
+        plain = false;
+        break;
+      }
+      if (plain && !propertyIsEnumerable$1.call(src, key))
+        plain = false;
+    }
+    target.sc = plain ? 2 : 1;
+    target.kc = keys.length;
+    return !target.a;
+  }
+  var OVERLAY_MIN_KEYS = 32;
+  var OVERLAY_REBUILD_MAX_KEYS = 1024;
+  var OVERLAY_REBUILD_MIN_ADDS = 16;
+  var WK_ALL = new Set;
+  var plainProto = (o2) => {
+    const p2 = Object.getPrototypeOf(o2);
+    return p2 === Object.prototype || p2 === Array.prototype || p2 === null;
+  };
+  function overlayRebuilds(t2, pb) {
+    if (t2.kc > OVERLAY_REBUILD_MAX_KEYS)
+      return false;
+    if (t2.del !== null && t2.del.size !== 0)
+      return true;
+    const wk = t2.wk;
+    if (wk !== null && wk !== WK_ALL && wk.size <= OVERLAY_REBUILD_MIN_ADDS)
+      return false;
+    const v2 = t2.v;
+    let adds = 0;
+    for (const key of Reflect.ownKeys(pb))
+      if (!hasOwn$1.call(v2, key) && ++adds > OVERLAY_REBUILD_MIN_ADDS)
+        return true;
+    return false;
+  }
+  function materializePB(target) {
+    const pb = target.pb;
+    if (!target.ovl)
+      return pb;
+    const clone = target.sc === 2 ? wideClone(target.v, target) : cloneRaw(target.v, target);
+    if (target.del !== null) {
+      for (const key of target.del)
+        delete clone[key];
+      target.kc -= target.del.size;
+      target.del = null;
+    }
+    for (const key of Reflect.ownKeys(pb))
+      target.sc === 2 ? clone[key] = pb[key] : copyOwn(clone, pb, key);
+    target.pb = clone;
+    target.ovl = false;
+    if (target.k !== null && target.k._pendingValue === pb)
+      target.k._pendingValue = clone;
+    return clone;
+  }
+  function ensurePB(target) {
+    let pb = target.pb;
+    if (userWrite && target.fam?.opt === true && !pendingNotify.has(target))
+      return target.pb = optHooks.draft(target);
+    if (pb !== null && !isOwned(pb)) {
+      pb = target.pb = cloneRaw(pb, target);
+      const k2 = target.k;
+      if (k2 !== null && !(k2._config & CONFIG_HELD))
+        k2._pendingValue = pb;
+    } else if (pb === null) {
+      const v2 = target.v;
+      if (!directCommit)
+        queueFold(target);
+      if (!target.ch && !Array.isArray(v2) && (target.sc !== 0 ? !target.a : scanAccessorsOnce(target)) && target.kc > OVERLAY_MIN_KEYS && isOwned(v2)) {
+        pb = target.pb = Object.create(v2);
+        target.ovl = true;
+      } else
+        pb = target.pb = cloneRaw(v2, target);
+      if (!directCommit)
+        stageOn(target, pb);
+    }
+    return pb;
+  }
+  function privatizeCommitted(target) {
+    if (isOwned(target.v))
+      return;
+    const before = target.v;
+    const clone = cloneRaw(before, target);
+    target.v = clone;
+    target.ch = false;
+    if (target.u) {
+      privatizeCommitted(target.u);
+      devAssertNeverUserMutation(target.u.v);
+      const pv = target.u.v;
+      const slot = parentSlotKey(target, before);
+      if (pv[slot] === before)
+        pv[slot] = target.v;
+    }
+  }
+  function parentSlotKey(target, expected) {
+    const pk = target.pk;
+    const pv = target.u.v;
+    if (pv[pk] === expected || pv[pk] === target.v || !Array.isArray(pv))
+      return pk;
+    const at2 = pv.indexOf(expected);
+    if (at2 === -1)
+      return pk;
+    target.pk = at2;
+    return at2;
+  }
+  function flattenOverlay(t2, pb) {
+    privatizeCommitted(t2);
+    const v2 = t2.v;
+    for (const key of Reflect.ownKeys(pb))
+      t2.sc === 2 ? v2[key] = pb[key] : copyOwn(v2, pb, key);
+    if (t2.del !== null) {
+      for (const key of t2.del)
+        delete v2[key];
+      t2.kc -= t2.del.size;
+      t2.del = null;
+    }
+    t2.pb = null;
+    t2.ovl = false;
+    t2.wk = null;
+  }
+  var foldList = [];
+  var foldOlds = [];
+  var foldSpare = [];
+  var foldOldsSpare = [];
+  var foldIndex = null;
+  function queueFold(target) {
+    if (target.pb !== null)
+      return;
+    schedule();
+    if (foldIndex !== null)
+      foldIndex.set(target, foldList.length);
+    foldList.push(target);
+    foldOlds.push(target.v);
+  }
+  function preBatch(t2) {
+    if (foldIndex === null) {
+      foldIndex = new Map;
+      for (let i2 = 0;i2 < foldList.length; i2++)
+        foldIndex.set(foldList[i2], i2);
+    }
+    const at2 = foldIndex.get(t2);
+    return at2 === undefined ? t2.v : foldOlds[at2];
+  }
+  function drainFolds() {
+    if (foldList.length !== 0) {
+      const list2 = foldList;
+      const olds = foldOlds;
+      foldList = foldSpare;
+      foldOlds = foldOldsSpare;
+      foldSpare = list2;
+      foldOldsSpare = olds;
+      foldIndex = null;
+      for (let i2 = 0;i2 < list2.length; i2++) {
+        const t2 = list2[i2];
+        if (t2.pb === null)
+          continue;
+        const k2 = t2.k;
+        if (k2 !== null && k2._pendingValue !== NOT_PENDING) {
+          foldList.push(t2);
+          foldOlds.push(olds[i2]);
+        } else
+          foldTarget(t2, olds[i2]);
+      }
+      list2.length = 0;
+      olds.length = 0;
+    }
+    if (deferredReleases.size !== 0) {
+      for (const node of deferredReleases) {
+        if (node._pendingValue === NOT_PENDING && !(node._config & CONFIG_OVERRIDE) && node._subs === null) {
+          deferredReleases.delete(node);
+          releaseSlot(node);
+        }
+      }
+    }
+  }
+  GlobalQueue._slotFlight = (n2) => {
+    const fam = n2._host?.fam;
+    return fam != null && fam.node !== null && (fam.node._statusFlags & STATUS_PENDING) !== 0;
+  };
+  GlobalQueue._slotCovered = (n2) => {
+    const t2 = n2._host;
+    if (t2.ch) {
+      const key = n2._key;
+      const inner = t2.v;
+      if (t2.h !== null && t2.h[key] === n2)
+        n2._value = untrack(() => (key in inner));
+      else if (t2.n !== null && t2.n[key] === n2)
+        n2._value = untrack(() => unwrapValue(inner[key]));
+    }
+    return n2._value;
+  };
+  GlobalQueue._storeCommit = () => {
+    drainFolds();
+    optHooks?.sweep();
+  };
+  var directCommit = false;
+  function foldTarget(t2, old) {
+    {
+      {
+        const k2 = t2.k;
+        const pb = t2.pb;
+        if (pb !== null) {
+          if (pb === t2.v) {
+            t2.pb = null;
+            t2.wk = null;
+          } else if (t2.ovl && (t2.v !== old || !overlayRebuilds(t2, pb))) {
+            flattenOverlay(t2, pb);
+          } else if (t2.v !== old) {
+            privatizeCommitted(t2);
+            const v2 = t2.v;
+            const wk = t2.wk;
+            if (wk !== null && wk !== WK_ALL) {
+              for (const key of wk) {
+                if (hasOwn$1.call(pb, key))
+                  copyOwn(v2, pb, key);
+                else
+                  delete v2[key];
+              }
+            } else {
+              for (const key of Reflect.ownKeys(pb)) {
+                const d2 = Object.getOwnPropertyDescriptor(pb, key);
+                if (d2.get || d2.set || !d2.enumerable || !d2.writable || !d2.configurable)
+                  Object.defineProperty(v2, key, d2);
+                else if (d2.value !== old[key] || !hasOwn$1.call(old, key))
+                  v2[key] = d2.value;
+              }
+              for (const key of Reflect.ownKeys(old)) {
+                if (!hasOwn$1.call(pb, key))
+                  delete v2[key];
+              }
+            }
+            t2.pb = null;
+            t2.wk = null;
+          } else {
+            t2.v = t2.ovl ? materializePB(t2) : pb;
+            t2.ch = t2.v[$TARGET] !== undefined;
+            t2.pb = null;
+            t2.wk = null;
+          }
+        }
+        if (k2 !== null) {
+          if (k2._subs === null)
+            t2.k = null;
+          else if (k2._value instanceof LaneView)
+            k2._value.base = t2.v;
+          else
+            k2._value = t2.v;
+        }
+        if (t2.v !== old && t2.u) {
+          const slot = parentSlotKey(t2, old);
+          if (t2.u.v[slot] === old) {
+            privatizeCommitted(t2.u);
+            devAssertNeverUserMutation(t2.u.v);
+            t2.u.v[slot] = t2.v;
+          }
+        }
+      }
+    }
+  }
+  function storePathOf(t2) {
+    let path = "";
+    for (let cur = t2;cur !== null; cur = cur.u)
+      path = cur.pk === null ? "store" + path : "." + String(cur.pk) + path;
+    return path;
+  }
+  var REPLACED_CENSUS_MAX = 64;
+  function sameLeaf(a2, b2) {
+    if (a2 === b2)
+      return true;
+    if (a2 === null || b2 === null || typeof a2 !== "object" || typeof b2 !== "object")
+      return false;
+    return unwrapValue(a2) === unwrapValue(b2) || targetsEqual(a2, b2);
+  }
+  function reportReplacedContainers(t2, old, pb, writtenKeys) {
+    const keys = writtenKeys ?? Reflect.ownKeys(pb);
+    const isArray = Array.isArray(pb);
+    const owner = storeRootOwner(t2);
+    for (const key of keys) {
+      if (isArray && key === "length" || key === $OWNER)
+        continue;
+      if (t2.del !== null && t2.del.has(key))
+        continue;
+      const ov = unwrapValue(old[key]);
+      const nv = unwrapValue(pb[key]);
+      if (ov === null || nv === null || typeof ov !== "object" || typeof nv !== "object" || ov === nv || targetsEqual(ov, nv))
+        continue;
+      const isArr = Array.isArray(nv);
+      if (isArr !== Array.isArray(ov))
+        continue;
+      let total;
+      let unchanged = 0;
+      if (isArr) {
+        total = nv.length;
+        if (total > REPLACED_CENSUS_MAX)
+          continue;
+        const oldItems = new Set;
+        for (const item of ov)
+          oldItems.add(unwrapValue(item));
+        for (const item of nv)
+          if (oldItems.has(unwrapValue(item)))
+            unchanged++;
+      } else {
+        const nkeys = Object.keys(nv);
+        total = nkeys.length;
+        if (total > REPLACED_CENSUS_MAX)
+          continue;
+        for (const k2 of nkeys)
+          if (sameLeaf(ov[k2], nv[k2]))
+            unchanged++;
+      }
+      attrHooks.storeReplaced(storePathOf(t2) + "." + String(key), isArr, total, unchanged, isArr ? ov.length : Object.keys(ov).length, owner);
+    }
+  }
+  var heldDerivationHit = false;
+  var userWrite = false;
+  function heldDerivation(t2, node, key) {
+    if (t2.fam === null || !userWrite)
+      return false;
+    if (node !== undefined)
+      return (node._config & (CONFIG_HELD | CONFIG_MANUAL_WRITE)) === CONFIG_HELD && txOf(node) !== flushTransaction;
+    const k2 = t2.k;
+    return k2 !== null && (k2._config & CONFIG_HELD) !== 0 && txOf(k2) !== flushTransaction && heldKeyChanged(t2, key);
+  }
+  function notifyWrites(t2) {
+    let pb = t2.pb;
+    if (pb === null)
+      return;
+    if (userWrite && t2.fam?.opt === true) {
+      t2.pb = null;
+      t2.wk = null;
+      t2.pb = optHooks.writes(t2, pb);
+      return;
+    }
+    const old = t2.v;
+    if (DEV.hooks.onStoreNodeUpdate) {
+      if (t2.ovl)
+        materializePB(t2);
+      pb = t2.pb;
+      for (const key of Reflect.ownKeys(pb)) {
+        if (Array.isArray(pb) && key === "length" || key === $OWNER)
+          continue;
+        const ov = old[key];
+        const nv = pb[key];
+        if (!isEqual(ov, nv))
+          DEV.hooks.onStoreNodeUpdate(t2.px, key, nv, ov);
+      }
+      for (const key of Reflect.ownKeys(old)) {
+        if (key in pb || key === $OWNER)
+          continue;
+        DEV.hooks.onStoreNodeUpdate(t2.px, key, undefined, old[key]);
+      }
+    }
+    const nodes = t2.n;
+    const wk0 = t2.wk;
+    const writtenKeys = wk0 === WK_ALL || t2.a === true || !plainProto(t2.ovl ? t2.v : pb) ? null : wk0;
+    if (attrHooks !== null)
+      reportReplacedContainers(t2, old, pb, writtenKeys);
+    if (t2.fam !== null && !heldDerivationHit && writtenKeys !== null) {
+      for (const key of writtenKeys)
+        if (heldDerivation(t2, nodes?.[key], key)) {
+          heldDerivationHit = true;
+          break;
+        }
+    }
+    if (nodes !== null) {
+      const keys = writtenKeys ?? Reflect.ownKeys(nodes);
+      for (const key of keys) {
+        const node = nodes[key];
+        if (node === undefined)
+          continue;
+        if (node.acc === true || hasOwn$1.call(pb, key) && lookupGetter.call(pb, key) !== undefined) {
+          node.acc = isOwnAccessor(pb, key);
+          const od = Object.getOwnPropertyDescriptor(old, key);
+          const nd = Object.getOwnPropertyDescriptor(pb, key);
+          if (od && (od.get || od.set) || nd && (nd.get || nd.set)) {
+            if (od?.get !== nd?.get || od?.set !== nd?.set || od?.value !== nd?.value)
+              setSignal(node, () => FORCE);
+            continue;
+          }
+          if (!isEqual(od?.value, nd?.value))
+            setSignal(node, () => nd?.value);
+          continue;
+        }
+        const nv = t2.del !== null && t2.del.has(key) ? undefined : pb[key];
+        setSignal(node, () => nv);
+        if (t2.fam !== null) {
+          if (!userWrite) {
+            node._config &= ~CONFIG_MANUAL_WRITE;
+            holdWithDerive(t2, node);
+          } else
+            node._config |= CONFIG_MANUAL_WRITE;
+        }
+      }
+    }
+    const has = t2.h;
+    if (has !== null) {
+      const keys = writtenKeys ?? Reflect.ownKeys(has);
+      for (const key of keys) {
+        const node = has[key];
+        if (node !== undefined) {
+          setSignal(node, key in pb && !(t2.del !== null && t2.del.has(key)));
+          if (t2.fam !== null)
+            holdWithDerive(t2, node);
+        }
+      }
+    }
+    if (t2.dk !== null) {
+      if (t2.del !== null && t2.del.size !== 0)
+        bumpDeep(t2);
+      else
+        for (const key of writtenKeys ?? Reflect.ownKeys(pb)) {
+          if (key === $OWNER)
+            continue;
+          const nv = pb[key];
+          const ov = old[key];
+          if (nv !== null && typeof nv === "object" ? !targetsEqual(ov, nv) : !isEqual(ov, nv)) {
+            bumpDeep(t2);
+            break;
+          }
+        }
+    }
+    const k2 = t2.k;
+    if (k2 !== null && (k2._subs !== null || k2._config & CONFIG_OVERRIDE)) {
+      let changed;
+      if (t2.ovl) {
+        changed = t2.del !== null && t2.del.size !== 0;
+        if (!changed) {
+          for (const key of Reflect.ownKeys(pb)) {
+            if (!hasOwn$1.call(old, key)) {
+              changed = true;
+              break;
+            }
+          }
+        }
+      } else {
+        changed = Array.isArray(pb) && Array.isArray(old) ? arrayStructureChanged(old, pb) : membershipChanged(old, pb);
+      }
+      if (changed)
+        notifyContainer(k2, pb);
+    }
+  }
+  var FORCE = Symbol();
+  function targetsEqual(ov, nv) {
+    if (ov === null || typeof ov !== "object" || nv === null || typeof nv !== "object")
+      return false;
+    const ot2 = lookupTarget(ov, null);
+    return ot2 !== undefined && ot2 === lookupTarget(nv, null);
+  }
+  function arrayStructureChanged(old, neu) {
+    if (old.length !== neu.length)
+      return true;
+    for (let i2 = 0;i2 < neu.length; i2++) {
+      const ov = old[i2];
+      const nv = neu[i2];
+      if (!isEqual(ov, nv) && !targetsEqual(ov, nv))
+        return true;
+    }
+    return false;
+  }
+  function membershipChanged(old, neu) {
+    const nk = Reflect.ownKeys(neu);
+    if (Reflect.ownKeys(old).length - +isOwned(old) !== nk.length - +isOwned(neu))
+      return true;
+    for (const key of nk)
+      if (key !== $OWNER && !(key in old))
+        return true;
+    return false;
+  }
+  var writeScopes = null;
+  var pendingNotify = new Set;
+  function scopeKey(target) {
+    if (target.fam !== null)
+      return target.fam;
+    let t2 = target;
+    while (t2.u !== null)
+      t2 = t2.u;
+    return t2;
+  }
+  function inDraft(target) {
+    return writeScopes !== null && writeScopes.has(scopeKey(target));
+  }
+  function serveShallow(target, key, v2) {
+    if (v2 !== null && typeof v2 === "object" && v2[$TARGET] !== undefined)
+      return draftServe(target, wrap(v2, target, key));
+    return v2;
+  }
+  function draftServe(target, proxy) {
+    if (writeScopes !== null && inDraft(target)) {
+      const ct2 = proxy?.[$TARGET];
+      if (ct2 !== undefined && ct2.v !== undefined)
+        writeScopes.add(scopeKey(ct2));
+    }
+    return proxy;
+  }
+  function committed(t2) {
+    const k2 = t2.k;
+    if (k2 !== null)
+      return k2._pendingValue !== NOT_PENDING ? asBacking(k2._value) : t2.v;
+    return t2.pb !== null ? preBatch(t2) : t2.v;
+  }
+  function stagingReader() {
+    let c2 = context;
+    if (c2 === null)
+      return null;
+    if (c2._root)
+      c2 = c2._parentComputed ?? null;
+    return c2 === null || c2._config & CONFIG_CHILDREN_FORBIDDEN ? null : c2;
+  }
+  function readSource(target, key, shape = false) {
+    if (userWrite && target.fam !== null && target.fam.opt === true && !pendingNotify.has(target) && inDraft(target)) {
+      const draft = ensurePB(target);
+      pendingNotify.add(target);
+      return draft;
+    }
+    const pb = target.pb;
+    if (pb === null)
+      return target.v;
+    if (inDraft(target) || writeOverride) {
+      if (writeOverride && !userWrite) {
+        const leaf = key !== undefined ? target.n?.[key] : undefined;
+        if (leaf !== undefined) {
+          if ((leaf._config & (CONFIG_HELD | CONFIG_OVERRIDE)) === CONFIG_HELD)
+            joinPassTx(txOf(leaf));
+        } else {
+          const k3 = target.k;
+          if (k3 !== null && (k3._config & (CONFIG_HELD | CONFIG_OVERRIDE)) === CONFIG_HELD && (key === undefined || heldKeyChanged(target, key)))
+            joinPassTx(txOf(k3));
+        }
+      }
+      return pb;
+    }
+    const k2 = target.k;
+    if (key !== undefined) {
+      const leaf = target.n?.[key];
+      if (leaf !== undefined && leaf._config & CONFIG_OVERRIDE)
+        return committed(target);
+    }
+    const held = k2 !== null && (k2._config & CONFIG_HELD) !== 0;
+    if (held && key !== undefined && !heldKeyChanged(target, key, shape))
+      return pb;
+    const c2 = stagingReader();
+    if (c2 === null) {
+      if (getObserver() !== null)
+        return pb;
+      if (familyAhead(target))
+        return pb;
+      if (verdict === null || !held && key !== undefined && !keyChanged(target, key, shape))
+        return held ? asBacking(k2._value) : target.v;
+      return k2 === null ? committed(target) : asBacking(read(k2));
+    }
+    if (!held) {
+      if (c2._flags & REACTIVE_STAGED_READ && !(c2._config & (CONFIG_VERDICT | CONFIG_CHILDREN_FORBIDDEN)))
+        return pb;
+      if (key !== undefined && !keyChanged(target, key, shape))
+        return committed(target);
+      if (k2 === null) {
+        if (c2._config & CONFIG_VERDICT && stagedScreen(c2))
+          return committed(target);
+        stagedRead(c2);
+        return pb;
+      }
+    }
+    return asBacking(untrack(() => read(k2)));
+  }
+  function heldKeyChanged(target, key, shape = true) {
+    return changedBetween(target, target.k._value, target.k._pendingValue, key, shape);
+  }
+  function familyAhead(target) {
+    return target.fam !== null && context === null && !(target.k !== null && target.k._config & CONFIG_HELD);
+  }
+  function keyChanged(target, key, shape = true) {
+    return changedBetween(target, committed(target), target.pb, key, shape);
+  }
+  function changedBetween(target, v2, pb, key, shape) {
+    if (target.ch || pb[$TARGET] !== undefined || Object.getPrototypeOf(pb) !== Object.getPrototypeOf(v2) || !plainProto(v2))
+      return true;
+    if (target.del !== null && target.del.has(key))
+      return key in v2;
+    const inNew = hasOwn$1.call(pb, key) || target.ovl && hasOwn$1.call(target.v, key);
+    if (inNew !== hasOwn$1.call(v2, key))
+      return true;
+    if (!inNew)
+      return false;
+    if ((shape || target.a) && (isOwnAccessor(v2, key) || isOwnAccessor(pb, key) || propertyIsEnumerable$1.call(v2, key) !== propertyIsEnumerable$1.call(pb, key)))
+      return true;
+    const nv = pb[key];
+    const ov = v2[key];
+    return !isEqual(ov, nv) && !sameLogicalSlot(target, ov, nv);
+  }
+  function nodeValue(node, backing, target) {
+    let v2 = read(node);
+    if (node._pendingValue !== NOT_PENDING && !(node._config & CONFIG_HELD) && context === null && target.fam !== null)
+      v2 = node._pendingValue;
+    return v2 === FORCE ? backing : v2;
+  }
+  function serveDataKey(target, key, backingValue, src, node, accKnown = -1) {
+    const chained = target.ch && src === target.v;
+    let v2 = backingValue;
+    if (!inDraft(target) && !writeOverride) {
+      if (node === undefined && getObserver() !== null)
+        node = getNode(target, key, accKnown);
+      if (node !== undefined) {
+        const nv = nodeValue(node, backingValue, target);
+        if (chained) {
+          node._value = backingValue;
+          if (node._config & CONFIG_OVERRIDE)
+            v2 = nv;
+        } else
+          v2 = nv;
+      }
+    }
+    if (target.s)
+      return serveShallow(target, key, v2);
+    if (target.ch && !chained && v2 !== null && typeof v2 === "object" && v2[$TARGET]?.px !== v2)
+      v2 = resolveChainedRaw(target, key, v2);
+    if (node !== undefined) {
+      if (node.pxv === v2 && v2 !== undefined)
+        return draftServe(target, node.px);
+      if (!isWrappable(v2))
+        return v2;
+      const p2 = wrap(v2, target, key);
+      node.px = p2;
+      node.pxv = v2;
+      return draftServe(target, p2);
+    }
+    if (!isWrappable(v2))
+      return v2;
+    return draftServe(target, wrap(v2, target, key));
+  }
+  function linkedTo(c2, n2) {
+    for (let d2 = c2._deps;d2 !== null; d2 = d2._nextDep)
+      if (d2._dep === n2)
+        return true;
+    return false;
+  }
+  function pullFamily(target) {
+    const fw = target.fam.node;
+    if (fw === null || writeOverride || inDraft(target))
+      return;
+    if (fw._statusFlags & (STATUS_PENDING | STATUS_ERROR)) {
+      const c2 = context;
+      if (c2 !== null && c2._type === EFFECT_RENDER && fw._config & CONFIG_HELD && flushTransaction !== txOf(fw) && !linkedTo(c2, fw))
+        return;
+      const overlaid = target.fam.overlaid;
+      if (verdict === null && fw._statusFlags & STATUS_PENDING && overlaid !== undefined && overlaid.size !== 0)
+        return;
+      read(fw);
+    } else
+      untrack(() => read(fw));
+  }
+  function holdWithDerive(target, node) {
+    const fw = target.fam?.node;
+    if (fw !== undefined && fw !== null && !userWrite && fw._config & CONFIG_HELD && node._pendingValue !== NOT_PENDING && !(node._config & (CONFIG_HELD | CONFIG_OVERRIDE))) {
+      holdNode(node, txOf(fw));
+      node._x._reask = fw._x._reask;
+    }
+  }
+  function resolveChainedRaw(target, key, v2) {
+    const innerT = target.v[$TARGET];
+    if (innerT.ch) {
+      const iv = resolveChainedRaw(innerT, key, v2);
+      return iv === v2 ? v2 : wrap(iv, innerT, key);
+    }
+    const owned = lookupTarget(v2, innerT.fam);
+    if (owned !== undefined)
+      return owned.px;
+    if ((innerT.v[key] === v2 || innerT.pb?.[key] === v2) && isWrappable(v2))
+      return wrap(v2, innerT, key);
+    return v2;
+  }
+  function enumerationSource(target) {
+    if (!inDraft(target) && !writeOverride && getObserver() !== null) {
+      const base = asBacking(read(getContainerNode(target)));
+      return target.fam?.opt === true ? optHooks.view(target, base) : base;
+    }
+    const src = readSource(target);
+    return optRead(target) ? optHooks.view(target, src) : src;
+  }
+  function optRead(target) {
+    return target.fam !== null && target.fam.opt === true && !inDraft(target) && !writeOverride;
+  }
+  var UNSAFE_KEYS = new Set(["__proto__", "prototype", "constructor"]);
+  var traps = {
+    get(target, key, receiver) {
+      if (typeof key !== "string") {
+        if (key === $TARGET)
+          return target;
+        if (key === $PROXY)
+          return receiver;
+        if (key === $OWNER)
+          return;
+        if (key === $RECORD)
+          return;
+        if (key === $REFRESH)
+          return target.fam?.node ?? undefined;
+        if (key === $TRACK) {
+          if (target.fam !== null)
+            pullFamily(target);
+          if (!inDraft(target) && getObserver() !== null) {
+            read(getContainerNode(target));
+            const srcT = readSource(target);
+            if (srcT[$TARGET] !== undefined)
+              srcT[$TRACK];
+          }
+          return;
+        }
+      }
+      if (verdict !== null && affectsHooks !== null && getObserver() === null)
+        affectsHooks.witness(target, key);
+      if (target.fam !== null)
+        pullFamily(target);
+      const node0 = target.n?.[key];
+      if (writeScopes === null && !writeOverride) {
+        const nodeH = node0;
+        if (nodeH !== undefined && nodeH.acc !== true && (!target.ch || nodeH._config & CONFIG_OVERRIDE)) {
+          const nv = nodeValue(nodeH, undefined, target);
+          if (nv === null || typeof nv !== "object")
+            return nv;
+          if (target.s)
+            return serveShallow(target, key, nv);
+          if (nodeH.pxv === nv)
+            return nodeH.px;
+          if (isWrappable(nv)) {
+            const p2 = wrap(nv, target, key);
+            nodeH.px = p2;
+            nodeH.pxv = nv;
+            return p2;
+          }
+          return nv;
+        }
+      }
+      const src = readSource(target, key);
+      if (target.del !== null && src === target.pb && target.del.has(key)) {
+        if (!inDraft(target) && getObserver() !== null)
+          read(getNode(target, key));
+        return;
+      }
+      if (asyncTailFlights !== 0 && untrackDepth === 0 && !inDraft(target) && typeof key === "string" && key !== "then" && getObserver() === null && (hasOwn$1.call(src, key) || hasOwn$1.call(target.v, key)))
+        checkPostAwaitRead(target.n?.[key], storeRoot(target), undefined, key, false);
+      if (strictRead && !inDraft(target) && typeof key === "string" && key !== "then" && getObserver() === null) {
+        warnStrictReadUntracked(strictRead, {
+          nodeName: key,
+          data: { strictRead, property: key, source: "store" }
+        });
+      }
+      let accProbe = -1;
+      {
+        let acc;
+        if (node0 !== undefined)
+          acc = node0.acc === true;
+        else if (!inDraft(target) && getObserver() !== null) {
+          acc = isOwnAccessor(src, key);
+          if (src === (target.pb ?? target.v))
+            accProbe = acc ? 1 : 0;
+        } else
+          acc = false;
+        if (acc) {
+          if (!inDraft(target) && getObserver() !== null)
+            read(node0 ?? getNode(target, key, accProbe));
+          const v3 = Reflect.get(src, key, receiver);
+          if (target.s)
+            return serveShallow(target, key, v3);
+          return isWrappable(v3) ? draftServe(target, wrap(v3, target, key)) : v3;
+        }
+      }
+      const viewOvl = target.ovl && src === target.pb;
+      if ((key === "constructor" || key === "__proto__" || key === "prototype") && !hasOwn$1.call(src, key) && !(viewOvl && hasOwn$1.call(target.v, key)))
+        return;
+      let v2 = src[key];
+      if (v2 === undefined ? !hasOwn$1.call(src, key) && !(viewOvl && hasOwn$1.call(target.v, key)) : false) {
+        v2 = Reflect.get(src, key, receiver);
+        if (typeof v2 === "function")
+          return v2;
+        if (target.ch && src === target.v)
+          return serveDataKey(target, key, v2, src, node0, accProbe);
+        if (v2 === undefined && !inDraft(target)) {
+          if (getObserver() !== null)
+            read(getNode(target, key, accProbe));
+          const node = target.n?.[key];
+          if (node) {
+            const nv = nodeValue(node, undefined, target);
+            if (target.s)
+              return serveShallow(target, key, nv);
+            return isWrappable(nv) ? draftServe(target, wrap(nv, target, key)) : nv;
+          }
+        }
+        if (target.s)
+          return serveShallow(target, key, v2);
+        return isWrappable(v2) ? draftServe(target, wrap(v2, target, key)) : v2;
+      }
+      if (typeof v2 === "function" && !hasOwn$1.call(src, key) && !(viewOvl && hasOwn$1.call(target.v, key)))
+        return v2;
+      return serveDataKey(target, key, v2, src, node0, accProbe);
+    },
+    has(target, key) {
+      if (key === $TARGET || key === $PROXY || key === $TRACK)
+        return true;
+      if (key === $OWNER || key === $RECORD)
+        return false;
+      if (verdict !== null && affectsHooks !== null && getObserver() === null)
+        affectsHooks.witness(target, key);
+      if (target.fam !== null)
+        pullFamily(target);
+      const src = readSource(target, key);
+      if (!inDraft(target) && !writeOverride) {
+        if (getObserver() !== null) {
+          const node = getHasNode(target, key);
+          const nv = read(node);
+          if (!target.ch || src !== target.v)
+            return !!nv;
+          const present = key in src;
+          node._value = present;
+          if (node._config & CONFIG_OVERRIDE)
+            return !!nv;
+          return present;
+        } else if (optRead(target)) {
+          const guessed = optHooks.has(target, key);
+          if (guessed !== undefined)
+            return guessed;
+        }
+      }
+      return key in src && !(target.del !== null && src === target.pb && target.del.has(key));
+    },
+    ownKeys(target) {
+      if (verdict !== null && affectsHooks !== null && getObserver() === null)
+        affectsHooks.witness(target, undefined);
+      if (target.fam !== null)
+        pullFamily(target);
+      return visibleKeys(target, enumerationSource(target));
+    },
+    getOwnPropertyDescriptor(target, key) {
+      if (key === $OWNER || key === $RECORD)
+        return;
+      const obs = getObserver();
+      if (verdict !== null && affectsHooks !== null && obs === null)
+        affectsHooks.witness(target, key);
+      if (target.fam !== null)
+        pullFamily(target);
+      const plain = obs !== null && !inDraft(target) && !writeOverride;
+      const enumerating = plain && observerHoldsContainer(target, obs);
+      let src;
+      if (enumerating)
+        src = enumerationSource(target);
+      else if (plain) {
+        const node = getHasNode(target, key);
+        const present = read(node);
+        src = readSource(target, key, true);
+        if (!present && (!target.ch || node._config & CONFIG_OVERRIDE || !(key in src)))
+          return;
+      } else
+        src = readSource(target, key, true);
+      let desc;
+      if (!enumerating && optRead(target)) {
+        const guessed = optHooks.descriptor(target, key);
+        if (guessed === null)
+          return;
+        desc = guessed;
+      }
+      desc ??= visibleDescriptor(target, src, key);
+      if (desc === undefined)
+        return;
+      if (!(key === "length" && Array.isArray(target)))
+        desc.configurable = true;
+      return desc;
+    },
+    set(target, key, value) {
+      const draft = inDraft(target);
+      const override = !draft && writeOverride;
+      if (!draft && !override)
+        return true;
+      if (key === "__proto__")
+        return true;
+      const uv = target.s ? value : unwrapValue(value);
+      const pb = ensurePB(target);
+      pendingNotify.add(target);
+      if (Array.isArray(pb)) {
+        if (key === "length")
+          target.wk = WK_ALL;
+        else if (target.wk !== WK_ALL) {
+          const wk = target.wk ??= new Set;
+          wk.add(key);
+          wk.add("length");
+        }
+      } else {
+        if (target.wk !== WK_ALL)
+          (target.wk ??= new Set).add(key);
+        if (!(key in pb))
+          target.kc++;
+      }
+      if (UNSAFE_KEYS.has(key)) {
+        Object.defineProperty(pb, key, {
+          value: uv,
+          writable: true,
+          enumerable: true,
+          configurable: true
+        });
+        if (target.del !== null)
+          target.del.delete(key);
+        return true;
+      }
+      if (target.ovl && target.sc !== 2 && !hasOwn$1.call(pb, key)) {
+        Object.defineProperty(pb, key, {
+          value: uv,
+          writable: true,
+          enumerable: true,
+          configurable: true
+        });
+      } else
+        pb[key] = uv;
+      if (target.del !== null)
+        target.del.delete(key);
+      if (target.s && uv !== null && typeof uv === "object")
+        markRawOne(uv);
+      if (override)
+        notifyWrites(target);
+      return true;
+    },
+    defineProperty(target, key, desc) {
+      const draft = inDraft(target);
+      const override = !draft && writeOverride;
+      if (!draft && !override)
+        return true;
+      if (key === "__proto__")
+        return true;
+      if (desc.get || desc.set)
+        target.a = true;
+      if ("value" in desc)
+        desc = { ...desc, value: unwrapValue(desc.value) };
+      const pb = ensurePB(target);
+      if (target.a || !(desc.enumerable && desc.writable && desc.configurable))
+        target.sc = 1;
+      pendingNotify.add(target);
+      if (target.wk !== WK_ALL)
+        (target.wk ??= new Set).add(key);
+      Object.defineProperty(pb, key, desc);
+      if (target.del !== null)
+        target.del.delete(key);
+      if (override)
+        notifyWrites(target);
+      return true;
+    },
+    deleteProperty(target, key) {
+      const draft = inDraft(target);
+      const override = !draft && writeOverride;
+      if (!draft && !override)
+        return true;
+      const pb = ensurePB(target);
+      pendingNotify.add(target);
+      if (target.wk !== WK_ALL)
+        (target.wk ??= new Set).add(key);
+      delete pb[key];
+      if (target.ovl && hasOwn$1.call(target.v, key))
+        (target.del ??= new Set).add(key);
+      if (override)
+        notifyWrites(target);
+      return true;
+    }
+  };
+  function observerHoldsContainer(target, obs) {
+    const k2 = target.k;
+    if (k2 === null)
+      return false;
+    const l2 = k2._subsTail;
+    return l2 !== null && l2._sub === obs && (!(obs._flags & REACTIVE_RECOMPUTING_DEPS) || l2._gen === obs._depGen);
+  }
+  var ASYNC_STORE_SETTER_MESSAGE = "[ASYNC_STORE_SETTER] Store setter callback returned a Promise. A store setter is a synchronous transaction: " + "the draft closes when the callback returns, so writes after an `await` are lost. " + "Move the await into an action() and call the setter from there.";
+  function visibleKeys(target, src) {
+    let keys;
+    if (target.ovl && src === target.pb) {
+      keys = Reflect.ownKeys(target.v);
+      const del = target.del;
+      if (del !== null && del.size !== 0)
+        keys = keys.filter((key) => !del.has(key));
+      for (const key of Reflect.ownKeys(src)) {
+        if (!hasOwn$1.call(target.v, key))
+          keys.push(key);
+      }
+    } else
+      keys = Reflect.ownKeys(src);
+    for (let i2 = keys.length - 1;i2 >= 0 && typeof keys[i2] === "symbol"; i2--) {
+      if (keys[i2] === $OWNER) {
+        keys.splice(i2, 1);
+        break;
+      }
+    }
+    return keys;
+  }
+  function visibleDescriptor(target, src, key) {
+    let desc = Object.getOwnPropertyDescriptor(src, key);
+    if (target.ovl && src === target.pb) {
+      if (target.del !== null && target.del.has(key))
+        return;
+      if (desc === undefined)
+        desc = Object.getOwnPropertyDescriptor(target.v, key);
+    }
+    return desc;
+  }
   var DELETE = Symbol("STORE_PATH_DELETE");
+  var $AFFECTS = Symbol("STORE_AFFECTS");
+  var scopes = new Map;
+  function storeMarks(t2, key) {
+    if (key === undefined) {
+      const carrier = getNode(t2, $AFFECTS);
+      let entry2 = scopes.get(carrier);
+      if (entry2 === undefined)
+        scopes.set(carrier, entry2 = { scope: new Set, inherited: [] });
+      const found = [carrier];
+      walk(t2.px, entry2, found, t2.fam, new Set);
+      return found;
+    }
+    const node = t2.n?.[key] ?? getNode(t2, key);
+    let entry = scopes.get(node);
+    if (entry === undefined)
+      scopes.set(node, entry = { scope: new Set, inherited: [], key });
+    entry.scope.add(t2.v);
+    if (t2.pb !== null)
+      entry.scope.add(t2.pb);
+    return [node];
+  }
+  function walk(value, entry, found, fam, visited) {
+    if (!isWrappable(value))
+      return;
+    const t2 = value[$TARGET] ?? lookupTarget(value, fam);
+    let raw = t2 !== undefined ? t2.pb ?? t2.v : value;
+    if (visited.has(raw))
+      return;
+    visited.add(raw);
+    entry.scope.add(raw);
+    if (t2 !== undefined) {
+      if (t2.pb !== null)
+        entry.scope.add(t2.v);
+      if (t2.fam?.opt === true)
+        raw = optHooks.view(t2, raw, true);
+      const nodes = t2.n;
+      if (nodes !== null) {
+        for (const k2 of Reflect.ownKeys(nodes))
+          if (k2 !== $AFFECTS)
+            found.push(nodes[k2]);
+      }
+      const has = t2.h;
+      if (has !== null)
+        for (const k2 of Reflect.ownKeys(has))
+          found.push(has[k2]);
+      if (t2.k !== null)
+        found.push(t2.k);
+      if (t2.dk !== null)
+        found.push(t2.dk);
+      fam = t2.fam ?? fam;
+    }
+    for (const k2 of Reflect.ownKeys(raw)) {
+      if (k2 === $OWNER)
+        continue;
+      const d2 = Object.getOwnPropertyDescriptor(raw, k2);
+      if (d2 === undefined || d2.get !== undefined)
+        continue;
+      walk(d2.value, entry, found, fam, visited);
+    }
+  }
+  function covering(t2, key, skip) {
+    for (const [carrier, entry] of scopes) {
+      if (carrier === skip || entry.key !== undefined && entry.key !== key)
+        continue;
+      for (let r2 = t2.v;; ) {
+        if (entry.scope.has(r2))
+          return carrier;
+        const inner = r2?.[$TARGET];
+        if (inner === undefined)
+          break;
+        const backing = inner.pb ?? inner.v;
+        if (backing === r2)
+          break;
+        r2 = backing;
+      }
+    }
+    return null;
+  }
+  installAffectsHooks({
+    born(t2, node, key) {
+      if (key === $AFFECTS)
+        return;
+      const carrier = covering(t2, key, node);
+      if (carrier === null)
+        return;
+      GlobalQueue._mark(node);
+      scopes.get(carrier).inherited.push(node);
+    },
+    witness(t2, key) {
+      const own = t2.n?.[$AFFECTS];
+      if (own !== undefined && own._x !== null && own._x._marks !== 0 || covering(t2, key) !== null)
+        GlobalQueue._witnessMark();
+    }
+  });
+  GlobalQueue._storeMarks = storeMarks;
+  GlobalQueue._releaseMarkScope = (carrier) => {
+    const entry = scopes.get(carrier);
+    if (entry === undefined)
+      return;
+    scopes.delete(carrier);
+    GlobalQueue._releaseMarks(entry.inherited);
+  };
+  var hasOwn = Object.prototype.hasOwnProperty;
+  var optStaged = new Map;
+  function writerBacking(t2) {
+    const base = committed(t2);
+    const inner = base[$TARGET];
+    return inner === undefined ? base : optimisticView(inner, writerBacking(inner), laneValueOf, true);
+  }
+  function optimisticDraft(t2) {
+    if (t2.pb !== null)
+      optStaged.set(t2, t2.pb);
+    return cloneRaw(optimisticView(t2, writerBacking(t2), laneValueOf, true), t2);
+  }
+  function notifyOptimisticWrites(t2, pb) {
+    const base = writerBacking(t2);
+    const old = optimisticView(t2, base, laneValueOf, true);
+    const isArr = Array.isArray(pb);
+    const inner = t2.ch ? t2.v : null;
+    const guess = (node, key, presence, nv) => {
+      if (inner !== null)
+        node._value = presence ? key in base : unwrapValue(base[key]);
+      optimisticWrite(node, () => nv);
+    };
+    let structural = false;
+    for (const key of Reflect.ownKeys(pb)) {
+      if (isArr && key === "length" || key === $OWNER)
+        continue;
+      const raw = pb[key];
+      const nv = unwrapValue(inner && raw ? resolveChainedRaw(t2, key, raw) : raw);
+      if (!(key in old)) {
+        guess(getNode(t2, key), key, false, nv);
+        guess(getHasNode(t2, key), key, true, true);
+        structural = true;
+      } else {
+        const previous = old[key];
+        const ov = unwrapValue(inner && previous ? resolveChainedRaw(t2, key, previous) : previous);
+        if (!isEqual(ov, nv) && !targetsEqual(ov, nv)) {
+          guess(getNode(t2, key), key, false, nv);
+          if (isArr)
+            structural = true;
+        }
+      }
+    }
+    for (const key of Reflect.ownKeys(old)) {
+      if (isArr && key === "length" || key === $OWNER)
+        continue;
+      if (key in pb)
+        continue;
+      guess(getNode(t2, key), key, false, undefined);
+      guess(getHasNode(t2, key), key, true, false);
+      structural = true;
+    }
+    if (isArr && old.length !== pb.length) {
+      guess(getNode(t2, "length"), "length", false, pb.length);
+      structural = true;
+    }
+    if (structural) {
+      const rows = isArr ? pb.map(unwrapValue) : shallowKeys(pb);
+      let removed = null;
+      const keyFn = t2.fam.key;
+      if (isArr && keyFn !== null && keyFn !== undefined) {
+        const kept = new Set;
+        for (let i2 = 0;i2 < rows.length; i2++) {
+          const k2 = isWrappable(rows[i2]) ? keyFn(rows[i2]) : undefined;
+          if (k2 !== undefined)
+            kept.add(k2);
+        }
+        for (let i2 = 0;i2 < old.length; i2++) {
+          const r2 = unwrapValue(old[i2]);
+          const k2 = isWrappable(r2) ? keyFn(r2) : undefined;
+          if (k2 !== undefined && !kept.has(k2))
+            (removed ??= new Set).add(k2);
+        }
+      }
+      optimisticWrite(getContainerNode(t2), new LaneView(rows, base, removed));
+    }
+    if (t2.dk !== null)
+      optimisticWrite(t2.dk, {});
+    markOverlaid(t2);
+    const staged = optStaged.get(t2);
+    if (staged === undefined)
+      return null;
+    optStaged.delete(t2);
+    return staged;
+  }
+  function arrangement(t2, a2, b2) {
+    const av = a2 instanceof LaneView;
+    const bv = b2 instanceof LaneView;
+    if (!av && !bv)
+      return false;
+    return arrangementEqual(av ? a2.rows : a2, bv ? b2.rows : b2, t2.fam?.key ?? null);
+  }
+  function rowSame(a2, b2, keyFn) {
+    if (isEqual(a2, b2) || targetsEqual(a2, b2))
+      return true;
+    if (keyFn === null || !isWrappable(a2) || !isWrappable(b2))
+      return false;
+    const ka = keyFn(unwrapValue(a2));
+    const kb = keyFn(unwrapValue(b2));
+    return ka !== undefined && sameKey(ka, kb);
+  }
+  function arrangementEqual(a2, b2, keyFn) {
+    if (Array.isArray(a2) !== Array.isArray(b2))
+      return false;
+    if (Array.isArray(a2)) {
+      if (a2.length !== b2.length)
+        return false;
+      for (let i2 = 0;i2 < a2.length; i2++)
+        if (!rowSame(a2[i2], b2[i2], keyFn))
+          return false;
+      return true;
+    }
+    const ak = Reflect.ownKeys(a2).filter((k2) => k2 !== $OWNER);
+    const bk = Reflect.ownKeys(b2).filter((k2) => k2 !== $OWNER);
+    if (ak.length !== bk.length)
+      return false;
+    for (const k2 of ak)
+      if (!(k2 in b2))
+        return false;
+    return true;
+  }
+  function reconcileDraft(draft, incoming, keyFn) {
+    if (Array.isArray(incoming)) {
+      const n2 = draft.length;
+      const prev = new Array(n2);
+      for (let i2 = 0;i2 < n2; i2++)
+        prev[i2] = draft[i2];
+      let byKey = null;
+      if (keyFn !== null) {
+        byKey = new Map;
+        for (let i2 = 0;i2 < n2; i2++) {
+          const raw = unwrapValue(prev[i2]);
+          if (!isWrappable(raw))
+            continue;
+          const k2 = keyFn(raw);
+          if (k2 !== undefined && !byKey.has(k2))
+            byKey.set(k2, prev[i2]);
+        }
+      }
+      for (let i2 = 0;i2 < incoming.length; i2++) {
+        const nv = incoming[i2];
+        let match;
+        if (isWrappable(nv)) {
+          if (byKey !== null) {
+            const k2 = keyFn(nv);
+            if (k2 !== undefined)
+              match = byKey.get(k2);
+          } else if (i2 < n2 && isWrappable(unwrapValue(prev[i2])))
+            match = prev[i2];
+        }
+        if (match !== undefined) {
+          if (unwrapValue(match) !== nv)
+            reconcileDraft(match, nv, keyFn);
+          if (draft[i2] !== match)
+            draft[i2] = match;
+        } else if (unwrapValue(draft[i2]) !== nv)
+          draft[i2] = nv;
+      }
+      if (draft.length !== incoming.length)
+        draft.length = incoming.length;
+      return;
+    }
+    for (const k2 of Object.keys(incoming)) {
+      const nv = incoming[k2];
+      const cur = draft[k2];
+      const curRaw = unwrapValue(cur);
+      if (isWrappable(nv) && isWrappable(curRaw) && Array.isArray(nv) === Array.isArray(curRaw) && (keyFn === null || Array.isArray(nv) || sameKey(keyFn(nv), keyFn(curRaw)))) {
+        if (curRaw !== nv)
+          reconcileDraft(cur, nv, keyFn);
+      } else if (curRaw !== nv)
+        draft[k2] = nv;
+    }
+    for (const k2 of Object.keys(draft))
+      if (!(k2 in incoming))
+        delete draft[k2];
+  }
+  GlobalQueue._laneRebase = (el, truth) => {
+    const t2 = el._host;
+    if (t2 === undefined || el._key !== $TRACK)
+      return;
+    const view = el._x._lane;
+    if (!(view instanceof LaneView))
+      return;
+    if (!Array.isArray(truth) || !Array.isArray(view.rows)) {
+      view.base = truth;
+      return;
+    }
+    const keyFn = t2.fam?.key ?? null;
+    if (keyFn === null)
+      return;
+    const byKey = new Map;
+    for (let i2 = 0;i2 < truth.length; i2++) {
+      const r2 = truth[i2];
+      const k2 = isWrappable(r2) ? keyFn(r2) : undefined;
+      if (k2 !== undefined && !byKey.has(k2))
+        byKey.set(k2, r2);
+    }
+    const used = new Set;
+    const rows = [];
+    const guessed = view.rows;
+    for (let i2 = 0;i2 < guessed.length; i2++) {
+      const g2 = guessed[i2];
+      const k2 = isWrappable(g2) ? keyFn(g2) : undefined;
+      const tr2 = k2 !== undefined ? byKey.get(k2) : undefined;
+      if (tr2 !== undefined) {
+        rows.push(tr2);
+        used.add(k2);
+      } else
+        rows.push(g2);
+    }
+    const removed = view.removed;
+    for (let i2 = 0;i2 < truth.length; i2++) {
+      const r2 = truth[i2];
+      const k2 = isWrappable(r2) ? keyFn(r2) : undefined;
+      if (k2 !== undefined && !used.has(k2) && (removed === null || !removed.has(k2)))
+        rows.push(r2);
+    }
+    view.rows = rows;
+    view.base = rows;
+    const lane = txOf(el);
+    const base = committed(t2);
+    const nodes = t2.n;
+    for (let i2 = 0;i2 < rows.length; i2++) {
+      const node = nodes?.[i2];
+      if (node === undefined) {
+        if (!sameRow(base[i2], rows[i2], keyFn))
+          laneSet(getNode(t2, i2), rows[i2], lane);
+      } else if (!sameRow(node._config & CONFIG_OVERRIDE ? node._x._lane : base[i2], rows[i2], keyFn))
+        laneSet(node, rows[i2], lane);
+    }
+    if (nodes !== null) {
+      for (let i2 = rows.length;; i2++) {
+        const node = nodes[i2];
+        if (node === undefined)
+          break;
+        laneSet(node, undefined, lane);
+      }
+      const len = nodes.length;
+      if (len !== undefined && (len._config & CONFIG_OVERRIDE || base.length !== rows.length))
+        laneSet(len, rows.length, lane);
+    }
+  };
+  function sameRow(a2, b2, keyFn) {
+    if (a2 === b2)
+      return true;
+    if (!isWrappable(a2) || !isWrappable(b2))
+      return false;
+    const ka = keyFn(unwrapValue(a2));
+    return ka !== undefined && sameKey(ka, keyFn(unwrapValue(b2)));
+  }
+  function laneSet(node, value, lane) {
+    const x2 = ext(node);
+    if (!(node._config & CONFIG_OVERRIDE)) {
+      node._config |= CONFIG_OVERRIDE;
+      list(node, lane);
+    } else if (x2._lane === value)
+      return;
+    x2._lane = value;
+    if (node._subs !== null) {
+      insertSubs(node);
+      laneDirty(node, lane);
+    }
+  }
+  installOptHooks({
+    draft: optimisticDraft,
+    writes: notifyOptimisticWrites,
+    arrangement,
+    reconcile: reconcileDraft,
+    view: (t2, src, writer = false) => writer ? optimisticView(t2, src, laneValueOf, true) : optimisticView(t2, src),
+    has: optimisticHas,
+    descriptor: optimisticOwnDescriptor,
+    sweep: sweepOverlaid
+  });
+  function shallowKeys(o2) {
+    const out = {};
+    for (const k2 of Reflect.ownKeys(o2))
+      if (k2 !== $OWNER)
+        out[k2] = unwrapValue(o2[k2]);
+    return out;
+  }
+  var overlaidFamilies = new Set;
+  function markOverlaid(t2) {
+    const fam = t2.fam;
+    (fam.overlaid ??= new Set).add(t2);
+    overlaidFamilies.add(fam);
+  }
+  function sweepOverlaid() {
+    if (overlaidFamilies.size === 0)
+      return;
+    for (const fam of overlaidFamilies) {
+      const set = fam.overlaid;
+      for (const t2 of set)
+        if (!carriesLane(t2)) {
+          set.delete(t2);
+          if (t2.ch)
+            rebaseChained(t2);
+          const k2 = t2.k;
+          if (k2 !== null && k2._value instanceof LaneView)
+            k2._value = k2._value.base;
+        }
+      if (set.size === 0)
+        overlaidFamilies.delete(fam);
+    }
+  }
+  function rebaseChained(t2) {
+    const inner = t2.v;
+    let changed = false;
+    const nodes = t2.n;
+    if (nodes !== null)
+      for (const key of Reflect.ownKeys(nodes)) {
+        const node = nodes[key];
+        const cur = untrack(() => unwrapValue(inner[key]));
+        if (node._equals && node._equals(node._value, cur))
+          continue;
+        node._value = cur;
+        if (node._subs !== null && node._notifiedAt !== notifyEpoch) {
+          insertSubs(node);
+          changed = true;
+        }
+      }
+    const has = t2.h;
+    if (has !== null)
+      for (const key of Reflect.ownKeys(has)) {
+        const node = has[key];
+        const cur = untrack(() => (key in inner));
+        if (node._value === cur)
+          continue;
+        node._value = cur;
+        if (node._subs !== null && node._notifiedAt !== notifyEpoch) {
+          insertSubs(node);
+          changed = true;
+        }
+      }
+    const k2 = t2.k;
+    if (k2 !== null && k2._subs !== null && k2._value instanceof LaneView && k2._notifiedAt !== notifyEpoch) {
+      const rows = Array.isArray(inner) ? untrack(() => inner.map(unwrapValue)) : inner;
+      if (!arrangementEqual(k2._value.rows, rows, t2.fam?.key ?? null)) {
+        insertSubs(k2);
+        changed = true;
+      }
+    }
+    if (changed)
+      schedule();
+  }
+  function carriesLane(t2) {
+    if (t2.k !== null && t2.k._config & CONFIG_OVERRIDE)
+      return true;
+    if (t2.dk !== null && t2.dk._config & CONFIG_OVERRIDE)
+      return true;
+    const nodes = t2.n;
+    if (nodes !== null) {
+      for (const key of Reflect.ownKeys(nodes))
+        if (nodes[key]._config & CONFIG_OVERRIDE)
+          return true;
+    }
+    const has = t2.h;
+    if (has !== null) {
+      for (const key of Reflect.ownKeys(has))
+        if (has[key]._config & CONFIG_OVERRIDE)
+          return true;
+    }
+    return false;
+  }
+  function overlaid(t2) {
+    const fam = t2.fam;
+    return fam !== null && fam.opt === true && fam.overlaid !== undefined && fam.overlaid.has(t2);
+  }
+  var shown = (n2) => untrack(() => read(n2));
+  function optimisticHas(t2, key) {
+    if (!overlaid(t2))
+      return;
+    const h2 = t2.h?.[key];
+    if (h2 !== undefined && h2._config & CONFIG_OVERRIDE)
+      return !!shown(h2);
+    const n2 = t2.n?.[key];
+    if (n2 !== undefined && n2._config & CONFIG_OVERRIDE)
+      return shown(n2) !== undefined;
+    return;
+  }
+  function optimisticOwnDescriptor(t2, key) {
+    const present = optimisticHas(t2, key);
+    if (present === undefined)
+      return;
+    if (!present)
+      return null;
+    const n2 = t2.n?.[key];
+    const value = n2 !== undefined && n2._config & CONFIG_OVERRIDE ? shown(n2) : t2.v[key];
+    if (key === "length" && Array.isArray(t2.v))
+      return { value, writable: true, enumerable: false, configurable: false };
+    return { value, writable: true, enumerable: true, configurable: true };
+  }
+  function optimisticView(t2, src, pick = shown, writer = false) {
+    if (!writer && !overlaid(t2))
+      return src;
+    let out = null;
+    const ensure = () => out ??= Array.isArray(src) ? [...src] : { ...src };
+    const nodes = t2.n;
+    if (nodes !== null) {
+      for (const key of Reflect.ownKeys(nodes)) {
+        const node = nodes[key];
+        let ov;
+        if (node._config & CONFIG_OVERRIDE)
+          ov = pick(node);
+        else if (!writer || (ov = pendingGuessOf(node)) === NOT_PENDING)
+          continue;
+        if (key === "length" && Array.isArray(src)) {
+          if (src.length !== ov)
+            ensure().length = ov;
+        } else if (!isEqual(src[key], ov) || !hasOwn.call(src, key)) {
+          ensure()[key] = ov;
+        }
+      }
+    }
+    const has = t2.h;
+    if (has !== null) {
+      for (const key of Reflect.ownKeys(has)) {
+        const node = has[key];
+        let pv;
+        if (node._config & CONFIG_OVERRIDE)
+          pv = pick(node);
+        else if (!writer || (pv = pendingGuessOf(node)) === NOT_PENDING)
+          continue;
+        const present = !!pv;
+        const view = out ?? src;
+        if (!present && key in view)
+          delete ensure()[key];
+      }
+    }
+    return out ?? src;
+  }
   function trueFn() {
     return true;
   }
-  var propTraps = {
-    get(_2, property, receiver) {
-      if (property === $PROXY)
-        return receiver;
-      return _2.get(property);
+  var SOURCE_PLAIN = 0;
+  var SOURCE_OMIT = 1;
+  var SOURCE_PROXY = 2;
+  var SOURCE_MEMO = 3;
+  var SOURCE_MERGE = 4;
+  var EMPTY = Object.freeze({});
+  function leafOf(s2, kind) {
+    return kind === SOURCE_MEMO ? (s2 = s2()) == null ? EMPTY : s2 : s2;
+  }
+
+  class OmitView {
+    source;
+    kind;
+    hidden;
+    table = 0;
+    keys = undefined;
+    descs = undefined;
+    constructor(source, kind, hidden) {
+      this.source = source;
+      this.kind = kind;
+      this.hidden = hidden;
+    }
+  }
+  function isHidden(view, key) {
+    const h2 = view.hidden;
+    return typeof h2 === "function" ? h2(key) : h2.includes(key);
+  }
+  function combineHidden(a2, b2) {
+    if (typeof a2 !== "function" && typeof b2 !== "function") {
+      const out = a2.slice();
+      for (let i2 = 0;i2 < b2.length; i2++)
+        out.push(b2[i2]);
+      return out;
+    }
+    return (key) => (typeof a2 === "function" ? a2(key) : a2.includes(key)) || (typeof b2 === "function" ? b2(key) : b2.includes(key));
+  }
+  function viewSource(view) {
+    return leafOf(view.source, view.kind);
+  }
+  function recordOf(o2) {
+    return o2[$RECORD];
+  }
+  function leafKeys(leaf, kind) {
+    if (kind === SOURCE_PLAIN)
+      return Object.keys(leaf);
+    if (kind === SOURCE_PROXY || leaf[$PROXY] === leaf)
+      return Reflect.ownKeys(leaf);
+    return Object.keys(leaf);
+  }
+  function sourceKeys(s2, kind) {
+    if (kind === SOURCE_OMIT) {
+      if (s2.kind === SOURCE_MERGE)
+        return mergeKeysOf(s2.source, false, s2);
+      const keys = leafKeys(viewSource(s2), s2.kind);
+      const out = [];
+      for (let i2 = 0;i2 < keys.length; i2++)
+        if (!isHidden(s2, keys[i2]))
+          out.push(keys[i2]);
+      return out;
+    }
+    return leafKeys(leafOf(s2, kind), kind);
+  }
+  function sourceHas(s2, kind, key) {
+    if (kind === SOURCE_OMIT) {
+      if (isHidden(s2, key))
+        return false;
+      return s2.kind === SOURCE_MERGE ? mergeHas(s2.source, key) : (key in viewSource(s2));
+    }
+    return key in leafOf(s2, kind);
+  }
+  function sourceGet(s2, kind, key) {
+    if (kind === SOURCE_OMIT) {
+      if (isHidden(s2, key))
+        return;
+      return s2.kind === SOURCE_MERGE ? mergeGet(s2.source, key) : viewSource(s2)[key];
+    }
+    return leafOf(s2, kind)[key];
+  }
+  function entryHasStaticKeys(s2, kind) {
+    if (kind === SOURCE_PLAIN)
+      return true;
+    if (kind !== SOURCE_OMIT)
+      return false;
+    if (s2.kind === SOURCE_PLAIN)
+      return true;
+    return s2.kind === SOURCE_MERGE && mergeHasStaticKeys(s2.source);
+  }
+  function mergeHasStaticKeys(view) {
+    const { sources: f2, kinds: k2 } = view;
+    for (let i2 = 0;i2 < f2.length; i2++)
+      if (!entryHasStaticKeys(f2[i2], k2[i2]))
+        return false;
+    return true;
+  }
+  function hasStaticKeys(o2) {
+    if (!($PROXY in o2))
+      return true;
+    const r2 = recordOf(o2);
+    if (r2 instanceof MergeView)
+      return mergeHasStaticKeys(r2);
+    return r2 !== undefined && entryHasStaticKeys(r2, SOURCE_OMIT);
+  }
+  function accessorDescriptor(get, enumerable = true) {
+    return { configurable: true, enumerable, get, set: trueFn };
+  }
+  function sourceDescriptor(s2, kind, key, present = false) {
+    if (kind === SOURCE_OMIT) {
+      if (isHidden(s2, key))
+        return;
+      return sourceDescriptor(s2.source, s2.kind, key, present);
+    }
+    if (kind === SOURCE_MERGE)
+      return mergeDescriptor(s2, key);
+    if (kind === SOURCE_MEMO) {
+      return present || key in leafOf(s2, kind) ? accessorDescriptor(() => leafOf(s2, kind)[key]) : undefined;
+    }
+    if (kind === SOURCE_PROXY) {
+      if (recordOf(s2) !== undefined)
+        return Reflect.getOwnPropertyDescriptor(s2, key);
+      return present || key in s2 ? accessorDescriptor(() => s2[key]) : undefined;
+    }
+    const desc = Reflect.getOwnPropertyDescriptor(s2, key);
+    if (desc === undefined)
+      return;
+    if (desc.get !== undefined || desc.set !== undefined)
+      return accessorDescriptor(() => s2[key], desc.enumerable);
+    if (desc.configurable)
+      return desc;
+    return { configurable: true, enumerable: desc.enumerable, writable: true, value: desc.value };
+  }
+  function sourceEnumerableKeys(s2, kind) {
+    {
+      if (s2.kind === SOURCE_MERGE)
+        return mergeEnumerableKeys(s2.source, s2);
+      const keys = ownEnumerableKeys(viewSource(s2));
+      const out = [];
+      for (let i2 = 0;i2 < keys.length; i2++)
+        if (!isHidden(s2, keys[i2]))
+          out.push(keys[i2]);
+      return out;
+    }
+  }
+
+  class MergeView {
+    sources;
+    kinds;
+    table = 0;
+    keys = undefined;
+    descs = undefined;
+    constructor(sources, kinds) {
+      this.sources = sources;
+      this.kinds = kinds;
+    }
+  }
+  function viewOf(o2) {
+    return o2 != null && $PROXY in o2 ? o2[$RECORD] : undefined;
+  }
+  function resolvedTable(o2) {
+    if (o2 == null || !($PROXY in o2))
+      return;
+    const r2 = recordOf(o2);
+    if (r2 instanceof OmitView)
+      return omitTable(r2);
+    return r2 === undefined ? undefined : mergeTable(r2);
+  }
+  function mergeTable(view) {
+    let table = view.table;
+    if (typeof table !== "object") {
+      const { sources: f2, kinds: k2 } = view;
+      for (let i2 = 0;i2 < f2.length; i2++) {
+        if (!entryHasStaticKeys(f2[i2], k2[i2])) {
+          view.table = null;
+          return;
+        }
+      }
+      table = new Map;
+      collectTable(table, view, undefined);
+      view.table = table;
+    }
+    return table === null ? undefined : table;
+  }
+  function collectTable(table, view, filters) {
+    const { sources: f2, kinds: k2 } = view;
+    for (let i2 = 0;i2 < f2.length; i2++) {
+      const leaf = f2[i2];
+      if (k2[i2] === SOURCE_OMIT) {
+        if (leaf.kind === SOURCE_MERGE) {
+          if (filters === undefined)
+            filters = [leaf];
+          else
+            filters.push(leaf);
+          collectTable(table, leaf.source, filters);
+          filters.pop();
+          continue;
+        }
+        const src = leaf.source;
+        const keys = Reflect.ownKeys(src);
+        for (let j2 = 0;j2 < keys.length; j2++) {
+          const key = keys[j2];
+          if (!isHidden(leaf, key) && !hiddenByAny(filters, key))
+            tableSet(table, key, src);
+        }
+      } else {
+        const keys = Reflect.ownKeys(leaf);
+        for (let j2 = 0;j2 < keys.length; j2++) {
+          const key = keys[j2];
+          if (!hiddenByAny(filters, key))
+            tableSet(table, key, leaf);
+        }
+      }
+    }
+  }
+  function hiddenByAny(filters, key) {
+    if (filters !== undefined) {
+      for (let i2 = filters.length - 1;i2 >= 0; i2--)
+        if (isHidden(filters[i2], key))
+          return true;
+    }
+    return false;
+  }
+  function tableSet(table, key, leaf) {
+    if (table.has(key))
+      table.delete(key);
+    table.set(key, leaf);
+  }
+  function omitTable(view) {
+    let table = view.table;
+    if (typeof table !== "object") {
+      const src = view.source;
+      if (view.kind === SOURCE_MERGE) {
+        if (!mergeHasStaticKeys(src)) {
+          view.table = null;
+          return;
+        }
+        table = new Map;
+        collectTable(table, src, [view]);
+      } else if (view.kind === SOURCE_PLAIN) {
+        table = new Map;
+        const keys = Reflect.ownKeys(src);
+        for (let j2 = 0;j2 < keys.length; j2++) {
+          const key = keys[j2];
+          if (!isHidden(view, key))
+            table.set(key, src);
+        }
+      } else {
+        view.table = null;
+        return;
+      }
+      view.table = table;
+    }
+    return table === null ? undefined : table;
+  }
+  var propertyIsEnumerable = Object.prototype.propertyIsEnumerable;
+  function tableOwnKeys(view, table) {
+    let keys = view.keys;
+    if (keys === undefined) {
+      keys = view.keys = [];
+      for (const [key, leaf] of table)
+        if (propertyIsEnumerable.call(leaf, key))
+          keys.push(key);
+    }
+    return keys;
+  }
+  function tableDescriptor(view, table, key) {
+    const leaf = table.get(key);
+    if (leaf === undefined)
+      return;
+    let descs = view.descs;
+    if (descs === undefined)
+      descs = view.descs = new Map;
+    let cached = descs.get(key);
+    if (cached === undefined) {
+      cached = sourceDescriptor(leaf, SOURCE_PLAIN, key);
+      if (cached === undefined)
+        return;
+      descs.set(key, cached);
+      return cached;
+    }
+    if (cached.get !== undefined)
+      return cached;
+    return {
+      configurable: true,
+      enumerable: cached.enumerable,
+      writable: cached.writable,
+      value: leaf[key]
+    };
+  }
+  var READS_FOR_TABLE = 16;
+  function mergeReadTable(view) {
+    const table = view.table;
+    if (typeof table === "object")
+      return table === null ? undefined : table;
+    if (table + 1 < READS_FOR_TABLE) {
+      view.table = table + 1;
+      return;
+    }
+    return mergeTable(view);
+  }
+  function omitReadTable(view) {
+    const table = view.table;
+    if (typeof table === "object")
+      return table === null ? undefined : table;
+    if (table + 1 < READS_FOR_TABLE) {
+      view.table = table + 1;
+      return;
+    }
+    return omitTable(view);
+  }
+  function tableOf(view) {
+    const table = view.table;
+    return typeof table === "object" && table !== null ? table : undefined;
+  }
+  var MISSING = Symbol();
+  function mergeLookup(view, property) {
+    const table = tableOf(view);
+    if (table !== undefined) {
+      const leaf = table.get(property);
+      return leaf === undefined ? MISSING : leaf[property];
+    }
+    const { sources: f2, kinds: k2 } = view;
+    for (let i2 = f2.length - 1;i2 >= 0; i2--) {
+      const kind = k2[i2];
+      if (kind === SOURCE_PLAIN) {
+        const s2 = f2[i2];
+        if (property in s2)
+          return s2[property];
+        continue;
+      }
+      if (kind === SOURCE_OMIT) {
+        const v2 = f2[i2];
+        if (isHidden(v2, property))
+          continue;
+        if (v2.kind === SOURCE_MERGE) {
+          const value = mergeLookup(v2.source, property);
+          if (value !== MISSING)
+            return value;
+          continue;
+        }
+        const s2 = viewSource(v2);
+        if (property in s2)
+          return s2[property];
+      } else {
+        const s2 = leafOf(f2[i2], kind);
+        if (property in s2)
+          return s2[property];
+      }
+    }
+    return MISSING;
+  }
+  function mergeGet(view, property) {
+    const value = mergeLookup(view, property);
+    return value === MISSING ? undefined : value;
+  }
+  function mergeHas(view, property) {
+    const table = tableOf(view);
+    if (table !== undefined)
+      return table.has(property);
+    const { sources: f2, kinds: k2 } = view;
+    for (let i2 = f2.length - 1;i2 >= 0; i2--)
+      if (sourceHas(f2[i2], k2[i2], property))
+        return true;
+    return false;
+  }
+  function mergeDescriptor(view, property) {
+    const table = tableOf(view);
+    if (table !== undefined)
+      return tableDescriptor(view, table, property);
+    const { sources: f2, kinds: k2 } = view;
+    for (let i2 = f2.length - 1;i2 >= 0; i2--) {
+      if (!sourceHas(f2[i2], k2[i2], property))
+        continue;
+      return sourceDescriptor(f2[i2], k2[i2], property, true) ?? accessorDescriptor(() => mergeGet(view, property));
+    }
+    return;
+  }
+  function mergeKeysOf(view, enumerable, filter) {
+    const out = [];
+    collectKeys(view, filter === undefined ? undefined : [filter], enumerable, out, null);
+    return out;
+  }
+  function collectKeys(view, filters, enumerable, keys, owners) {
+    const { sources: f2, kinds: k2 } = view;
+    for (let i2 = 0;i2 < f2.length; i2++) {
+      let leaf = f2[i2], kind = k2[i2];
+      let filter;
+      if (kind === SOURCE_OMIT) {
+        if (leaf.kind === SOURCE_MERGE) {
+          if (filters === undefined)
+            filters = [leaf];
+          else
+            filters.push(leaf);
+          collectKeys(leaf.source, filters, enumerable, keys, owners);
+          filters.pop();
+          continue;
+        }
+        filter = leaf;
+        kind = leaf.kind;
+        leaf = leaf.source;
+      }
+      leaf = leafOf(leaf, kind);
+      const ks = enumerable ? ownEnumerableKeys(leaf) : leafKeys(leaf, kind);
+      for (let j2 = 0;j2 < ks.length; j2++) {
+        const key = ks[j2];
+        if (filter !== undefined && isHidden(filter, key))
+          continue;
+        if (hiddenByAny(filters, key))
+          continue;
+        addKey(keys, owners, key, leaf);
+      }
+    }
+  }
+  function addKey(keys, owners, key, owner) {
+    const at2 = keys.indexOf(key);
+    if (at2 !== -1) {
+      keys.splice(at2, 1);
+      if (owners !== null)
+        owners.splice(at2, 1);
+    }
+    keys.push(key);
+    if (owners !== null)
+      owners.push(owner);
+  }
+  function mergeEnumerableKeys(view, filter) {
+    const table = mergeTable(view);
+    if (table === undefined)
+      return mergeKeysOf(view, true, filter);
+    const keys = tableOwnKeys(view, table);
+    if (filter === undefined)
+      return keys;
+    const out = [];
+    for (let i2 = 0;i2 < keys.length; i2++)
+      if (!isHidden(filter, keys[i2]))
+        out.push(keys[i2]);
+    return out;
+  }
+  var mergeTraps = {
+    get(view, property, receiver) {
+      if (typeof property === "symbol") {
+        if (property === $PROXY)
+          return receiver;
+        if (property === $RECORD)
+          return view;
+        if (property === $TARGET)
+          return;
+      }
+      const state = view.table;
+      let table;
+      if (typeof state !== "object") {
+        if (state + 1 < READS_FOR_TABLE) {
+          view.table = state + 1;
+          const { sources: f2, kinds: k2 } = view;
+          for (let i2 = f2.length - 1;i2 >= 0; i2--) {
+            if (k2[i2] !== SOURCE_PLAIN)
+              return mergeGet(view, property);
+            const v2 = f2[i2][property];
+            if (v2 !== undefined || property in f2[i2])
+              return v2;
+          }
+          return;
+        }
+        table = mergeTable(view);
+        if (table === undefined)
+          return mergeGet(view, property);
+      } else if (state === null)
+        return mergeGet(view, property);
+      else
+        table = state;
+      const leaf = table.get(property);
+      return leaf === undefined ? undefined : leaf[property];
     },
-    has(_2, property) {
+    has(view, property) {
       if (property === $PROXY)
         return true;
-      return _2.has(property);
+      if (property === $TARGET || property === $RECORD)
+        return false;
+      const table = mergeReadTable(view);
+      if (table !== undefined)
+        return table.has(property);
+      return mergeHas(view, property);
     },
     set: trueFn,
     deleteProperty: trueFn,
-    getOwnPropertyDescriptor(_2, property) {
-      return {
-        configurable: true,
-        enumerable: true,
-        get() {
-          return _2.get(property);
-        },
-        set: trueFn,
-        deleteProperty: trueFn
-      };
+    getOwnPropertyDescriptor(view, property) {
+      if (property === $PROXY || property === $TARGET || property === $RECORD)
+        return;
+      const table = mergeReadTable(view);
+      if (table !== undefined)
+        return tableDescriptor(view, table, property);
+      return mergeDescriptor(view, property);
     },
-    ownKeys(_2) {
-      return _2.keys();
+    ownKeys(view) {
+      return mergeEnumerableKeys(view);
     }
   };
-  function resolveSource(s2) {
-    return !(s2 = typeof s2 === "function" ? s2() : s2) ? {} : s2;
-  }
-  var $SOURCES = Symbol("MERGE_SOURCE");
-  function merge(...sources) {
+  var omitTraps = {
+    get(view, property, receiver) {
+      if (property === $PROXY)
+        return receiver;
+      if (property === $RECORD)
+        return view;
+      if (property === $TARGET)
+        return;
+      if (view.kind === SOURCE_MERGE) {
+        const table = omitReadTable(view);
+        if (table !== undefined) {
+          const leaf = table.get(property);
+          return leaf === undefined ? undefined : leaf[property];
+        }
+        if (isHidden(view, property))
+          return;
+        return mergeGet(view.source, property);
+      }
+      if (isHidden(view, property))
+        return;
+      return viewSource(view)[property];
+    },
+    has(view, property) {
+      if (property === $PROXY)
+        return true;
+      if (property === $TARGET || property === $RECORD)
+        return false;
+      if (view.kind === SOURCE_MERGE) {
+        const table = omitReadTable(view);
+        if (table !== undefined)
+          return table.has(property);
+        if (isHidden(view, property))
+          return false;
+        return mergeHas(view.source, property);
+      }
+      if (isHidden(view, property))
+        return false;
+      return property in viewSource(view);
+    },
+    set: trueFn,
+    deleteProperty: trueFn,
+    getOwnPropertyDescriptor(view, property) {
+      if (property === $PROXY || property === $TARGET || property === $RECORD)
+        return;
+      if (view.kind === SOURCE_MERGE) {
+        const table = omitReadTable(view);
+        if (table !== undefined)
+          return tableDescriptor(view, table, property);
+      }
+      return sourceDescriptor(view, SOURCE_OMIT, property);
+    },
+    ownKeys(view) {
+      if (view.kind === SOURCE_MERGE) {
+        const table = omitTable(view);
+        if (table !== undefined)
+          return tableOwnKeys(view, table);
+        return sourceEnumerableKeys(view);
+      }
+      const keys = Reflect.ownKeys(viewSource(view));
+      const out = [];
+      for (let i2 = 0;i2 < keys.length; i2++)
+        if (!isHidden(view, keys[i2]))
+          out.push(keys[i2]);
+      return out;
+    }
+  };
+  function merge2(...sources) {
     if (sources.length === 1 && typeof sources[0] !== "function")
       return sources[0];
-    let proxy = false;
-    const flattened = [];
+    const flattened = new Array(sources.length);
+    const kinds = new Array(sources.length);
+    let n2 = 0;
+    let only = undefined;
+    let count = 0;
     for (let i2 = 0;i2 < sources.length; i2++) {
       const s2 = sources[i2];
-      proxy = proxy || !!s2 && $PROXY in s2;
-      const childSources = !!s2 && s2[$SOURCES];
-      if (childSources) {
-        for (let i3 = 0;i3 < childSources.length; i3++)
-          flattened.push(childSources[i3]);
-      } else
-        flattened.push(typeof s2 === "function" ? (proxy = true, createMemo(s2)) : s2);
-    }
-    if (SUPPORTS_PROXY && proxy) {
-      return new Proxy({
-        get(property) {
-          if (property === $SOURCES)
-            return flattened;
-          for (let i2 = flattened.length - 1;i2 >= 0; i2--) {
-            const s2 = resolveSource(flattened[i2]);
-            if (property in s2)
-              return s2[property];
+      if (!s2)
+        continue;
+      count++;
+      only = s2;
+      if (typeof s2 === "function") {
+        flattened[n2] = createMemo(s2);
+        kinds[n2++] = SOURCE_MEMO;
+        continue;
+      }
+      if ($PROXY in s2) {
+        const r2 = recordOf(s2);
+        if (r2 instanceof MergeView) {
+          for (let j2 = 0;j2 < r2.sources.length; j2++) {
+            flattened[n2] = r2.sources[j2];
+            kinds[n2++] = r2.kinds[j2];
           }
-        },
-        has(property) {
-          for (let i2 = flattened.length - 1;i2 >= 0; i2--) {
-            if (property in resolveSource(flattened[i2]))
-              return true;
-          }
-          return false;
-        },
-        keys() {
-          const keys = new Set;
-          for (let i2 = 0;i2 < flattened.length; i2++) {
-            const sourceKeys = ownEnumerableKeys(resolveSource(flattened[i2]));
-            for (let j2 = 0;j2 < sourceKeys.length; j2++)
-              keys.add(sourceKeys[j2]);
-          }
-          return [...keys];
+        } else if (r2 !== undefined) {
+          flattened[n2] = r2;
+          kinds[n2++] = SOURCE_OMIT;
+        } else {
+          flattened[n2] = s2;
+          kinds[n2++] = SOURCE_PROXY;
         }
-      }, propTraps);
+        continue;
+      }
+      flattened[n2] = s2;
+      kinds[n2++] = SOURCE_PLAIN;
+    }
+    if (n2 !== flattened.length) {
+      flattened.length = n2;
+      kinds.length = n2;
+    }
+    if (SUPPORTS_PROXY) {
+      if (count === 1 && typeof only !== "function")
+        return only;
+      return new Proxy(new MergeView(flattened, kinds), mergeTraps);
     }
     const defined = Object.create(null);
     let nonTargetKey = false;
@@ -8361,9 +9363,9 @@ ${footer}`;
         i2 === lastIndex && lastIndex--;
         continue;
       }
-      const sourceKeys = Object.getOwnPropertyNames(source);
-      for (let j2 = sourceKeys.length - 1;j2 >= 0; j2--) {
-        const key = sourceKeys[j2];
+      const sourceKeys2 = Object.getOwnPropertyNames(source);
+      for (let j2 = sourceKeys2.length - 1;j2 >= 0; j2--) {
+        const key = sourceKeys2[j2];
         if (key === "__proto__" || key === "constructor")
           continue;
         if (!defined[key]) {
@@ -8388,26 +9390,141 @@ ${footer}`;
       else
         target[key] = desc.value;
     }
-    target[$SOURCES] = flattened;
     return target;
   }
-  var ON_INIT = Symbol();
-  function flatten(children, options2) {
+  function omit(props, ...keys) {
+    let hidden = keys.length === 1 && typeof keys[0] === "function" ? keys[0] : keys;
+    if (SUPPORTS_PROXY) {
+      let source = props;
+      let kind = SOURCE_PLAIN;
+      if (typeof props === "function")
+        kind = SOURCE_MEMO;
+      else if ($PROXY in props) {
+        kind = SOURCE_PROXY;
+        const r2 = recordOf(props);
+        if (r2 instanceof OmitView) {
+          source = r2.source;
+          kind = r2.kind;
+          hidden = combineHidden(r2.hidden, hidden);
+        } else if (r2 !== undefined) {
+          source = r2;
+          kind = SOURCE_MERGE;
+        }
+      }
+      return new Proxy(new OmitView(source, kind, hidden), omitTraps);
+    }
+    const result = {};
+    const propNames = Object.getOwnPropertyNames(props);
+    const isHiddenKey = typeof hidden === "function" ? hidden : hidden.length > 4 && propNames.length > hidden.length ? ((blocked2) => (key) => blocked2.has(key))(new Set(hidden)) : (key) => hidden.includes(key);
+    for (const propName of propNames) {
+      if (!isHiddenKey(propName)) {
+        const desc = Object.getOwnPropertyDescriptor(props, propName);
+        if (!desc.get && !desc.set && desc.enumerable && desc.writable && desc.configurable) {
+          result[propName] = desc.value;
+        } else if (desc.get || desc.set) {
+          Object.defineProperty(result, propName, {
+            enumerable: desc.enumerable,
+            configurable: true,
+            get: desc.get && desc.get.bind(props),
+            set: desc.set && desc.set.bind(props)
+          });
+        } else
+          Object.defineProperty(result, propName, desc);
+      }
+    }
+    return result;
+  }
+  var active = 0;
+  var ambient = [];
+  function repoll(node, seen = new Set) {
+    for (let s2 = node._subs;s2 !== null; s2 = s2._nextSub) {
+      const sub = s2._sub;
+      if (seen.has(sub))
+        continue;
+      seen.add(sub);
+      if (sub._config & CONFIG_VERDICT)
+        enqueueSub(sub);
+      if (!sub._type)
+        repoll(sub, seen);
+    }
+  }
+  function marked(el, seen) {
+    if (el._x !== null && el._x._marks !== 0)
+      return true;
+    const c2 = el;
+    if (c2._statusFlags & STATUS_ERROR || seen.has(el))
+      return false;
+    seen.add(el);
+    const tail = c2._flags & REACTIVE_RECOMPUTING_DEPS ? c2._depsTail : undefined;
+    if (tail !== null)
+      for (let d2 = c2._deps ?? null;d2 !== null; d2 = d2._nextDep) {
+        if (marked(d2._dep, seen))
+          return true;
+        if (d2 === tail)
+          break;
+      }
+    return false;
+  }
+  function release$1(nodes) {
+    for (let i2 = 0;i2 < nodes.length; i2++) {
+      const n2 = nodes[i2];
+      active--;
+      if (--n2._x._marks === 0) {
+        repoll(n2);
+        GlobalQueue._releaseMarkScope?.(n2);
+      }
+    }
+    nodes.length = 0;
+  }
+  function mark(node) {
+    ext(node)._marks++;
+    active++;
+  }
+  GlobalQueue._marked = (el) => active !== 0 && marked(el, new Set);
+  GlobalQueue._mark = mark;
+  GlobalQueue._releaseMarks = release$1;
+  GlobalQueue._releaseAmbientMarks = (parked) => {
+    if (ambient.length === 0)
+      return;
+    if (parked !== null) {
+      const list2 = parked._marks ??= [];
+      for (let i2 = 0;i2 < ambient.length; i2++)
+        list2.push(ambient[i2]);
+      ambient.length = 0;
+      return;
+    }
+    let kept = 0;
+    const done = [];
+    for (let i2 = 0;i2 < ambient.length; i2++) {
+      const n2 = ambient[i2];
+      if (inFlight(n2))
+        ambient[kept++] = n2;
+      else
+        done.push(n2);
+    }
+    ambient.length = kept;
+    if (done.length !== 0)
+      release$1(done);
+  };
+  function inFlight(n2) {
+    return (n2._statusFlags & STATUS_PENDING) !== 0 || (n2._config & CONFIG_SLOT_NODE) !== 0 && GlobalQueue._slotFlight?.(n2) === true;
+  }
+  function flatten(children, options) {
     if (typeof children === "function" && !children.length) {
-      if (options2?.doNotUnwrap)
+      if (options?.doNotUnwrap)
         return children;
       do {
         children = children();
       } while (typeof children === "function" && !children.length);
     }
-    if (options2?.skipNonRendered && (children == null || children === true || children === false || children === ""))
+    if (options?.skipNonRendered && (children == null || children === true || children === false || children === ""))
       return;
     if (Array.isArray(children)) {
       let results = [];
-      if (flattenArray(children, results, options2)) {
+      if (flattenArray(children, results, options)) {
         return () => {
           let nested = [];
-          flattenArray(results, nested, { ...options2, doNotUnwrap: false });
+          flattenArray(results, nested, { ...options, doNotUnwrap: false });
           return nested;
         };
       }
@@ -8415,14 +9532,14 @@ ${footer}`;
     }
     return children;
   }
-  function flattenArray(children, results = [], options2) {
+  function flattenArray(children, results = [], options) {
     let notReady = null;
     let needsUnwrap = false;
     for (let i2 = 0;i2 < children.length; i2++) {
       try {
         let child = children[i2];
         if (typeof child === "function" && !child.length) {
-          if (options2?.doNotUnwrap) {
+          if (options?.doNotUnwrap) {
             results.push(child);
             needsUnwrap = true;
             continue;
@@ -8432,8 +9549,8 @@ ${footer}`;
           } while (typeof child === "function" && !child.length);
         }
         if (Array.isArray(child)) {
-          needsUnwrap = flattenArray(child, results, options2) || needsUnwrap;
-        } else if (options2?.skipNonRendered && (child == null || child === true || child === false || child === "")) {} else
+          needsUnwrap = flattenArray(child, results, options) || needsUnwrap;
+        } else if (options?.skipNonRendered && (child == null || child === true || child === false || child === "")) {} else
           results.push(child);
       } catch (e2) {
         if (!(e2 instanceof NotReadyError))
@@ -8445,12 +9562,182 @@ ${footer}`;
       throw notReady;
     return needsUnwrap;
   }
-  var DEV = DEV$1;
+  var BOUNDARY = Symbol("boundary");
+  var REVEAL = Symbol("reveal");
+  var revealHooks = null;
+  function setRevealHooks(h2) {
+    revealHooks = h2;
+  }
+  var collecting = new Set;
+  var boundaryOf = (node) => node._context[BOUNDARY];
+  var isCollecting = (b2) => b2._type === STATUS_ERROR || !b2._initialized || b2._armed;
+  function caught(b2, node, error) {
+    if (b2._type === STATUS_ERROR) {
+      error ??= node._x?._error;
+      node = error?.source ?? node;
+      const caught2 = unwrapStatusError(error);
+      setSignal(b2._error, caught2);
+      reportClientError(caught2, b2._owner, node);
+    }
+    b2._readers.add(node);
+    collecting.add(b2);
+    if (b2._armed)
+      flip(b2);
+    if (!b2._fallback)
+      redraw(b2);
+    if (b2._reveal !== null)
+      revealHooks._changed(b2._reveal);
+  }
+  function flip(b2) {
+    b2._initialized = false;
+    b2._lane = b2._armLane;
+    if (b2._lane !== null && b2._output !== null)
+      GlobalQueue._laneStage(b2._output, b2._lane, true, false);
+  }
+  function redraw(b2) {
+    if (b2._output !== null && !(b2._output._flags & (REACTIVE_DISPOSED | REACTIVE_ZOMBIE))) {
+      enqueueSub(b2._output);
+      schedule();
+    }
+  }
+  function catchStatus(node, flags, error) {
+    if (flags === 0) {
+      if (collecting.size !== 0) {
+        for (let b2 = boundaryOf(node);b2 !== undefined; b2 = b2._parent ?? undefined)
+          if (!(node._statusFlags & unsettled(b2)) && b2._readers.delete(node) && b2._readers.size === 0) {
+            if (b2._fallback)
+              redraw(b2);
+            if (b2._reveal !== null)
+              revealHooks._changed(b2._reveal);
+          }
+      }
+      return false;
+    }
+    for (let b2 = boundaryOf(node);b2 !== undefined; b2 = b2._parent ?? undefined) {
+      if (!(b2._type & flags))
+        continue;
+      if (isCollecting(b2)) {
+        caught(b2, node, error);
+        return true;
+      }
+      b2._readers.add(node);
+      collecting.add(b2);
+    }
+    return false;
+  }
+  function hiddenBy(r2) {
+    for (let b2 = boundaryOf(r2);b2 !== undefined; b2 = b2._parent ?? undefined)
+      if (b2._fallback)
+        return b2;
+    return;
+  }
+  function hidden(r2) {
+    return hiddenBy(r2) !== undefined;
+  }
+  function heldRun(node) {
+    const b2 = hiddenBy(node);
+    if (b2 === undefined)
+      return false;
+    (b2._runs ??= new Set).add(node);
+    return true;
+  }
+  var unsettled = (b2) => b2._type === STATUS_ERROR ? STATUS_ERROR | STATUS_PENDING : STATUS_PENDING;
+  function prune(b2, pass) {
+    const mask = unsettled(b2);
+    for (const r2 of b2._readers) {
+      if (r2._flags & REACTIVE_DISPOSED)
+        b2._readers.delete(r2);
+      else if (!(r2._statusFlags & mask)) {
+        if (r2 !== b2._tree && (r2._config & (CONFIG_HELD | CONFIG_OVERRIDE)) === CONFIG_HELD) {
+          if (!pass)
+            continue;
+          joinFuture(txOf(r2));
+        }
+        b2._readers.delete(r2);
+      }
+    }
+    return b2._readers.size;
+  }
+  function boundarySeam() {
+    for (const b2 of collecting) {
+      const flags = b2._output._flags;
+      if (flags & REACTIVE_DISPOSED) {
+        collecting.delete(b2);
+        continue;
+      }
+      if (flags & REACTIVE_ZOMBIE)
+        continue;
+      prune(b2, false);
+      if (b2._armed && !b2._initialized && !b2._ahead)
+        reportOutsideHold(b2);
+      b2._armed = false;
+      if (b2._readers.size === 0) {
+        collecting.delete(b2);
+        if (b2._fallback)
+          redraw(b2);
+        if (b2._reveal !== null)
+          revealHooks._changed(b2._reveal);
+      }
+    }
+  }
+  function reportOutsideHold(b2) {
+    const outside = (reader, hop) => {
+      if (!(reader._statusFlags & STATUS_PENDING) || reader._flags & REACTIVE_DISPOSED)
+        return false;
+      if (reader._type !== EFFECT_RENDER && boundaryOf(reader)?._tree !== reader) {
+        if (hop) {
+          for (let s2 = reader._subs;s2 !== null; s2 = s2._nextSub)
+            if (outside(s2._sub, false))
+              return true;
+        }
+        return false;
+      }
+      if (hidden(reader))
+        return false;
+      for (let o2 = boundaryOf(reader);o2 !== undefined; o2 = o2._parent ?? undefined)
+        if (o2 === b2)
+          return false;
+      return true;
+    };
+    for (const r2 of b2._readers) {
+      const sources = r2._x?._pendingSources;
+      if (sources === undefined)
+        continue;
+      for (const source of sources) {
+        for (let s2 = source._subs;s2 !== null; s2 = s2._nextSub) {
+          if (!outside(s2._sub, true))
+            continue;
+          const name = source._name;
+          reportDiagnostic(emitDiagnostic({
+            code: "LOADING_ON_OUTSIDE_HOLD",
+            kind: "async",
+            severity: "warn",
+            message: "[LOADING_ON_OUTSIDE_HOLD] `on` re-armed a Loading boundary, but " + `${name ? `\`${name}\`` : "a source it is waiting on"} is also read outside it and holds the frame: the fallback can never be seen — the frame waits on the very source the boundary is waiting on. ` + "Move the outside read under the boundary so one hold owns the data. (Reading `latest()` in `on` shows the fallback now, beside the held frame.)",
+            nodeName: name,
+            data: { source: name }
+          }, b2._owner));
+          return;
+        }
+      }
+    }
+  }
+  GlobalQueue._catch = catchStatus;
+  GlobalQueue._fresh = (node) => node._statusFlags & STATUS_UNINITIALIZED && catchStatus(node, STATUS_PENDING);
+  GlobalQueue._hidden = hidden;
+  GlobalQueue._boundarySeam = boundarySeam;
+  GlobalQueue._heldRun = heldRun;
+  setRevealHooks({
+    _register: (controller, b2) => controller._register(b2),
+    _unregister: (controller, b2) => controller._unregister(b2),
+    _changed: (controller) => controller._evaluate()
+  });
+  var OBSERVE2 = OBSERVE;
+  var DEV2 = DEV;
 
-  // node_modules/.bun/solid-js@2.0.0-rc.7/node_modules/solid-js/dist/solid.dev.js
+  // node_modules/.bun/solid-js@2.0.0-rc.14/node_modules/solid-js/dist/solid.dev.js
   var $DEVCOMP = Symbol("COMPONENT_DEV");
-  function createContext(defaultValue, options2) {
-    const id = Symbol(options2 && options2.name || "");
+  function createContext(defaultValue, options) {
+    const id = Symbol(options && options.name || "");
     function provider(props) {
       return createRoot(() => {
         setContext(provider, props.value);
@@ -8479,23 +9766,32 @@ ${footer}`;
     };
     return memo;
   }
-  function devComponent(Comp, props) {
+  function createConsoleTask(name) {
+    const createTask = console.createTask;
+    return typeof createTask === "function" ? createTask.call(console, name) : undefined;
+  }
+  function observedComponent(Comp, props, name) {
     if (typeof Comp !== "function") {
       throw new Error(`createComponent: expected a component function but got ${Comp === null ? "null" : typeof Comp}. A JSX tag resolved to a non-function value — check the import: a missing or misnamed export resolves to undefined.`);
     }
-    const label = `<${Comp.name || "Anonymous"}>`;
+    name ||= Comp.name;
+    const label = `<${name || "Anonymous"}>`;
     return createRoot(() => {
       const owner = getOwner();
-      owner._component = {
-        fn: Comp,
-        props,
-        name: Comp.name
-      };
       owner._name = label;
-      Object.assign(Comp, {
-        [$DEVCOMP]: true
-      });
-      return untrack(() => Comp(props), label);
+      {
+        const record = {
+          fn: Comp,
+          props,
+          name,
+          task: OBSERVE2.attribution.installed !== null ? createConsoleTask(label) : undefined
+        };
+        owner._component = record;
+        Object.assign(Comp, {
+          [$DEVCOMP]: true
+        });
+        return untrack(() => Comp(props), label);
+      }
     }, {
       transparent: true
     });
@@ -8504,24 +9800,40 @@ ${footer}`;
     id: Symbol("NoHydrateContext"),
     defaultValue: false
   };
+  var _createRoot;
   var _createMemo;
   var _createSignal;
   var _createRenderEffect;
   var latchedOnce = new WeakSet;
   var LIVE_SOURCE = Symbol.for("solid.LiveSource");
+  var LIVE_RESUME_FROM = Symbol.for("solid.LiveResumeFrom");
+  var LIVE_LOCAL = Symbol.for("solid.LiveLocal");
+  var openScopes = new Set;
+  var liveGates = new Map;
+  var nodeGate = new WeakMap;
   var createMemo2 = (...args) => {
     return (_createMemo || createMemo)(...args);
   };
   var createSignal2 = (...args) => {
     return (_createSignal || createSignal)(...args);
   };
+  var createRoot2 = (...args) => (_createRoot || createRoot)(...args);
   var createRenderEffect2 = (...args) => (_createRenderEffect || createRenderEffect)(...args);
   var _fragments = new Map;
   var _truncated = new Set;
   var _revealSubs = new Set;
   var _truncationRejectors = new Map;
-  function createComponent(Comp, props) {
-    return devComponent(Comp, props || {});
+  function createComponent(Comp, props, name) {
+    return observedComponent(Comp, props || {}, name);
+  }
+  var SKILLS_URL = "https://github.com/solidjs/solid/blob/main/packages";
+  function installConsoleFooter() {
+    const guideUrl = DEV2.guideUrl;
+    setConsoleFooter((event) => {
+      const base = `[${event.code}] repair guide: node_modules/solid-js/skills/reactivity-diagnostics/SKILL.md ` + `— ${guideUrl(event.code)}`;
+      return event.kind === "perf" || event.kind === "graph" || event.kind === "responsiveness" ? base + `
+[${event.code}] deeper evidence: import { attribution } from "solid-js/attribution"; ` + `attribution.enable() explains every re-run — why-chains, costs(), feedback(), ` + `history("hold" | "waterfall") — agent loop: ` + `node_modules/@solidjs/diagnostics/skills/agent-loops/SKILL.md — ` + `${SKILLS_URL}/diagnostics/skills/agent-loops/SKILL.md` : base;
+    });
   }
   if (globalThis) {
     if (!globalThis.Solid$$)
@@ -8529,15 +9841,7 @@ ${footer}`;
     else
       console.warn("You appear to have multiple instances of Solid. This can lead to unexpected behavior.");
   }
-  var SKILLS_URL = "https://github.com/solidjs/solid/blob/main/packages";
-  if (DEV) {
-    DEV.diagnostics.setConsoleFooter((event) => {
-      const anchor = event.code.toLowerCase();
-      const base = `[${event.code}] repair guide: node_modules/solid-js/skills/reactivity-diagnostics/SKILL.md ` + `— ${SKILLS_URL}/solid/skills/reactivity-diagnostics/SKILL.md#${anchor}`;
-      return event.kind === "perf" || event.kind === "graph" || event.kind === "responsiveness" ? base + `
-[${event.code}] deeper evidence: DEV.attribution.enable() explains every re-run ` + `— why-chains, costs(), waterfalls(), holds(), feedback() — agent loop: ` + `node_modules/@solidjs/diagnostics/skills/agent-loops/SKILL.md — ` + `${SKILLS_URL}/diagnostics/skills/agent-loops/SKILL.md` : base;
-    });
-  }
+  installConsoleFooter();
 
   // packages/core/src/protocol/resource-key.ts
   var U32_MAX = 4294967295;
@@ -8601,9 +9905,9 @@ ${footer}`;
       this.#entries.length = 0;
     }
   }
-  function createResourceKeyFamily(name, options2 = {}) {
+  function createResourceKeyFamily(name, options = {}) {
     const token = Symbol(`wabou.resource-key.${name}`);
-    const runtimeBrand = options2.runtimeBrand ?? true;
+    const runtimeBrand = options.runtimeBrand ?? true;
     const fromParts = (lo2, hi) => {
       const parts = validateResourceKeyParts({ lo: lo2, hi }, `${name} key`);
       if (runtimeBrand) {
@@ -10606,8 +11910,7 @@ ${footer}`;
   function isVectorPath(value) {
     return typeof value === "object" && value !== null && value.kind === "wabou-vector-path" && typeof value.drawable === "boolean" && value.data instanceof Uint8Array;
   }
-
-  // node_modules/.bun/@solidjs+universal@2.0.0-rc.7+045509bee22f3ccc/node_modules/@solidjs/universal/dist/universal.dev.js
+  // node_modules/.bun/@solidjs+universal@2.0.0-rc.14+091b8563b2688236/node_modules/@solidjs/universal/dist/universal.dev.js
   var transparentOptions = {
     transparent: true,
     sync: true
@@ -10615,16 +11918,16 @@ ${footer}`;
   var syncOptions = {
     sync: true
   };
-  var effect2 = (fn, effectFn, options2) => createRenderEffect2(fn, effectFn, options2 ? {
+  var effect2 = (fn, effectFn, options) => createRenderEffect2(fn, effectFn, options ? {
     sync: true,
-    ...options2,
-    transparent: !options2.scope
+    ...options,
+    transparent: !options.scope
   } : transparentOptions);
   var memo = (fn) => createMemo2(() => fn(), syncOptions);
-  var named = (options2, fallback) => !options2 || options2.name == null ? {
-    ...options2,
+  var named = (options, fallback) => !options || options.name == null ? {
+    ...options,
     name: fallback
-  } : options2;
+  } : options;
   var INNER_OWNED = {};
   function createRenderer({
     createElement,
@@ -10640,14 +11943,14 @@ ${footer}`;
     getFirstChild,
     getNextSibling
   }) {
-    function insert(parent, accessor2, marker, initial, options2) {
-      const onUpdate = options2 && options2.onUpdate;
-      let effectOptions = options2;
+    function insert(parent, accessor2, marker, initial, options) {
+      const onUpdate = options && options.onUpdate;
+      let effectOptions = options;
       if (onUpdate) {
         const {
           onUpdate: onUpdate2,
           ...rest
-        } = options2;
+        } = options;
         effectOptions = rest;
       }
       effectOptions = named(effectOptions, "renderer insert");
@@ -10676,7 +11979,7 @@ ${footer}`;
           insertExpression(parent, inner, current, marker);
           current = inner;
           onUpdate && onUpdate(current);
-        }, prev !== undefined && !(options2 && options2.schedule) ? {
+        }, prev !== undefined && !(options && options.schedule) ? {
           ...effectOptions,
           schedule: true
         } : effectOptions);
@@ -10861,39 +12164,137 @@ ${footer}`;
           removeNode(parent, node);
       }
     }
-    function spread(node, props, skipChildren, options2) {
+    function spread(node, props, skipChildren, options) {
       const prevProps = {};
-      props || (props = {});
-      if (!skipChildren)
-        insert(node, () => props.children, undefined, undefined, named(options2, "renderer spread children"));
-      effect2(() => {
-        const r2 = props.ref;
-        (typeof r2 === "function" || Array.isArray(r2)) && ref(() => r2, node);
-      }, () => {}, named(options2, "renderer spread ref"));
-      effect2(() => {
-        const newProps = {};
-        for (const prop in props) {
-          if (prop === "children" || prop === "ref")
-            continue;
-          newProps[prop] = props[prop];
-        }
-        return newProps;
-      }, (props2) => {
+      const apply = (newProps) => {
         for (const prop in prevProps) {
-          if (!(prop in props2)) {
+          if (prop in newProps)
+            continue;
+          if (prop !== "ref")
             setProperty(node, prop, undefined, prevProps[prop]);
-            delete prevProps[prop];
-          }
+          delete prevProps[prop];
         }
-        for (const prop in props2) {
-          const value = props2[prop];
+        for (const prop in newProps) {
+          const value = newProps[prop];
           if (value === prevProps[prop])
             continue;
-          setProperty(node, prop, value, prevProps[prop]);
+          if (prop === "ref") {
+            (typeof value === "function" || Array.isArray(value)) && ref(() => value, node);
+          } else
+            setProperty(node, prop, value, prevProps[prop]);
           prevProps[prop] = value;
         }
-      }, named(options2, "renderer spread props"));
+      };
+      const childrenOptions = () => named(options, "renderer spread children");
+      if (Array.isArray(props)) {
+        if (!skipChildren)
+          insert(node, () => {
+            for (let i2 = props.length - 1;i2 >= 0; i2--) {
+              const s2 = resolveSource(props[i2]);
+              if (s2 != null && entryHas(s2, "children"))
+                return entryGet(s2, "children");
+            }
+          }, undefined, undefined, childrenOptions());
+        effect2(() => collectSources({}, props, undefined), apply, named(options, "renderer spread props"));
+        return prevProps;
+      }
+      if (!skipChildren) {
+        if (typeof props !== "function" && props != null && hasStaticKeys(props)) {
+          const desc = Object.getOwnPropertyDescriptor(props, "children");
+          if (desc !== undefined) {
+            if (desc.get === undefined)
+              insert(node, desc.value, undefined, undefined, childrenOptions());
+            else
+              insert(node, () => props.children, undefined, undefined, childrenOptions());
+          }
+        } else
+          insert(node, () => {
+            const s2 = resolveSource(props);
+            return s2 != null ? entryGet(s2, "children") : undefined;
+          }, undefined, undefined, childrenOptions());
+      }
+      effect2(() => {
+        const s2 = resolveSource(props);
+        const newProps = {};
+        const table = resolvedTable(s2);
+        if (table !== undefined) {
+          for (const [prop, leaf] of table) {
+            if (typeof prop !== "string" || prop === "children")
+              continue;
+            newProps[prop] = leaf[prop];
+          }
+          return newProps;
+        }
+        if (s2 != null) {
+          const view = viewOf(s2);
+          if (view instanceof OmitView)
+            collectProps(newProps, view, SOURCE_OMIT);
+          else if (view !== undefined)
+            collectSources(newProps, view.sources, view.kinds);
+          else
+            collectProps(newProps, s2, $PROXY in s2 ? SOURCE_PROXY : SOURCE_PLAIN);
+        }
+        return newProps;
+      }, apply, named(options, "renderer spread props"));
       return prevProps;
+    }
+    function resolveSource(s2) {
+      return typeof s2 === "function" ? s2() : s2;
+    }
+    function entryHas(s2, key) {
+      const view = viewOf(s2);
+      return view instanceof OmitView ? sourceHas(view, SOURCE_OMIT, key) : (key in s2);
+    }
+    function entryGet(s2, key) {
+      const view = viewOf(s2);
+      return view instanceof OmitView ? sourceGet(view, SOURCE_OMIT, key) : s2[key];
+    }
+    function collectSources(out, sources, kinds) {
+      const resolved = [];
+      const resolvedKinds = [];
+      for (let i2 = 0;i2 < sources.length; i2++)
+        pushEntry(resolved, resolvedKinds, sources[i2], kinds !== undefined ? kinds[i2] : SOURCE_MEMO);
+      for (let i2 = 0;i2 < resolved.length; i2++)
+        collectProps(out, resolved[i2], resolvedKinds[i2], resolved, resolvedKinds, i2 + 1);
+      return out;
+    }
+    function pushEntry(resolved, kinds, s2, kind) {
+      if (kind !== SOURCE_MEMO) {
+        resolved.push(s2);
+        kinds.push(kind);
+        return;
+      }
+      s2 = resolveSource(s2);
+      if (s2 == null)
+        return;
+      const view = viewOf(s2);
+      if (view instanceof OmitView) {
+        resolved.push(view);
+        kinds.push(SOURCE_OMIT);
+      } else if (view !== undefined) {
+        const { sources: f2, kinds: k2 } = view;
+        for (let j2 = 0;j2 < f2.length; j2++)
+          pushEntry(resolved, kinds, f2[j2], k2[j2]);
+      } else {
+        resolved.push(s2);
+        kinds.push($PROXY in s2 ? SOURCE_PROXY : SOURCE_PLAIN);
+      }
+    }
+    function collectProps(out, s2, kind, later, laterKinds, from) {
+      const keys = sourceKeys(s2, kind);
+      outer:
+        for (let i2 = 0;i2 < keys.length; i2++) {
+          const prop = keys[i2];
+          if (typeof prop !== "string" || prop === "children")
+            continue;
+          if (later !== undefined) {
+            for (let j2 = from;j2 < later.length; j2++)
+              if (sourceHas(later[j2], laterKinds[j2], prop))
+                continue outer;
+          }
+          out[prop] = sourceGet(s2, kind, prop);
+        }
+      return out;
     }
     function applyRef(r2, element) {
       Array.isArray(r2) ? r2.flat(Infinity).forEach((f2) => f2 && f2(element)) : r2(element);
@@ -10907,8 +12308,8 @@ ${footer}`;
         let disposer, disposed = false, mounted = [];
         const cleanup2 = cleanupNodes || defaultCleanupNodes;
         try {
-          createRoot((dispose) => {
-            disposer = dispose;
+          createRoot2((dispose2) => {
+            disposer = dispose2;
             const tree = code();
             const renderOptions = {
               schedule: true,
@@ -10945,7 +12346,7 @@ ${footer}`;
         setProperty(node, name, value, prev);
         return value;
       },
-      mergeProps: merge,
+      mergeProps: merge2,
       effect: effect2,
       memo,
       createComponent,
@@ -11024,7 +12425,7 @@ ${footer}`;
     diagnostics: {
       frameStats: nativeHost.frameStats,
       overlayPaintStats: nativeHost.debugOverlayPaintStats,
-      setOverlay: (options2) => nativeHost.setDebugOverlay(options2.layout ?? false, options2.clips ?? false, options2.hitTarget ?? false)
+      setOverlay: (options) => nativeHost.setDebugOverlay(options.layout ?? false, options.clips ?? false, options.hitTarget ?? false)
     },
     intl: {
       locale: nativeHost.systemLocale,
@@ -11169,7 +12570,7 @@ ${footer}`;
     }
     return h2;
   }
-  function linkChild(parent, child, ref) {
+  function linkChild2(parent, child, ref) {
     child.parent = parent;
     if (ref == null) {
       child.prev = parent.lastChild;
@@ -11504,10 +12905,10 @@ ${footer}`;
         unlinkChild(node.parent, node);
       }
       if (anchor) {
-        linkChild(parent, node, anchor);
+        linkChild2(parent, node, anchor);
         writer.insertBefore(parent.id, node.id, anchor.id);
       } else {
-        linkChild(parent, node, null);
+        linkChild2(parent, node, null);
         writer.appendChild(parent.id, node.id);
       }
     },
@@ -11540,11 +12941,11 @@ ${footer}`;
   var createComponent2 = renderer.createComponent;
   var effect3 = renderer.effect;
   var memo2 = renderer.memo;
-  var spread = renderer.spread;
+  var spread = (node, props, skipChildren, options) => renderer.spread(node, typeof props === "function" || Array.isArray(props) ? props : () => props, skipChildren, options);
   var mergeProps = renderer.mergeProps;
   var applyRef = renderer.applyRef;
   var ref = renderer.ref;
-  function registerRoot(root) {
+  function registerRoot2(root) {
     if (typeof WeakRef !== "undefined") {
       nodesByKey.set(root.id, new WeakRef(root));
     }
@@ -11577,15 +12978,15 @@ ${footer}`;
     };
     mountState.mountedRoot = root;
     mountState.overlayRoots.clear();
-    registerRoot(root);
-    const dispose = render(code, root);
+    registerRoot2(root);
+    const dispose2 = render(code, root);
     flush();
     let disposed = false;
     const disposeMount = () => {
       if (disposed)
         return;
       disposed = true;
-      dispose();
+      dispose2();
       while (root.firstChild)
         removeNode(root, root.firstChild);
       if (mountState.mountedRoot === root) {
@@ -11798,40 +13199,40 @@ ${detail}`);
   globalThis.__wabou_has_raf = __wabou_has_raf;
 
   // packages/core/src/glue/host-messages.ts
-  var listeners2 = new Map;
+  var listeners = new Map;
   var allListeners = new Set;
   var utf8 = new TextDecoder;
   function subscribe(topic, handler) {
-    let set = listeners2.get(topic);
+    let set = listeners.get(topic);
     if (!set) {
       set = new Set;
-      listeners2.set(topic, set);
+      listeners.set(topic, set);
     }
     set.add(handler);
     return () => {
       set.delete(handler);
       if (set.size === 0)
-        listeners2.delete(topic);
+        listeners.delete(topic);
     };
   }
-  function subscribeJson(topic, handler, options2 = {}) {
+  function subscribeJson(topic, handler, options = {}) {
     return subscribe(topic, (payload) => {
       try {
         const source = typeof payload === "string" ? payload : payload instanceof Uint8Array ? utf8.decode(payload) : undefined;
         if (source === undefined)
           throw new TypeError(`host message "${topic}" does not contain JSON text`);
         const parsed = JSON.parse(source);
-        handler(options2.decode ? options2.decode(parsed) : parsed);
+        handler(options.decode ? options.decode(parsed) : parsed);
       } catch (error) {
-        if (options2.onError)
-          options2.onError(error, payload);
+        if (options.onError)
+          options.onError(error, payload);
         else
           console.error(`[wabou-host] invalid JSON message for "${topic}"`, error);
       }
     });
   }
   function dispatchHostMessage(topic, payload) {
-    const set = listeners2.get(topic);
+    const set = listeners.get(topic);
     if (set) {
       for (const handler of set) {
         try {
@@ -11852,7 +13253,7 @@ ${detail}`);
 
   // packages/core/src/glue/timers.ts
   var nextTimerId = 1;
-  var active = new Set;
+  var active2 = new Set;
   var nativeSetTimeout = globalThis.setTimeout?.bind(globalThis);
   function sleep(delay) {
     if (typeof __wabou_sleep === "function") {
@@ -11873,20 +13274,20 @@ ${detail}`);
   }
   function schedule2(callback, delay, repeat2, args) {
     const id = nextTimerId++;
-    active.add(id);
+    active2.add(id);
     const run = async () => {
       await sleep(delay);
-      if (!active.has(id))
+      if (!active2.has(id))
         return;
       try {
         callback(...args);
       } catch (error) {
         reportTimerError(error);
       }
-      if (repeat2 && active.has(id)) {
+      if (repeat2 && active2.has(id)) {
         run();
       } else {
-        active.delete(id);
+        active2.delete(id);
       }
     };
     run();
@@ -11895,7 +13296,7 @@ ${detail}`);
   globalThis.setTimeout = (callback, delay = 0, ...args) => schedule2(callback, Number(delay) || 0, false, args);
   globalThis.setInterval = (callback, delay = 0, ...args) => schedule2(callback, Number(delay) || 0, true, args);
   function clearTimer(id) {
-    active.delete(id);
+    active2.delete(id);
   }
   globalThis.clearTimeout = clearTimer;
   globalThis.clearInterval = clearTimer;
@@ -11968,7 +13369,7 @@ ${detail}`);
   var RECORD_HEADER_LEN = 8;
   var FLAG_CANCELLABLE = 1;
   var textDecoder = new TextDecoder;
-  function viewOf(input) {
+  function viewOf2(input) {
     const bytes = input instanceof ArrayBuffer ? new Uint8Array(input) : new Uint8Array(input.buffer, input.byteOffset, input.byteLength);
     return {
       bytes,
@@ -11976,7 +13377,7 @@ ${detail}`);
     };
   }
   function decodeAndDispatchHostFrame(input) {
-    const { bytes, view } = viewOf(input);
+    const { bytes, view } = viewOf2(input);
     if (view.byteLength < HOST_FRAME.HeaderLen) {
       throw new TypeError("short HostEventFrame header");
     }
@@ -12299,8 +13700,8 @@ ${detail}`);
       show: () => dispatchFireAndForget(effectOps.windowShow, { windowId: id })
     });
   }
-  function createWindow(options2 = {}) {
-    return dispatchEffect(effectOps.windowCreate, options2).then((key) => handle(windowKeyFromJSON(key)));
+  function createWindow(options = {}) {
+    return dispatchEffect(effectOps.windowCreate, options).then((key) => handle(windowKeyFromJSON(key)));
   }
   function currentWindow() {
     return handle(windowKeys.fromParts(__wabou_window_id_lo, __wabou_window_id_hi));
@@ -12433,39 +13834,39 @@ ${detail}`);
     }));
   }
   var dialog = Object.freeze({
-    open(options2 = {}) {
+    open(options = {}) {
       return dispatchEffect(effectOps.dialogOpen, {
-        ...options2,
-        filters: normalizeFilters(options2.filters),
-        multiple: options2.multiple ?? false
+        ...options,
+        filters: normalizeFilters(options.filters),
+        multiple: options.multiple ?? false
       });
     },
-    save(options2 = {}) {
+    save(options = {}) {
       return dispatchEffect(effectOps.dialogSave, {
-        ...options2,
-        filters: normalizeFilters(options2.filters)
+        ...options,
+        filters: normalizeFilters(options.filters)
       }).then((paths) => paths?.[0] ?? null);
     },
-    pickDirectory(options2 = {}) {
-      return dispatchEffect(effectOps.dialogPickDirectory, options2).then((paths) => paths?.[0] ?? null);
+    pickDirectory(options = {}) {
+      return dispatchEffect(effectOps.dialogPickDirectory, options).then((paths) => paths?.[0] ?? null);
     },
-    message(options2) {
+    message(options) {
       return dispatchEffect(effectOps.dialogMessage, {
-        ...options2,
-        message: String(options2.message),
-        level: options2.level ?? "info",
-        buttons: options2.buttons ?? "ok"
+        ...options,
+        message: String(options.message),
+        level: options.level ?? "info",
+        buttons: options.buttons ?? "ok"
       });
     }
   });
 
   // packages/core/src/glue/notification.ts
   var notification = Object.freeze({
-    show(options2) {
+    show(options) {
       return dispatchEffect(effectOps.notificationShow, {
-        ...options2,
-        title: String(options2.title),
-        silent: options2.silent ?? false
+        ...options,
+        title: String(options.title),
+        silent: options.silent ?? false
       }).then(() => {
         return;
       });
@@ -12595,18 +13996,18 @@ ${detail}`);
         throw new TypeError("Wabou color palette must be a Uint32Array");
       submitPalette(colors.slice());
     },
-    animateTo(name, options2 = {}) {
+    animateTo(name, options = {}) {
       const target = paletteFor(name);
       const source = currentPalette?.slice();
-      if (!source || options2.duration === 0) {
+      if (!source || options.duration === 0) {
         this.set(name);
         return { finished: Promise.resolve(), cancel() {} };
       }
       if (source.length !== target.length)
         throw new Error("Wabou color theme palettes have inconsistent lengths");
       activeAnimation?.cancel();
-      const durationMs = Math.max(0, options2.duration ?? 0.28) * 1000;
-      const ease = easingFunction(options2.easing);
+      const durationMs = Math.max(0, options.duration ?? 0.28) * 1000;
+      const ease = easingFunction(options.easing);
       const frame = new Uint32Array(source.length);
       let raf = 0;
       let start;
@@ -12633,7 +14034,7 @@ ${detail}`);
         const linear = durationMs === 0 ? 1 : Math.min(1, (timestamp - start) / durationMs);
         const progress = Math.min(1, Math.max(0, ease(linear)));
         for (let index = 0;index < frame.length; index++) {
-          frame[index] = mixColor(source[index], target[index], progress, options2.colorSpace !== "srgb");
+          frame[index] = mixColor(source[index], target[index], progress, options.colorSpace !== "srgb");
         }
         submitPalette(frame.slice());
         if (linear < 1) {
@@ -12664,6 +14065,28 @@ ${detail}`);
       host: defaultHost,
       windowState: useWindow
     },
+    __wabou_test_proxy_children: () => createRoot2((dispose2) => {
+      const label = createTextNode("retained");
+      const inner = createElement("view");
+      spread(inner, omit(merge2({
+        get children() {
+          return label;
+        }
+      }, { class: "inner" }), "class"), false);
+      const outer = createElement("view");
+      spread(outer, merge2({
+        get children() {
+          return inner;
+        }
+      }, { class: "outer" }), false);
+      flush();
+      const result = {
+        mergedChild: outer.firstChild === inner,
+        omittedChild: inner.firstChild === label
+      };
+      dispose2();
+      return result;
+    }),
     __wabou_test_streams: async () => {
       const output = new ReadableStream({
         start(controller) {

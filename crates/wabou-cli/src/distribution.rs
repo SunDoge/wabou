@@ -1,7 +1,8 @@
 //! Portable distribution with the installed CLI as the resident runtime.
 use super::*;
+use wabou_launch::Implementation;
 #[cfg(feature = "embedded-renderer")]
-use wabou_launch::{Implementation, UiSource};
+use wabou_launch::UiSource;
 
 pub(super) fn bundle(
     workspace: &Path,
@@ -39,14 +40,21 @@ pub(super) fn bundle(
         } else {
             None
         };
-        for (index, capability) in config.capabilities.iter_mut().enumerate() {
+        for (index, implementation) in config
+            .capabilities
+            .iter_mut()
+            .map(|c| &mut c.implementation)
+            .chain(config.widgets.iter_mut().map(|w| &mut w.implementation))
+            .chain(config.plugins.iter_mut().map(|p| &mut p.implementation))
+            .enumerate()
+        {
             if static_link {
-                capability.implementation = Implementation::Library {
+                *implementation = Implementation::Library {
                     path: "linked".into(),
                 };
                 continue;
             }
-            let library = match &capability.implementation {
+            let library = match &*implementation {
                 Implementation::Library { path } => path.clone(),
                 Implementation::Project {
                     manifest,
@@ -69,6 +77,7 @@ pub(super) fn bundle(
                     }
                     let output = cargo.output()?;
                     std::io::Write::write_all(&mut std::io::stderr(), &output.stderr)?;
+                    eprint!("{}", cargo_diagnostics(&output.stdout));
                     ensure(output.status, "capability release build")?;
                     find_library(&output.stdout)?
                 }
@@ -79,7 +88,7 @@ pub(super) fn bundle(
             let relative =
                 PathBuf::from("modules").join(format!("{index}-{}", filename.to_string_lossy()));
             fs::copy(library, staging.path().join(&relative))?;
-            capability.implementation = Implementation::Library { path: relative };
+            *implementation = Implementation::Library { path: relative };
         }
         let ui_bundle = bundle_path(workspace, app, BuildProfile::Release)?;
         config.source = UiSource::Bundle {
@@ -117,7 +126,6 @@ pub(super) fn bundle(
     }
 }
 
-#[cfg(any(feature = "embedded-renderer", test))]
 fn find_library(messages: &[u8]) -> Result<PathBuf> {
     let mut candidates = Vec::new();
     for line in messages.split(|byte| *byte == b'\n') {
@@ -187,10 +195,26 @@ fn build_linked(workspace: &Path, config: &wabou_launch::LaunchConfig) -> Result
     }
     dependencies.insert("serde_json".into(), "1".into());
     let mut registrations = String::new();
-    for (index, capability) in config.capabilities.iter().enumerate() {
+    let implementations = config
+        .capabilities
+        .iter()
+        .map(|c| (format!("capability:{}", c.name), &c.implementation))
+        .chain(
+            config
+                .widgets
+                .iter()
+                .map(|w| (format!("widget:{}", w.tag), &w.implementation)),
+        )
+        .chain(
+            config
+                .plugins
+                .iter()
+                .map(|p| (format!("plugin:{}", p.name), &p.implementation)),
+        );
+    for (index, (name, implementation)) in implementations.enumerate() {
         let Implementation::Project {
             manifest, features, ..
-        } = &capability.implementation
+        } = implementation
         else {
             return Err("static bundle requires project implementations; native libraries cannot be converted to Rust libraries".into());
         };
@@ -221,6 +245,18 @@ fn build_linked(workspace: &Path, config: &wabou_launch::LaunchConfig) -> Result
         let package_name = package["name"]
             .as_str()
             .ok_or("capability package has no name")?;
+        let has_rust_library = package["targets"].as_array().is_some_and(|targets| {
+            targets.iter().any(|target| {
+                target["crate_types"].as_array().is_some_and(|types| {
+                    types
+                        .iter()
+                        .any(|kind| matches!(kind.as_str(), Some("lib" | "rlib")))
+                })
+            })
+        });
+        if !has_rust_library {
+            return Err(format!("cannot statically link `{name}` ({package_name}): add rlib to [lib].crate-type alongside cdylib in {}", manifest.display()).into());
+        }
         let alias = format!("capability_{index}");
         let mut dependency = toml::Table::new();
         dependency.insert("package".into(), package_name.into());
@@ -240,7 +276,7 @@ fn build_linked(workspace: &Path, config: &wabou_launch::LaunchConfig) -> Result
         dependencies.insert(alias.clone(), toml::Value::Table(dependency));
         registrations.push_str(&format!(
             "({}, {alias}::wabou_capability_v2()),",
-            serde_json::to_string(&capability.name)? + ".to_string()"
+            serde_json::to_string(&name)? + ".to_string()"
         ));
     }
     let mut manifest = toml::Table::new();
@@ -328,9 +364,91 @@ fn write_if_changed(path: &Path, bytes: &[u8]) -> Result<()> {
     Ok(())
 }
 
+fn cargo_diagnostics(messages: &[u8]) -> String {
+    messages
+        .split(|b| *b == b'\n')
+        .filter_map(|line| serde_json::from_slice::<Value>(line).ok())
+        .filter(|message| message["reason"] == "compiler-message")
+        .filter_map(|message| message["message"]["rendered"].as_str().map(str::to_owned))
+        .collect()
+}
+
+/// Build selected implementations before launching, sharing identical build settings.
+pub(super) fn prepare_implementations(
+    config: &mut wabou_launch::LaunchConfig,
+    release: bool,
+    extra_features: &[String],
+) -> Result<()> {
+    let mut built: std::collections::BTreeMap<_, PathBuf> = std::collections::BTreeMap::new();
+    for implementation in config
+        .capabilities
+        .iter_mut()
+        .map(|c| &mut c.implementation)
+        .chain(config.widgets.iter_mut().map(|w| &mut w.implementation))
+        .chain(config.plugins.iter_mut().map(|p| &mut p.implementation))
+    {
+        let Implementation::Project {
+            manifest,
+            features,
+            target_directory,
+            ..
+        } = implementation
+        else {
+            continue;
+        };
+        let manifest = manifest.canonicalize()?;
+        let mut features = features.clone();
+        features.extend_from_slice(extra_features);
+        features.sort();
+        features.dedup();
+        let key = (manifest.clone(), features.clone(), target_directory.clone());
+        let library = if let Some(path) = built.get(&key) {
+            path.clone()
+        } else {
+            let mut cargo = Command::new("cargo");
+            cargo
+                .args([
+                    "build",
+                    "--message-format=json-render-diagnostics",
+                    "--manifest-path",
+                ])
+                .arg(&manifest);
+            if release {
+                cargo.arg("--release");
+            }
+            apply_cargo_features(&mut cargo, &features);
+            if let Some(target) = target_directory {
+                cargo.arg("--target-dir").arg(target);
+            }
+            let output = cargo.output()?;
+            std::io::Write::write_all(&mut std::io::stderr(), &output.stderr)?;
+            eprint!("{}", cargo_diagnostics(&output.stdout));
+            ensure(
+                output.status,
+                &format!("Rust implementation build {}", manifest.display()),
+            )?;
+            let path = find_library(&output.stdout)?;
+            built.insert(key, path.clone());
+            path
+        };
+        *implementation = Implementation::Library { path: library };
+    }
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn forwards_rendered_compiler_diagnostics_with_source_locations() {
+        let messages = serde_json::json!({"reason":"compiler-message","message":{"rendered":"error: broken\n --> src/lib.rs:3:1\n"}}).to_string();
+        assert_eq!(
+            cargo_diagnostics(messages.as_bytes()),
+            "error: broken\n --> src/lib.rs:3:1\n"
+        );
+        assert!(cargo_diagnostics(b"{\"reason\":\"compiler-artifact\"}\nnot JSON").is_empty());
+    }
+
     #[test]
     fn selects_loadable_artifact_and_rejects_ambiguous_output() {
         let message = br#"{"reason":"compiler-artifact","target":{"crate_types":["rlib","cdylib"]},"filenames":["/tmp/libhost.rlib","/tmp/libhost.so"]}"#;

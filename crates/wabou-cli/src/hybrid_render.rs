@@ -13,11 +13,11 @@ use std::{
 
 use serde::Deserialize;
 use wabou_backend_vello_hybrid::{AppConfig, Applier, JsRuntime};
+use wabou_shell_vello::widgets::{PasswordInput, SecretStore};
 use wabou_shell_vello::{
     FrameSource, KeyEvent, KeyLocation, KeyPhase, Modifiers, Point, PointerButton, PointerEvent,
     PointerPhase, Scene, TextContext, UiEvent, WheelEvent, layout::PlacedNode,
 };
-use wabou_widgets_vello::{PasswordInput, SecretStore};
 
 use super::{
     Result,
@@ -250,7 +250,7 @@ impl LayoutHarness {
         let base_color = AppConfig::new("").base_color;
         let mut applier = Applier::from_runtime_with_factories_and_window(
             runtime,
-            wabou_widgets_vello::builtin_factories(),
+            wabou_shell_vello::widgets::builtin_factories(),
             base_color,
             window_key,
         );
@@ -313,7 +313,7 @@ pub(super) fn run(workspace: &Path, app: &App, options: &RenderOptions) -> Resul
     let base_color = AppConfig::new("").base_color;
     let runtime =
         JsRuntime::new().map_err(|error| format!("cannot create JavaScript runtime: {error:?}"))?;
-    let mut factories = wabou_widgets_vello::builtin_factories();
+    let mut factories = wabou_shell_vello::widgets::builtin_factories();
     factories.insert(
         "password-input".into(),
         Arc::new(|| Box::new(PasswordInput::new(SecretStore::default()))),

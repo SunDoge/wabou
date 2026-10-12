@@ -52,7 +52,12 @@ const TEMPLATE_FILES: &[(&str, &str)] = &[
     ),
 ];
 
-pub(crate) fn create(destination: &Path, repository: &str, revision: &str) -> Result<()> {
+pub(crate) fn create(
+    destination: &Path,
+    repository: &str,
+    revision: &str,
+    native_plugin: bool,
+) -> Result<()> {
     if destination.exists() {
         return Err(format!(
             "cannot create {}: destination already exists",
@@ -73,7 +78,7 @@ pub(crate) fn create(destination: &Path, repository: &str, revision: &str) -> Re
     validate_project_name(name)?;
 
     fs::create_dir_all(destination)?;
-    let result = initialize(destination, name, repository, revision);
+    let result = initialize(destination, name, repository, revision, native_plugin);
     if let Err(error) = result {
         fs::remove_dir_all(destination)?;
         return Err(error);
@@ -86,8 +91,17 @@ pub(crate) fn create(destination: &Path, repository: &str, revision: &str) -> Re
     Ok(())
 }
 
-fn initialize(root: &Path, name: &str, repository: &str, revision: &str) -> Result<()> {
+fn initialize(
+    root: &Path,
+    name: &str,
+    repository: &str,
+    revision: &str,
+    native_plugin: bool,
+) -> Result<()> {
     write_project(root, name)?;
+    if native_plugin {
+        write_plugin_project(root, name)?;
+    }
     run_git(root, &["init", "--quiet"])?;
     run_git(
         root,
@@ -106,7 +120,21 @@ fn initialize(root: &Path, name: &str, repository: &str, revision: &str) -> Resu
         root,
         &["-C", "vendor/wabou", "checkout", "--quiet", revision],
     )?;
+    if native_plugin {
+        validate_plugin_sdk(root, revision)?;
+    }
     run_git(root, &["add", "."])?;
+    Ok(())
+}
+
+fn validate_plugin_sdk(root: &Path, revision: &str) -> Result<()> {
+    let sdk = root.join("vendor/wabou/crates/wabou-capability-sdk");
+    if !sdk.join("Cargo.toml").is_file()
+        || !sdk.join("src/plugin.rs").is_file()
+        || !sdk.join("src/widget.rs").is_file()
+    {
+        return Err(format!("Wabou revision `{revision}` does not include the capability/widget plugin SDK required by --native-plugin; choose a matching revision with --wabou-ref").into());
+    }
     Ok(())
 }
 
@@ -149,10 +177,88 @@ fn write_project(root: &Path, name: &str) -> Result<()> {
     Ok(())
 }
 
+fn write_plugin_project(root: &Path, name: &str) -> Result<()> {
+    fs::remove_file(root.join("Cargo.toml"))?;
+    fs::remove_dir_all(root.join("src"))?;
+    // The basic behavior fixture assumes the basic counter application.
+    fs::remove_dir_all(root.join("tests"))?;
+    let files = [
+        (
+            "tests/plugin.behavior.ts",
+            include_str!("../../../templates/plugin/tests/plugin.behavior.ts"),
+        ),
+        (
+            "package.json",
+            include_str!("../../../templates/plugin/package.json"),
+        ),
+        (
+            "tsconfig.json",
+            include_str!("../../../templates/plugin/tsconfig.json"),
+        ),
+        (
+            "native/Cargo.toml",
+            include_str!("../../../templates/plugin/native/Cargo.toml"),
+        ),
+        (
+            "native/src/lib.rs",
+            include_str!("../../../templates/plugin/native/src/lib.rs"),
+        ),
+        (
+            "ui/index.tsx",
+            include_str!("../../../templates/plugin/ui/index.tsx"),
+        ),
+        (
+            "ui/vite-env.d.ts",
+            include_str!("../../../templates/plugin/ui/vite-env.d.ts"),
+        ),
+        (
+            "wabou.config.ts",
+            include_str!("../../../templates/plugin/wabou.config.ts"),
+        ),
+        (
+            "README.md",
+            include_str!("../../../templates/plugin/README.md"),
+        ),
+    ];
+    for (relative, content) in files {
+        let path = root.join(relative);
+        fs::create_dir_all(path.parent().ok_or("template path has no parent")?)?;
+        fs::write(path, content.replace("__WABOU_PROJECT_NAME__", name))?;
+    }
+    fs::write(
+        root.join("wabou.toml"),
+        "[build]\nout-dir = \"dist/resources\"\n",
+    )?;
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use std::env;
+
+    #[test]
+    fn plugin_template_uses_cli_runtime_and_a_dual_linkage_native_crate() {
+        let root = tempfile::tempdir().unwrap();
+        write_project(root.path(), "plugin-app").unwrap();
+        write_plugin_project(root.path(), "plugin-app").unwrap();
+        assert!(!root.path().join("Cargo.toml").exists());
+        assert!(!root.path().join("src/main.rs").exists());
+        let cargo = fs::read_to_string(root.path().join("native/Cargo.toml")).unwrap();
+        let manifest: toml::Value = toml::from_str(&cargo).unwrap();
+        assert_eq!(manifest["lib"]["crate-type"].as_array().unwrap().len(), 2);
+        assert!(cargo.contains("../vendor/wabou/crates/wabou-capability-sdk"));
+        assert!(
+            fs::read_to_string(root.path().join("wabou.config.ts"))
+                .unwrap()
+                .contains("rustPlugin")
+        );
+        assert!(
+            fs::read_to_string(root.path().join("native/src/lib.rs"))
+                .unwrap()
+                .contains("export_plugin!")
+        );
+    }
 
     #[test]
     fn writes_a_standalone_git_preview_project() {
@@ -174,6 +280,23 @@ mod tests {
             assert!(!rendered.contains("__WABOU_PROJECT_NAME__"));
         }
         fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn rejects_a_revision_without_the_plugin_sdk_before_reporting_success() {
+        let root = tempfile::tempdir().unwrap();
+        assert!(
+            validate_plugin_sdk(root.path(), "old-tag")
+                .unwrap_err()
+                .to_string()
+                .contains("--wabou-ref")
+        );
+        let sdk = root.path().join("vendor/wabou/crates/wabou-capability-sdk");
+        fs::create_dir_all(sdk.join("src")).unwrap();
+        for file in ["Cargo.toml", "src/plugin.rs", "src/widget.rs"] {
+            fs::write(sdk.join(file), "").unwrap();
+        }
+        assert!(validate_plugin_sdk(root.path(), "matching-tag").is_ok());
     }
 
     #[test]

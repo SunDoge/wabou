@@ -1,0 +1,17 @@
+[package]
+name = "__WABOU_PROJECT_NAME__-native"
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+[workspace]
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+wabou-capability-sdk = { path = "../vendor/wabou/crates/wabou-capability-sdk" }
+serde_json = "1"
+
+[profile.dev]
+debug = 0

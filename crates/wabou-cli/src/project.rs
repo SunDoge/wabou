@@ -5,6 +5,7 @@ use serde_json::Value;
 
 use super::Result;
 
+#[derive(Clone)]
 pub(super) struct App {
     pub(super) name: String,
     pub(super) root: PathBuf,
@@ -19,7 +20,9 @@ pub(super) fn find_workspace(start: &Path) -> Result<PathBuf> {
             return Ok(dir.to_path_buf());
         }
     }
-    find_app_root(start).ok_or_else(|| "not inside a Wabou Cargo project".into())
+    find_frontend_root(start)
+        .or_else(|| find_app_root(start))
+        .ok_or_else(|| "not inside a Wabou project".into())
 }
 
 pub(super) fn load_app(workspace: &Path, cwd: &Path, app_path: Option<&Path>) -> Result<App> {
@@ -292,5 +295,82 @@ mod tests {
         }
 
         ensure_javascript_dependencies(root.path(), &app).unwrap();
+    }
+}
+
+pub(super) type RustCheckProject = (PathBuf, Vec<String>, Option<PathBuf>);
+
+/// Configured Rust implementations, deduplicated by their complete build settings.
+pub(super) fn rust_check_projects(
+    config: &wabou_launch::LaunchConfig,
+) -> Result<Vec<RustCheckProject>> {
+    let implementations = config
+        .capabilities
+        .iter()
+        .map(|c| &c.implementation)
+        .chain(config.widgets.iter().map(|w| &w.implementation))
+        .chain(config.plugins.iter().map(|p| &p.implementation));
+    let mut projects = std::collections::BTreeSet::new();
+    for implementation in implementations {
+        if let wabou_launch::Implementation::Project {
+            manifest,
+            features,
+            target_directory,
+            ..
+        } = implementation
+        {
+            let manifest = manifest
+                .canonicalize()
+                .map_err(|e| format!("Rust implementation manifest {}: {e}", manifest.display()))?;
+            let mut features = features.clone();
+            features.sort();
+            features.dedup();
+            projects.insert((manifest, features, target_directory.clone()));
+        }
+    }
+    Ok(projects.into_iter().collect())
+}
+
+#[cfg(test)]
+mod cli_hosted_tests {
+    use super::*;
+    #[test]
+    fn frontend_only_project_is_discovered_from_nested_sources() {
+        let root = tempfile::tempdir().unwrap();
+        fs::create_dir_all(root.path().join("ui/components")).unwrap();
+        fs::write(root.path().join("package.json"), "{}").unwrap();
+        fs::write(root.path().join("ui/index.tsx"), "export {};").unwrap();
+        assert_eq!(
+            find_workspace(&root.path().join("ui/components")).unwrap(),
+            root.path()
+        );
+        assert!(load_frontend_app(root.path(), root.path(), None).is_ok());
+        assert!(load_app(root.path(), root.path(), None).is_err());
+    }
+    #[test]
+    fn configured_projects_share_checks_only_when_build_settings_match() {
+        let root = tempfile::tempdir().unwrap();
+        let manifest = root.path().join("Cargo.toml");
+        fs::write(&manifest, "[package]\nname='fixture'\nversion='0.0.0'\n").unwrap();
+        let mut config = wabou_launch::LaunchConfig::new(wabou_launch::UiSource::Bundle {
+            path: "ui/index.tsx".into(),
+        });
+        for (name, features) in [
+            ("first", vec!["b", "a"]),
+            ("second", vec!["a", "b", "a"]),
+            ("different", vec!["c"]),
+        ] {
+            config.plugins.push(serde_json::from_value(serde_json::json!({"name":name,"implementation":{"kind":"project","manifest":manifest,"features":features}, "capabilities":[], "widgets":[]})).unwrap());
+        }
+        let projects = rust_check_projects(&config).unwrap();
+        assert_eq!(projects.len(), 2);
+        assert_eq!(projects[0].1, vec!["a", "b"]);
+        fs::remove_file(manifest).unwrap();
+        assert!(
+            rust_check_projects(&config)
+                .unwrap_err()
+                .to_string()
+                .contains("Rust implementation manifest")
+        );
     }
 }

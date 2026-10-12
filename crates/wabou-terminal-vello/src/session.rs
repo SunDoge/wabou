@@ -273,7 +273,6 @@ impl TerminalWidget {
         let damage = terminal.peek_damage_event().unwrap_or(TerminalDamage::Noop);
         terminal.snapshot_visible(
             &damage,
-            self.size.columns,
             &mut self.visible_rows,
             &mut self.visible_styles,
             &mut self.visible_extras,
@@ -329,7 +328,8 @@ impl TerminalWidget {
                             (
                                 text,
                                 self.visible_styles
-                                    .get(square.style_id() as usize)
+                                    .get(row_index)
+                                    .and_then(|styles| styles.get(column))
                                     .copied()
                                     .unwrap_or_default(),
                                 None,

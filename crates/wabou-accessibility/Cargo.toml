@@ -1,6 +1,0 @@
-[package]
-name = "wabou-accessibility"
-version.workspace = true
-edition = "2024"
-
-license.workspace = true

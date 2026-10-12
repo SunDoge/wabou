@@ -160,11 +160,15 @@ bun run wabou check apps/gallery
 
 `check` verifies the nearest `tsconfig.json`, runs discovered `ui/**/*.test.ts`
 and `ui/**/*.test.tsx` files with Solid's browser condition, runs Cargo against
-every target in the application package, checks Rust-owned TypeScript bindings
+every target in the application package and in configured Rust capability/widget/plugin
+projects, checks Rust-owned TypeScript bindings
 when the app has a conventional `examples/wabou-bindgen.rs`, and runs every
 discovered `tests/**/*.behavior.ts` scenario. Missing optional unit tests,
 bindings, and behavior tests are skipped; failures are never rewritten
-automatically. For a pass without native behavior scenarios, use
+automatically. CLI-hosted apps need no root `Cargo.toml`: their Rust implementations
+come from `wabou.config.ts` or `[dev].runtime-config`. Identical project build
+settings are checked once, with configured features and target directories.
+`doctor` recognizes these apps too. For a pass without native behavior scenarios, use
 `--skip-behavior`; compile and unit checks still run.
 
 Render any named component layout fixture without adding an application-level
@@ -568,3 +572,17 @@ included automatically. This is configured in `vite.config.ts`, independently of
 `wabou.config.ts`. TOML projects can use `intl = false` at the root or set `apis`
 in the `[intl]` table. Disabling Intl is explicit: date/number widgets and libraries
 using Intl still require the relevant APIs.
+
+### CLI-hosted applications
+
+Applications configured through `wabou.config.ts` or `[dev].runtime-config` can
+use `build`, `run`, `test` and `check` without a root Rust application crate.
+The CLI owns the runtime; selected Rust project implementations are compiled
+into shared libraries before startup, so plugin compile errors fail the command
+before launching the application. Identical build settings share one build.
+`run --release` uses release frontend and plugin builds. `build` writes `app.json`
+next to the frontend bundle; `bundle` creates the portable distribution.
+
+`test` runs the same capabilities and widgets through the resident runtime,
+headlessly by default. A plugin starter includes a real Rust capability behavior
+scenario. Use `--native` only when testing platform window integration.

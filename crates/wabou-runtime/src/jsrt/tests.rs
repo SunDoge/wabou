@@ -1049,3 +1049,17 @@ fn buffered_response_memory_contract_runs_inside_quickjs() {
         r#"{"cloned":[65,66],"buffer":[90,66],"decoded":"€","input":[99,226,130,172,88],"nullBody":true}"#
     );
 }
+
+#[test]
+fn solid_proxy_props_preserve_nested_native_children() {
+    let mut runtime = JsRuntime::new().unwrap();
+    runtime
+        .boot(include_str!("../gen/test-runtime.js"))
+        .unwrap();
+    let result: String = runtime
+        .with(|ctx| ctx.eval("JSON.stringify(__wabou_test_proxy_children())"))
+        .unwrap();
+    let result: serde_json::Value = serde_json::from_str(&result).unwrap();
+    assert_eq!(result["mergedChild"], true);
+    assert_eq!(result["omittedChild"], true);
+}

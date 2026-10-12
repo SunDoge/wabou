@@ -52,7 +52,7 @@ def main():
         for alias in ['wabou_native', 'native']:
             project = pathlib.Path(temporary) / alias
             (project / 'src').mkdir(parents=True)
-            (project / 'Cargo.toml').write_text('[package]\nname="diagnostics-' + alias.replace('_', '-') + '"\nversion="0.0.0"\nedition="2024"\n[dependencies]\n' + alias + '={package="wabou-native",path=' + json.dumps(str(ROOT / 'crates/wabou-native')) + '}\n')
+            (project / 'Cargo.toml').write_text('[package]\nname="diagnostics-' + alias.replace('_', '-') + '"\nversion="0.0.0"\nedition="2024"\n[dependencies]\n' + alias + '={package="wabou-native",path=' + json.dumps(str(ROOT / 'native/wabou-native')) + '}\n')
             (project / 'src/lib.rs').write_text(f'use {alias}::*;\npub fn valid() -> View {{ Text::new("Valid").into_view() }}\n')
             cases.append(dict(alias=alias, diagnostics=verify_diagnostics(project, alias)))
     report = dict(passed=True, cases=cases, fixture_removed=not pathlib.Path(temporary).exists(),

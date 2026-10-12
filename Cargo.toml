@@ -1,6 +1,6 @@
 [workspace]
 resolver = "3"
-members = ["apps/*", "crates/*"]
+members = ["apps/*", "crates/*", "native/blockui*", "native/ui-contract", "native/wabou-native", "native/apps/*"]
 exclude = [
   "apps/pulse",
   "experiments/*",
@@ -23,7 +23,6 @@ default-members = [
   "apps/timestow",
   "apps/vlist",
   "crates/wabou",
-  "crates/wabou-accessibility",
   "crates/wabou-backend-vello-hybrid",
   "crates/wabou-bindgen",
   "crates/wabou-cli",
@@ -42,7 +41,6 @@ default-members = [
   "crates/wabou-terminal-vello",
   "crates/wabou-telemetry",
   "crates/wabou-tray",
-  "crates/wabou-widgets-vello",
 ]
 
 [workspace.package]
@@ -53,7 +51,6 @@ license = "Apache-2.0"
 wabou-telemetry = { path = "crates/wabou-telemetry" }
 anyhow = "1"
 wabou = { path = "crates/wabou", default-features = false }
-wabou-accessibility = { path = "crates/wabou-accessibility" }
 wabou-backend-vello-hybrid = { path = "crates/wabou-backend-vello-hybrid" }
 wabou-bindgen = { path = "crates/wabou-bindgen", default-features = false }
 wabou-database = { path = "crates/wabou-database" }
@@ -66,7 +63,6 @@ wabou-shell-vello = { path = "crates/wabou-shell-vello" }
 wabou-style = { path = "crates/wabou-style" }
 wabou-terminal-vello = { path = "crates/wabou-terminal-vello" }
 wabou-tray = { path = "crates/wabou-tray" }
-wabou-widgets-vello = { path = "crates/wabou-widgets-vello" }
 
 arboard = { version = "3.6.1", default-features = false, features = ["wayland-data-control"] }
 arc-swap = "1.9.2"
@@ -87,7 +83,7 @@ jiff = "0.2.35"
 lyon_tessellation = "1"
 lru = "0.18.1"
 naga = { version = "29.0.4", features = ["wgsl-in"] }
-notify-rust = "=4.11.7"
+notify-rust = "=4.18.2"
 oar-ocr = "0.9.2"
 open = "5.4.0"
 parley = { version = "0.10", features = ["complex-scripts"] }

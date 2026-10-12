@@ -1093,7 +1093,21 @@ export const setProp = renderer.setProp;
 export const createComponent = renderer.createComponent;
 export const effect = renderer.effect;
 export const memo = renderer.memo;
-export const spread = renderer.spread;
+// QuickJS can expose accessor properties of merge/omit Proxy views as empty
+// data descriptors. Always resolve object props through Solid's accessor path,
+// so children are read from the live view rather than its static descriptor.
+export const spread: typeof renderer.spread = (
+  node,
+  props,
+  skipChildren,
+  options,
+) =>
+  renderer.spread(
+    node,
+    typeof props === "function" || Array.isArray(props) ? props : () => props,
+    skipChildren,
+    options,
+  );
 export const mergeProps = renderer.mergeProps;
 export const applyRef = renderer.applyRef;
 export const ref = renderer.ref;

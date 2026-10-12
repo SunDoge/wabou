@@ -49,7 +49,7 @@ def main():
         try:
             response(send('initialize',dict(processId=os.getpid(),rootUri=(external or ROOT).as_uri(),capabilities={},initializationOptions={'cargo':{'targetDir':str(ROOT/'target')},'procMacro':{'enable':True}}),True))
             send('initialized',{})
-            path=external/'src/lib.rs' if external else ROOT/f'crates/blockui-test/tests/{fixture}.rs';uri=path.as_uri();original=path.read_text()
+            path=external/'src/lib.rs' if external else ROOT/f'native/blockui-test/tests/{fixture}.rs';uri=path.as_uri();original=path.read_text()
             if braces:
                 original=original.replace('ui!(Column::default().children({','ui! { Column::default().children({').replace('        }))','        }) }')
             report={}

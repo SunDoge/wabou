@@ -47,7 +47,7 @@ def main():
     # The guides are executable examples; reject documentation/test drift before
     # Cargo work so passing tests cannot conceal an untested code fence.
     for guide, fixture in [('TAG_UI.md', 'tag_ui_guide.rs'), ('ASYNC.md', 'async_guide.rs')]:
-        base = ROOT / 'crates/wabou-native'
+        base = ROOT / 'native/wabou-native'
         try:
             example = (base / guide).read_text().split('```rust\n', 1)[1].split('```', 1)[0]
             if example != (base / 'tests' / fixture).read_text():

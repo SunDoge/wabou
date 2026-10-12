@@ -18,7 +18,6 @@ const BACKEND_LIBRARY_DEPENDENCIES = new Set([
 ]);
 
 const SHARED_PACKAGES = new Set([
-  "wabou-accessibility",
   "wabou-bindgen",
   "wabou-database",
   "wabou-devtools",
@@ -34,7 +33,6 @@ const HYBRID_BACKEND_PACKAGES = new Set([
   "wabou-shell-vello",
   "wabou-terminal-vello",
   "wabou-tray",
-  "wabou-widgets-vello",
 ]);
 
 const RETIRED_GPUI_PACKAGES = new Set(["wabou-shell", "wabou-terminal"]);

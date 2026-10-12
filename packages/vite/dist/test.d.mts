@@ -1,6 +1,6 @@
 import { UserConfig } from "vite";
 //#region src/test.d.ts
-interface WabouTestConfigOptions {
+export interface WabouTestConfigOptions {
   /** Additional Vitest/Vite configuration merged over Wabou's defaults. */
   vite?: UserConfig;
 }
@@ -16,7 +16,7 @@ type ComponentTestUserConfig = UserConfig & {
   };
 };
 /** Configure Vitest to compile Wabou TSX through Solid's universal renderer. */
-declare function defineWabouTestConfig(options?: WabouTestConfigOptions): ComponentTestUserConfig;
+export declare function defineWabouTestConfig(options?: WabouTestConfigOptions): ComponentTestUserConfig;
 //#endregion
-export { WabouTestConfigOptions, defineWabouTestConfig };
+export {};
 //# sourceMappingURL=test.d.mts.map

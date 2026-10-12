@@ -1,6 +1,6 @@
 //#region src/generated/effect-abi.d.ts
-declare const EFFECT_ABI_VERSION: 6;
-declare const effectOps: Readonly<{
+export declare const EFFECT_ABI_VERSION: 6;
+export declare const effectOps: Readonly<{
   readonly clipboardRead: {
     readonly capability: 1;
     readonly method: 1;
@@ -81,5 +81,5 @@ interface EffectOp {
   readonly method: number;
 }
 //#endregion
-export { EFFECT_ABI_VERSION, type EffectOp, effectOps };
+export type { EffectOp };
 //# sourceMappingURL=effects.d.mts.map

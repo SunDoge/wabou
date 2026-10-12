@@ -6,7 +6,14 @@ import {
   notification,
   useWindow,
 } from "@wabou/core";
-import { createElement, defaultHost, mount } from "../src/renderer";
+import { createRoot, flush, merge, omit } from "solid-js";
+import {
+  createElement,
+  createTextNode,
+  defaultHost,
+  mount,
+  spread,
+} from "../src/renderer";
 
 Object.assign(globalThis, {
   __wabou_test_host_api: {
@@ -18,6 +25,46 @@ Object.assign(globalThis, {
     host: defaultHost,
     windowState: useWindow,
   },
+  __wabou_test_proxy_children: () =>
+    createRoot((dispose) => {
+      const label = createTextNode("retained");
+      const inner = createElement("view");
+      spread(
+        inner,
+        omit(
+          merge(
+            {
+              get children() {
+                return label;
+              },
+            },
+            { class: "inner" },
+          ),
+          "class",
+        ),
+        false,
+      );
+      const outer = createElement("view");
+      spread(
+        outer,
+        merge(
+          {
+            get children() {
+              return inner;
+            },
+          },
+          { class: "outer" },
+        ),
+        false,
+      );
+      flush();
+      const result = {
+        mergedChild: outer.firstChild === inner,
+        omittedChild: inner.firstChild === label,
+      };
+      dispose();
+      return result;
+    }),
   __wabou_test_streams: async () => {
     const output = new ReadableStream<string>({
       start(controller) {

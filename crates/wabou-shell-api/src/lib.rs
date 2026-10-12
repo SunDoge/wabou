@@ -2,6 +2,7 @@
 
 #![warn(missing_docs)]
 
+pub mod accessibility;
 pub mod app_dirs;
 pub mod color;
 pub mod effect;

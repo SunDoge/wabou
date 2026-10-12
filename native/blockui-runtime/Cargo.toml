@@ -1,0 +1,178 @@
+[package]
+name = "blockui-runtime"
+default-run = "blockui-runtime"
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+[dependencies]
+blockui-motion = { path = "../blockui-motion" }
+ui-contract = { path = "../ui-contract" }
+blockui-dev = { path = "../blockui-dev", optional = true }
+blockui-abi = { path = "../blockui-abi" }
+blockui = { path = "../blockui", optional = true }
+serde_json = { version = "1", optional = true }
+
+wabou-shell-vello = { path = "../../crates/wabou-shell-vello", optional = true, features = ["widgets"] }
+taffy = { version = "0.14.0", optional = true }
+vello-common = { package = "vello_common", version = "0.2.0", optional = true }
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+libloading = "0.8.9"
+libc = "0.2"
+
+[target.'cfg(windows)'.dependencies]
+socket2 = "0.6"
+windows-sys = { version = "0.61", features = ["Win32_Networking_WinSock", "Win32_Storage_FileSystem", "Win32_Foundation", "Win32_Security", "Win32_Security_Authorization", "Win32_System_Memory", "Win32_System_JobObjects", "Win32_System_Threading", "Win32_System_Diagnostics_ToolHelp", "Win32_System_IO", "Wdk_Storage_FileSystem"] }
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+web-time = "1"
+
+[features]
+static-app = ["dep:blockui"]
+testing = ["dep:blockui"]
+native = ["native-window", "hotreload"]
+hotreload = ["dep:blockui-dev"]
+native-window = ["dep:wabou-shell-vello", "dep:taffy", "dep:vello-common", "dep:serde_json"]
+
+[[example]]
+name = "native_app"
+required-features = ["native"]
+
+[[example]]
+name = "declared_app"
+required-features = ["native"]
+
+[[example]]
+name = "native_request"
+required-features = ["native"]
+
+[[example]]
+name = "auto_identity"
+required-features = ["native"]
+
+[[example]]
+name = "native_future"
+required-features = ["native"]
+
+[[example]]
+name = "documents_app"
+required-features = ["native"]
+
+[dev-dependencies]
+blockui = { path = "../blockui", features = ["macros"] }
+
+[[example]]
+name = "scope_cost"
+required-features = ["testing"]
+
+[[example]]
+name = "editor_labels"
+required-features = ["native"]
+
+[[example]]
+name = "multi_window"
+required-features = ["native"]
+
+[[example]]
+name = "text_list_native"
+required-features = ["native"]
+
+[[example]]
+name = "request_feedback"
+required-features = ["native"]
+
+[[example]]
+name = "seven_guis"
+required-features = ["native"]
+
+[[example]]
+name = "text_probe"
+required-features = ["native"]
+
+[[example]]
+name = "router_native"
+required-features = ["native"]
+
+[[example]]
+name = "router_app"
+required-features = ["native"]
+
+[[example]]
+name = "router_watch"
+required-features = ["native"]
+
+[[example]]
+name = "document_migration"
+
+[[example]]
+name = "text_map_native"
+required-features = ["native"]
+
+[[example]]
+name = "record_migration"
+
+[[example]]
+name = "record_notepad_proof"
+required-features = ["native"]
+
+[[example]]
+name = "record_notepad_app"
+required-features = ["native"]
+
+[[example]]
+name = "record_checkbox_native"
+required-features = ["native"]
+
+[[example]]
+name = "record_slider_native"
+required-features = ["native"]
+
+[[example]]
+name = "record_progress_native"
+required-features = ["native"]
+
+[[example]]
+name = "record_select_native"
+required-features = ["native"]
+
+[[example]]
+name = "preferences_app"
+required-features = ["native"]
+
+[[example]]
+name = "preferences_proof"
+required-features = ["native"]
+
+[[example]]
+name = "record_map_text_proof"
+required-features = ["native"]
+
+[[example]]
+name = "sdk_socket_native"
+required-features = ["native"]
+
+[[example]]
+name = "tcp_client_native"
+required-features = ["native"]
+
+[[example]]
+name = "reactive_style_proof"
+required-features = ["testing"]
+
+[[bin]]
+name = "blockui-host"
+path = "src/bin/blockui-host.rs"
+required-features = ["native"]
+
+[[example]]
+name = "gallery"
+required-features = ["native"]
+
+[[example]]
+name = "gallery_perf"
+required-features = ["native"]
+
+[[example]]
+name = "function_components_proof"
+required-features = ["testing"]

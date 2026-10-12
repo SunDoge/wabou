@@ -8,6 +8,7 @@ edition = "2024"
 crate-type = ["rlib", "cdylib"]
 
 [dependencies]
+wabou-shell-vello = { workspace = true, features = ["widget-hot-reload"] }
 wabou-telemetry.workspace = true
 stabby = "=72.1.16"
 serde_json = { workspace = true }
@@ -15,6 +16,7 @@ tokio = { workspace = true, features = ["rt-multi-thread", "time"] }
 wabou-launch = { path = "../wabou-launch" }
 wabou-runtime = { workspace = true, features = ["capability-modules"] }
 wabou-backend-vello-hybrid = { workspace = true }
+wabou-host-api.workspace = true
 wabou-capability-abi = { path = "../wabou-capability-abi" }
 
 [features]

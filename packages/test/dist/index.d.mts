@@ -14,7 +14,7 @@ interface ResolvedPollOptions {
 }
 //#endregion
 //#region src/index.d.ts
-interface NativeWindowState {
+export interface NativeWindowState {
   presence: "visible" | "hidden" | "surface-released" | "closed";
   surfaceGeneration: number;
 }
@@ -39,22 +39,22 @@ declare module "@wabou/core/registry" {
     readonly test: NativeTestCapability;
   }
 }
-interface TestContext {
+export interface TestContext {
   readonly page: TestPage;
   readonly window: TestWindow;
   readonly effects: TestEffects;
   readonly files: TestFiles;
   readonly diagnostics: TestDiagnostics;
 }
-interface TestDiagnostics {
+export interface TestDiagnostics {
   frameStats(): FrameStats | null;
   overlayPaintStats(): DebugOverlayPaintStats | null;
 }
-interface TestFiles {
+export interface TestFiles {
   /** Write exact UTF-8 contents beneath this run's isolated temporary root. */
   writeText(relativePath: string, contents: string): string;
 }
-interface TestEffectResponseMap {
+export interface TestEffectResponseMap {
   clipboardRead: string | null;
   clipboardWrite: null;
   contextMenuShow: string | null;
@@ -65,12 +65,12 @@ interface TestEffectResponseMap {
   notificationShow: null;
   windowClose: null;
 }
-type TestEffectOperation = keyof TestEffectResponseMap;
-interface TestEffects {
+export type TestEffectOperation = keyof TestEffectResponseMap;
+export interface TestEffects {
   /** Queue one deterministic response for the next matching native effect. */
   respond<K extends TestEffectOperation>(operation: K, result: TestEffectResponseMap[K]): void;
 }
-interface TestWindow {
+export interface TestWindow {
   /** Window key of the runtime executing this behavior scenario. */
   readonly current: WindowKey;
   nativeClose(windowId: WindowKey, platform: "wayland" | "mutable-visibility"): Promise<void>;
@@ -81,8 +81,8 @@ interface TestWindow {
   fileDrop(windowId: WindowKey, phase: TestFileDropPhase, paths?: readonly string[]): Promise<void>;
   state(windowId: WindowKey): NativeWindowState | null;
 }
-type TestFileDropPhase = "entered" | "moved" | "left" | "dropped";
-interface TestPage {
+export type TestFileDropPhase = "entered" | "moved" | "left" | "dropped";
+export interface TestPage {
   readonly effects: TestEffects;
   /** Bind subsequent locators and frame barriers to one logical window. */
   forWindow(windowId: WindowKey): TestPage;
@@ -92,8 +92,8 @@ interface TestPage {
   }): Locator;
   waitForIdle(): Promise<void>;
 }
-type SemanticRole = WabouExposedSemanticRole;
-interface Locator {
+export type SemanticRole = WabouExposedSemanticRole;
+export interface Locator {
   readonly windowId: WindowKey;
   readonly role: SemanticRole;
   readonly name: string;
@@ -119,7 +119,7 @@ interface Locator {
   waitFor(options?: LocatorWaitOptions): Promise<void>;
   snapshot(): Promise<LocatorSnapshot>;
 }
-interface LocatorSnapshot {
+export interface LocatorSnapshot {
   name: string | null;
   value: string | null;
   numericValue: number | null;
@@ -134,22 +134,22 @@ interface LocatorSnapshot {
   expanded: boolean | null;
   focused: boolean;
 }
-type LocatorCurrent = "true" | "page" | "step" | "location" | "date" | "time";
-interface LocatorBounds {
+export type LocatorCurrent = "true" | "page" | "step" | "location" | "date" | "time";
+export interface LocatorBounds {
   x: number;
   y: number;
   width: number;
   height: number;
 }
-type LocatorBoundsField = keyof LocatorBounds;
-interface LocatorNumericRange {
+export type LocatorBoundsField = keyof LocatorBounds;
+export interface LocatorNumericRange {
   value: number;
   min: number;
   max: number;
 }
-type LocatorWaitOptions = PollOptions;
-type LocatorAssertionOptions = LocatorWaitOptions;
-type TestInput = {
+export type LocatorWaitOptions = PollOptions;
+export type LocatorAssertionOptions = LocatorWaitOptions;
+export type TestInput = {
   type: "probe";
 } | {
   type: "drag";
@@ -173,7 +173,7 @@ type TestInput = {
   deltaX: number;
   deltaY: number;
 };
-type LocatorAssertion = {
+export type LocatorAssertion = {
   type: "absent";
 } | {
   type: "count";
@@ -230,31 +230,31 @@ type LocatorAssertion = {
   type: "viewport";
   tolerance: number;
 };
-interface BoundsAssertionOptions extends LocatorAssertionOptions {
+export interface BoundsAssertionOptions extends LocatorAssertionOptions {
   /** Maximum absolute difference for supplied coordinates, in logical pixels. */
   tolerance?: number;
 }
-interface NumericRangeAssertionOptions extends LocatorAssertionOptions {
+export interface NumericRangeAssertionOptions extends LocatorAssertionOptions {
   /** Maximum absolute difference; defaults to 1e-9. */
   tolerance?: number;
 }
-declare const TEST_ARTIFACT_VERSION: 1;
-interface LocatorSelector {
+export declare const TEST_ARTIFACT_VERSION: 1;
+export interface LocatorSelector {
   role: SemanticRole;
   name: string;
   index?: number;
 }
-interface LocatorReference extends LocatorSelector {
+export interface LocatorReference extends LocatorSelector {
   scope?: LocatorSelector[];
 }
-interface TestEnvironment {
+export interface TestEnvironment {
   backend: "deterministic" | "native";
   renderer: "vello-hybrid" | "unknown";
   os: string;
   arch: string;
   wabouVersion: string;
 }
-interface TestReport {
+export interface TestReport {
   version: typeof TEST_ARTIFACT_VERSION;
   /** Added by the Rust host before report.json is written. */
   environment?: TestEnvironment;
@@ -262,7 +262,7 @@ interface TestReport {
   tests: TestResult[];
   trace: TestAction[];
 }
-interface TestResult {
+export interface TestResult {
   name: string;
   passed: boolean;
   error?: string;
@@ -271,7 +271,7 @@ interface TestResult {
   traceEnd: number;
   durationMs: number;
 }
-type TestAction = {
+export type TestAction = {
   action: "writeTextFile";
   relativePath: string;
   contents: string;
@@ -338,14 +338,14 @@ type TestAction = {
   wait: ResolvedPollOptions;
 };
 type TestBody = (context: TestContext) => void | Promise<void>;
-interface TestOptions {
+export interface TestOptions {
   /** Per-test timeout in milliseconds. Defaults to 5 seconds. */
   timeout?: number;
 }
-declare function test(name: string, body: TestBody, options?: TestOptions): void;
+export declare function test(name: string, body: TestBody, options?: TestOptions): void;
 /** Register a previously recorded action trace as a behavior test. */
-declare function replay(actions: readonly TestAction[]): void;
-declare function expect<T>(actual: T): {
+export declare function replay(actions: readonly TestAction[]): void;
+export declare function expect<T>(actual: T): {
   toBe(expected: T): void;
   toEqual(expected: T): void;
   toHaveState(windowId: WindowKey, expected: NativeWindowState, options?: LocatorAssertionOptions): Promise<void>;
@@ -375,7 +375,7 @@ declare function expect<T>(actual: T): {
   toHaveSameBoundsAs(other: Locator, fields?: readonly LocatorBoundsField[], options?: BoundsAssertionOptions): Promise<void>;
   toBeInViewport(options?: BoundsAssertionOptions): Promise<void>;
 };
-declare namespace expect {
+export declare namespace expect {
   var poll: <T>(read: () => T | Promise<T>, options?: {
     timeout?: number;
     interval?: number;
@@ -384,5 +384,5 @@ declare namespace expect {
   };
 }
 //#endregion
-export { BoundsAssertionOptions, Locator, LocatorAssertion, LocatorAssertionOptions, LocatorBounds, LocatorBoundsField, LocatorCurrent, LocatorNumericRange, LocatorReference, LocatorSelector, LocatorSnapshot, LocatorWaitOptions, NativeWindowState, NumericRangeAssertionOptions, SemanticRole, TEST_ARTIFACT_VERSION, TestAction, TestContext, TestDiagnostics, TestEffectOperation, TestEffectResponseMap, TestEffects, TestEnvironment, TestFileDropPhase, TestFiles, TestInput, TestOptions, TestPage, TestReport, TestResult, TestWindow, expect, replay, test };
+export {};
 //# sourceMappingURL=index.d.mts.map
