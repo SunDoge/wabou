@@ -52,6 +52,7 @@ test("backend-neutral packages cannot import either backend", () => {
             { kind: null, name: "wabou-shell", rename: null },
             { kind: "dev", name: "wabou-shell-vello", rename: "vello-shell" },
             { kind: null, name: "vello", rename: null },
+            { kind: null, name: "vello_gpu", rename: "vello-gpu" },
           ],
         },
         {
@@ -63,6 +64,7 @@ test("backend-neutral packages cannot import either backend", () => {
     }),
   ).toEqual([
     "wabou-protocol -> vello (vello, normal)",
+    "wabou-protocol -> vello-gpu (vello_gpu, normal)",
     "wabou-protocol -> vello-shell (wabou-shell-vello, dev)",
     "wabou-protocol -> wabou-shell (wabou-shell, normal)",
   ]);

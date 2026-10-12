@@ -14,6 +14,7 @@ const BACKEND_LIBRARY_DEPENDENCIES = new Set([
   "gpui_ce_platform",
   "vello",
   "vello_hybrid",
+  "vello_gpu",
   "winit",
 ]);
 

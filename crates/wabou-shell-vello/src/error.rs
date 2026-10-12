@@ -17,6 +17,17 @@ pub enum Error {
         source: winit::error::RequestError,
     },
 
+    /// Render dimensions exceed the nonzero u16 range supported by Vello GPU.
+    #[snafu(display(
+        "invalid Vello GPU render size {width}x{height}; dimensions must be 1..=65535"
+    ))]
+    InvalidRenderSize {
+        /// Requested physical width.
+        width: u32,
+        /// Requested physical height.
+        height: u32,
+    },
+
     /// Renderer output length did not match its declared dimensions.
     #[snafu(display("renderer returned an invalid {width}x{height} RGBA buffer"))]
     InvalidImageBuffer {

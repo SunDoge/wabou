@@ -6,7 +6,7 @@ use std::fmt;
 use std::sync::Arc;
 
 use snafu::{ResultExt, Snafu};
-use vello_hybrid::Scene;
+use vello_gpu::Scene;
 
 use crate::SvgDocument;
 pub use usvg;

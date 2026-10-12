@@ -1,7 +1,7 @@
 //! Wabou's retained 2D paint command stream.
 //!
 //! Vello Hybrid builds viewport-specific strips eagerly, so widgets cannot retain
-//! and append a `vello_hybrid::Scene` directly. This small command stream is the
+//! and append a `vello_gpu::Scene` directly. This small command stream is the
 //! stable fragment boundary owned by Wabou; the window and headless renderers
 //! replay it straight into Vello Hybrid at the end of a frame.
 
