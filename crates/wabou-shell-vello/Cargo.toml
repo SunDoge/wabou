@@ -18,7 +18,7 @@ wabou-runtime = { workspace = true, features = ["capability-modules"], optional 
 wabou-capability-sdk = { path = "../wabou-capability-sdk", optional = true }
 wabou-telemetry.workspace = true
 accesskit = "0.24.1"
-accesskit_xplat = "=0.1.1"
+accesskit_xplat = "=0.2.0"
 arboard = { workspace = true }
 bitflags = { workspace = true }
 bytemuck.workspace = true
