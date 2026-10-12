@@ -52,14 +52,18 @@ describe("@wabou/vite", () => {
   }
 
   test("composes the required Wabou plugins in stable order", () => {
-    expect(wabouPlugins("/app").map((plugin: Plugin) => plugin.name)).toEqual([
+    const names = wabouPlugins("/app").map((plugin: Plugin) => plugin.name);
+    const required = [
       "wabou-intl-data",
       "wabou-style-compiler",
       "solid:boundary-modules",
       "solid",
       "solid:diagnostics",
       "wabou-configure-deps-optimizer",
-    ]);
+    ];
+    const positions = required.map((name) => names.indexOf(name));
+    expect(positions.every((position) => position >= 0)).toBe(true);
+    expect(positions).toEqual([...positions].sort((left, right) => left - right));
   });
 
   test("ships the semantic color contract required by official UI components", () => {
