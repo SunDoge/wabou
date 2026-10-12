@@ -60,7 +60,7 @@
     "@unocss/core": "^66.7.5",
     "@wabou/core": "workspace:*",
     "magic-string": "^1.4.3",
-    "smol-toml": "^1.9.0",
+    "smol-toml": "^1.9.1",
     "vite": "^8.3.4",
     "@solidjs/vite-plugin": "3.0.0-next.49"
   }
