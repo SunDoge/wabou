@@ -17,7 +17,7 @@ unicode-width = { workspace = true, optional = true }
 wabou-runtime = { workspace = true, features = ["capability-modules"], optional = true }
 wabou-capability-sdk = { path = "../wabou-capability-sdk", optional = true }
 wabou-telemetry.workspace = true
-accesskit = "0.24.1"
+accesskit = "0.25.1"
 accesskit_xplat = "=0.1.1"
 arboard = { workspace = true }
 bitflags = { workspace = true }
