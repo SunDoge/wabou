@@ -62,7 +62,7 @@
     "@wabou/core": "workspace:*",
     "lucide-static": "1.53.0",
     "marked": "18.1.0",
-    "motion-dom": "13.1.1",
+    "motion-dom": "14.0.0",
     "remend": "1.4.0",
     "solid-js": "2.0.0-rc.14",
     "ts-pattern": "^5.9.0",
