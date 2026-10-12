@@ -78,6 +78,7 @@ pub use host_message::{
 };
 pub use jsrt::{JsRuntime, JsRuntimeOptions};
 pub use runtime_api::{ImageResource, ImageResourceHandle, ImageResourceStore};
+pub use vello_shell::widgets::SecretStore as VelloHybridSecretStore;
 pub use vello_shell::{
     EffectRequest as VelloHybridEffectRequest, ExtensionContext as VelloHybridExtensionContext,
     PaintContext as VelloHybridPaintContext, Point as VelloHybridPoint,
@@ -86,7 +87,6 @@ pub use vello_shell::{
     WakeCallback as VelloHybridWakeCallback, Widget, WidgetChanges as VelloHybridWidgetChanges,
     WidgetFactory, WidgetRasterImage as VelloHybridRasterImage, WindowOptions,
 };
-pub use wabou_widgets_vello::SecretStore as VelloHybridSecretStore;
 
 mod applier;
 

@@ -2,7 +2,7 @@
 
 use std::{ops::Range, path::PathBuf, sync::Arc};
 
-pub use wabou_accessibility::{
+pub use crate::accessibility::{
     SemanticAction, SemanticCurrent, SemanticNode, SemanticPopup, SemanticRole, SemanticSnapshot,
     SemanticSortDirection, SemanticStates, SemanticToggleState,
 };

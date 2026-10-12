@@ -52,7 +52,7 @@ edition = "2024"
 [lib]
 crate-type = ["cdylib"]
 [dependencies]
-blockui = {{ path = {json.dumps(str(ROOT/'crates/blockui'))} }}
+blockui = {{ path = {json.dumps(str(ROOT/'native/blockui'))} }}
 [workspace]
 [profile.dev]
 debug = 0
@@ -252,7 +252,7 @@ export_actor!(Probe);
             source=source.replace(old, 'self.derived()?.join(self.other.get()?.into_read()).map(|(data, other)| Data { text: format!("{}:{}", data.text, other.text) })',1)
         if args.wabou_native:
             manifest=manifest.replace('blockui = {', 'native = { package = "wabou-native",')
-            manifest=manifest.replace(json.dumps(str(ROOT/'crates/blockui')), json.dumps(str(ROOT/'crates/wabou-native')))
+            manifest=manifest.replace(json.dumps(str(ROOT/'native/blockui')), json.dumps(str(ROOT/'native/wabou-native')))
             source=source.replace('blockui::', 'native::')
         app.joinpath('Cargo.toml').write_text(manifest);app.joinpath('src/lib.rs').write_text(source)
         # A broken auxiliary binary must not participate in plugin-only reloads.

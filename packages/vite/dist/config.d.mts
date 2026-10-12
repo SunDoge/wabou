@@ -27,6 +27,51 @@ export interface RuntimeCapability extends CapabilityContract {
 }
 /** Select an implementation for a generated contract without repeating its methods. */
 export declare function rustCapability({ contract, manifest, watch, features, targetDirectory }: RustCapabilityOptions): RuntimeCapability;
+/** Native implementation callbacks run in a replaceable Rust library. */
+export interface RustWidgetOptions {
+  tag: string;
+  /** State/protocol schema, unchanged for ordinary implementation edits. */
+  version: number;
+  initialState: unknown;
+  manifest: string;
+  watch?: string[];
+  features?: string[];
+  targetDirectory?: string;
+}
+export interface RuntimeWidget {
+  tag: string;
+  version: number;
+  initialState: unknown;
+  implementation: RuntimeCapability["implementation"];
+}
+/** Register a resident state slot and a watched Rust widget implementation. */
+export declare function rustWidget({ tag, version, initialState, manifest, watch, features, targetDirectory }: RustWidgetOptions): RuntimeWidget;
+/** Compile/watch one library once, with several independently owned exports. */
+export interface RustPluginOptions {
+  name: string;
+  manifest: string;
+  watch?: string[];
+  features?: string[];
+  targetDirectory?: string;
+  capabilities?: CapabilityContract[];
+  widgets?: {
+    tag: string;
+    version: number;
+    initialState: unknown;
+  }[];
+}
+export interface RuntimePlugin {
+  name: string;
+  implementation: RuntimeCapability["implementation"];
+  capabilities: CapabilityContract[];
+  widgets: {
+    tag: string;
+    version: number;
+    initialState: unknown;
+  }[];
+}
+/** Bind exports from export_plugin! without one watcher/library per consumer. */
+export declare function rustPlugin({ name, manifest, watch, features, targetDirectory, capabilities, widgets }: RustPluginOptions): RuntimePlugin;
 export interface WabouProjectConfig {
   window?: {
     title?: string;
@@ -38,6 +83,8 @@ export interface WabouProjectConfig {
     entry?: string;
   };
   capabilities?: RuntimeCapability[];
+  widgets?: RuntimeWidget[];
+  plugins?: RuntimePlugin[];
 }
 /** Type-check ordinary data or an asynchronous environment-dependent factory. */
 export declare function defineConfig<T extends WabouProjectConfig | (() => WabouProjectConfig | Promise<WabouProjectConfig>)>(config: T): T;

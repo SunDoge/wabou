@@ -11,5 +11,4 @@ bitflags.workspace = true
 directories.workspace = true
 serde = { workspace = true, features = ["derive"] }
 serde_json.workspace = true
-wabou-accessibility.workspace = true
 wabou-host-api.workspace = true

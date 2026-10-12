@@ -18,7 +18,7 @@ def main():
     parser.add_argument("--wabou-cli", type=pathlib.Path, help="verify a built Wabou CLI native command adapter")
     args = parser.parse_args()
     args.cli = args.cli or args.wabou_cli is not None
-    example = (ROOT / 'apps/native-counter/src/lib.rs').read_text() + '\nuse wabou_native::native;\n'
+    example = (ROOT / 'native/apps/native-counter/src/lib.rs').read_text() + '\nuse wabou_native::native;\n'
     entry = '''
 fn main() -> std::result::Result<(), String> {
     let options = native::WindowOptions::new().title("Linked native UI");
@@ -30,7 +30,7 @@ fn main() -> std::result::Result<(), String> {
         (project / 'src').mkdir(parents=True)
         (project / 'Cargo.toml').write_text(
             '[package]\nname="static-native-proof"\nversion="0.0.0"\nedition="2024"\n'
-            '[dependencies]\nwabou-native={path=' + json.dumps(str(ROOT / 'crates/wabou-native')) + ',features=["native"]}\n'
+            '[dependencies]\nwabou-native={path=' + json.dumps(str(ROOT / 'native/wabou-native')) + ',features=["native"]}\n'
             '[profile.release]\ndebug=0\nstrip="debuginfo"\n')
         (project / 'src/main.rs').write_text(example + entry)
         binary_name = 'static-native-proof'

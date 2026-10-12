@@ -541,3 +541,9 @@ mod tests {
         assert_eq!(state, 12);
     }
 }
+
+/// Synchronous hot-reloadable native widget protocol.
+pub mod widget;
+
+/// One library exporting multiple capabilities and native widgets.
+pub mod plugin;

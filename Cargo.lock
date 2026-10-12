@@ -1093,7 +1093,6 @@ dependencies = [
  "ui-contract",
  "vello_common",
  "wabou-shell-vello",
- "wabou-widgets-vello",
  "web-time",
  "windows-sys 0.61.2",
 ]
@@ -12242,10 +12241,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "wabou-accessibility"
-version = "0.1.0-alpha.3"
-
-[[package]]
 name = "wabou-backend-vello-hybrid"
 version = "0.1.0-alpha.3"
 dependencies = [
@@ -12272,7 +12267,6 @@ dependencies = [
  "wabou-shell-vello",
  "wabou-style",
  "wabou-telemetry",
- "wabou-widgets-vello",
 ]
 
 [[package]]
@@ -12322,7 +12316,6 @@ dependencies = [
  "wabou-runtime-library",
  "wabou-shell-api",
  "wabou-shell-vello",
- "wabou-widgets-vello",
 ]
 
 [[package]]
@@ -12459,8 +12452,10 @@ dependencies = [
  "tokio",
  "wabou-backend-vello-hybrid",
  "wabou-capability-abi",
+ "wabou-host-api",
  "wabou-launch",
  "wabou-runtime",
+ "wabou-shell-vello",
  "wabou-telemetry",
 ]
 
@@ -12472,7 +12467,6 @@ dependencies = [
  "directories",
  "serde",
  "serde_json",
- "wabou-accessibility",
  "wabou-host-api",
 ]
 
@@ -12508,16 +12502,21 @@ dependencies = [
  "tempfile",
  "tracing",
  "unicode-segmentation",
+ "unicode-width",
  "url",
  "usvg",
  "vello_common",
  "vello_hybrid",
+ "wabou-capability-sdk",
+ "wabou-protocol",
+ "wabou-runtime",
  "wabou-shell-api",
  "wabou-style",
  "wabou-telemetry",
  "wgpu",
  "wgpu_context",
  "winit",
+ "zeroize",
 ]
 
 [[package]]
@@ -12566,21 +12565,6 @@ dependencies = [
  "tray-icon",
  "wabou-shell-api",
  "wabou-shell-vello",
-]
-
-[[package]]
-name = "wabou-widgets-vello"
-version = "0.1.0-alpha.3"
-dependencies = [
- "image",
- "parley",
- "serde",
- "tracing",
- "unicode-width",
- "vello_common",
- "wabou-protocol",
- "wabou-shell-vello",
- "zeroize",
 ]
 
 [[package]]

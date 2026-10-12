@@ -14,9 +14,9 @@ def main():
         for name, alias in [('facade', 'wabou_native'), ('renamed-facade', 'native')]:
             project = pathlib.Path(temporary) / name
             (project / 'src').mkdir(parents=True)
-            dependency = f'{alias} = {{ package = "wabou-native", path = {json.dumps(str(ROOT / "crates/wabou-native"))}, features = ["testing"] }}\n'
+            dependency = f'{alias} = {{ package = "wabou-native", path = {json.dumps(str(ROOT / "native/wabou-native"))}, features = ["testing"] }}\n'
             (project / 'Cargo.toml').write_text(f'[package]\nname="editor-{name}"\nversion="0.0.0"\nedition="2024"\n[dependencies]\n' + dependency)
-            source = (ROOT / 'crates/wabou-native/tests/tag_ui_guide.rs').read_text().replace('wabou_native::', f'{alias}::')
+            source = (ROOT / 'native/wabou-native/tests/tag_ui_guide.rs').read_text().replace('wabou_native::', f'{alias}::')
             (project / 'src/lib.rs').write_text(source)
             subprocess.run([sys.executable, str(ROOT / 'scripts/native/verify_macro_ui_lsp.py'),
                             '--project', str(project)], cwd=ROOT, env=ENV, check=True)

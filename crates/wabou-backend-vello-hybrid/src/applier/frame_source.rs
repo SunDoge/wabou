@@ -1012,11 +1012,11 @@ impl FrameSource for Applier {
         if host_messages_pending {
             self.drain_host_messages();
         }
-        let mut widget_woken = false;
+        let mut widget_changes = vello_shell::WidgetChanges::empty();
         let mut host_actions = Vec::new();
         let mut node_events = Vec::new();
         for (node, widget) in &mut self.document.widget_manager.widgets {
-            widget_woken |= widget.poll_async();
+            widget_changes |= widget.poll_async_changes();
             while let Some(action) = widget.take_host_action() {
                 host_actions.push((*node, action));
             }
@@ -1024,6 +1024,8 @@ impl FrameSource for Applier {
                 node_events.push((*node, event));
             }
         }
+        self.invalidate_widget_changes(widget_changes);
+        let mut widget_woken = !widget_changes.is_empty();
         for (node, action) in host_actions {
             self.enqueue_widget_host_action(node, action);
         }

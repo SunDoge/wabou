@@ -76,17 +76,17 @@ separate from the TSX capability frontend.
 From the checkout:
 
 ```sh
-cargo build -p wabou-cli
-./target/debug/wabou check apps/native-counter --tests
-./target/debug/wabou test apps/native-counter
-./target/debug/wabou dev apps/native-counter
-./target/debug/wabou build apps/native-counter --static --release
+cargo build -p wabou-cli --features native-ui
+./target/debug/wabou check native/apps/native-counter --tests
+./target/debug/wabou test native/apps/native-counter
+./target/debug/wabou dev native/apps/native-counter
+./target/debug/wabou build native/apps/native-counter --static --release
 ```
 
 Create a standalone Rust app with `wabou native new PATH`. Generated projects
 use local SDK paths and explicit Rust frontend metadata. `cargo fmt` formats
-UI source. See the [Rust frontend guide](crates/wabou-native/README.md),
-[tag UI example](crates/wabou-native/TAG_UI.md), [async example](crates/wabou-native/ASYNC.md)
+UI source. See the [Rust frontend guide](native/wabou-native/README.md),
+[tag UI example](native/wabou-native/TAG_UI.md), [async example](native/wabou-native/ASYNC.md)
 and [repository verification commands](scripts/native/README.md).
 
 ## Create an application

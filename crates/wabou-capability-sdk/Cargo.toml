@@ -7,7 +7,7 @@ edition = "2024"
 [dependencies]
 wabou-capability-abi = { path = "../wabou-capability-abi" }
 wabou-host-api = { path = "../wabou-host-api" }
-serde = { workspace = true }
+serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
 
 [[example]]
@@ -20,3 +20,11 @@ crate-type = ["cdylib"]
 
 [features]
 static-link = []
+
+[[example]]
+name = "widget_counter"
+crate-type = ["cdylib"]
+
+[[example]]
+name = "plugin"
+crate-type = ["cdylib"]

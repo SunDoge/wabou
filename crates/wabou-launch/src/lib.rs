@@ -58,6 +58,44 @@ pub struct Capability {
     pub methods: Vec<Method>,
     pub implementation: Implementation,
 }
+/// Declarative native widget registration. State remains in the resident node.
+#[derive(Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct NativeWidget {
+    pub tag: String,
+    /// Fixed state/protocol schema; incompatible reloads are rejected.
+    pub version: u32,
+    /// Used only when a native node is first created.
+    pub initial_state: serde_json::Value,
+    pub implementation: Implementation,
+}
+/// Capability contract selected from a plugin registry.
+#[derive(Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct PluginCapability {
+    pub name: String,
+    pub version: u32,
+    pub methods: Vec<Method>,
+}
+/// Widget state slot selected from a plugin registry.
+#[derive(Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct PluginWidget {
+    pub tag: String,
+    pub version: u32,
+    pub initial_state: serde_json::Value,
+}
+/// A single compiled/watched library with several independent host consumers.
+#[derive(Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct Plugin {
+    pub name: String,
+    pub implementation: Implementation,
+    #[serde(default)]
+    pub capabilities: Vec<PluginCapability>,
+    #[serde(default)]
+    pub widgets: Vec<PluginWidget>,
+}
 /// Small startup configuration. Its JSON schema is separate from the ABI layout.
 #[derive(Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -78,6 +116,10 @@ pub struct LaunchConfig {
     pub resource_directory: Option<PathBuf>,
     #[serde(default)]
     pub capabilities: Vec<Capability>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub widgets: Vec<NativeWidget>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub plugins: Vec<Plugin>,
 }
 impl LaunchConfig {
     /// Create a default window configuration for a source.
@@ -91,6 +133,8 @@ impl LaunchConfig {
             source,
             resource_directory: None,
             capabilities: Vec::new(),
+            widgets: Vec::new(),
+            plugins: Vec::new(),
         }
     }
 
@@ -108,8 +152,14 @@ impl LaunchConfig {
         if let UiSource::Bundle { path } = &mut self.source {
             resolve(path, directory);
         }
-        for capability in &mut self.capabilities {
-            match &mut capability.implementation {
+        for implementation in self
+            .capabilities
+            .iter_mut()
+            .map(|c| &mut c.implementation)
+            .chain(self.widgets.iter_mut().map(|w| &mut w.implementation))
+            .chain(self.plugins.iter_mut().map(|p| &mut p.implementation))
+        {
+            match implementation {
                 Implementation::Library { path } => resolve(path, directory),
                 Implementation::Project {
                     manifest,

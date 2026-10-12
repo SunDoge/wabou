@@ -5,15 +5,20 @@
 //! must not leave their own threads/callbacks running after drop_task; long-lived
 //! work belongs to the stable host. This API accepts trusted local plugins only.
 use stabby::libloading::StabbyLibrary;
+use std::collections::BTreeMap;
 use std::{
     ffi::c_void,
     marker::PhantomData,
     path::Path,
     rc::Rc,
-    sync::{Arc, RwLock},
+    sync::{
+        Arc, Mutex, RwLock, Weak,
+        atomic::{AtomicU64, Ordering},
+    },
     time::Duration,
 };
 use wabou_capability_abi::{self as abi, Bytes, HostApi, ModuleApi, Output};
+use wabou_host_api::plugin::{Export, ExportKind, MANIFEST_METHOD, PLUGIN_CONTRACT_VERSION};
 
 #[cfg(test)]
 #[path = "capability_module_tests.rs"]
@@ -21,9 +26,14 @@ mod tests;
 
 /// Stable host operations, including application-defined resource handle access.
 pub type HostOperations = dyn Fn(&str, &[u8]) -> Result<Vec<u8>, String> + Send + Sync;
+type ReloadWake = dyn Fn() + Send + Sync;
 const MAX_OUTPUT: usize = 1024 * 1024;
 
+static NEXT_GENERATION: AtomicU64 = AtomicU64::new(1);
+
 struct Generation {
+    id: u64,
+    exports: Option<Vec<Export>>,
     api: ModuleApi,
     _library: Option<libloading::Library>,
     // Library unload precedes removal of its private on-disk generation.
@@ -37,6 +47,9 @@ pub struct CapabilityModule {
     host: Arc<HostOperations>,
     contract_version: u32,
     completion: Option<Arc<tokio::sync::Notify>>,
+    reload_wakes: Arc<Mutex<Vec<Weak<ReloadWake>>>>,
+    required_exports: Arc<RwLock<BTreeMap<(ExportKind, String), u32>>>,
+    export: Option<(ExportKind, String)>,
 }
 impl CapabilityModule {
     /// Create an unloaded dispatcher. The host closure owns retained Rust state.
@@ -46,6 +59,136 @@ impl CapabilityModule {
             host,
             contract_version,
             completion: None,
+            reload_wakes: Arc::default(),
+            required_exports: Arc::default(),
+            export: None,
+        }
+    }
+    /// Bind a registry export while retaining the plugin's shared code generation.
+    /// The host closure owns this capability's separate state/resources. Bind all
+    /// consumers before starting its watcher; every candidate validates them all.
+    pub fn select_export(
+        &self,
+        kind: ExportKind,
+        name: &str,
+        version: u32,
+        host: Arc<HostOperations>,
+    ) -> Result<Self, String> {
+        if self.contract_version != PLUGIN_CONTRACT_VERSION
+            || self.export.is_some()
+            || name.trim().is_empty()
+        {
+            return Err("select_export requires a registry root and nonempty name".into());
+        }
+        let key = (kind, name.to_owned());
+        let mut required = self
+            .required_exports
+            .write()
+            .map_err(|_| "plugin registry poisoned")?;
+        if let Some(previous) = required.get(&key)
+            && *previous != version
+        {
+            return Err(format!(
+                "conflicting plugin export versions: {kind:?}/{name}"
+            ));
+        }
+        if let Some(generation) = self
+            .current
+            .read()
+            .map_err(|_| "module dispatcher poisoned")?
+            .as_ref()
+        {
+            validate_export(
+                generation
+                    .exports
+                    .as_deref()
+                    .ok_or("plugin manifest missing")?,
+                &key,
+                version,
+            )?;
+        }
+        required.insert(key.clone(), version);
+        let mut selected = self.clone();
+        selected.export = Some(key);
+        selected.host = host;
+        Ok(selected)
+    }
+    fn validate_api(&self, api: ModuleApi) -> Result<Option<Vec<Export>>, String> {
+        if api.abi_version != abi::ABI_VERSION {
+            return Err("incompatible capability module ABI".into());
+        }
+        if api.contract_version != self.contract_version {
+            return Err("incompatible capability contract version".into());
+        }
+        if self.contract_version != PLUGIN_CONTRACT_VERSION {
+            return Ok(None);
+        }
+        let probe = Self::new(
+            PLUGIN_CONTRACT_VERSION,
+            Arc::new(|_, _| Err("plugin registration cannot access host operations".into())),
+        );
+        *probe
+            .current
+            .write()
+            .map_err(|_| "module dispatcher poisoned")? = Some(Arc::new(Generation {
+            id: 0,
+            exports: None,
+            api,
+            _library: None,
+            _directory: None,
+        }));
+        let mut call = probe.start(MANIFEST_METHOD, b"null")?;
+        let bytes = call
+            .poll()?
+            .ok_or("plugin manifest query must be synchronous")?;
+        let exports: Vec<Export> = serde_json::from_slice(&bytes).map_err(|e| e.to_string())?;
+        let mut names = std::collections::BTreeSet::new();
+        for entry in &exports {
+            if entry.name.trim().is_empty() || !names.insert((entry.kind, &entry.name)) {
+                return Err("plugin manifest contains invalid or duplicate exports".into());
+            }
+        }
+        Ok(Some(exports))
+    }
+    /// Current implementation identity; failed replacements leave it unchanged.
+    pub fn generation(&self) -> Result<Option<u64>, String> {
+        Ok(self
+            .current
+            .read()
+            .map_err(|_| "module dispatcher poisoned")?
+            .as_ref()
+            .map(|g| g.id))
+    }
+    /// Pin the current implementation until this snapshot is dropped. This lets
+    /// a resident renderer use one generation for measurement, events and paint.
+    pub fn snapshot(&self) -> Result<Self, String> {
+        let generation = self
+            .current
+            .read()
+            .map_err(|_| "module dispatcher poisoned")?
+            .clone();
+        let mut snapshot = self.clone();
+        snapshot.current = Arc::new(RwLock::new(generation));
+        Ok(snapshot)
+    }
+    /// Wake resident consumers on replacement. The caller retains the callback;
+    /// expired subscriptions are removed and do not keep widgets alive.
+    pub fn subscribe_replacement(&self, wake: &Arc<dyn Fn() + Send + Sync>) {
+        let mut wakes = self.reload_wakes.lock().unwrap_or_else(|e| e.into_inner());
+        wakes.retain(|w| w.strong_count() > 0);
+        let weak = Arc::downgrade(wake);
+        if !wakes.iter().any(|existing| existing.ptr_eq(&weak)) {
+            wakes.push(weak);
+        }
+    }
+    fn notify_replacement(&self) {
+        let callbacks: Vec<_> = {
+            let mut wakes = self.reload_wakes.lock().unwrap_or_else(|e| e.into_inner());
+            wakes.retain(|w| w.strong_count() > 0);
+            wakes.iter().filter_map(Weak::upgrade).collect()
+        };
+        for callback in callbacks {
+            callback();
         }
     }
     /// Wake host-task waits on resident completion instead of periodic polling.
@@ -76,13 +219,21 @@ impl CapabilityModule {
         let entry = unsafe { library.get_stabbied::<abi::ModuleEntry>(abi::ENTRY_SYMBOL) }
             .map_err(|e| e.to_string())?;
         let api = entry();
-        if api.abi_version != abi::ABI_VERSION {
-            return Err("incompatible capability module ABI".into());
-        }
-        if api.contract_version != self.contract_version {
-            return Err("incompatible capability contract version".into());
+        let exports = self.validate_api(api)?;
+        // Keep binding and publication mutually exclusive so a consumer cannot
+        // appear between candidate validation and the registry swap.
+        let required = self
+            .required_exports
+            .read()
+            .map_err(|_| "plugin registry poisoned")?;
+        if let Some(exports) = &exports {
+            for (key, version) in required.iter() {
+                validate_export(exports, key, *version)?;
+            }
         }
         let next = Arc::new(Generation {
+            id: NEXT_GENERATION.fetch_add(1, Ordering::Relaxed),
+            exports,
             api,
             _library: Some(library),
             _directory: Some(directory),
@@ -91,6 +242,8 @@ impl CapabilityModule {
             .current
             .write()
             .map_err(|_| "module dispatcher poisoned")? = Some(next);
+        drop(required);
+        self.notify_replacement();
         Ok(())
     }
     /// Install a statically linked implementation whose code lives for the process lifetime.
@@ -99,20 +252,30 @@ impl CapabilityModule {
     /// The table must honor the capability ABI and all function pointers must
     /// remain valid for the process lifetime.
     pub unsafe fn install_linked(&self, api: ModuleApi) -> Result<(), String> {
-        if api.abi_version != abi::ABI_VERSION {
-            return Err("incompatible capability module ABI".into());
-        }
-        if api.contract_version != self.contract_version {
-            return Err("incompatible capability contract version".into());
+        let exports = self.validate_api(api)?;
+        // Keep binding and publication mutually exclusive so a consumer cannot
+        // appear between candidate validation and the registry swap.
+        let required = self
+            .required_exports
+            .read()
+            .map_err(|_| "plugin registry poisoned")?;
+        if let Some(exports) = &exports {
+            for (key, version) in required.iter() {
+                validate_export(exports, key, *version)?;
+            }
         }
         *self
             .current
             .write()
             .map_err(|_| "module dispatcher poisoned")? = Some(Arc::new(Generation {
+            id: NEXT_GENERATION.fetch_add(1, Ordering::Relaxed),
+            exports,
             api,
             _library: None,
             _directory: None,
         }));
+        drop(required);
+        self.notify_replacement();
         Ok(())
     }
     /// Start using the current generation, independent of later replacements.
@@ -123,6 +286,13 @@ impl CapabilityModule {
             .map_err(|_| "module dispatcher poisoned")?
             .clone()
             .ok_or("capability module is not loaded")?;
+        let routed;
+        let method = if let Some((kind, name)) = &self.export {
+            routed = serde_json::to_string(&(kind, name, method)).map_err(|e| e.to_string())?;
+            &routed
+        } else {
+            method
+        };
         let mut output = Buffer::default();
         let mut host = HostContext {
             operations: &self.host,
@@ -182,6 +352,24 @@ impl CapabilityModule {
             }
             tokio::time::sleep(Duration::from_millis(2)).await;
         }
+    }
+}
+
+fn validate_export(
+    exports: &[Export],
+    key: &(ExportKind, String),
+    version: u32,
+) -> Result<(), String> {
+    if exports
+        .iter()
+        .any(|e| (e.kind, &e.name) == (key.0, &key.1) && e.version == version)
+    {
+        Ok(())
+    } else {
+        Err(format!(
+            "missing or incompatible plugin export: {:?}/{} (expected version {version})",
+            key.0, key.1
+        ))
     }
 }
 

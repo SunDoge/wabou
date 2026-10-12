@@ -7,6 +7,11 @@
 
 #![warn(missing_docs)]
 
+extern crate self as wabou_shell;
+
+#[cfg(feature = "widgets")]
+pub mod widgets;
+
 pub mod accessibility;
 pub mod app;
 pub mod app_dirs;

@@ -1155,3 +1155,32 @@ fn image_resource_ready_reports_intrinsic_dimensions() {
         serde_json::json!({ "resource": { "lo": 9, "hi": 5 }, "width": 2.0, "height": 1.0 })
     );
 }
+
+#[test]
+fn native_widget_background_replacement_invalidates_layout() {
+    struct Replacement(bool);
+    impl vello_shell::Widget for Replacement {
+        fn paint(&mut self, _: &mut vello_shell::PaintContext<'_>) {}
+        fn poll_async_changes(&mut self) -> vello_shell::WidgetChanges {
+            if std::mem::take(&mut self.0) {
+                vello_shell::WidgetChanges::REDRAW | vello_shell::WidgetChanges::MEASURE
+            } else {
+                vello_shell::WidgetChanges::empty()
+            }
+        }
+    }
+    let mut applier = interactive_applier();
+    applier.build_frame(&mut TextContext::new(), 800, 600);
+    applier.document.widget_manager.widgets.insert(
+        applier.document.node_store.root,
+        Box::new(Replacement(true)),
+    );
+    applier.document.invalidation = InvalidationFlags::empty();
+    assert!(FrameSource::poll_async(&mut applier));
+    assert!(
+        applier
+            .document
+            .invalidation
+            .contains(InvalidationFlags::LAYOUT)
+    );
+}

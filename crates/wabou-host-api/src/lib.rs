@@ -441,3 +441,6 @@ mod tests {
         }
     }
 }
+
+/// Multi-export native plugin registration protocol.
+pub mod plugin;

@@ -1,0 +1,17 @@
+[package]
+name = "reloadable-app-plugin"
+version = "0.0.0"
+edition = "2024"
+publish = false
+
+[workspace]
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+wabou-capability-sdk = { path = "../../../crates/wabou-capability-sdk" }
+serde_json = "1"
+
+[profile.dev]
+debug = 0
