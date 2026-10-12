@@ -13,7 +13,7 @@ path = "src/main.rs"
 [dependencies]
 clap = { workspace = true, features = ["derive", "env"] }
 ctrlc = "3.5"
-fs4 = "0.13.1"
+fs4 = "1.1.0"
 process-wrap = { version = "10.0.0", features = ["std"] }
 cargo-packager = { version = "0.11.8", default-features = false, features = ["rustls-tls"] }
 serde = { workspace = true, features = ["derive"] }
