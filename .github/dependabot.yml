@@ -13,6 +13,19 @@ updates:
       prefix: "chore(deps)"
     # These upgrades need native adapter/upstream renderer migrations.
     ignore:
+      # Keep major upgrades in human-owned branches so Dependabot PRs remain
+      # reviewable dependency-only changes.
+      - dependency-name: "*"
+        update-types:
+          - version-update:semver-major
+      # These pre-1.0 minor releases contain breaking renderer API changes and
+      # need accesskit and accesskit_xplat to be migrated together.
+      - dependency-name: accesskit
+        update-types:
+          - version-update:semver-minor
+      - dependency-name: accesskit_xplat
+        update-types:
+          - version-update:semver-minor
       - dependency-name: winit
         versions: ["0.31.0-beta.3"]
     groups:
@@ -39,6 +52,19 @@ updates:
     open-pull-requests-limit: 5
     commit-message:
       prefix: "chore(deps)"
+    ignore:
+      # Major upgrades need migration work and should not open permanently-red
+      # dependency-only PRs.
+      - dependency-name: "*"
+        update-types:
+          - version-update:semver-major
+      # These packages are bundled into checked-in QuickJS runtime artifacts.
+      # Updating them requires running codegen and reviewing the generated
+      # runtime in a human-owned branch, which Dependabot cannot do.
+      - dependency-name: motion-dom
+      - dependency-name: solid-js
+      - dependency-name: "@solidjs/universal"
+      - dependency-name: "@solidjs/web"
     groups:
       solid-runtime:
         applies-to: version-updates
