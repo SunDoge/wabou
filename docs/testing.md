@@ -900,10 +900,12 @@ Type checking uses TypeScript 7. The AST-based identity/package checks import
 TypeScript 7 package does not expose the legacy JavaScript compiler API. Keep this
 separation until those checks migrate to a supported parser API.
 
-The released Vello Hybrid 0.2 GPU backend requires wgpu 29. Keep the direct wgpu
-dependency and `wgpu_context` 0.9 on that same generation; `wgpu_context` 0.10 uses
-wgpu 30 and cannot exchange GPU handles with the current Hybrid backend. winit
-0.31 beta.3 replaces path-based file-drop events with asynchronous data transfer;
-keep beta.2 until the native input adapter and drag/drop contracts are migrated.
+The Vello GPU 0.3 backend (formerly Vello Hybrid) requires wgpu 30. Keep the
+direct wgpu dependency and `wgpu_context` 0.10 on that same generation, along
+with `vello_common` 0.3 and `glifo` 0.4. Public Wabou crate/feature names and
+capture provenance labels retain `vello-hybrid` for compatibility; the renderer
+implementation uses `vello_gpu`. winit 0.31 beta.3 replaces path-based file-drop
+events with asynchronous data transfer; keep beta.2 until the native input
+adapter and drag/drop contracts are migrated.
 Dependabot temporarily ignores these incompatible updates rather than repeatedly
 opening isolated upgrades. Remove each ignore when its migration is implemented.

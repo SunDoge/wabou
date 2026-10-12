@@ -11,10 +11,10 @@ use skrifa::raw::TableProvider;
 use vello_common::geometry::RectU16;
 use vello_common::kurbo::{Affine, Diagonal2, Shape};
 use vello_common::paint::{ImageId, ImageSource, PaintType};
-use vello_common::peniko::{Brush, BrushRef, Color, Fill, ImageQuality, StyleRef};
-use vello_hybrid::{
-    RenderSettings, RenderSize, RenderTargetConfig, Renderer, Resources, SampleRect,
-    Scene as HybridScene, TextureBindings,
+use vello_common::peniko::{Brush, BrushRef, Color, Fill, ImageQuality, ImageSampler, StyleRef};
+use vello_gpu::{
+    ClearSettings, RenderSettings, RenderSize, RenderTargetConfig, Renderer, Resources,
+    Scene as HybridScene, TargetInit, TextureBindings,
 };
 use wgpu::{CommandEncoderDescriptor, CompositeAlphaMode, Features, PresentMode, TextureFormat};
 #[cfg(not(target_vendor = "apple"))]
@@ -29,6 +29,18 @@ const DEFAULT_TEXTURE_FORMAT: TextureFormat = TextureFormat::Rgba8Unorm;
 #[cfg(not(target_os = "android"))]
 const DEFAULT_TEXTURE_FORMAT: TextureFormat = TextureFormat::Bgra8Unorm;
 const DEFAULT_TOLERANCE: f64 = 0.1;
+
+pub(crate) fn render_size(width: u32, height: u32) -> crate::Result<RenderSize> {
+    if width == 0 || height == 0 {
+        return Err(crate::Error::InvalidRenderSize { width, height });
+    }
+    Ok(RenderSize {
+        width: u16::try_from(width)
+            .map_err(|_| crate::Error::InvalidRenderSize { width, height })?,
+        height: u16::try_from(height)
+            .map_err(|_| crate::Error::InvalidRenderSize { width, height })?,
+    })
+}
 
 struct SharedWindow(Arc<dyn Window>);
 
@@ -49,6 +61,7 @@ struct ActiveRenderer {
     resources: Resources,
     surface: SurfaceRenderer<'static>,
     shaders: ShaderRenderer,
+    depth_view: wgpu::TextureView,
 }
 
 #[derive(Clone, Copy)]
@@ -102,6 +115,13 @@ impl HybridWindowRenderer {
     }
 
     pub(crate) fn resume(&mut self, window: Arc<dyn Window>, width: u32, height: u32) {
+        let target_size = match render_size(width, height) {
+            Ok(size) => size,
+            Err(error) => {
+                tracing::warn!(%error, "skipping invalid Vello GPU window dimensions");
+                return;
+            }
+        };
         tracing::debug!(
             target: "wabou::renderer",
             transparent = self.transparent,
@@ -192,28 +212,41 @@ impl HybridWindowRenderer {
             surface_renderer.device(),
             &RenderTargetConfig {
                 format: DEFAULT_TEXTURE_FORMAT,
-                width,
-                height,
+                width: target_size.width,
+                height: target_size.height,
             },
             RenderSettings::default(),
         );
         if created_device {
             self.context.device_pool.push(device);
         }
-        self.scene = HybridScene::new(width as u16, height as u16);
+        self.scene = HybridScene::new(target_size.width, target_size.height);
         let shaders = ShaderRenderer::new(surface_renderer.device());
+        let depth_view =
+            Renderer::create_depth_texture_view(surface_renderer.device(), &target_size);
         self.active = Some(ActiveRenderer {
             renderer,
             resources,
             surface: surface_renderer,
             shaders,
+            depth_view,
         });
     }
 
     pub(crate) fn resize(&mut self, width: u32, height: u32) {
-        self.scene.reset_and_resize(width as u16, height as u16);
+        let target_size = match render_size(width, height) {
+            Ok(size) => size,
+            Err(error) => {
+                tracing::warn!(%error, "skipping invalid Vello GPU window dimensions");
+                return;
+            }
+        };
+        self.scene
+            .reset_and_resize(target_size.width, target_size.height);
         if let Some(active) = &mut self.active {
             active.surface.resize(width, height);
+            active.depth_view =
+                Renderer::create_depth_texture_view(active.surface.device(), &target_size);
         }
     }
 
@@ -224,6 +257,13 @@ impl HybridWindowRenderer {
         height: u32,
         base_color: Color,
     ) {
+        let target_size = match render_size(width, height) {
+            Ok(size) => size,
+            Err(error) => {
+                tracing::warn!(%error, "skipping invalid Vello GPU window dimensions");
+                return;
+            }
+        };
         let Some(active) = &mut self.active else {
             return;
         };
@@ -234,7 +274,8 @@ impl HybridWindowRenderer {
                 .create_command_encoder(&CommandEncoderDescriptor {
                     label: Some("Wabou Vello Hybrid frame"),
                 });
-        self.scene.reset_and_resize(width as u16, height as u16);
+        self.scene
+            .reset_and_resize(target_size.width, target_size.height);
         let mut texture_bindings = TextureBindings::new();
         self.image_frame = self.image_frame.wrapping_add(1);
         active.shaders.begin_frame();
@@ -274,9 +315,11 @@ impl HybridWindowRenderer {
                 active.surface.device(),
                 active.surface.queue(),
                 &mut encoder,
-                &RenderSize { width, height },
+                &target_size,
                 &view,
+                Some(&active.depth_view),
                 &texture_bindings,
+                TargetInit::Clear(ClearSettings::default()),
             )
             .expect("failed to render Vello Hybrid frame");
         finish_image_frame(
@@ -416,9 +459,9 @@ impl PaintScene for HybridPainter<'_> {
         match self.layers.pop() {
             Some(LayerKind::Layer) => {
                 self.scene.pop_layer();
-                self.scene.pop_clip_path();
+                self.scene.pop_clip();
             }
-            Some(LayerKind::Clip) => self.scene.pop_clip_path(),
+            Some(LayerKind::Clip) => self.scene.pop_clip(),
             None => {}
         }
     }
@@ -494,7 +537,10 @@ impl PaintScene for HybridPainter<'_> {
                         id: glyph.id,
                         x: glyph.x,
                         y: glyph.y,
-                    }));
+                    }))
+                    .unwrap_or_else(
+                        |error| tracing::warn!(%error, "Vello GPU glyph rendering failed"),
+                    );
             }
             StyleRef::Stroke(stroke) => {
                 self.scene.set_stroke(stroke.clone());
@@ -509,7 +555,10 @@ impl PaintScene for HybridPainter<'_> {
                         id: glyph.id,
                         x: glyph.x,
                         y: glyph.y,
-                    }));
+                    }))
+                    .unwrap_or_else(
+                        |error| tracing::warn!(%error, "Vello GPU glyph rendering failed"),
+                    );
             }
         }
     }
@@ -552,14 +601,24 @@ impl PaintScene for HybridPainter<'_> {
                     f64::from(effect.logical_size[1]) / f64::from(physical_height),
                 ),
         );
-        self.scene.draw_texture_rects(
-            texture_id,
-            ImageQuality::High,
-            [SampleRect {
-                source_region: RectU16::new(0, 0, physical_width, physical_height),
-                transform: Affine::IDENTITY,
-            }],
-        );
+        self.scene.set_paint(vello_common::paint::Image {
+            image: ImageSource::external_texture(
+                texture_id,
+                RectU16::new(0, 0, physical_width, physical_height),
+                true,
+            ),
+            sampler: ImageSampler {
+                quality: ImageQuality::High,
+                ..Default::default()
+            },
+        });
+        self.scene.set_paint_transform(Affine::IDENTITY);
+        self.scene.fill_rect(&vello_common::kurbo::Rect::new(
+            0.0,
+            0.0,
+            f64::from(physical_width),
+            f64::from(physical_height),
+        ));
     }
 }
 
@@ -572,10 +631,13 @@ pub(crate) struct HybridImageRenderer {
     image_cache: FxHashMap<u64, CachedImage>,
     image_frame: u64,
     shaders: ShaderRenderer,
+    depth_view: wgpu::TextureView,
 }
 
 impl HybridImageRenderer {
     pub(crate) fn new(width: u32, height: u32) -> Self {
+        let target_size = render_size(width, height)
+            .expect("offscreen dimensions must be validated before rendering");
         let mut context =
             WGPUContext::with_features_and_limits(Some(Features::CLEAR_TEXTURE), None);
         let buffer = pollster::block_on(context.create_buffer_renderer(
@@ -590,19 +652,21 @@ impl HybridImageRenderer {
             buffer.device(),
             &RenderTargetConfig {
                 format: TextureFormat::Rgba8Unorm,
-                width,
-                height,
+                width: target_size.width,
+                height: target_size.height,
             },
         );
         let shaders = ShaderRenderer::new(buffer.device());
+        let depth_view = Renderer::create_depth_texture_view(buffer.device(), &target_size);
         Self {
             buffer,
             renderer,
             resources,
-            scene: HybridScene::new(width as u16, height as u16),
+            scene: HybridScene::new(target_size.width, target_size.height),
             image_cache: FxHashMap::default(),
             image_frame: 0,
             shaders,
+            depth_view,
         }
     }
 
@@ -613,19 +677,24 @@ impl HybridImageRenderer {
         height: u32,
         base_color: Color,
     ) -> Vec<u8> {
+        let target_size = render_size(width, height)
+            .expect("offscreen dimensions must be validated before rendering");
         if self.buffer.size().width != width || self.buffer.size().height != height {
             self.buffer.resize(width, height);
+            self.depth_view =
+                Renderer::create_depth_texture_view(self.buffer.device(), &target_size);
             (self.renderer, self.resources) = Renderer::new(
                 self.buffer.device(),
                 &RenderTargetConfig {
                     format: TextureFormat::Rgba8Unorm,
-                    width,
-                    height,
+                    width: target_size.width,
+                    height: target_size.height,
                 },
             );
             self.image_cache.clear();
         }
-        self.scene.reset_and_resize(width as u16, height as u16);
+        self.scene
+            .reset_and_resize(target_size.width, target_size.height);
         let mut encoder = self
             .buffer
             .device()
@@ -665,9 +734,11 @@ impl HybridImageRenderer {
                 self.buffer.device(),
                 self.buffer.queue(),
                 &mut encoder,
-                &RenderSize { width, height },
+                &target_size,
                 &self.buffer.target_texture_view(),
+                Some(&self.depth_view),
                 &texture_bindings,
+                TargetInit::Clear(ClearSettings::default()),
             )
             .expect("failed to render Vello Hybrid scene offscreen");
         finish_image_frame(

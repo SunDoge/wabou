@@ -44,7 +44,7 @@ unicode-segmentation = "1.12"
 url = { workspace = true }
 usvg.workspace = true
 vello-common.workspace = true
-vello-hybrid = { workspace = true, features = ["wgpu", "wgpu_default", "text"] }
+vello-gpu = { workspace = true, features = ["wgpu", "wgpu_default", "text"] }
 wgpu.workspace = true
 wgpu-context.workspace = true
 winit = { workspace = true }

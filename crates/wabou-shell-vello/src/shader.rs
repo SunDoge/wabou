@@ -315,7 +315,7 @@ impl ShaderRenderer {
         device: &Device,
         queue: &Queue,
         encoder: &mut CommandEncoder,
-        bindings: &mut vello_hybrid::TextureBindings,
+        bindings: &mut vello_gpu::TextureBindings,
     ) -> TextureId {
         let pipeline = self.pipeline(device, &effect.source);
         let target = self

@@ -20,6 +20,7 @@ pub fn render_to_image(
     height: u32,
     base_color: Color,
 ) -> crate::Result<image::RgbaImage> {
+    crate::renderer_backend::render_size(width, height)?;
     let mut renderer = IMAGE_RENDERER
         .get_or_init(|| Mutex::new(HybridImageRenderer::new(width, height)))
         .lock()
@@ -87,6 +88,17 @@ mod tests {
         kurbo::{Affine, Rect},
         peniko::Fill,
     };
+
+    #[test]
+    fn rejects_unrepresentable_render_sizes_before_gpu_initialization() {
+        let scene = Scene::new();
+        for (width, height) in [(0, 20), (20, 0), (65536, 20), (20, 65536)] {
+            assert!(matches!(
+                render_to_image(&scene, width, height, Color::TRANSPARENT),
+                Err(crate::Error::InvalidRenderSize { .. })
+            ));
+        }
+    }
 
     #[test]
     fn direct_hybrid_renderer_replays_wabou_scene() {

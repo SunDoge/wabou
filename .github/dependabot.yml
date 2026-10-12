@@ -15,10 +15,6 @@ updates:
     ignore:
       - dependency-name: winit
         versions: ["0.31.0-beta.3"]
-      - dependency-name: wgpu
-        versions: [">=30, <31"]
-      - dependency-name: wgpu_context
-        versions: [">=0.10, <0.11"]
     groups:
       rust-minor-patch:
         applies-to: version-updates

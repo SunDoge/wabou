@@ -4,7 +4,7 @@ use std::time::{Duration, Instant};
 
 use serde_json::json;
 use vello_common::{kurbo::Rect, peniko::Color};
-use vello_hybrid::{RenderSize, RenderTargetConfig, Renderer, Scene, TextureBindings};
+use vello_gpu::{RenderSize, RenderTargetConfig, Renderer, Scene, TextureBindings};
 use wgpu_context::{BufferRenderer, BufferRendererConfig, DeviceHandle, WGPUContext};
 
 fn checkpoint(stage: &str, details: serde_json::Value) {

@@ -1,6 +1,6 @@
 // Check independently: workspace feature unification would hide accidental links.
 const forbidden =
-  /\b(?:wabou-runtime|wabou-runtime-library|wabou-backend-vello-hybrid|wabou-shell-vello|blockui-runtime|rquickjs|rquickjs-core|rquickjs-sys|vello|vello_hybrid|wgpu|winit) v/;
+  /\b(?:wabou-runtime|wabou-runtime-library|wabou-backend-vello-hybrid|wabou-shell-vello|blockui-runtime|rquickjs|rquickjs-core|rquickjs-sys|vello|vello_hybrid|vello_gpu|wgpu|winit) v/;
 for (const name of [
   "wabou-launch",
   "wabou-capability-sdk",

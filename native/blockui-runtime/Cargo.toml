@@ -15,7 +15,7 @@ serde_json = { version = "1", optional = true }
 
 wabou-shell-vello = { path = "../../crates/wabou-shell-vello", optional = true, features = ["widgets"] }
 taffy = { version = "0.14.0", optional = true }
-vello-common = { package = "vello_common", version = "0.2.0", optional = true }
+vello-common = { package = "vello_common", version = "0.3.0", optional = true }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 libloading = "0.8.9"

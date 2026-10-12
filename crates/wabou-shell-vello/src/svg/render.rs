@@ -3,7 +3,7 @@
 
 use vello_common::kurbo::{Affine, BezPath, PathEl, Rect};
 use vello_common::peniko::{BlendMode, Compose, Fill, Mix};
-use vello_hybrid::Scene;
+use vello_gpu::Scene;
 
 use super::{Error, RenderReport, UnsupportedFeature, convert};
 
