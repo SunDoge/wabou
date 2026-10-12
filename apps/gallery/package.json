@@ -13,7 +13,7 @@
     "@wabou/ui": "workspace:*",
     "d3-scale": "4.0.2",
     "d3-shape": "3.2.0",
-    "lucide-static": "1.53.0",
+    "lucide-static": "1.54.0",
     "solid-js": "2.0.0-rc.14"
   },
   "devDependencies": {

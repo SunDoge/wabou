@@ -60,7 +60,7 @@
     "@tanstack/router-core": "1.171.34",
     "@tanstack/table-core": "^9.2.8",
     "@wabou/core": "workspace:*",
-    "lucide-static": "1.53.0",
+    "lucide-static": "1.54.0",
     "marked": "18.1.0",
     "motion-dom": "13.1.1",
     "remend": "1.4.0",
