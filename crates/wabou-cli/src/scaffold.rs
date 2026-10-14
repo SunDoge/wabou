@@ -9,6 +9,10 @@ type Result<T> = std::result::Result<T, Box<dyn Error>>;
 
 pub(crate) const DEFAULT_REVISION: &str = concat!("v", env!("CARGO_PKG_VERSION"));
 
+pub(crate) fn default_revision() -> String {
+    DEFAULT_REVISION.to_owned()
+}
+
 const TEMPLATE_FILES: &[(&str, &str)] = &[
     (
         ".gitignore",

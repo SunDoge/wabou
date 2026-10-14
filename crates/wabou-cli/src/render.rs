@@ -5,14 +5,13 @@
 
 use std::path::{Path, PathBuf};
 
-use clap::ArgMatches;
 use serde::{Deserialize, Serialize};
 
 use super::config::{BuildProfile, bundle_path};
 use super::project::App;
 use super::{Result, ensure, frontend};
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq, clap::ValueEnum)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, usage_rs::ValueEnum)]
 pub(super) enum HeadlessColorScheme {
     Light,
     Dark,
@@ -128,62 +127,66 @@ pub(super) fn actions(
     actions
 }
 
-pub(super) fn actions_from_matches(matches: &ArgMatches) -> Option<Vec<RenderAction>> {
-    let (name, render) = matches.subcommand()?;
-    if name != "render" {
+pub(super) fn actions_from_argv<T: AsRef<std::ffi::OsStr>>(
+    arguments: &[T],
+) -> Option<Vec<RenderAction>> {
+    if arguments.get(1)?.as_ref() != "render" {
         return None;
     }
-    let mut indexed = Vec::<(usize, RenderAction)>::new();
-    if let (Some(indices), Some(values)) =
-        (render.indices_of("click"), render.get_many::<f64>("click"))
-    {
-        let positions = indices.collect::<Vec<_>>();
-        let values = values.copied().collect::<Vec<_>>();
-        for (positions, values) in positions
-            .as_chunks::<2>()
-            .0
-            .iter()
-            .zip(values.as_chunks::<2>().0.iter())
-        {
-            indexed.push((positions[0], RenderAction::Click([values[0], values[1]])));
+    let mut actions = Vec::new();
+    let mut index = 2;
+    while index < arguments.len() {
+        let argument = arguments[index].as_ref().to_string_lossy();
+        if argument == "--" {
+            break;
         }
-    }
-    if let (Some(indices), Some(values)) =
-        (render.indices_of("wheel"), render.get_many::<f64>("wheel"))
-    {
-        let positions = indices.collect::<Vec<_>>();
-        let values = values.copied().collect::<Vec<_>>();
-        for (positions, values) in positions
-            .as_chunks::<4>()
-            .0
-            .iter()
-            .zip(values.as_chunks::<4>().0.iter())
-        {
-            indexed.push((
-                positions[0],
-                RenderAction::Wheel([values[0], values[1], values[2], values[3]]),
-            ));
+        let (kind, inline) = argument
+            .split_once('=')
+            .map_or((argument.as_ref(), None), |(kind, value)| {
+                (kind, Some(value))
+            });
+        let arity = match kind {
+            "--click" => 2,
+            "--wheel" => 4,
+            "--key" | "--text" => 1,
+            _ => {
+                index += 1;
+                continue;
+            }
+        };
+        let mut values = Vec::with_capacity(arity);
+        if let Some(value) = inline {
+            values.push(value.to_owned());
         }
+        while values.len() < arity && index + 1 < arguments.len() {
+            index += 1;
+            values.push(arguments[index].as_ref().to_string_lossy().into_owned());
+        }
+        if values.len() == arity {
+            match kind {
+                "--click" => {
+                    if let [Ok(x), Ok(y)] = [values[0].parse(), values[1].parse()] {
+                        actions.push(RenderAction::Click([x, y]));
+                    }
+                }
+                "--wheel" => {
+                    if let [Ok(x), Ok(y), Ok(dx), Ok(dy)] = [
+                        values[0].parse(),
+                        values[1].parse(),
+                        values[2].parse(),
+                        values[3].parse(),
+                    ] {
+                        actions.push(RenderAction::Wheel([x, y, dx, dy]));
+                    }
+                }
+                "--key" => actions.push(RenderAction::Key(values.remove(0))),
+                "--text" => actions.push(RenderAction::Text(values.remove(0))),
+                _ => unreachable!(),
+            }
+        }
+        index += 1;
     }
-    if let (Some(index), Some(value)) = (
-        render
-            .indices_of("text")
-            .and_then(|mut values| values.next()),
-        render.get_one::<String>("text"),
-    ) {
-        indexed.push((index, RenderAction::Text(value.clone())));
-    }
-    if let (Some(indices), Some(values)) =
-        (render.indices_of("key"), render.get_many::<String>("key"))
-    {
-        indexed.extend(
-            indices
-                .zip(values)
-                .map(|(index, value)| (index, RenderAction::Key(value.clone()))),
-        );
-    }
-    indexed.sort_by_key(|(index, _)| *index);
-    Some(indexed.into_iter().map(|(_, action)| action).collect())
+    Some(actions)
 }
 
 pub(super) fn prepare_frontend(

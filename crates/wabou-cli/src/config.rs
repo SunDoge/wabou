@@ -1,13 +1,12 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use clap::ValueEnum;
 use serde::Deserialize;
 
 use super::Result;
 use super::project::App;
 
-#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, ValueEnum)]
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, usage_rs::ValueEnum)]
 #[serde(rename_all = "lowercase")]
 pub(super) enum PackageFormat {
     App,

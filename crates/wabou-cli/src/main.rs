@@ -9,7 +9,6 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 
-use clap::{Args, CommandFactory, FromArgMatches, Parser, Subcommand};
 use serde_json::Value;
 
 mod artifact;
@@ -68,321 +67,316 @@ use project::{
     App, ensure_javascript_dependencies, ensure_workspace_package_exports, find_app_root,
     find_workspace, load_app,
 };
-use render::{
-    HeadlessColorScheme, RenderOptions, actions as fallback_render_actions,
-    actions_from_matches as render_actions_from_matches,
-};
+use render::{HeadlessColorScheme, RenderOptions, actions as fallback_render_actions};
 
 type Result<T> = std::result::Result<T, Box<dyn Error>>;
 
-#[derive(Parser)]
-#[command(name = "wabou", version, about = "Build and run Wabou applications")]
+#[derive(usage_rs::Cli)]
+#[usage(
+    bin = "wabou",
+    version,
+    about = "Build and run Wabou applications",
+    unknown_flags = "error"
+)]
 struct Cli {
-    #[command(subcommand)]
+    #[usage(subcommand)]
     command: Commands,
 }
 
-#[derive(Args, Clone, Debug, Default, Eq, PartialEq)]
+#[derive(usage_rs::Args, Clone, Debug, Default, Eq, PartialEq)]
 struct CargoFeatures {
     /// Cargo features enabled for the application host. May be repeated or comma-separated.
-    #[arg(
-        long = "features",
-        value_name = "FEATURES",
-        value_delimiter = ',',
-        action = clap::ArgAction::Append
-    )]
+    #[usage(long = "features", value_name = "FEATURES", delimiter = ',')]
     values: Vec<String>,
 }
 
-#[derive(Subcommand)]
+#[derive(usage_rs::Subcommands)]
 enum Commands {
     /// Run a JSON application configuration through the linked fallback host.
     Launch {
-        #[arg(value_name = "CONFIG_JSON")]
+        #[usage(value_name = "CONFIG_JSON")]
         config: PathBuf,
     },
     /// Build a portable application using the embedded runtime and capability libraries.
     Bundle {
-        #[arg(value_name = "APP")]
+        #[usage(value_name = "APP")]
         app: Option<PathBuf>,
-        #[arg(long)]
+        #[usage(long)]
         config: Option<PathBuf>,
-        #[arg(long)]
+        #[usage(long)]
         out: PathBuf,
     },
     /// Create a standalone Wabou application pinned to a Git revision.
     New {
-        #[arg(value_name = "PATH")]
+        #[usage(value_name = "PATH")]
         path: PathBuf,
         /// Git repository used for the embedded Wabou submodule.
-        #[arg(long, default_value = "https://github.com/SunDoge/wabou.git")]
+        #[usage(long, default = "https://github.com/SunDoge/wabou.git")]
         wabou_repository: String,
         /// Tag or commit used for the embedded Wabou submodule.
-        #[arg(long, default_value = scaffold::DEFAULT_REVISION)]
+        #[usage(long, default_fn = scaffold::default_revision, default_note = "current CLI version")]
         wabou_ref: String,
     },
     /// Check the development environment and Wabou project setup.
     Doctor {
-        #[arg(value_name = "APP")]
+        #[usage(value_name = "APP")]
         app: Option<PathBuf>,
     },
     /// Verify an application's Rust, TypeScript, bindings, and behavior contracts.
     Check {
-        #[arg(value_name = "APP")]
+        #[usage(value_name = "APP")]
         app: Option<PathBuf>,
         /// Skip discovered `tests/**/*.behavior.ts` scenarios.
-        #[arg(long)]
+        #[usage(long)]
         skip_behavior: bool,
-        #[command(flatten)]
+        #[usage(flatten)]
         cargo_features: CargoFeatures,
     },
     /// Remove generated JavaScript bundles and frontend caches.
     Clean {
-        #[arg(value_name = "APP")]
+        #[usage(value_name = "APP")]
         app: Option<PathBuf>,
         /// Also remove dist directories for local packages/* workspaces.
-        #[arg(long)]
+        #[usage(long)]
         packages: bool,
     },
     /// Start Vite, the Rust host, and live HMR.
     Dev {
-        #[arg(value_name = "APP")]
+        #[usage(value_name = "APP")]
         app: Option<PathBuf>,
-        #[arg(long, default_value_t = 5173)]
+        #[usage(long, default = "5173")]
         port: u16,
-        #[arg(long)]
+        #[usage(long)]
         devtools: bool,
         /// Show the renderer-native performance HUD.
-        #[arg(long)]
+        #[usage(long)]
         hud: bool,
         /// Capability/window launch configuration; Vite source is set by dev.
-        #[arg(long, value_name = "JSON")]
+        #[usage(long, value_name = "JSON")]
         runtime_config: Option<PathBuf>,
         /// Vite mode used to select an application-owned development entry.
-        #[arg(long)]
+        #[usage(long)]
         mode: Option<String>,
-        #[command(flatten)]
+        #[usage(flatten)]
         cargo_features: CargoFeatures,
     },
     /// Build the frontend bundle and Rust host.
     Build {
-        #[arg(value_name = "APP")]
+        #[usage(value_name = "APP")]
         app: Option<PathBuf>,
-        #[arg(long)]
+        #[usage(long)]
         release: bool,
         /// Generate a source map even for a release build.
-        #[arg(long, value_name = "BOOL", num_args = 0..=1, default_missing_value = "true")]
+        #[usage(long, value_name = "BOOL", num_args = 0..=1, default_missing = "true")]
         source_map: Option<bool>,
-        #[command(flatten)]
+        #[usage(flatten)]
         cargo_features: CargoFeatures,
     },
     /// Build a release application and create native installers or bundles.
     Package {
-        #[arg(value_name = "APP")]
+        #[usage(value_name = "APP")]
         app: Option<PathBuf>,
         /// Override the formats declared in wabou.toml.
-        #[arg(long, value_enum, action = clap::ArgAction::Append)]
+        #[usage(long, value_enum)]
         format: Vec<PackageFormat>,
         /// Build the Rust host with cargo-zigbuild for this target before packaging.
-        #[arg(long, value_name = "TARGET")]
+        #[usage(long, value_name = "TARGET")]
         target: Option<String>,
-        #[command(flatten)]
+        #[usage(flatten)]
         cargo_features: CargoFeatures,
     },
     /// Build the frontend bundle and run the Rust host.
     Run {
-        #[arg(value_name = "APP")]
+        #[usage(value_name = "APP")]
         app: Option<PathBuf>,
-        #[arg(long)]
+        #[usage(long)]
         release: bool,
         /// Generate a source map even for a release build.
-        #[arg(long, value_name = "BOOL", num_args = 0..=1, default_missing_value = "true")]
+        #[usage(long, value_name = "BOOL", num_args = 0..=1, default_missing = "true")]
         source_map: Option<bool>,
         /// Write an opt-in performance trace for Perfetto/Chrome tracing.
-        #[arg(long, value_name = "JSON")]
+        #[usage(long, value_name = "JSON")]
         profile_trace: Option<PathBuf>,
         /// Show the renderer-native performance HUD.
-        #[arg(long)]
+        #[usage(long)]
         hud: bool,
-        #[command(flatten)]
+        #[usage(flatten)]
         cargo_features: CargoFeatures,
     },
     /// Run TypeScript behavior tests against the native host.
     Test {
         /// Scenario file, test directory, or Wabou application directory.
         /// Defaults to the current application's tests directory.
-        #[arg(value_name = "TARGET", conflicts_with = "replay")]
+        #[usage(value_name = "TARGET", conflicts = "--replay")]
         scenario: Option<PathBuf>,
         /// Run the scenario against an application outside the current directory.
-        #[arg(long, value_name = "PATH")]
+        #[usage(long, value_name = "PATH")]
         app: Option<PathBuf>,
         /// Replay a JSON action trace produced by an earlier test run.
-        #[arg(long, value_name = "TRACE_OR_REPORT", conflicts_with = "scenario")]
+        #[usage(long, value_name = "TRACE_OR_REPORT", conflicts = "scenario")]
         replay: Option<PathBuf>,
         /// Replay through the named test in a report, including prior state-building actions.
-        #[arg(long, value_name = "NAME", requires = "replay")]
+        #[usage(long, value_name = "NAME", requires = "--replay")]
         replay_test: Option<String>,
         /// Directory for the JSON report and replayable action trace.
-        #[arg(long, value_name = "DIR")]
+        #[usage(long, value_name = "DIR")]
         artifacts: Option<PathBuf>,
         /// Vite mode used to select an application-owned test fixture.
-        #[arg(long)]
+        #[usage(long)]
         mode: Option<String>,
         /// Render a PNG after failure; requires an available wgpu backend.
-        #[arg(long)]
+        #[usage(long)]
         failure_screenshot: bool,
         /// Use the real platform event loop instead of the deterministic backend.
-        #[arg(long)]
+        #[usage(long)]
         native: bool,
         /// Environment variable passed explicitly to the application host.
-        #[arg(long = "env", value_name = "KEY=VALUE")]
+        #[usage(long = "env", value_name = "KEY=VALUE")]
         host_env: Vec<String>,
-        #[command(flatten)]
+        #[usage(flatten)]
         cargo_features: CargoFeatures,
     },
     /// Generate or verify Rust-owned TypeScript capability bindings.
     Bindings {
-        #[command(subcommand)]
+        #[usage(subcommand)]
         command: BindingsCommand,
     },
     /// Render an application to a PNG without opening a native window.
     Render {
-        #[arg(value_name = "APP")]
+        #[usage(value_name = "APP")]
         app: Option<PathBuf>,
-        #[arg(long, value_name = "PNG")]
+        #[usage(long, value_name = "PNG")]
         out: PathBuf,
-        #[arg(long, default_value_t = 1440)]
+        #[usage(long, default = "1440")]
         width: u32,
-        #[arg(long, default_value_t = 900)]
+        #[usage(long, default = "900")]
         height: u32,
         /// Logical window id exposed to the application during boot.
-        #[arg(long, default_value_t = 1)]
+        #[usage(long, default = "1")]
         window_id: u64,
         /// Device scale used for widget encoding and physical PNG dimensions.
-        #[arg(long, default_value_t = 1.0)]
+        #[usage(long, default = "1.0")]
         scale_factor: f64,
         /// System color scheme exposed to the application during capture.
-        #[arg(long, value_enum, default_value = "light")]
+        #[usage(long, value_enum, default = "light")]
         color_scheme: HeadlessColorScheme,
         /// Vite mode used to select an application-owned render fixture.
-        #[arg(long)]
+        #[usage(long)]
         mode: Option<String>,
         /// Render one named application layout fixture.
-        #[arg(
+        #[usage(
             long,
             value_name = "ID",
-            conflicts_with_all = ["mode", "with_host", "width", "height", "scale_factor"]
+            conflicts("--mode", "--with-host", "--width", "--height", "--scale-factor")
         )]
         fixture: Option<String>,
         /// Reuse an existing debug frontend bundle instead of invoking Vite.
-        #[arg(long)]
+        #[usage(long)]
         skip_build: bool,
         /// Run the application's Rust host registrations before capturing.
-        #[arg(long)]
+        #[usage(long)]
         with_host: bool,
         /// Run an authored @wabou/test scenario before a host-backed capture.
-        #[arg(long, value_name = "TS", requires = "with_host")]
+        #[usage(long, value_name = "TS", requires = "--with-host")]
         scenario: Option<PathBuf>,
         /// Keep driving frames before capture so finite UI transitions can settle.
         /// Use zero to capture the earliest available frame.
-        #[arg(long, default_value_t = 1_000)]
+        #[usage(long, default = "1000")]
         wait_ms: u64,
         /// Write non-blocking headless build/scene timing samples as JSON.
-        #[arg(long, value_name = "JSON")]
+        #[usage(long, value_name = "JSON")]
         metrics: Option<PathBuf>,
         /// Write the DevTools tree snapshot represented by the rendered frame.
-        #[arg(long, value_name = "JSON")]
+        #[usage(long, value_name = "JSON")]
         snapshot: Option<PathBuf>,
         /// Number of headless frames sampled for --metrics.
-        #[arg(long, default_value_t = 20, requires = "metrics")]
+        #[usage(long, default = "20", requires = "--metrics")]
         samples: usize,
         /// Dispatch a primary click at X Y before capture.
-        #[arg(
+        #[usage(
             long,
             num_args = 2,
-            value_names = ["X", "Y"],
-            action = clap::ArgAction::Append
+            value_names = ["X", "Y"]
         )]
         click: Vec<f64>,
         /// Dispatch a wheel gesture at X Y with horizontal and vertical deltas.
-        #[arg(
+        #[usage(
             long,
             num_args = 4,
-            value_names = ["X", "Y", "DX", "DY"],
-            action = clap::ArgAction::Append
+            value_names = ["X", "Y", "DX", "DY"]
         )]
         wheel: Vec<f64>,
         /// Dispatch a named key press before capture, in command-line action order.
-        #[arg(long, value_name = "KEY", action = clap::ArgAction::Append)]
+        #[usage(long, value_name = "KEY")]
         key: Vec<String>,
         /// Commit text before capture, in command-line action order.
-        #[arg(long, requires = "click")]
+        #[usage(long, requires = "--click")]
         text: Option<String>,
         /// Cargo features enabled for the application host used by `--with-host`.
-        #[command(flatten)]
+        #[usage(flatten)]
         cargo_features: CargoFeatures,
     },
     /// Evaluate JavaScript, Style IR, and Taffy through the Vello Hybrid backend.
     Layout {
-        #[arg(value_name = "APP")]
+        #[usage(value_name = "APP")]
         app: Option<PathBuf>,
         /// Write the structured retained layout snapshot.
-        #[arg(long, value_name = "JSON")]
+        #[usage(long, value_name = "JSON")]
         out: PathBuf,
         /// Render every fixture described by a batch manifest in an isolated runtime.
-        #[arg(long, value_name = "JSON")]
+        #[usage(long, value_name = "JSON")]
         batch: Option<PathBuf>,
         /// Mount one application-owned layout fixture.
-        #[arg(long, value_name = "ID", conflicts_with = "batch")]
+        #[usage(long, value_name = "ID", conflicts = "--batch")]
         fixture: Option<String>,
-        #[arg(long, default_value_t = 1440)]
+        #[usage(long, default = "1440")]
         width: u32,
-        #[arg(long, default_value_t = 900)]
+        #[usage(long, default = "900")]
         height: u32,
         /// Logical window id exposed to the application during boot.
-        #[arg(long, default_value_t = 1)]
+        #[usage(long, default = "1")]
         window_id: u64,
         /// Logical device scale used by text and native-widget measurement.
-        #[arg(long, default_value_t = 1.0)]
+        #[usage(long, default = "1.0")]
         scale_factor: f64,
         /// System color scheme exposed to layout fixtures.
-        #[arg(long, value_enum, default_value = "light")]
+        #[usage(long, value_enum, default = "light")]
         color_scheme: HeadlessColorScheme,
         /// Vite mode used to select an application-owned fixture.
-        #[arg(long)]
+        #[usage(long)]
         mode: Option<String>,
         /// Reuse an existing debug frontend bundle instead of invoking Vite.
-        #[arg(long)]
+        #[usage(long)]
         skip_build: bool,
         /// Keep driving layout frames so finite reactive work can settle.
-        #[arg(long, default_value_t = 0)]
+        #[usage(long, default = "0")]
         wait_ms: u64,
     },
     /// Open the native Wabou inspector.
     Devtools,
     /// Inspect a running Wabou application from the terminal.
     Inspect {
-        #[arg(long, env = "WABOU_DEVTOOLS_SOCKET")]
+        #[usage(long, env = "WABOU_DEVTOOLS_SOCKET")]
         socket: Option<PathBuf>,
-        #[command(subcommand)]
+        #[usage(subcommand)]
         command: InspectCommand,
     },
 }
 
-#[derive(Clone, Debug, Eq, PartialEq, Subcommand)]
+#[derive(Clone, Debug, Eq, PartialEq, usage_rs::Subcommands)]
 enum BindingsCommand {
     /// Rewrite the committed TypeScript declarations.
     Write {
-        #[arg(value_name = "APP")]
+        #[usage(value_name = "APP")]
         app: Option<PathBuf>,
-        #[command(flatten)]
+        #[usage(flatten)]
         cargo_features: CargoFeatures,
     },
     /// Fail when the committed declarations differ from Rust types.
     Check {
-        #[arg(value_name = "APP")]
+        #[usage(value_name = "APP")]
         app: Option<PathBuf>,
-        #[command(flatten)]
+        #[usage(flatten)]
         cargo_features: CargoFeatures,
     },
 }
@@ -424,9 +418,9 @@ fn resolve_behavior_test_target(
 }
 
 fn main() -> Result<()> {
-    let matches = Cli::command().get_matches();
-    let render_actions = render_actions_from_matches(&matches);
-    let cli = Cli::from_arg_matches(&matches)?;
+    let arguments = env::args_os().collect::<Vec<_>>();
+    let render_actions = render::actions_from_argv(&arguments);
+    let cli = Cli::parse();
     let cwd = env::current_dir()?;
     let resolve_app = |app_path: Option<&Path>| {
         let workspace = find_workspace(&cwd)?;
@@ -1476,16 +1470,23 @@ fn ensure(status: ExitStatus, label: &str) -> Result<()> {
 
 #[cfg(test)]
 mod tests {
+    use std::ffi::OsStr;
+
+    fn parse<'a>(
+        arguments: &'a [&'a str],
+    ) -> std::result::Result<Cli, usage_rs::Error<'static, 'a>> {
+        let arguments = arguments.iter().map(OsStr::new).collect::<Vec<_>>();
+        Cli::try_parse_from(&arguments)
+    }
+
     #[test]
     fn embedded_launch_and_bundle_commands() {
         assert!(matches!(
-            Cli::try_parse_from(["wabou", "launch", "app.json"])
-                .unwrap()
-                .command,
+            parse(&["wabou", "launch", "app.json"]).unwrap().command,
             Commands::Launch { .. }
         ));
         assert!(matches!(
-            Cli::try_parse_from([
+            parse(&[
                 "wabou",
                 "bundle",
                 "app",
@@ -1501,8 +1502,8 @@ mod tests {
     }
     #[test]
     fn fallback_host_config_can_override_project_configuration() {
-        assert!(Cli::try_parse_from(["wabou", "dev", "--runtime-config", "app.json"]).is_ok());
-        let parsed = Cli::try_parse_from(["wabou", "dev", "--runtime-config", "app.json"]).unwrap();
+        assert!(parse(&["wabou", "dev", "--runtime-config", "app.json"]).is_ok());
+        let parsed = parse(&["wabou", "dev", "--runtime-config", "app.json"]).unwrap();
         assert!(matches!(
             parsed.command,
             Commands::Dev {
@@ -1543,7 +1544,7 @@ mod tests {
     fn parses_doctor_application_path() {
         let Cli {
             command: Commands::Doctor { app },
-        } = Cli::try_parse_from(["wabou", "doctor", "apps/gallery"]).unwrap()
+        } = parse(&["wabou", "doctor", "apps/gallery"]).unwrap()
         else {
             panic!("expected doctor command");
         };
@@ -1556,7 +1557,7 @@ mod tests {
             command: Commands::Check {
                 app, skip_behavior, ..
             },
-        } = Cli::try_parse_from(["wabou", "check", "apps/gallery", "--skip-behavior"]).unwrap()
+        } = parse(&["wabou", "check", "apps/gallery", "--skip-behavior"]).unwrap()
         else {
             panic!("expected check command");
         };
@@ -1568,7 +1569,7 @@ mod tests {
     fn parses_clean_scope() {
         let Cli {
             command: Commands::Clean { app, packages },
-        } = Cli::try_parse_from(["wabou", "clean", "apps/gallery", "--packages"]).unwrap()
+        } = parse(&["wabou", "clean", "apps/gallery", "--packages"]).unwrap()
         else {
             panic!("expected clean command");
         };
@@ -1580,7 +1581,7 @@ mod tests {
     fn parses_explicit_behavior_host_environment() {
         let Cli {
             command: Commands::Test { host_env, .. },
-        } = Cli::try_parse_from([
+        } = parse(&[
             "wabou",
             "test",
             "apps/pi-agent",
@@ -1603,7 +1604,7 @@ mod tests {
     fn parses_and_forwards_repeated_application_features() {
         let Cli {
             command: Commands::Run { cargo_features, .. },
-        } = Cli::try_parse_from([
+        } = parse(&[
             "wabou",
             "run",
             "apps/gallery",
@@ -1641,7 +1642,7 @@ mod tests {
                     wabou_repository,
                     wabou_ref,
                 },
-        } = Cli::try_parse_from([
+        } = parse(&[
             "wabou",
             "new",
             "hello-wabou",
@@ -1665,7 +1666,7 @@ mod tests {
                     wabou_ref,
                     ..
                 },
-        } = Cli::try_parse_from(["wabou", "new", "hello-wabou"]).unwrap()
+        } = parse(&["wabou", "new", "hello-wabou"]).unwrap()
         else {
             panic!("expected new command");
         };
@@ -1729,7 +1730,7 @@ mod tests {
                     key,
                     ..
                 },
-        } = Cli::try_parse_from(["wabou", "render", "--out", "capture.png"]).unwrap()
+        } = parse(&["wabou", "render", "--out", "capture.png"]).unwrap()
         else {
             panic!("expected render command");
         };
@@ -1763,7 +1764,7 @@ mod tests {
                     key,
                     ..
                 },
-        } = Cli::try_parse_from([
+        } = parse(&[
             "wabou",
             "render",
             "--out",
@@ -1820,7 +1821,7 @@ mod tests {
     fn render_accepts_a_named_layout_fixture_and_rejects_viewport_overrides() {
         let Cli {
             command: Commands::Render { fixture, .. },
-        } = Cli::try_parse_from([
+        } = parse(&[
             "wabou",
             "render",
             "apps/pi-agent",
@@ -1836,7 +1837,7 @@ mod tests {
         assert_eq!(fixture.as_deref(), Some("conversation/complete-turn"));
 
         assert!(
-            Cli::try_parse_from([
+            parse(&[
                 "wabou",
                 "render",
                 "apps/pi-agent",
@@ -1855,7 +1856,7 @@ mod tests {
     fn render_accepts_a_debug_snapshot_with_or_without_host() {
         let Cli {
             command: Commands::Render { snapshot, .. },
-        } = Cli::try_parse_from([
+        } = parse(&[
             "wabou",
             "render",
             "apps/gallery",
@@ -1877,7 +1878,7 @@ mod tests {
                     with_host,
                     ..
                 },
-        } = Cli::try_parse_from([
+        } = parse(&[
             "wabou",
             "render",
             "apps/gallery",
@@ -1907,8 +1908,7 @@ mod tests {
                     wait_ms,
                     ..
                 },
-        } = Cli::try_parse_from(["wabou", "layout", "apps/gallery", "--out", "layout.json"])
-            .unwrap()
+        } = parse(&["wabou", "layout", "apps/gallery", "--out", "layout.json"]).unwrap()
         else {
             panic!("expected layout command");
         };
@@ -1922,7 +1922,7 @@ mod tests {
     fn layout_accepts_a_single_runtime_fixture_batch() {
         let Cli {
             command: Commands::Layout { batch, mode, .. },
-        } = Cli::try_parse_from([
+        } = parse(&[
             "wabou",
             "layout",
             "apps/gallery",
@@ -1946,7 +1946,7 @@ mod tests {
         for name in ["write", "check"] {
             let Cli {
                 command: Commands::Bindings { command },
-            } = Cli::try_parse_from(["wabou", "bindings", name, "apps/gallery"]).unwrap()
+            } = parse(&["wabou", "bindings", name, "apps/gallery"]).unwrap()
             else {
                 panic!("expected bindings command");
             };
@@ -1977,7 +1977,7 @@ mod tests {
                     native,
                     ..
                 },
-        } = Cli::try_parse_from([
+        } = parse(&[
             "wabou",
             "test",
             "--app",
@@ -2015,7 +2015,7 @@ mod tests {
                     native,
                     ..
                 },
-        } = Cli::try_parse_from([
+        } = parse(&[
             "wabou",
             "test",
             "--replay",
@@ -2031,11 +2031,11 @@ mod tests {
         assert_eq!(replay.as_deref(), Some(Path::new("report.json")));
         assert_eq!(replay_test.as_deref(), Some("submits form"));
         assert!(!native);
-        assert!(Cli::try_parse_from(["wabou", "test", "--replay-test", "orphan"]).is_err());
+        assert!(parse(&["wabou", "test", "--replay-test", "orphan"]).is_err());
 
         let Cli {
             command: Commands::Test { scenario, .. },
-        } = Cli::try_parse_from(["wabou", "test"]).unwrap()
+        } = parse(&["wabou", "test"]).unwrap()
         else {
             panic!("expected test command");
         };
@@ -2210,7 +2210,7 @@ mod tests {
                     target,
                     ..
                 },
-        } = Cli::try_parse_from([
+        } = parse(&[
             "wabou",
             "package",
             "apps/warden-desktop",
@@ -2232,7 +2232,7 @@ mod tests {
     fn parses_zig_package_target() {
         let Cli {
             command: Commands::Package { target, .. },
-        } = Cli::try_parse_from([
+        } = parse(&[
             "wabou",
             "package",
             "apps/gallery",
@@ -2248,7 +2248,7 @@ mod tests {
 
     #[test]
     fn rejects_the_removed_app_dir_flag() {
-        assert!(Cli::try_parse_from(["wabou", "run", "--app-dir", "apps/gallery"]).is_err());
+        assert!(parse(&["wabou", "run", "--app-dir", "apps/gallery"]).is_err());
     }
 
     #[test]
@@ -2420,8 +2420,7 @@ out-dir = "dist/resources"
                     release,
                     ..
                 },
-        } = Cli::try_parse_from(["wabou", "run", "--release", "--profile-trace", "trace.json"])
-            .unwrap()
+        } = parse(&["wabou", "run", "--release", "--profile-trace", "trace.json"]).unwrap()
         else {
             panic!("expected run command");
         };
@@ -2433,13 +2432,13 @@ out-dir = "dist/resources"
     fn parses_native_performance_hud_for_dev_and_run() {
         let Cli {
             command: Commands::Dev { hud: dev_hud, .. },
-        } = Cli::try_parse_from(["wabou", "dev", "--hud"]).unwrap()
+        } = parse(&["wabou", "dev", "--hud"]).unwrap()
         else {
             panic!("expected dev command");
         };
         let Cli {
             command: Commands::Run { hud: run_hud, .. },
-        } = Cli::try_parse_from(["wabou", "run", "--hud"]).unwrap()
+        } = parse(&["wabou", "run", "--hud"]).unwrap()
         else {
             panic!("expected run command");
         };
@@ -2456,7 +2455,7 @@ out-dir = "dist/resources"
                     release,
                     ..
                 },
-        } = Cli::try_parse_from(["wabou", "build", "--release", "--source-map"]).unwrap()
+        } = parse(&["wabou", "build", "--release", "--source-map"]).unwrap()
         else {
             panic!("expected build command");
         };
@@ -2465,7 +2464,7 @@ out-dir = "dist/resources"
 
         let Cli {
             command: Commands::Build { source_map, .. },
-        } = Cli::try_parse_from(["wabou", "build", "--source-map=false"]).unwrap()
+        } = parse(&["wabou", "build", "--source-map=false"]).unwrap()
         else {
             panic!("expected build command");
         };
@@ -2681,33 +2680,36 @@ out-dir = "dist/resources"
 
     #[test]
     fn render_actions_preserve_cross_option_command_line_order() {
-        let matches = Cli::command()
-            .try_get_matches_from([
-                "wabou",
-                "render",
-                "apps/gallery",
-                "--out",
-                "/tmp/gallery.png",
-                "--wheel",
-                "120",
-                "700",
-                "0",
-                "650",
-                "--click",
-                "75",
-                "203",
-                "--key",
-                "Enter",
-            ])
-            .unwrap();
+        let arguments = [
+            "wabou",
+            "render",
+            "apps/gallery",
+            "--out",
+            "/tmp/gallery.png",
+            "--wheel",
+            "120",
+            "700",
+            "0",
+            "650",
+            "--click",
+            "75",
+            "203",
+            "--key",
+            "Enter",
+        ];
 
         assert_eq!(
-            render_actions_from_matches(&matches).unwrap(),
+            render::actions_from_argv(&arguments).unwrap(),
             vec![
                 RenderAction::Wheel([120.0, 700.0, 0.0, 650.0]),
                 RenderAction::Click([75.0, 203.0]),
                 RenderAction::Key("Enter".into()),
             ]
+        );
+        assert_eq!(render::actions_from_argv(&["wabou", "run"]), None);
+        assert_eq!(
+            render::actions_from_argv(&["wabou", "render", "--", "--key"]),
+            Some(Vec::new())
         );
     }
 }

@@ -6,6 +6,11 @@ tags.
 
 ## Unreleased
 
+### Changed
+
+- Replace clap with usage-rs for the `wabou` command-line interface while
+  preserving existing commands, validation, and ordered render actions.
+
 ## 0.1.0-alpha.4 - 2026-10-14
 
 ### Changed

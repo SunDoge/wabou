@@ -5,7 +5,6 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::str::FromStr;
 
-use clap::Subcommand;
 use serde_json::{Value, json};
 use wabou_devtools::{DebugCaptureCase, NodeKey, call, discover_socket, empty_params, request};
 
@@ -15,24 +14,24 @@ use super::frontend;
 use super::project::load_app;
 use super::{Result, ensure};
 
-#[derive(Subcommand)]
+#[derive(usage_rs::Subcommands)]
 pub(super) enum InspectCommand {
     Status,
     /// Start/stop bounded performance recording (clears previous records).
     ProfileMode {
-        #[arg(value_parser = ["off", "counters", "trace"])]
+        #[usage(choices("off", "counters", "trace"))]
         mode: String,
-        #[arg(long, default_value_t = 16384)]
+        #[usage(long, default = "16384")]
         capacity: usize,
     },
     /// Export a Perfetto-compatible timeline and duration summaries.
     Profile {
-        #[arg(long)]
+        #[usage(long)]
         output: Option<PathBuf>,
     },
     Query {
         query: String,
-        #[arg(long, default_value_t = 100)]
+        #[usage(long, default = "100")]
         limit: usize,
     },
     Node {
@@ -44,18 +43,18 @@ pub(super) enum InspectCommand {
         y: f32,
     },
     Frames {
-        #[arg(long, default_value_t = 20)]
+        #[usage(long, default = "20")]
         limit: usize,
     },
     /// Validate the latest retained snapshot for broken framework invariants.
     Validate,
     Screenshot,
     Capture {
-        #[arg(long)]
+        #[usage(long)]
         x: Option<f32>,
-        #[arg(long)]
+        #[usage(long)]
         y: Option<f32>,
-        #[arg(long, value_name = "DIR")]
+        #[usage(long, value_name = "DIR")]
         output: PathBuf,
     },
 }

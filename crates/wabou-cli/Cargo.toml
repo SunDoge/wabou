@@ -11,7 +11,7 @@ name = "wabou"
 path = "src/main.rs"
 
 [dependencies]
-clap = { workspace = true, features = ["derive", "env"] }
+usage-rs.workspace = true
 ctrlc = "3.5"
 fs4 = "0.13.1"
 process-wrap = { version = "10.0.1", features = ["std"] }

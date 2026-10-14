@@ -73,7 +73,7 @@ arboard = { version = "3.6.1", default-features = false, features = ["wayland-da
 arc-swap = "1.9.2"
 bitflags = "2.13.2"
 bytemuck = "1.25.2"
-clap = "4.6.7"
+usage-rs = "7.0.0"
 directories = "6.0.0"
 flume = "0.12.0"
 glifo = "0.4"
