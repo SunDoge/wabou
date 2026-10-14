@@ -67,31 +67,30 @@ wabou-tray = { path = "crates/wabou-tray" }
 
 arboard = { version = "3.6.1", default-features = false, features = ["wayland-data-control"] }
 arc-swap = "1.9.2"
-bitflags = "2.10.0"
-bon = "3.9.3"
-bytemuck = "1.24.0"
-clap = "4.6.4"
+bitflags = "2.13.2"
+bytemuck = "1.25.2"
+clap = "4.6.7"
 directories = "6.0.0"
 flume = "0.12.0"
 glifo = "0.4"
 getrandom = "0.4.3"
 gix = { version = "0.87.1", default-features = false, features = ["sha1", "status"] }
-gosh-dl = { version = "0.5.0", default-features = false, features = ["http", "storage", "torrent"] }
-ignore = "0.4.25"
+gosh-dl = { version = "0.6.3", default-features = false, features = ["http", "storage", "torrent"] }
+ignore = "0.4.33"
 image = { version = "0.25", default-features = false }
-jiff = "0.2.35"
-lru = "0.18.1"
+jiff = "0.2.38"
+lru = "0.18.5"
 naga = { version = "30", features = ["wgsl-in"] }
 notify-rust = "=4.18.2"
 oar-ocr = "0.9.2"
-open = "5.4.0"
+open = "5.4.4"
 parley = { version = "0.12", features = ["bytemuck", "complex-scripts"] }
-reqwest = { version = "0.13.4", default-features = false, features = ["json", "rustls"] }
+reqwest = { version = "0.13.5", default-features = false, features = ["json", "rustls"] }
 rfd = "0.17.2"
 serde = "1"
 serde_ignored = "0.1.14"
 serde_json = "1"
-sha1 = "0.10.6"
+sha1 = "0.10.7"
 sha2 = "0.10.9"
 similar = "3.2.0"
 slotmap = "1.1.1"
@@ -116,7 +115,7 @@ wgpu = "30"
 wgpu-context = { package = "wgpu_context", version = "0.10.0" }
 which = "6.0.3"
 winit = "=0.31.0-beta.2"
-zeroize = "1.9.0"
+zeroize = "1.9.1"
 
 [profile.dev]
 opt-level = 1

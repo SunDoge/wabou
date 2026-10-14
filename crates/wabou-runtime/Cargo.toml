@@ -36,7 +36,7 @@ sha1 = { workspace = true }
 sha2 = { workspace = true }
 snafu = { workspace = true }
 slotmap = { workspace = true }
-sourcemap = "9.2.2"
+sourcemap = "9.3.2"
 sys-locale = { workspace = true }
 tempfile = "3"
 tokio = { workspace = true, features = ["fs", "io-util", "net", "macros", "rt-multi-thread", "sync", "time"] }
@@ -59,7 +59,7 @@ tungstenite = {
   optional = true
 }
 # vite feature only
-ureq = { version = "3.3", default-features = false, optional = true }
+ureq = { version = "3.4", default-features = false, optional = true }
 
 [features]
 default = []

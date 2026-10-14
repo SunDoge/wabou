@@ -81,7 +81,7 @@ impl BrowserRuntime {
         Ok(Self {
             renderer: WebRenderer::new(canvas).map_err(err)?,
             atoms: AtomPool::default(),
-            stylesheet: wabou_style::stylesheet::StyleSheet::builder().build(),
+            stylesheet: wabou_style::stylesheet::StyleSheet::default(),
             nodes,
             text: TextContext::new(),
             placed: Vec::new(),

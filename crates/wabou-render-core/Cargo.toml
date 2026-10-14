@@ -13,7 +13,7 @@ bitflags = { workspace = true }
 bytemuck.workspace = true
 glifo = { workspace = true, features = ["png"] }
 image = { workspace = true, features = ["ico", "jpeg", "png", "webp"] }
-lru = "0.18.1"
+lru = "0.18.5"
 naga.workspace = true
 parley = { workspace = true }
 rustc-hash = "2"
@@ -22,7 +22,7 @@ serde_json.workspace = true
 snafu = { workspace = true }
 taffy = { workspace = true, features = ["content_size", "parse"] }
 tracing = { workspace = true }
-unicode-segmentation = "1.12"
+unicode-segmentation = "1.13"
 usvg.workspace = true
 vello-common.workspace = true
 vello-gpu = { workspace = true, features = ["text"] }

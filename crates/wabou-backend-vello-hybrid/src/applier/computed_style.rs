@@ -313,15 +313,15 @@ fn explicit_color_theme_switch_re_resolves_semantic_tokens() {
             ),
         ]),
     };
-    *applier.runtime.pending_css.as_ref().unwrap().borrow_mut() = Some(StylesheetUpdate::Ir(
-        StyleSheet::builder()
-            .color_themes(themes)
-            .rules(vec![rule(
+    *applier.runtime.pending_css.as_ref().unwrap().borrow_mut() =
+        Some(StylesheetUpdate::Ir(StyleSheet {
+            color_themes: Some(themes),
+            rules: vec![rule(
                 "bg-surface",
                 vec![declaration("background-color", color_token("surface"))],
-            )])
-            .build(),
-    ));
+            )],
+            ..StyleSheet::default()
+        }));
 
     let mut text = vello_shell::TextContext::new();
     applier.build_frame(&mut text, 800, 600);
@@ -499,9 +499,11 @@ fn runtime_utility_fallback_uses_the_stylesheet_theme() {
     });
     let mut theme = wabou_style::Theme::default();
     theme.colors.insert("brand".to_string(), 0x336699ff);
-    *applier.runtime.pending_css.as_ref().unwrap().borrow_mut() = Some(StylesheetUpdate::Ir(
-        crate::style_ir::StyleSheet::builder().theme(theme).build(),
-    ));
+    *applier.runtime.pending_css.as_ref().unwrap().borrow_mut() =
+        Some(StylesheetUpdate::Ir(crate::style_ir::StyleSheet {
+            theme,
+            ..StyleSheet::default()
+        }));
 
     let mut text = vello_shell::TextContext::new();
     applier.build_frame(&mut text, 800, 600);
@@ -684,11 +686,11 @@ fn ignored_runtime_class_never_becomes_a_utility_diagnostic() {
             },
         ],
     });
-    *applier.runtime.pending_css.as_ref().unwrap().borrow_mut() = Some(StylesheetUpdate::Ir(
-        StyleSheet::builder()
-            .ignored_class_patterns(vec!["lucide-*".into()])
-            .build(),
-    ));
+    *applier.runtime.pending_css.as_ref().unwrap().borrow_mut() =
+        Some(StylesheetUpdate::Ir(StyleSheet {
+            ignored_class_patterns: vec!["lucide-*".into()],
+            ..StyleSheet::default()
+        }));
 
     let mut text = vello_shell::TextContext::new();
     applier.build_frame(&mut text, 800, 600);
@@ -748,9 +750,11 @@ fn runtime_utility_fallback_resolves_semantic_theme_colors_as_tokens() {
             ),
         ]),
     };
-    *applier.runtime.pending_css.as_ref().unwrap().borrow_mut() = Some(StylesheetUpdate::Ir(
-        StyleSheet::builder().color_themes(themes).build(),
-    ));
+    *applier.runtime.pending_css.as_ref().unwrap().borrow_mut() =
+        Some(StylesheetUpdate::Ir(StyleSheet {
+            color_themes: Some(themes),
+            ..StyleSheet::default()
+        }));
 
     let mut text = vello_shell::TextContext::new();
     applier.build_frame(&mut text, 800, 600);
