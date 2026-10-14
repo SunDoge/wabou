@@ -88,6 +88,13 @@ stays on the Vite/Solid HMR path and does not rebuild Rust. Generate the
 Rust-owned client declarations with `wabou bindings write` and verify them with
 `wabou bindings check`.
 
+The installed `wabou` executable is an orchestration CLI and does not link the
+renderer, QuickJS, Winit, or wgpu. Headless `render` and `layout` commands are
+forwarded to the separate `wabou-render` helper, as are the compatibility
+`launch` and `bundle` paths for frontend-only projects. In the Wabou source
+workspace the CLI builds that helper on first use; binary distributions should
+place it next to `wabou`.
+
 The CLI invokes the project-local Vite executable directly. An application
 does not need specially named `build` or `dev` package scripts; those scripts
 are optional shortcuts such as `"build": "wabou build"`. Build customization

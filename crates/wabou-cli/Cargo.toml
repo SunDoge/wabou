@@ -10,6 +10,11 @@ repository = "https://github.com/SunDoge/wabou"
 name = "wabou"
 path = "src/main.rs"
 
+[[bin]]
+name = "wabou-render"
+path = "src/render_main.rs"
+required-features = ["embedded-renderer"]
+
 [dependencies]
 usage-rs.workspace = true
 ctrlc = "3.5"
@@ -29,6 +34,11 @@ wabou-shell-api.workspace = true
 wabou-runtime-library = { path = "../wabou-runtime-library", optional = true }
 
 [features]
-# External-runtime launchers can use --no-default-features.
-default = ["embedded-renderer"]
-embedded-renderer = ["dep:wabou-backend-vello-hybrid", "dep:wabou-shell-vello", "dep:wabou-runtime-library"]
+default = []
+# The engine is isolated in the wabou-render helper. Normal CLI commands do not
+# compile or link the renderer, QuickJS, Winit, or wgpu.
+embedded-renderer = [
+  "dep:wabou-backend-vello-hybrid",
+  "dep:wabou-shell-vello",
+  "dep:wabou-runtime-library",
+]

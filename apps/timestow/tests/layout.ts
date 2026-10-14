@@ -7,7 +7,7 @@ import {
 
 const command = process.env.WABOU_LAYOUT_COMMAND
   ? process.env.WABOU_LAYOUT_COMMAND.split(" ").filter(Boolean)
-  : [resolve("target/release/wabou")];
+  : [resolve("target/release/wabou-render")];
 const selected = process.argv.slice(2).filter(Boolean);
 const selectCases = (...cases: LayoutFixtureCase[]): LayoutFixtureCase[] =>
   selected.length === 0

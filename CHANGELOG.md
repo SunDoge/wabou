@@ -10,6 +10,8 @@ tags.
 
 - Replace clap with usage-rs for the `wabou` command-line interface while
   preserving existing commands, validation, and ordered render actions.
+- Keep the main `wabou` executable free of the renderer engine and forward
+  headless rendering to an independently built `wabou-render` helper.
 
 ## 0.1.0-alpha.4 - 2026-10-14
 

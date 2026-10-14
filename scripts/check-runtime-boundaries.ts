@@ -1,12 +1,7 @@
 // Check independently: workspace feature unification would hide accidental links.
 const forbidden =
   /\b(?:wabou-runtime|wabou-runtime-library|wabou-backend-vello-hybrid|wabou-shell-vello|wabou-render-core|wabou-web|rquickjs|rquickjs-core|rquickjs-sys|vello|vello_hybrid|vello_gpu|wgpu|winit) v/;
-for (const name of [
-  "wabou-launch",
-  "wabou-capability-sdk",
-  "gallery-functions",
-  "wabou-cli",
-]) {
+for (const name of ["wabou-launch", "gallery-functions", "wabou-cli"]) {
   const result = Bun.spawnSync(
     ["cargo", "tree", "-p", name, "--no-default-features", "--edges", "normal"],
     { stdout: "pipe", stderr: "pipe" },

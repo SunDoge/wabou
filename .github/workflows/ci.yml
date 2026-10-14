@@ -139,11 +139,11 @@ jobs:
       - name: Verify component layout
         if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/v')
         env:
-          WABOU_LAYOUT_COMMAND: target/debug/wabou
+          WABOU_LAYOUT_COMMAND: target/debug/wabou-render
         run: |
-          # Native behavior already built the debug CLI. This is normally a
-          # no-op, but makes the layout step independently reproducible.
-          cargo build -p wabou-cli
+          # Build the engine-backed helper independently from the lightweight
+          # wabou orchestration CLI used by the other jobs.
+          cargo build -p wabou-cli --features embedded-renderer --bin wabou-render
           bun run test:layout:quick
 
       - name: Upload native-test diagnostics

@@ -189,7 +189,7 @@ import { renderLayoutFixtures } from "@wabou/test/layout/node";
 const report = await renderLayoutFixtures({
   app: "apps/gallery",
   mode: "layout-test",
-  command: ["target/release/wabou"],
+  command: ["target/release/wabou-render"],
   cases: [
     { id: "button/default", width: 400, height: 300 },
     { id: "card/compact", width: 800, height: 600, scaleFactor: 2 },
@@ -207,7 +207,7 @@ duplicating the registry:
 await renderLayoutFixtures({
   app: "apps/gallery",
   mode: "layout-test",
-  command: ["target/release/wabou"],
+  command: ["target/release/wabou-render"],
   cases: "all",
   checks: ["visible-overflow", "sibling-collision"],
   overrides: {

@@ -24,7 +24,7 @@
     "test:app:pi-agent:native": "bun run scripts/test-pi-agent.ts native",
     "test:app:pi-agent:real": "bun run scripts/test-pi-agent.ts real",
     "test": "bun --conditions=browser --conditions=wabou-source test packages apps/*/ui scripts && vitest run && bun --conditions=browser --conditions=development --conditions=wabou-source test packages/core/src/renderer/hmr.test.ts",
-    "test:layout": "bun run packages:build && cargo build --release -p wabou-cli && bun --conditions=wabou-source run apps/gallery/tests/layout.ts && bun --conditions=wabou-source run apps/pi-agent/tests/layout.ts && bun --conditions=wabou-source run apps/timestow/tests/layout.ts && bun --conditions=wabou-source run apps/meow-starter/tests/layout.ts",
+    "test:layout": "bun run packages:build && cargo build --release -p wabou-cli --features embedded-renderer --bin wabou-render && bun --conditions=wabou-source run apps/gallery/tests/layout.ts && bun --conditions=wabou-source run apps/pi-agent/tests/layout.ts && bun --conditions=wabou-source run apps/timestow/tests/layout.ts && bun --conditions=wabou-source run apps/meow-starter/tests/layout.ts",
     "test:layout:quick": "bun run scripts/test-layout.ts",
     "test:paint-reference": "bun run scripts/compare-browser-paint.ts",
     "test:render-compare": "bun run scripts/compare-browser-paint.ts",

@@ -17,11 +17,11 @@ cargo run -p meow-starter-wabou
 Render deterministic 1x and HiDPI captures without opening a window:
 
 ```sh
-target/release/wabou render apps/meow-starter \
+target/release/wabou-render render apps/meow-starter \
   --width 1000 --height 680 \
   --out /tmp/meow-starter-wabou.png
 
-target/release/wabou render apps/meow-starter \
+target/release/wabou-render render apps/meow-starter \
   --width 1000 --height 680 --scale-factor 2 \
   --out /tmp/meow-starter-wabou@2x.png
 ```
