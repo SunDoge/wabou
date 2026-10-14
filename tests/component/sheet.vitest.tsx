@@ -27,7 +27,7 @@ test("slides a solid edge panel fully out before unmounting it", async () => {
   expect(sheet.className).toContain("w-[400px]");
   expect(sheet.className).toContain("border-l");
   expect(sheet.transform).toEqual([1, 0, 0, 1, 400, 0]);
-  expect(sheet.attribute("__wabou_native_transition")).toBeNull();
+  expect(sheet.attribute("__wabou_native_motion")).toBeNull();
   await screen.advanceTime(220);
   expect(sheet.transform).toEqual([1, 0, 0, 1, 0, 0]);
   screen.getByRole("button", { name: "Done" }).click();
@@ -38,7 +38,7 @@ test("slides a solid edge panel fully out before unmounting it", async () => {
     kind: 5,
     value: 0,
   });
-  expect(sheet.parent?.attribute("__wabou_native_transition")).toBeNull();
+  expect(sheet.parent?.attribute("__wabou_native_motion")).toBeNull();
   await screen.advanceTime(100);
   expect(screen.queryByRole("dialog")).not.toBeNull();
   expect((sheet.transform?.[4] ?? 0) > 0).toBe(true);

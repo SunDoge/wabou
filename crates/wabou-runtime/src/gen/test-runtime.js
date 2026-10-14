@@ -9843,6 +9843,11 @@ ${footer}`;
   }
   installConsoleFooter();
 
+  // packages/core/src/browser-dom.ts
+  function hasBrowserDom() {
+    return typeof document !== "undefined" && document.nodeType === 9;
+  }
+
   // packages/core/src/protocol/resource-key.ts
   var U32_MAX = 4294967295;
   var resourceKeyFamily = Symbol("wabou.resource-key-family");
@@ -10190,6 +10195,7 @@ ${footer}`;
     buf = new Uint8Array(4096);
     cursor = 8;
     count = 0;
+    operationStart = 8;
     seq = 0;
     atoms = new Map;
     frameStrings = new Map;
@@ -10199,6 +10205,13 @@ ${footer}`;
         const hostIntern = globalThis.__wabou_intern;
         return hostIntern ? hostIntern(value) : fallbackIntern(value);
       });
+    }
+    reset() {
+      this.cursor = 8;
+      this.count = 0;
+      this.seq = 0;
+      this.atoms.clear();
+      this.frameStrings.clear();
     }
     ensure(n2) {
       if (this.cursor + n2 <= this.buf.length)
@@ -10247,6 +10260,8 @@ ${footer}`;
       }
       const bytes = utf8Encode(s2);
       if (bytes.length >= 65535) {
+        this.cursor = this.operationStart;
+        this.count--;
         throw new RangeError(`protocol string is ${bytes.length} bytes; maximum is 65534`);
       }
       this.u16(bytes.length);
@@ -10272,6 +10287,7 @@ ${footer}`;
       if (this.count === 4294967295) {
         throw new RangeError("protocol frame cannot contain more than 2^32-1 ops");
       }
+      this.operationStart = this.cursor;
       this.u8(op);
       this.count++;
     }
@@ -12619,26 +12635,15 @@ ${footer}`;
       writer.setProjectionBoundary(node.id, value === true);
       return;
     }
-    if (name === "nativeTransition") {
+    if (name === "nativeMotion") {
       if (value == null || value === false) {
-        writer.removeAttribute(node.id, "__wabou_native_transition");
+        writer.removeAttribute(node.id, "__wabou_native_motion");
         return;
       }
       if (!isStructuredConfigValue(value)) {
-        throw new TypeError("nativeTransition must be a plain object");
+        throw new TypeError("nativeMotion must be a plain object");
       }
-      writer.setAttribute(node.id, "__wabou_native_transition", stringifyWidgetConfig(value));
-      return;
-    }
-    if (name === "nativeSpring") {
-      if (value == null || value === false) {
-        writer.removeAttribute(node.id, "__wabou_native_spring");
-        return;
-      }
-      if (!isStructuredConfigValue(value)) {
-        throw new TypeError("nativeSpring must be a plain object");
-      }
-      writer.setAttribute(node.id, "__wabou_native_spring", stringifyWidgetConfig(value));
+      writer.setAttribute(node.id, "__wabou_native_motion", stringifyWidgetConfig(value));
       return;
     }
     if (name === "floatingPosition") {
@@ -13193,8 +13198,10 @@ ${detail}`);
   function __wabou_has_raf() {
     return animationFrames.hasPending();
   }
-  globalThis.requestAnimationFrame = requestAnimationFrameImpl;
-  globalThis.cancelAnimationFrame = cancelAnimationFrameImpl;
+  if (!hasBrowserDom()) {
+    globalThis.requestAnimationFrame = requestAnimationFrameImpl;
+    globalThis.cancelAnimationFrame = cancelAnimationFrameImpl;
+  }
   globalThis.__wabou_tick = __wabou_tick;
   globalThis.__wabou_has_raf = __wabou_has_raf;
 
@@ -13293,13 +13300,17 @@ ${detail}`);
     run();
     return id;
   }
-  globalThis.setTimeout = (callback, delay = 0, ...args) => schedule2(callback, Number(delay) || 0, false, args);
-  globalThis.setInterval = (callback, delay = 0, ...args) => schedule2(callback, Number(delay) || 0, true, args);
+  if (!hasBrowserDom()) {
+    globalThis.setTimeout = (callback, delay = 0, ...args) => schedule2(callback, Number(delay) || 0, false, args);
+    globalThis.setInterval = (callback, delay = 0, ...args) => schedule2(callback, Number(delay) || 0, true, args);
+  }
   function clearTimer(id) {
     active2.delete(id);
   }
-  globalThis.clearTimeout = clearTimer;
-  globalThis.clearInterval = clearTimer;
+  if (!hasBrowserDom()) {
+    globalThis.clearTimeout = clearTimer;
+    globalThis.clearInterval = clearTimer;
+  }
 
   // packages/core/src/glue/resize-observer.ts
   var registryKey = Symbol.for("@wabou/core.resize-observers");
@@ -13363,7 +13374,8 @@ ${detail}`);
       }
     }
   }
-  globalThis.ResizeObserver = WabouResizeObserver;
+  if (!hasBrowserDom())
+    globalThis.ResizeObserver = WabouResizeObserver;
 
   // packages/core/src/glue/host-frame.ts
   var RECORD_HEADER_LEN = 8;
@@ -13569,10 +13581,13 @@ ${detail}`);
   var PRIMARY = 1 << 4;
   var VALID_MASK = SHIFT | CONTROL | ALT | META | PRIMARY;
   function decodeKeyboardModifiers(value) {
-    if (!Number.isInteger(value) || value < 0 || (value & ~VALID_MASK) !== 0) {
+    if (typeof value !== "number" || !Number.isInteger(value)) {
       throw new TypeError("keyboard modifier bits are invalid");
     }
     const bits = value;
+    if (bits < 0 || (bits & ~VALID_MASK) !== 0) {
+      throw new TypeError("keyboard modifier bits are invalid");
+    }
     return Object.freeze({
       bits: bits & (SHIFT | CONTROL | ALT | META),
       shift: (bits & SHIFT) !== 0,

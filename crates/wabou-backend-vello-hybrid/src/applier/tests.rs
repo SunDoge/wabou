@@ -2106,13 +2106,9 @@ fn ime_queries_transform_between_widget_and_window_coordinates() {
     );
 }
 
-#[path = "tests/overlay_cases.rs"]
 mod overlay_cases;
-#[path = "tests/projection_cases.rs"]
 mod projection_cases;
-#[path = "tests/runtime_cases.rs"]
 mod runtime_cases;
-#[path = "tests/text_cases.rs"]
 mod text_cases;
 fn nk(lo: u32) -> NodeKey {
     NodeKey::new(lo, 1)

@@ -30,6 +30,8 @@ const SHARED_PACKAGES = new Set([
 ]);
 
 const HYBRID_BACKEND_PACKAGES = new Set([
+  "wabou-render-core",
+  "wabou-web",
   "wabou-backend-vello-hybrid",
   "wabou-shell-vello",
   "wabou-terminal-vello",
@@ -64,8 +66,6 @@ function formalWorkspacePackages(metadata: CargoMetadata): CargoPackage[] {
   return metadata.packages.filter(
     (pkg) =>
       !pkg.name.startsWith("wabou-legacy-") &&
-      !pkg.name.startsWith("blockui") &&
-      !["ui-contract", "wabou-native", "native-counter"].includes(pkg.name) &&
       (members.size === 0 || (pkg.id !== undefined && members.has(pkg.id))),
   );
 }

@@ -33,20 +33,15 @@ pub use wabou_database::{
     KvStore, Versionstamp as KvVersionstamp,
 };
 pub use wabou_runtime::RgbaColor as Color;
-#[cfg(feature = "capability-modules")]
-pub use wabou_runtime::capability_development::{
-    CapabilityDevelopment, DevelopmentStatus, ModuleProject,
-};
-#[cfg(feature = "capability-modules")]
-pub use wabou_runtime::capability_module::{CapabilityModule, HostOperations, ModuleInvocation};
 pub use wabou_runtime::rquickjs;
 pub use wabou_runtime::{
     AppDirectories, AppDirectoryConfig, HostMessage, HostMessageContext, HostMessageError,
     HostMessageHandle, HostMessagePayload, HostMessageRouter, HostService, HostServiceContext,
     HostServiceHandle, ManagedHostService, NativeCapability, PersistentJsonCache,
-    RevisionedHostPublication, RevisionedHostPublisher, RevisionedHostSnapshot, SerialWorker,
-    WindowBackground, WindowInputMode, WindowLevel, WindowOptions, WindowResourceKey,
-    initial_window_resource_key, managed_host_service,
+    ResidentResources, ResourceKey, ResourceRegistry, RevisionedHostPublication,
+    RevisionedHostPublisher, RevisionedHostSnapshot, SerialWorker, WindowBackground,
+    WindowInputMode, WindowLevel, WindowOptions, WindowResourceKey, initial_window_resource_key,
+    managed_host_service,
 };
 #[cfg(feature = "tray")]
 pub use wabou_tray::{SystemTray, TrayContext, TrayImage};

@@ -221,6 +221,8 @@ pub struct JsRuntime {
     /// Runtime-scoped structural strings. Rust owns ID allocation; JS caches
     /// returned IDs and sends them through the bridge on subsequent uses.
     atoms: Rc<RefCell<AtomPool>>,
+    /// Scalar animation curves retained outside the replaceable JS bundle.
+    value_motions: Rc<RefCell<wabou_motion::ValueMotionStore>>,
     host_frame_sequence: u64,
     host_frame_epoch: std::time::Instant,
     #[cfg(any(feature = "devtools", test))]
@@ -319,6 +321,7 @@ impl JsRuntime {
             frame_stats: Rc::new(RefCell::new(None)),
             layout_metrics: Rc::new(RefCell::new(LayoutMetricsSnapshot::default())),
             atoms: Rc::new(RefCell::new(AtomPool::default())),
+            value_motions: Rc::new(RefCell::new(wabou_motion::ValueMotionStore::default())),
             host_frame_sequence: 0,
             host_frame_epoch: std::time::Instant::now(),
             #[cfg(any(feature = "devtools", test))]
@@ -412,6 +415,47 @@ impl JsRuntime {
                     open::that_detached(url.as_str()).is_ok()
                 })?
                 .with_name("__wabou_open_url")?,
+            )?;
+
+            let value_motions = self.value_motions.clone();
+            globals.set(
+                "__wabou_motion_create",
+                Function::new(ctx.clone(), move |ctx: Ctx<'_>, descriptor: String| {
+                    value_motions
+                        .borrow_mut()
+                        .create_json(&descriptor)
+                        .map(wabou_motion::ValueMotionId::into_raw)
+                        .map_err(|error| rquickjs::Exception::throw_type(&ctx, &error))
+                })?,
+            )?;
+            let value_motions = self.value_motions.clone();
+            globals.set(
+                "__wabou_motion_sample",
+                Function::new(
+                    ctx.clone(),
+                    move |id: u32, elapsed: f64, output: TypedArray<f64>| -> JsResult<bool> {
+                        let Some(sample) = value_motions
+                        .borrow()
+                        .sample(wabou_motion::ValueMotionId::from_raw(id), elapsed)
+                        else {
+                            return Ok(false);
+                        };
+                        crate::host_ffi::fill_typed_array(
+                            &output,
+                            &[sample.value, sample.velocity, f64::from(sample.done)],
+                        )?;
+                        Ok(true)
+                    },
+                )?,
+            )?;
+            let value_motions = self.value_motions.clone();
+            globals.set(
+                "__wabou_motion_drop",
+                Function::new(ctx.clone(), move |id: u32| {
+                    value_motions
+                        .borrow_mut()
+                        .remove(wabou_motion::ValueMotionId::from_raw(id))
+                })?,
             )?;
 
             self.register_intl_host_fns(ctx.clone(), &globals)?;
@@ -1491,5 +1535,4 @@ fn digest_bytes(algorithm: u8, bytes: &[u8]) -> JsResult<Vec<u8>> {
 }
 
 #[cfg(test)]
-#[path = "jsrt/tests.rs"]
 mod tests;

@@ -3,8 +3,6 @@ import {
   AlertActions,
   AlertDescription,
   AlertTitle,
-  type AnimationControls,
-  animate,
   Badge,
   Button,
   Card,
@@ -62,6 +60,7 @@ import {
   useWindow,
   View,
 } from "@wabou/ui";
+import { animate, type AnimationControls } from "@wabou/ui/animation";
 import info from "lucide-static/icons/info.svg?raw";
 import triangleAlert from "lucide-static/icons/triangle-alert.svg?raw";
 import { createSignal, For as ForValue, onCleanup } from "solid-js";

@@ -20,6 +20,11 @@
       "types": "./dist/index.d.mts",
       "import": "./dist/index.mjs"
     },
+    "./animation": {
+      "wabou-source": "./src/animation/index.ts",
+      "types": "./dist/animation.d.mts",
+      "import": "./dist/animation.mjs"
+    },
     "./primitives": {
       "wabou-source": "./src/primitives/index.ts",
       "types": "./dist/primitives.d.mts",
@@ -62,7 +67,6 @@
     "@wabou/core": "workspace:*",
     "lucide-static": "1.54.0",
     "marked": "18.1.0",
-    "motion-dom": "13.1.1",
     "remend": "1.4.0",
     "solid-js": "2.0.0-rc.14",
     "ts-pattern": "^5.9.0",

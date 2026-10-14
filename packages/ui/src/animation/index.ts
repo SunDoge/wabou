@@ -1,11 +1,5 @@
 import "@wabou/core";
 import { type Affine2D, rotate2d, translate2d } from "@wabou/core/style";
-import type {
-  InterpolateOptions,
-  AnimationPlaybackControlsWithThen as MotionControls,
-  ValueAnimationOptions,
-} from "motion-dom";
-import { animateValue, interpolate } from "motion-dom";
 import {
   type Accessor,
   createEffect,
@@ -22,11 +16,17 @@ export {
   useMotionConfig,
   useReducedMotion,
 } from "./config";
+export {
+  type MotionTarget,
+  type SpringOptions,
+  type TweenOptions,
+  useSpring,
+  useTween,
+} from "./native";
 
 export type AnimationValue = number | string;
 export type AnimationType = "tween" | "spring" | false;
 export type RepeatType = "loop" | "reverse" | "mirror";
-export type EasingFunction = (progress: number) => number;
 export type Easing =
   | "linear"
   | "easeIn"
@@ -39,16 +39,14 @@ export type Easing =
   | "backOut"
   | "backInOut"
   | "anticipate"
-  | EasingFunction
   | readonly [number, number, number, number];
 
-/** Wabou animation options. All time values are expressed in seconds. */
+/** Wabou animation options. Time values are seconds. */
 export interface AnimationOptions<V extends AnimationValue = number> {
   type?: AnimationType;
   duration?: number;
-  visualDuration?: number;
   delay?: number;
-  ease?: Easing | Easing[];
+  ease?: Easing;
   times?: number[];
   repeat?: number;
   repeatType?: RepeatType;
@@ -57,7 +55,6 @@ export interface AnimationOptions<V extends AnimationValue = number> {
   stiffness?: number;
   damping?: number;
   mass?: number;
-  bounce?: number;
   velocity?: number;
   restSpeed?: number;
   restDelta?: number;
@@ -70,9 +67,8 @@ export interface AnimationOptions<V extends AnimationValue = number> {
 
 export type AnimationState = "idle" | "running" | "paused" | "finished";
 
-/** Backend-independent playback handle returned by Wabou animations. */
+/** Playback handle for a Rust-sampled Wabou value animation. */
 export interface AnimationControls extends PromiseLike<void> {
-  time: number;
   speed: number;
   readonly duration: number;
   readonly state: AnimationState;
@@ -84,52 +80,308 @@ export interface AnimationControls extends PromiseLike<void> {
   complete(): void;
 }
 
-class Controls implements AnimationControls {
-  constructor(private readonly backend: MotionControls) {}
+type CurveSample = { value: number; velocity: number; done: boolean };
+type CurveDescriptor =
+  | {
+      kind: "tween";
+      duration: number;
+      easing: string | { cubicBezier: number[] };
+    }
+  | {
+      kind: "spring";
+      stiffness: number;
+      damping: number;
+      mass: number;
+      velocity: number;
+      restDelta: number;
+      restSpeed: number;
+    };
 
-  get time(): number {
-    return this.backend.time;
+const hasNativeMotion = () =>
+  typeof globalThis.__wabou_motion_create === "function";
+
+function fallbackSample(
+  descriptor: CurveDescriptor,
+  elapsed: number,
+): CurveSample {
+  if (descriptor.kind === "tween") {
+    const raw =
+      descriptor.duration === 0
+        ? 1
+        : Math.min(1, elapsed / descriptor.duration);
+    return { value: raw, velocity: 0, done: raw >= 1 };
   }
-  set time(value: number) {
-    this.backend.time = value;
+  // Tests without a Wabou host only need deterministic lifecycle behavior.
+  const rate = Math.max(1, descriptor.damping / descriptor.mass);
+  const value = 1 - Math.exp(-rate * elapsed);
+  const done = 1 - value <= descriptor.restDelta;
+  return { value: done ? 1 : value, velocity: 0, done };
+}
+
+class Curve {
+  readonly id: number | undefined;
+  readonly #output = new Float64Array(3);
+  constructor(readonly descriptor: CurveDescriptor) {
+    this.id = hasNativeMotion()
+      ? globalThis.__wabou_motion_create(JSON.stringify(descriptor))
+      : undefined;
   }
+  sample(elapsed: number): CurveSample {
+    if (this.id === undefined) return fallbackSample(this.descriptor, elapsed);
+    if (!globalThis.__wabou_motion_sample(this.id, elapsed, this.#output))
+      throw new Error("motion handle is no longer live");
+    return {
+      value: this.#output[0],
+      velocity: this.#output[1],
+      done: this.#output[2] !== 0,
+    };
+  }
+  drop(): void {
+    if (this.id !== undefined) globalThis.__wabou_motion_drop(this.id);
+  }
+}
+
+function curveDescriptor<V extends AnimationValue>(
+  options: AnimationOptions<V>,
+): CurveDescriptor {
+  if (options.type === "spring") {
+    return {
+      kind: "spring",
+      stiffness: options.stiffness ?? 170,
+      damping: options.damping ?? 26,
+      mass: options.mass ?? 1,
+      velocity: options.velocity ?? 0,
+      restDelta: options.restDelta ?? 0.001,
+      restSpeed: options.restSpeed ?? 0.01,
+    };
+  }
+  const ease = options.ease;
+  return {
+    kind: "tween",
+    duration: options.type === false ? 0 : Math.max(0, options.duration ?? 0.3),
+    easing: Array.isArray(ease)
+      ? { cubicBezier: [...ease] }
+      : typeof ease === "string"
+        ? ease
+        : "linear",
+  };
+}
+
+function parseColor(
+  value: string,
+): [number, number, number, number] | undefined {
+  const hex = /^#([0-9a-f]{3,8})$/i.exec(value)?.[1];
+  if (hex) {
+    const full =
+      hex.length === 3 || hex.length === 4
+        ? [...hex].map((part) => part + part).join("")
+        : hex;
+    if (full.length === 6 || full.length === 8)
+      return [
+        Number.parseInt(full.slice(0, 2), 16),
+        Number.parseInt(full.slice(2, 4), 16),
+        Number.parseInt(full.slice(4, 6), 16),
+        full.length === 8 ? Number.parseInt(full.slice(6, 8), 16) / 255 : 1,
+      ];
+  }
+  const rgb =
+    /^rgba?\(\s*([\d.]+)[, ]+([\d.]+)[, ]+([\d.]+)(?:[, /]+([\d.]+))?\s*\)$/i.exec(
+      value,
+    );
+  return rgb
+    ? [
+        Number(rgb[1]),
+        Number(rgb[2]),
+        Number(rgb[3]),
+        rgb[4] === undefined ? 1 : Number(rgb[4]),
+      ]
+    : undefined;
+}
+
+const linearChannel = (channel: number) => {
+  const value = channel / 255;
+  return value * value;
+};
+const srgbChannel = (channel: number) =>
+  Math.max(0, Math.min(255, Math.round(255 * Math.sqrt(Math.max(0, channel)))));
+
+function interpolateValue<V extends AnimationValue>(
+  from: V,
+  to: V,
+  progress: number,
+): V {
+  if (typeof from === "number" && typeof to === "number") {
+    return (from + (to - from) * progress) as V;
+  }
+  if (typeof from === "string" && typeof to === "string") {
+    const a = parseColor(from);
+    const b = parseColor(to);
+    if (!a || !b)
+      throw new TypeError(
+        "Wabou animations support numeric and CSS color values",
+      );
+    const channels = [0, 1, 2].map((index) =>
+      srgbChannel(
+        linearChannel(a[index]) +
+          (linearChannel(b[index]) - linearChannel(a[index])) * progress,
+      ),
+    );
+    const alpha = Math.max(0, Math.min(1, a[3] + (b[3] - a[3]) * progress));
+    return `rgba(${channels[0]}, ${channels[1]}, ${channels[2]}, ${Number(alpha.toFixed(4))})` as V;
+  }
+  throw new TypeError("animation keyframes must have one supported value type");
+}
+
+function interpolateKeyframes<V extends AnimationValue>(
+  keyframes: readonly V[],
+  progress: number,
+  times?: readonly number[],
+): V {
+  if (keyframes.length === 1) return keyframes[0];
+  const points =
+    times?.length === keyframes.length
+      ? times
+      : keyframes.map((_, index) => index / (keyframes.length - 1));
+  let segment = points.length - 2;
+  for (let index = 0; index < points.length - 1; index++) {
+    if (progress <= points[index + 1]) {
+      segment = index;
+      break;
+    }
+  }
+  const start = points[segment];
+  const end = points[segment + 1];
+  const local = end === start ? 1 : (progress - start) / (end - start);
+  return interpolateValue(keyframes[segment], keyframes[segment + 1], local);
+}
+
+class Controls<V extends AnimationValue> implements AnimationControls {
+  #curve: Curve;
+  #state: AnimationState;
+  #speed = 1;
+  #frame: number | undefined;
+  #lastTime: number | undefined;
+  #elapsed = 0;
+  #iteration = 0;
+  #resolve!: () => void;
+  readonly finished: Promise<void>;
+
+  constructor(
+    private readonly keyframes: readonly V[],
+    private readonly options: AnimationOptions<V>,
+  ) {
+    this.#curve = new Curve(curveDescriptor(options));
+    this.#state = options.autoplay === false ? "paused" : "running";
+    this.finished = new Promise((resolve) => {
+      this.#resolve = resolve;
+    });
+    options.onUpdate?.(keyframes[0]);
+    if (this.#state === "running") {
+      options.onPlay?.();
+      this.#lastTime = performance.now();
+      this.#frame = requestAnimationFrame(this.#tick);
+    }
+  }
+
   get speed(): number {
-    return this.backend.speed;
+    return this.#speed;
   }
   set speed(value: number) {
-    this.backend.speed = value;
+    if (!Number.isFinite(value) || value <= 0)
+      throw new RangeError("animation speed must be positive");
+    this.#speed = value;
   }
   get duration(): number {
-    return this.backend.duration;
+    return this.options.duration ?? (this.options.type === "spring" ? 0 : 0.3);
   }
   get state(): AnimationState {
-    const state = this.backend.state;
-    if (state === "running" || state === "paused" || state === "finished") {
-      return state;
-    }
-    return "idle";
+    return this.#state;
   }
-  get finished(): Promise<void> {
-    return this.backend.finished.then(() => undefined);
+
+  #tick = (time: number) => {
+    if (this.#state !== "running") return;
+    const delta =
+      this.#lastTime === undefined
+        ? 0
+        : Math.max(0, (time - this.#lastTime) / 1000);
+    this.#lastTime = time;
+    this.#elapsed += delta * this.#speed;
+    const delay =
+      this.#iteration === 0
+        ? (this.options.delay ?? 0)
+        : (this.options.repeatDelay ?? 0);
+    if (this.#elapsed < delay) {
+      this.#frame = requestAnimationFrame(this.#tick);
+      return;
+    }
+    const sample = this.#curve.sample(this.#elapsed - delay);
+    const reverse =
+      this.options.repeatType !== "loop" && this.#iteration % 2 === 1;
+    const progress = reverse ? 1 - sample.value : sample.value;
+    this.options.onUpdate?.(
+      interpolateKeyframes(this.keyframes, progress, this.options.times),
+    );
+    if (!sample.done) {
+      this.#frame = requestAnimationFrame(this.#tick);
+      return;
+    }
+    const repeat = this.options.repeat ?? 0;
+    if (repeat === Infinity || this.#iteration < repeat) {
+      this.#iteration += 1;
+      this.#elapsed = 0;
+      this.#lastTime = time;
+      this.options.onRepeat?.();
+      this.#frame = requestAnimationFrame(this.#tick);
+      return;
+    }
+    this.#finish();
+  };
+
+  #finish(): void {
+    if (this.#state === "finished") return;
+    const reverse =
+      this.options.repeatType !== "loop" && this.#iteration % 2 === 1;
+    const value = reverse
+      ? this.keyframes[0]
+      : this.keyframes[this.keyframes.length - 1];
+    this.options.onUpdate?.(value);
+    this.#state = "finished";
+    this.#curve.drop();
+    this.options.onComplete?.();
+    this.#resolve();
   }
   play(): void {
-    this.backend.play();
+    if (this.#state === "running" || this.#state === "finished") return;
+    this.#state = "running";
+    this.#lastTime = performance.now();
+    this.options.onPlay?.();
+    this.#frame = requestAnimationFrame(this.#tick);
   }
   pause(): void {
-    this.backend.pause();
+    if (this.#state !== "running") return;
+    if (this.#frame !== undefined) cancelAnimationFrame(this.#frame);
+    this.#frame = undefined;
+    this.#lastTime = undefined;
+    this.#state = "paused";
   }
   stop(): void {
-    this.backend.stop();
+    if (this.#state === "idle" || this.#state === "finished") return;
+    if (this.#frame !== undefined) cancelAnimationFrame(this.#frame);
+    this.#frame = undefined;
+    this.#state = "idle";
+    this.#curve.drop();
+    this.options.onStop?.();
+    this.#resolve();
   }
   cancel(): void {
-    this.backend.cancel();
+    this.stop();
   }
   complete(): void {
-    this.backend.complete();
+    if (this.#frame !== undefined) cancelAnimationFrame(this.#frame);
+    this.#frame = undefined;
+    this.#finish();
   }
-  // biome-ignore lint/suspicious/noThenProperty: Playback controls intentionally implement PromiseLike.
   then<TResult1 = void, TResult2 = never>(
-    // biome-ignore lint/suspicious/noConfusingVoidType: PromiseLike<void> requires this callback shape.
     onfulfilled?: ((value: void) => TResult1 | PromiseLike<TResult1>) | null,
     onrejected?: ((reason: unknown) => TResult2 | PromiseLike<TResult2>) | null,
   ): PromiseLike<TResult1 | TResult2> {
@@ -137,21 +389,7 @@ class Controls implements AnimationControls {
   }
 }
 
-function normalizeOptions<V extends AnimationValue>(
-  options: AnimationOptions<V>,
-): ValueAnimationOptions<V> {
-  const normalized = { ...options } as ValueAnimationOptions<V>;
-  for (const key of ["delay", "duration", "repeatDelay"] as const) {
-    const seconds = options[key];
-    if (typeof seconds === "number") normalized[key] = seconds * 1000;
-  }
-  if (typeof options.visualDuration === "number") {
-    normalized.visualDuration = options.visualDuration * 1000;
-  }
-  return normalized;
-}
-
-/** Animate between two scalar values. */
+/** Animate between two supported values using a Rust-owned curve. */
 export function animate<V extends AnimationValue>(
   from: V,
   to: V,
@@ -160,16 +398,12 @@ export function animate<V extends AnimationValue>(
   return animateKeyframes([from, to], options);
 }
 
-/** Animate through two or more scalar keyframes. */
+/** Animate numeric or color keyframes using a Rust-owned curve. */
 export function animateKeyframes<V extends AnimationValue>(
   keyframes: readonly [V, V, ...V[]],
   options: AnimationOptions<V> = {},
 ): AnimationControls {
-  const backend = animateValue({
-    ...normalizeOptions(options),
-    keyframes: [...keyframes],
-  });
-  return new Controls(backend);
+  return new Controls(keyframes, options);
 }
 
 export interface ReactiveAnimation<T> {
@@ -178,40 +412,25 @@ export interface ReactiveAnimation<T> {
 }
 
 type MaybeAccessor<T> = T | Accessor<T>;
-
 const read = <T>(value: MaybeAccessor<T> | undefined, fallback: T): T =>
   typeof value === "function" ? (value as Accessor<T>)() : (value ?? fallback);
 
-/**
- * Backend-neutral repeating timeline executed by a retained native widget.
- *
- * JS owns animation intent and lifecycle; the native backend samples this
- * descriptor locally without receiving one protocol mutation per frame.
- */
 export interface NativeLoopAnimation {
   readonly kind: "loop";
-  /** Duration of one iteration in seconds. */
   readonly duration: number;
   readonly speed: number;
   readonly paused: boolean;
   readonly reducedMotion: boolean;
 }
-
 export interface NativeLoopAnimationOptions {
   duration?: MaybeAccessor<number>;
   speed?: MaybeAccessor<number>;
   paused?: MaybeAccessor<boolean>;
   reducedMotion?: MaybeAccessor<boolean>;
 }
-
 function positiveFinite(value: number, fallback: number): number {
   return Number.isFinite(value) && value > 0 ? value : fallback;
 }
-
-/**
- * Compile reactive Solid animation policy into a stable native timeline DTO.
- * This accessor changes only when authored policy changes, never per frame.
- */
 export function createNativeLoopAnimation(
   options: NativeLoopAnimationOptions = {},
 ): Accessor<NativeLoopAnimation> {
@@ -226,19 +445,9 @@ export function createNativeLoopAnimation(
 
 export interface KeyframeAnimationOptions<V extends AnimationValue>
   extends AnimationOptions<V> {
-  /** Reactive policy which pauses interpolation and publishes the final keyframe. */
   reducedMotion?: MaybeAccessor<boolean>;
-  /** Value exposed while motion is reduced. Defaults to the final keyframe. */
   reducedValue?: V;
 }
-
-/**
- * Lifecycle-owned finite or repeating keyframe animation.
- *
- * This is the general primitive behind loops, pulses and component-specific
- * effects. It owns cleanup and reduced-motion behavior so components don't
- * need to coordinate raw Motion controls themselves.
- */
 export function createKeyframeAnimation<V extends AnimationValue>(
   keyframes: readonly [V, V, ...V[]],
   options: KeyframeAnimationOptions<V> = {},
@@ -273,9 +482,7 @@ export function createKeyframeAnimation<V extends AnimationValue>(
         controls.pause();
         setBox({ value: reducedValue });
         onUpdate?.(reducedValue);
-      } else if (initialized && resumeAfterReduction) {
-        controls.play();
-      }
+      } else if (initialized && resumeAfterReduction) controls.play();
       initialized = true;
     },
   );
@@ -283,10 +490,10 @@ export function createKeyframeAnimation<V extends AnimationValue>(
   return { value, controls };
 }
 
-export interface MotionInterpolationOptions<V extends AnimationValue>
-  extends Pick<InterpolateOptions<V>, "clamp" | "ease"> {}
-
-/** Map one reactive progress value to numeric, color, or complex keyframes. */
+export interface MotionInterpolationOptions<V extends AnimationValue> {
+  clamp?: boolean;
+  ease?: Easing;
+}
 export function createInterpolation(
   source: Accessor<number>,
   input: readonly number[],
@@ -305,18 +512,29 @@ export function createInterpolation<V extends AnimationValue>(
   output: readonly V[],
   options: MotionInterpolationOptions<V> = {},
 ): Accessor<V> {
-  if (input.length === 0 || input.length !== output.length) {
+  if (input.length === 0 || input.length !== output.length)
     throw new RangeError(
       "animation input and output ranges must have equal non-zero lengths",
     );
-  }
-  if (!input.every(Number.isFinite)) {
+  if (!input.every(Number.isFinite))
     throw new RangeError(
       "animation input range must contain only finite numbers",
     );
-  }
-  const transform = interpolate([...input], [...output], options);
-  return () => transform(source());
+  return () => {
+    let value = source();
+    if (options.clamp !== false)
+      value = Math.max(input[0], Math.min(input[input.length - 1], value));
+    let segment = input.length - 2;
+    for (let index = 0; index < input.length - 1; index++) {
+      if (value <= input[index + 1]) {
+        segment = index;
+        break;
+      }
+    }
+    const progress =
+      (value - input[segment]) / (input[segment + 1] - input[segment]);
+    return interpolateValue(output[segment], output[segment + 1], progress);
+  };
 }
 
 export interface TransitionOptions

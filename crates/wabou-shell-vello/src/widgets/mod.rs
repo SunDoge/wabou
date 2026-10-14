@@ -12,6 +12,10 @@ mod canvas;
 mod code_editor;
 mod controls;
 mod image;
+mod implementation;
+mod resources;
+pub use implementation::WidgetAdapter;
+pub use resources::{HostImage, HostResourcePool};
 mod password_input;
 mod shader_layer;
 mod text_input;
@@ -27,7 +31,7 @@ pub use text_input::TextInput;
 /// Factories installed by the standard QuickJS host.
 pub fn builtin_factories() -> HashMap<String, WidgetFactory> {
     let mut factories: HashMap<String, WidgetFactory> = HashMap::new();
-    factories.insert("canvas".into(), Arc::new(|| Box::new(Canvas)));
+    factories.insert("canvas".into(), Arc::new(|| Box::new(canvas::adapter())));
     factories.insert(
         "editor".into(),
         Arc::new(|| Box::new(EditorViewport::new())),
@@ -74,7 +78,3 @@ mod tests {
         assert!(!factories.contains_key("code-editor"));
     }
 }
-
-/// Runtime-owned widgets with replaceable native implementations.
-#[cfg(feature = "widget-hot-reload")]
-pub mod hot_reload;

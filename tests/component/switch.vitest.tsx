@@ -23,7 +23,7 @@ test("delegates switch thumb movement to a persistent GPUI spring", () => {
   expect(thumbX(screen)).toBe(16);
   const thumb = control.children[0]?.children[0];
   expect(
-    JSON.parse(thumb?.attribute("__wabou_native_spring") ?? "null"),
+    JSON.parse(thumb?.attribute("__wabou_native_motion") ?? "null"),
   ).toMatchObject({
     response: 0.16,
     damping: 1,
@@ -73,13 +73,13 @@ test("retargets the same spring instead of replacing the motion primitive", () =
   const enabledThumb = screen.getByRole("switch", { name: "Sync" }).children[0]
     ?.children[0];
   const enabled = JSON.parse(
-    enabledThumb?.attribute("__wabou_native_spring") ?? "null",
+    enabledThumb?.attribute("__wabou_native_motion") ?? "null",
   );
   control.click();
   const disabledThumb = screen.getByRole("switch", { name: "Sync" }).children[0]
     ?.children[0];
   const disabled = JSON.parse(
-    disabledThumb?.attribute("__wabou_native_spring") ?? "null",
+    disabledThumb?.attribute("__wabou_native_motion") ?? "null",
   );
 
   expect(disabledThumb?.id).toEqual(enabledThumb?.id);
@@ -99,25 +99,13 @@ test("disables spring travel under reduced motion", () => {
   const thumb = screen.getByRole("switch", { name: "Sync" }).children[0]
     ?.children[0];
   expect(
-    JSON.parse(thumb?.attribute("__wabou_native_spring") ?? "null"),
+    JSON.parse(thumb?.attribute("__wabou_native_motion") ?? "null"),
   ).toMatchObject({
+    kind: "spring",
     response: 0,
     targetTransform: [1, 0, 0, 1, 16, 0],
   });
-});
-
-test("publishes the final switch position under reduced motion", () => {
-  const screen = renderComponent(() => (
-    <MotionConfigProvider reducedMotion>
-      <Switch aria-label="Sync" />
-    </MotionConfigProvider>
-  ));
-
-  screen.getByRole("switch", { name: "Sync" }).click();
   expect(thumbX(screen)).toBe(16);
-  const thumb = screen.getByRole("switch", { name: "Sync" }).children[0]
-    ?.children[0];
-  expect(thumb?.attribute("__wabou_native_transition")).toBeNull();
 });
 
 test("uses compact GPUI-native track geometry without focus reflow", () => {

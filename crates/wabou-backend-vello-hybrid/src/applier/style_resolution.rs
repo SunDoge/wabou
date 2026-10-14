@@ -387,6 +387,7 @@ impl Applier {
         // Preserve host-owned content from the previous computed paint (text,
         // widget scene, intrinsic size). Cascade never owns these.
         let prev = self.document.node_store.tree.get_node_context(node);
+        let motion = self.document.motion.sample(node);
         let mut host = HostPaint {
             text: prev.and_then(|p| p.text.clone()),
             text_runs: prev
@@ -402,6 +403,8 @@ impl Applier {
             widget: prev.and_then(|p| p.widget.clone()),
             intrinsic_size: prev.and_then(|p| p.intrinsic_size),
             runtime_transform: self.document.runtime_transforms.get(&node).copied(),
+            motion_transform: motion.transform,
+            motion_opacity: motion.opacity,
             overlay_plane: self
                 .document
                 .overlay_planes
@@ -712,6 +715,7 @@ impl Applier {
                 resource.to_rgba8(),
             ))
         });
+        let motion = self.document.motion.sample(node);
         let host = HostPaint {
             text: resolved.host_text,
             text_runs: previous
@@ -739,6 +743,8 @@ impl Applier {
             widget: previous.as_ref().and_then(|paint| paint.widget.clone()),
             intrinsic_size: resolved.host_intrinsic,
             runtime_transform: self.document.runtime_transforms.get(&node).copied(),
+            motion_transform: motion.transform,
+            motion_opacity: motion.opacity,
             overlay_plane: self
                 .document
                 .overlay_planes

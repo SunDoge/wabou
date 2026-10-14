@@ -1,0 +1,10 @@
+[package]
+name = "wabou-motion"
+version.workspace = true
+edition = "2024"
+license.workspace = true
+
+[dependencies]
+serde = { workspace = true, features = ["derive"] }
+serde_json.workspace = true
+slotmap.workspace = true

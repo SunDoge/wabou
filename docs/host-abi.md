@@ -8,6 +8,9 @@ Source of truth: `packages/core/host-abi.json`.
 | `__wabou_capabilities` | host | runtime | always |
 | `__wabou_intern` | host | runtime | always |
 | `__wabou_open_url` | host | runtime | always |
+| `__wabou_motion_create` | host | runtime | always |
+| `__wabou_motion_sample` | host | runtime | always |
+| `__wabou_motion_drop` | host | runtime | always |
 | `__wabou_set_stylesheet` | host | runtime | always |
 | `__wabou_set_color_theme` | host | runtime | always |
 | `__wabou_get_color_theme_palette` | host | runtime | always |

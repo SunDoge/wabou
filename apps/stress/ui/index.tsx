@@ -8,8 +8,6 @@
 import "@wabou/ui";
 import "virtual:wabou-stylesheet";
 import {
-  type AnimationControls,
-  animate,
   createFps,
   type Handle,
   mount,
@@ -19,6 +17,7 @@ import {
   useHost,
   View,
 } from "@wabou/ui";
+import { animate, type AnimationControls } from "@wabou/ui/animation";
 import { Button } from "@wabou/ui/primitives";
 import { createEffect, createSignal, For as ForValue, Show } from "solid-js";
 

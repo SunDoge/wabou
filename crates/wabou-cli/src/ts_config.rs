@@ -23,12 +23,6 @@ struct Configuration {
     window: Window,
     #[serde(default)]
     ui: Ui,
-    #[serde(default)]
-    capabilities: Vec<wabou_launch::Capability>,
-    #[serde(default)]
-    widgets: Vec<wabou_launch::NativeWidget>,
-    #[serde(default)]
-    plugins: Vec<wabou_launch::Plugin>,
 }
 pub(super) struct Prepared {
     pub file: tempfile::NamedTempFile,
@@ -77,9 +71,6 @@ writeFileSync(process.argv[2], JSON.stringify(config, (key, value) => {
     if launch.width == 0 || launch.height == 0 {
         return Err("window dimensions must be positive".into());
     }
-    launch.capabilities = config.capabilities;
-    launch.widgets = config.widgets;
-    launch.plugins = config.plugins;
     launch.resolve_paths(path.parent().ok_or("configuration has no directory")?);
     fs::write(output.path(), serde_json::to_vec(&launch)?)?;
     Ok(Some(Prepared {
@@ -106,64 +97,16 @@ mod tests {
         let app = app(directory.path());
         fs::write(directory.path().join("wabou.config.ts"), r#"
 console.log('config logs must not corrupt the protocol');
-export default async () => ({ window: { title: 'Configured', width: 900, decorations: false }, ui: { entry: './custom.tsx' }, capabilities: [{ name: 'demo', version: 3, methods: [{ name: 'tick', hasRequest: false, json: true }], implementation: { kind: 'project', manifest: './functions/Cargo.toml' } }], widgets: [{ tag: 'reload-counter', version: 1, initialState: 40, implementation: { kind: 'project', manifest: './widget/Cargo.toml', targetDirectory: './target/widgets' } }], plugins: [{ name: 'app', implementation: { kind: 'project', manifest: './plugin/Cargo.toml', watch: ['./plugin/src'], targetDirectory: './target/plugin' }, capabilities: [], widgets: [{ tag: 'plugin-widget', version: 1, initialState: 9 }] }] });
+export default async () => ({ window: { title: 'Configured', width: 900, decorations: false }, ui: { entry: './custom.tsx' } });
 "#).unwrap();
         let prepared = prepare(&app).unwrap().unwrap();
         assert_eq!(prepared.entry, "./custom.tsx");
         let config: wabou_launch::LaunchConfig =
             serde_json::from_slice(&fs::read(prepared.file.path()).unwrap()).unwrap();
-        assert_eq!(config.plugins[0].name, "app");
-        assert_eq!(config.plugins[0].widgets[0].initial_state, 9);
-        let wabou_launch::Implementation::Project {
-            manifest,
-            watch,
-            target_directory,
-            ..
-        } = &config.plugins[0].implementation
-        else {
-            panic!("expected plugin project")
-        };
-        let root = directory.path().canonicalize().unwrap();
-        assert_eq!(manifest, &root.join("plugin/Cargo.toml"));
-        assert_eq!(watch, &[root.join("plugin/src")]);
-        assert_eq!(
-            target_directory.as_ref().unwrap(),
-            &root.join("target/plugin")
-        );
-        assert_eq!(config.widgets[0].initial_state, 40);
-        let wabou_launch::Implementation::Project {
-            manifest,
-            target_directory,
-            ..
-        } = &config.widgets[0].implementation
-        else {
-            panic!("expected widget project")
-        };
-        let root = directory.path().canonicalize().unwrap();
-        assert_eq!(manifest, &root.join("widget/Cargo.toml"));
-        assert_eq!(
-            target_directory.as_ref().unwrap(),
-            &root.join("target/widgets")
-        );
         assert_eq!(config.title, "Configured");
         assert_eq!(config.width, 900);
         assert_eq!(config.height, 600);
         assert!(!config.decorations);
-        let wabou_launch::Implementation::Project { manifest, .. } =
-            &config.capabilities[0].implementation
-        else {
-            panic!("expected project")
-        };
-        // prepare resolves paths relative to the canonical authored config path.
-        // On Windows this also expands short names and adds the verbatim prefix.
-        assert_eq!(
-            manifest,
-            &directory
-                .path()
-                .canonicalize()
-                .unwrap()
-                .join("functions/Cargo.toml")
-        );
     }
     #[test]
     fn rejects_non_data_configuration_values() {

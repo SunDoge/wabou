@@ -5,6 +5,13 @@ declare global {
   const __wabou_capabilities: Record<string, object>;
   function __wabou_intern(value: string): number;
   function __wabou_open_url(url: string): boolean;
+  function __wabou_motion_create(descriptor: string): number;
+  function __wabou_motion_sample(
+    id: number,
+    elapsed: number,
+    output: Float64Array,
+  ): boolean;
+  function __wabou_motion_drop(id: number): boolean;
   function __wabou_set_stylesheet(json: string): void;
   function __wabou_set_color_theme(name: string): void;
   function __wabou_get_color_theme_palette(

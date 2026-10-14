@@ -45,6 +45,11 @@
       "wabou-source": "./src/config.ts",
       "types": "./dist/config.d.mts",
       "import": "./dist/config.mjs"
+    },
+    "./browser-style": {
+      "wabou-source": "./src/browser-style.ts",
+      "types": "./dist/browser-style.d.mts",
+      "import": "./dist/browser-style.mjs"
     }
   },
   "scripts": {

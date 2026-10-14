@@ -12,12 +12,14 @@ import {
   type UserConfig,
   type UserConfigExport,
 } from "vite";
+import { browserHostPlugin, type WabouBrowserOptions } from "./browser";
 import { wabouStylePlugin } from "./style-compiler";
 import {
   defaultWabouColorThemes,
   type WabouColorThemeOptions,
 } from "./theme-contract.ts";
 
+export type { WabouBrowserOptions } from "./browser";
 export {
   color,
   defineWabouTheme,
@@ -31,6 +33,10 @@ export {
 } from "./theme-contract.ts";
 
 export interface WabouViteOptions {
+  /** Native QuickJS bundle or browser canvas application. Defaults to native. */
+  target?: "native" | "browser";
+  /** Browser host options, required for target: browser. */
+  browser?: WabouBrowserOptions;
   /** Application root. Defaults to Vite's current working directory. */
   root?: string;
   /** Solid entry module. */
@@ -147,8 +153,12 @@ function resolveWabouConfig(
   environment: ConfigEnv,
 ): UserConfig {
   const root = options.root ?? process.cwd();
+  if (options.target === "browser" && !options.browser)
+    throw new Error("target: browser requires browser host options");
   const outDir =
-    process.env.WABOU_OUT_DIR ?? options.outDir ?? manifestOutDir(root);
+    process.env.WABOU_OUT_DIR ??
+    options.outDir ??
+    (options.target === "browser" ? "dist" : manifestOutDir(root));
   const sourceMap = process.env.WABOU_SOURCE_MAP;
   const debug =
     process.env.WABOU_ENV_DEBUG === "true" || environment.command === "serve";
@@ -165,6 +175,43 @@ function resolveWabouConfig(
     workspaceSource && workspaceRoot
       ? resolve(workspaceRoot, "packages/core/src/renderer.ts")
       : fileURLToPath(import.meta.resolve("@wabou/core/renderer"));
+  if (options.target === "browser") {
+    if (!options.browser)
+      throw new Error("target: browser requires browser host options");
+    const entry = options.entry ?? "ui/index.tsx";
+    return mergeConfig(
+      {
+        root,
+        plugins: [
+          browserHostPlugin(root, entry, options.browser),
+          ...wabouPlugins(
+            root,
+            options.theme,
+            options.ignoreClasses,
+            false,
+            entry,
+            options.themeContrast,
+          ),
+        ],
+        resolve: {
+          dedupe: ["solid-js"],
+          conditions: workspaceSource
+            ? ["wabou-source", "browser"]
+            : ["browser"],
+          alias: { "@wabou/core/renderer": renderer, "solid-js/web": renderer },
+        },
+        server: { fs: { allow: workspaceRoot ? [workspaceRoot] : [root] } },
+        optimizeDeps: { noDiscovery: true },
+        build: {
+          outDir: options.outDir ?? "dist",
+          emptyOutDir: true,
+          target: "esnext",
+          sourcemap,
+        },
+      },
+      options.vite ?? {},
+    );
+  }
   const defaults: UserConfig = {
     define: {
       "process.env.NODE_ENV": JSON.stringify(

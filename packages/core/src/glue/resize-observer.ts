@@ -1,3 +1,4 @@
+import { hasBrowserDom } from "../browser-dom";
 import { type NodeKey, NodeKeyTable } from "../protocol";
 
 interface WabouResizeObserverEntry {
@@ -83,4 +84,4 @@ export function dispatchResizeObservation(
   }
 }
 
-(globalThis as any).ResizeObserver = WabouResizeObserver;
+if (!hasBrowserDom()) (globalThis as any).ResizeObserver = WabouResizeObserver;

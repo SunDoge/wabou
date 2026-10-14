@@ -1,6 +1,6 @@
 [workspace]
 resolver = "3"
-members = ["apps/*", "crates/*", "native/blockui*", "native/ui-contract", "native/wabou-native", "native/apps/*"]
+members = ["apps/*", "crates/*"]
 exclude = [
   "apps/pulse",
   "experiments/*",
@@ -26,17 +26,18 @@ default-members = [
   "crates/wabou-backend-vello-hybrid",
   "crates/wabou-bindgen",
   "crates/wabou-cli",
-  "crates/wabou-capability-abi",
-  "crates/wabou-capability-sdk",
   "crates/wabou-launch",
   "crates/wabou-runtime-library",
   "crates/wabou-database",
   "crates/wabou-devtools",
   "crates/wabou-host-api",
+  "crates/wabou-motion",
   "crates/wabou-protocol",
   "crates/wabou-runtime",
   "crates/wabou-shell-api",
   "crates/wabou-shell-vello",
+  "crates/wabou-render-core",
+  "crates/wabou-web",
   "crates/wabou-style",
   "crates/wabou-terminal-vello",
   "crates/wabou-telemetry",
@@ -49,13 +50,13 @@ license = "Apache-2.0"
 
 [workspace.dependencies]
 wabou-telemetry = { path = "crates/wabou-telemetry" }
-anyhow = "1"
 wabou = { path = "crates/wabou", default-features = false }
 wabou-backend-vello-hybrid = { path = "crates/wabou-backend-vello-hybrid" }
 wabou-bindgen = { path = "crates/wabou-bindgen", default-features = false }
 wabou-database = { path = "crates/wabou-database" }
 wabou-devtools = { path = "crates/wabou-devtools", default-features = false }
 wabou-host-api = { path = "crates/wabou-host-api" }
+wabou-motion = { path = "crates/wabou-motion" }
 wabou-protocol = { path = "crates/wabou-protocol" }
 wabou-runtime = { path = "crates/wabou-runtime", default-features = false }
 wabou-shell-api = { path = "crates/wabou-shell-api" }
@@ -72,7 +73,6 @@ bytemuck = "1.24.0"
 clap = "4.6.4"
 directories = "6.0.0"
 flume = "0.12.0"
-futures-channel = "0.3"
 glifo = "0.4"
 getrandom = "0.4.3"
 gix = { version = "0.87.1", default-features = false, features = ["sha1", "status"] }
@@ -80,13 +80,12 @@ gosh-dl = { version = "0.5.0", default-features = false, features = ["http", "st
 ignore = "0.4.25"
 image = { version = "0.25", default-features = false }
 jiff = "0.2.35"
-lyon_tessellation = "1"
 lru = "0.18.1"
 naga = { version = "30", features = ["wgsl-in"] }
 notify-rust = "=4.18.2"
 oar-ocr = "0.9.2"
 open = "5.4.0"
-parley = { version = "0.10", features = ["complex-scripts"] }
+parley = { version = "0.12", features = ["bytemuck", "complex-scripts"] }
 reqwest = { version = "0.13.4", default-features = false, features = ["json", "rustls"] }
 rfd = "0.17.2"
 serde = "1"
@@ -107,7 +106,6 @@ taffy = "0.14.0"
 tokio = "1"
 tracing = "0.1"
 tracing-subscriber = "0.3"
-trash = "5.2.6"
 unicode-width = "0.2.2"
 url = "2.5.8"
 usvg = { version = "0.48.1", default-features = false, features = ["text"] }

@@ -30,6 +30,11 @@ const DEFAULT_TEXTURE_FORMAT: TextureFormat = TextureFormat::Rgba8Unorm;
 const DEFAULT_TEXTURE_FORMAT: TextureFormat = TextureFormat::Bgra8Unorm;
 const DEFAULT_TOLERANCE: f64 = 0.1;
 
+fn font_uses_bitmap_strikes(data: &[u8], index: u32) -> bool {
+    skrifa::FontRef::from_index(data, index)
+        .is_ok_and(|font| font.cbdt().is_ok() || font.sbix().is_ok())
+}
+
 pub(crate) fn render_size(width: u32, height: u32) -> crate::Result<RenderSize> {
     if width == 0 || height == 0 {
         return Err(crate::Error::InvalidRenderSize { width, height });
@@ -514,10 +519,12 @@ impl PaintScene for HybridPainter<'_> {
         glyph_transform: Option<Affine>,
         glyphs: impl Iterator<Item = Glyph> + Clone,
     ) {
-        // Hybrid cannot consume uncached bitmap Pixmaps. Only bitmap fonts need
-        // glyph-atlas uploads; ordinary outline runs keep their existing path.
-        let bitmap_font = skrifa::FontRef::from_index(font.data.data(), font.index)
-            .is_ok_and(|font| font.cbdt().is_ok() || font.sbix().is_ok());
+        // Keep ordinary text on the hinted outline path used by Xilem/Masonry.
+        // Rasterizing outlines into Glifo's grayscale atlas softens small UI
+        // text at 1x. Bitmap fonts still need the atlas because Hybrid cannot
+        // consume their uncached pixmaps; selecting the physical strike also
+        // keeps color emoji sharp on HiDPI displays.
+        let atlas_cache = font_uses_bitmap_strikes(font.data.data(), font.index);
         let brush = brush.into().to_owned().multiply_alpha(brush_alpha);
         let paint = self.paint((&brush).into());
         self.scene.set_paint(paint);
@@ -527,7 +534,7 @@ impl PaintScene for HybridPainter<'_> {
                 self.scene.set_fill_rule(fill);
                 self.scene
                     .glyph_run(self.resources, font)
-                    .atlas_cache(bitmap_font)
+                    .atlas_cache(atlas_cache)
                     .font_size(font_size)
                     .hint(hint)
                     .normalized_coords(normalized_coords)
@@ -546,7 +553,7 @@ impl PaintScene for HybridPainter<'_> {
                 self.scene.set_stroke(stroke.clone());
                 self.scene
                     .glyph_run(self.resources, font)
-                    .atlas_cache(bitmap_font)
+                    .atlas_cache(atlas_cache)
                     .font_size(font_size)
                     .hint(hint)
                     .normalized_coords(normalized_coords)
@@ -593,12 +600,12 @@ impl PaintScene for HybridPainter<'_> {
             self.encoder,
             self.texture_bindings,
         );
-        let [physical_width, physical_height] = effect.physical_size;
+        let [physical_width, physical_height] = effect.physical_size();
         self.scene.set_transform(
             transform
                 * Affine::scale_non_uniform(
-                    f64::from(effect.logical_size[0]) / f64::from(physical_width),
-                    f64::from(effect.logical_size[1]) / f64::from(physical_height),
+                    f64::from(effect.logical_size()[0]) / f64::from(physical_width),
+                    f64::from(effect.logical_size()[1]) / f64::from(physical_height),
                 ),
         );
         self.scene.set_paint(vello_common::paint::Image {
@@ -759,6 +766,12 @@ impl HybridImageRenderer {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn ordinary_outline_fonts_do_not_use_the_grayscale_atlas() {
+        let font = include_bytes!("../../../examples/web-preview/public/DejaVuSans.ttf");
+        assert!(!font_uses_bitmap_strikes(font, 0));
+    }
 
     #[test]
     fn surface_alpha_selection_prefers_a_premultiplied_fallback() {

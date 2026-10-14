@@ -1,7 +1,9 @@
-import { S as createResourceKeyFamily, c as HOST_RECORD_KIND, n as EVENT_DATA_LEN, o as HOST_FRAME, s as HOST_NODE_PAYLOAD, v as nodeKey } from "./protocol-9rzVdDwg.mjs";
+import { t as hasBrowserDom } from "./browser-dom-BrHP4mZQ.mjs";
+import { S as createResourceKeyFamily, c as HOST_RECORD_KIND, n as EVENT_DATA_LEN, o as HOST_FRAME, s as HOST_NODE_PAYLOAD, v as nodeKey } from "./protocol-D2bydZ2D.mjs";
 import { _ as utilityConflictProperties, a as bool, c as mergeClasses, d as px, f as rgba, g as translate2d, h as shadow, i as auto, l as number, m as scale2d, n as StyleValueKind, o as classes, p as rotate2d, r as assertInlineStyleValue, s as isTypedStyleValue, t as STYLE_VALUE, u as percent, v as INLINE_STYLE_CONTRACT } from "./style-DgJ-RVg4.mjs";
-import { A as writer, E as runSweep, F as defaultHost, I as useHost, L as PathBuilder, M as createFps, N as Portal, O as setTransform2D, P as HostProvider, R as isVectorPath, b as reconcileControlledInputValues, c as dispatchEvent, j as VirtualList, m as isDirectEvent, t as Dynamic, v as mount, y as observeGlobalPointerEvent } from "./renderer-Bd1F9NOg.mjs";
-import { a as subscribeAll, i as subscribe, n as dispatchHostMessage, o as subscribeJson, r as hostMessages, t as dispatchResizeObservation } from "./resize-observer-CyzWK08I.mjs";
+import { F as HostProvider, I as defaultHost, L as useHost, M as VirtualList, N as createFps, P as Portal, R as PathBuilder, b as observeGlobalPointerEvent, c as dispatchEvent, h as isDirectEvent, j as writer, k as setTransform2D, t as Dynamic, x as reconcileControlledInputValues, y as mount, z as isVectorPath } from "./renderer-Cfx6RltQ.mjs";
+import "./animation-frame-CboYMd9H.mjs";
+import { a as subscribeAll, i as subscribe, n as dispatchHostMessage, o as subscribeJson, r as hostMessages, t as dispatchResizeObservation } from "./resize-observer-LjfJLFMZ.mjs";
 import { n as effectOps } from "./effect-abi-BzPW8STE.mjs";
 import "./registry.mjs";
 import { flushPerformance, measureAsyncPerformance, measurePerformance } from "./performance.mjs";
@@ -455,59 +457,6 @@ function installFetchPolyfill() {
 }
 installFetchPolyfill();
 //#endregion
-//#region src/glue/animation-frame.ts
-var AnimationFrameQueue = class {
-	#callbacks = /* @__PURE__ */ new Map();
-	#nextId = 1;
-	request(callback) {
-		const id = this.#nextId++;
-		this.#callbacks.set(id, callback);
-		return id;
-	}
-	cancel(id) {
-		this.#callbacks.delete(id);
-	}
-	drain() {
-		const entries = Array.from(this.#callbacks.entries());
-		this.#callbacks.clear();
-		return entries;
-	}
-	hasPending() {
-		return this.#callbacks.size > 0;
-	}
-};
-const animationFrames = new AnimationFrameQueue();
-function requestAnimationFrameImpl(cb) {
-	return animationFrames.request(cb);
-}
-function cancelAnimationFrameImpl(id) {
-	animationFrames.cancel(id);
-}
-function tickAnimationFrame(frameTime, deliver = __wabou_flush, flushWriter = () => writer.flush(), commit = flush, queue = animationFrames) {
-	const entries = queue.drain();
-	commit(() => {
-		for (const [_, cb] of entries) try {
-			cb(frameTime);
-		} catch (error) {
-			__wabou_log("error", error instanceof Error && error.stack ? error.stack : String(error));
-		}
-	});
-	runSweep();
-	const bytes = flushWriter();
-	if (bytes) deliver(bytes);
-	return queue.hasPending();
-}
-function __wabou_tick(frameTime) {
-	return tickAnimationFrame(frameTime);
-}
-function __wabou_has_raf() {
-	return animationFrames.hasPending();
-}
-globalThis.requestAnimationFrame = requestAnimationFrameImpl;
-globalThis.cancelAnimationFrame = cancelAnimationFrameImpl;
-globalThis.__wabou_tick = __wabou_tick;
-globalThis.__wabou_has_raf = __wabou_has_raf;
-//#endregion
 //#region src/glue/app-lifecycle.ts
 function decodeAppLifecycle(value) {
 	if (typeof value !== "object" || value === null) throw new TypeError("application lifecycle event must be an object");
@@ -555,13 +504,17 @@ function schedule(callback, delay, repeat, args) {
 	run();
 	return id;
 }
-globalThis.setTimeout = (callback, delay = 0, ...args) => schedule(callback, Number(delay) || 0, false, args);
-globalThis.setInterval = (callback, delay = 0, ...args) => schedule(callback, Number(delay) || 0, true, args);
+if (!hasBrowserDom()) {
+	globalThis.setTimeout = (callback, delay = 0, ...args) => schedule(callback, Number(delay) || 0, false, args);
+	globalThis.setInterval = (callback, delay = 0, ...args) => schedule(callback, Number(delay) || 0, true, args);
+}
 function clearTimer(id) {
 	active.delete(id);
 }
-globalThis.clearTimeout = clearTimer;
-globalThis.clearInterval = clearTimer;
+if (!hasBrowserDom()) {
+	globalThis.clearTimeout = clearTimer;
+	globalThis.clearInterval = clearTimer;
+}
 //#endregion
 //#region src/glue/host-frame.ts
 const RECORD_HEADER_LEN = 8;
@@ -740,8 +693,9 @@ const ALT = 4;
 const META = 8;
 const PRIMARY = 16;
 function decodeKeyboardModifiers(value) {
-	if (!Number.isInteger(value) || value < 0 || (value & -32) !== 0) throw new TypeError("keyboard modifier bits are invalid");
+	if (typeof value !== "number" || !Number.isInteger(value)) throw new TypeError("keyboard modifier bits are invalid");
 	const bits = value;
+	if (bits < 0 || (bits & -32) !== 0) throw new TypeError("keyboard modifier bits are invalid");
 	return Object.freeze({
 		bits: bits & 15,
 		shift: (bits & SHIFT) !== 0,

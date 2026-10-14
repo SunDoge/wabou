@@ -1,0 +1,45 @@
+{
+  "width": 720,
+  "height": 260,
+  "background": "#f8fafc",
+  "foreground": "#0f172a",
+  "fontFamily": "Noto Sans",
+  "scales": [1, 2],
+  "rows": [
+    {
+      "text": "UI text · Settings 0123456789",
+      "size": 13,
+      "weight": 400,
+      "x": 24.25,
+      "baseline": 38
+    },
+    {
+      "text": "The quick brown fox — AV fi ffi",
+      "size": 16,
+      "weight": 400,
+      "x": 24.5,
+      "baseline": 78
+    },
+    {
+      "text": "中文界面：快速、清晰、可预测",
+      "size": 16,
+      "weight": 400,
+      "x": 24.25,
+      "baseline": 122
+    },
+    {
+      "text": "日本語 한국어 العربية हिन्दी",
+      "size": 18,
+      "weight": 400,
+      "x": 24.5,
+      "baseline": 170
+    },
+    {
+      "text": "Small labels stay readable at fractional x",
+      "size": 12,
+      "weight": 500,
+      "x": 24.25,
+      "baseline": 220
+    }
+  ]
+}

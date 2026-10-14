@@ -117,7 +117,7 @@ test("drives popup enter and exit motion from JavaScript", async () => {
   const popover = screen.getByRole("dialog", { name: "Animated actions" });
   expect(popover.transform).toEqual([0.96, 0, 0, 0.96, 0, 0]);
   expect(popover.style("opacity")).toBe("0");
-  expect(popover.attribute("__wabou_native_transition")).toBeNull();
+  expect(popover.attribute("__wabou_native_motion")).toBeNull();
 
   await screen.advanceTime(200);
   expect(popover.transform).toEqual([1, 0, 0, 1, 0, 0]);

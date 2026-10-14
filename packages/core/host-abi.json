@@ -25,6 +25,30 @@
       "returns": "boolean"
     },
     {
+      "name": "__wabou_motion_create",
+      "direction": "host",
+      "owner": "runtime",
+      "kind": "function",
+      "params": [["descriptor", "string"]],
+      "returns": "number"
+    },
+    {
+      "name": "__wabou_motion_sample",
+      "direction": "host",
+      "owner": "runtime",
+      "kind": "function",
+      "params": [["id", "number"], ["elapsed", "number"], ["output", "Float64Array"]],
+      "returns": "boolean"
+    },
+    {
+      "name": "__wabou_motion_drop",
+      "direction": "host",
+      "owner": "runtime",
+      "kind": "function",
+      "params": [["id", "number"]],
+      "returns": "boolean"
+    },
+    {
       "name": "__wabou_set_stylesheet",
       "direction": "host",
       "owner": "runtime",

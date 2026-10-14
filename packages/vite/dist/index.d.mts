@@ -1,5 +1,16 @@
 import { a as defaultWabouSemanticColorTokens, i as defaultWabouColorThemes, n as WabouColorThemeOptions, r as WabouThemeColor, t as DefaultWabouSemanticColorToken } from "./theme-contract-CGexNhcT.mjs";
 import { ConfigEnv, Plugin, UserConfig, UserConfigExport } from "vite";
+//#region src/browser.d.ts
+/** Browser-specific host configuration; UI entries keep the normal mount API. */
+interface WabouBrowserOptions {
+  /** Existing page canvas receiving Wabou paint. */
+  canvas: string;
+  /** wasm-bindgen's generated web JS module, relative to the application root. */
+  runtimeModule: string;
+  /** TTF/OTF URLs available to the shared Rust font context. */
+  fonts?: readonly string[];
+}
+//#endregion
 //#region src/style-compiler/vite.d.ts
 /** Validate a generated or shared theme color at its declaration site. */
 export declare function color(value: string): WabouThemeColor;
@@ -11,6 +22,10 @@ export declare function defineWabouTheme<const T extends WabouColorThemeOptions>
 //#endregion
 //#region src/index.d.ts
 export interface WabouViteOptions {
+  /** Native QuickJS bundle or browser canvas application. Defaults to native. */
+  target?: "native" | "browser";
+  /** Browser host options, required for target: browser. */
+  browser?: WabouBrowserOptions;
   /** Application root. Defaults to Vite's current working directory. */
   root?: string;
   /** Solid entry module. */
@@ -48,5 +63,5 @@ export declare function wabouPlugins(root?: string, theme?: WabouColorThemeOptio
 /** Define the complete conventional Vite configuration for a Wabou app. */
 export declare function defineWabouConfig(options: WabouViteOptionsExport): UserConfigExport;
 //#endregion
-export { type DefaultWabouSemanticColorToken, type WabouColorThemeOptions, type WabouThemeColor, defaultWabouColorThemes, defaultWabouSemanticColorTokens };
+export { type DefaultWabouSemanticColorToken, type WabouBrowserOptions, type WabouColorThemeOptions, type WabouThemeColor, defaultWabouColorThemes, defaultWabouSemanticColorTokens };
 //# sourceMappingURL=index.d.mts.map

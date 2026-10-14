@@ -10,23 +10,6 @@
 
 mod actor;
 mod bundle;
-#[cfg(all(
-    feature = "capability-modules",
-    any(test, feature = "capability-development")
-))]
-pub mod capability_development;
-#[cfg(feature = "capability-modules")]
-pub mod capability_files;
-#[cfg(feature = "capability-modules")]
-pub mod capability_module;
-#[cfg(feature = "capability-modules")]
-pub mod capability_resources;
-#[cfg(feature = "capability-modules")]
-pub mod capability_state;
-#[cfg(feature = "capability-modules")]
-pub mod capability_tasks;
-#[cfg(feature = "capability-modules")]
-pub mod capability_tcp;
 #[doc(hidden)]
 #[allow(missing_docs)]
 pub mod clock;
@@ -107,7 +90,7 @@ pub use reload::is_vite_side_effect_update;
 pub use reload::{
     HmrBatch, HmrDrainResult, HmrJsUpdate, ReloadHandle, ReloadMsg, ReloadState, plan_hmr_batch,
 };
-pub use resource::{ResourceKey, ResourceRegistry};
+pub use resource::{ResidentResources, ResourceKey, ResourceRegistry};
 pub use rquickjs;
 #[doc(hidden)]
 pub use runtime_session::RuntimeSession;

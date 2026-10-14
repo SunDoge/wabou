@@ -5,6 +5,7 @@
 // redrawing.
 
 import { flush } from "solid-js";
+import { hasBrowserDom } from "../browser-dom";
 import { runSweep, writer } from "../renderer";
 
 export class AnimationFrameQueue {
@@ -79,10 +80,12 @@ function __wabou_has_raf(): boolean {
   return animationFrames.hasPending();
 }
 
-(globalThis as unknown as Record<string, unknown>).requestAnimationFrame =
-  requestAnimationFrameImpl;
-(globalThis as unknown as Record<string, unknown>).cancelAnimationFrame =
-  cancelAnimationFrameImpl;
+if (!hasBrowserDom()) {
+  (globalThis as unknown as Record<string, unknown>).requestAnimationFrame =
+    requestAnimationFrameImpl;
+  (globalThis as unknown as Record<string, unknown>).cancelAnimationFrame =
+    cancelAnimationFrameImpl;
+}
 (globalThis as unknown as Record<string, unknown>).__wabou_tick = __wabou_tick;
 (globalThis as unknown as Record<string, unknown>).__wabou_has_raf =
   __wabou_has_raf;

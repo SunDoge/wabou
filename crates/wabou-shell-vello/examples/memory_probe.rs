@@ -4,7 +4,9 @@ use std::time::{Duration, Instant};
 
 use serde_json::json;
 use vello_common::{kurbo::Rect, peniko::Color};
-use vello_gpu::{RenderSize, RenderTargetConfig, Renderer, Scene, TextureBindings};
+use vello_gpu::{
+    ClearSettings, RenderSize, RenderTargetConfig, Renderer, Scene, TargetInit, TextureBindings,
+};
 use wgpu_context::{BufferRenderer, BufferRendererConfig, DeviceHandle, WGPUContext};
 
 fn checkpoint(stage: &str, details: serde_json::Value) {
@@ -63,11 +65,16 @@ fn main() {
         buffer.device(),
         &RenderTargetConfig {
             format: wgpu::TextureFormat::Rgba8Unorm,
-            width: width.into(),
-            height: height.into(),
+            width,
+            height,
         },
     );
-    checkpoint("renderer_created", json!({"settings": "default"}));
+    let size = RenderSize { width, height };
+    let depth = Renderer::create_depth_texture_view(buffer.device(), &size);
+    checkpoint(
+        "renderer_created",
+        json!({"settings": "default", "includesDepthTexture": true}),
+    );
     let mut scene = Scene::new(width, height);
     scene.set_paint(Color::from_rgb8(255, 0, 0));
     scene.fill_rect(&Rect::new(0.0, 0.0, f64::from(width), f64::from(height)));
@@ -87,12 +94,11 @@ fn main() {
                 buffer.device(),
                 buffer.queue(),
                 &mut encoder,
-                &RenderSize {
-                    width: width.into(),
-                    height: height.into(),
-                },
+                &size,
                 &buffer.target_texture_view(),
+                Some(&depth),
                 &TextureBindings::new(),
+                TargetInit::Clear(ClearSettings::default()),
             )
             .expect("render failed");
         buffer.queue().submit([encoder.finish()]);

@@ -1,10 +1,5 @@
-import {
-  animate,
-  createMeasuredSize,
-  Path,
-  PathBuilder,
-  View,
-} from "@wabou/ui";
+import { createMeasuredSize, Path, PathBuilder, View } from "@wabou/ui";
+import { animate } from "@wabou/ui/animation";
 import {
   createEffect,
   createMemo,

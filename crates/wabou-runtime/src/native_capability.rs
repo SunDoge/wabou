@@ -152,84 +152,6 @@ impl<'js> NativeCapability<'js> {
         .method(method, handler)
     }
 
-    /// Install an existing JSON-coded JS contract over a replaceable module.
-    #[cfg(feature = "capability-modules")]
-    pub fn json_module_method<Request, Response>(
-        &self,
-        method: JsonMethod<Request, Response>,
-        module: crate::capability_module::CapabilityModule,
-    ) -> rquickjs::Result<()>
-    where
-        Request: DeserializeOwned + Serialize + 'static,
-        Response: DeserializeOwned + Serialize + 'static,
-    {
-        let name = method.name();
-        self.json_method(method, move |request| {
-            let module = module.clone();
-            async move {
-                let request = serde_json::to_vec(&request).map_err(|e| e.to_string())?;
-                let response = module.call(name, &request).await?;
-                serde_json::from_slice::<Response>(&response).map_err(|e| e.to_string())
-            }
-        })
-    }
-
-    /// Install a stable JS entry backed by a replaceable capability module.
-    /// Requests/responses use JSON bytes only inside the native module boundary.
-    /// The QuickJS function is mounted once; each call selects current code.
-    #[cfg(feature = "capability-modules")]
-    pub fn module_method<Request, Response>(
-        &self,
-        method: HostMethod<Request, Response>,
-        module: crate::capability_module::CapabilityModule,
-    ) -> rquickjs::Result<()>
-    where
-        Request: DeserializeOwned + Serialize + 'static,
-        Response: DeserializeOwned + Serialize + 'static,
-    {
-        let name = method.name();
-        self.method(method, move |request| {
-            let module = module.clone();
-            async move {
-                let request = serde_json::to_vec(&request).map_err(|e| e.to_string())?;
-                let response = module.call(name, &request).await?;
-                serde_json::from_slice::<Response>(&response).map_err(|e| e.to_string())
-            }
-        })
-    }
-
-    /// Mount a configured module export without leaking dynamically loaded names.
-    /// Intended for the separately distributed runtime's configuration adapter.
-    #[doc(hidden)]
-    #[cfg(feature = "capability-modules")]
-    pub fn module_method_by_name(
-        &self,
-        name: &str,
-        has_request: bool,
-        json: bool,
-        module: crate::capability_module::CapabilityModule,
-    ) -> rquickjs::Result<()> {
-        let selected = name.to_owned();
-        let handler = move |request: serde_json::Value| {
-            let module = module.clone();
-            let name = selected.clone();
-            async move {
-                let request = serde_json::to_vec(&request).map_err(|e| e.to_string())?;
-                let bytes = module.call(&name, &request).await?;
-                serde_json::from_slice::<serde_json::Value>(&bytes).map_err(|e| e.to_string())
-            }
-        };
-        if json {
-            JsonCapability {
-                ctx: self.ctx.clone(),
-                object: self.object.clone(),
-            }
-            .install(name, has_request, handler)
-        } else {
-            self.install(name, has_request, handler)
-        }
-    }
-
     /// Install a typed asynchronous native method.
     pub fn method<Request, Response, Error, Handler, HandlerFuture>(
         &self,
@@ -360,7 +282,7 @@ mod tests {
     use wabou_bindgen::{HostMethod, JsonMethod};
 
     use super::NativeCapability;
-    use crate::jsrt::JsRuntime;
+    use crate::{ResidentResources, ResourceKey, jsrt::JsRuntime};
 
     #[derive(Deserialize)]
     struct DoubleRequest {
@@ -371,6 +293,8 @@ mod tests {
     struct DoubleResponse {
         value: u32,
     }
+
+    enum CounterResource {}
 
     #[test]
     fn structured_values_cross_quickjs_without_json_text() {
@@ -428,6 +352,55 @@ mod tests {
             !runtime.poll_async_runtime(),
             "sync calls must not enqueue jobs"
         );
+    }
+
+    #[test]
+    fn resident_resource_handles_rebind_without_resetting_native_state() {
+        const OPEN: HostMethod<(), ResourceKey<CounterResource>> = HostMethod::no_request("open");
+        const INCREMENT: HostMethod<ResourceKey<CounterResource>, u32> =
+            HostMethod::new("increment");
+        let resources = ResidentResources::<CounterResource, u32>::new();
+        let open_resources = resources.clone();
+        let increment_resources = resources.clone();
+        let runtime = JsRuntime::new().expect("runtime");
+        runtime
+            .mount_capability("residentTest", move |ctx, object| {
+                let capability = NativeCapability { ctx, object };
+                let resources = open_resources.clone();
+                capability.sync_method(OPEN, move |(): ()| {
+                    Ok::<_, String>(resources.get_or_insert_with("counter".to_owned(), || 0))
+                })?;
+                let resources = increment_resources.clone();
+                capability.sync_method(INCREMENT, move |key| {
+                    resources
+                        .with_mut(key, |count| {
+                            *count += 1;
+                            *count
+                        })
+                        .ok_or_else(|| "stale counter handle".to_owned())
+                })
+            })
+            .expect("mount resident capability");
+
+        let result = runtime
+            .with(|ctx| {
+                ctx.eval::<String, _>(
+                    r#"
+                    const beforeReload = __wabou_capabilities.residentTest.open();
+                    const first = __wabou_capabilities.residentTest.increment(beforeReload);
+                    // A replacement UI module no longer has the original variable.
+                    const afterReload = __wabou_capabilities.residentTest.open();
+                    const second = __wabou_capabilities.residentTest.increment(afterReload);
+                    JSON.stringify({ beforeReload, afterReload, first, second });
+                    "#,
+                )
+            })
+            .expect("use resource before and after a UI replacement");
+        let result: serde_json::Value = serde_json::from_str(&result).unwrap();
+        assert_eq!(result["beforeReload"], result["afterReload"]);
+        assert_eq!(result["first"], 1);
+        assert_eq!(result["second"], 2);
+        assert_eq!(resources.len(), 1);
     }
 
     #[test]

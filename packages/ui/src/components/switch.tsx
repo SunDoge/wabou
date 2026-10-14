@@ -121,7 +121,8 @@ export function Switch(props: SwitchProps): JSX.Element {
                 "rounded-full bg-surface",
               )}
               transform={translate2d(checked() ? geometry().travel : 0, 0)}
-              nativeSpring={{
+              nativeMotion={{
+                kind: "spring",
                 response: reducedMotion() ? 0 : 0.16,
                 damping: 1,
                 epsilon: 0.02,

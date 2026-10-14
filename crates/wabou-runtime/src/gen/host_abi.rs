@@ -33,6 +33,24 @@ pub(crate) const HOST_ABI: &[HostAbiEntry] = &[
         feature: None,
     },
     HostAbiEntry {
+        name: "__wabou_motion_create",
+        direction: Direction::Host,
+        owner: "runtime",
+        feature: None,
+    },
+    HostAbiEntry {
+        name: "__wabou_motion_sample",
+        direction: Direction::Host,
+        owner: "runtime",
+        feature: None,
+    },
+    HostAbiEntry {
+        name: "__wabou_motion_drop",
+        direction: Direction::Host,
+        owner: "runtime",
+        feature: None,
+    },
+    HostAbiEntry {
         name: "__wabou_set_stylesheet",
         direction: Direction::Host,
         owner: "runtime",

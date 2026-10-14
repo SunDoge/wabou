@@ -1265,14 +1265,20 @@ export function renderComponent(
       },
       finishNativeTransition: () => {
         ensureAttached(node, "finish the native transition of");
-        const encoded = node.attributes.get("__wabou_native_transition");
+        const encoded = node.attributes.get("__wabou_native_motion");
         if (!encoded) {
           throw new Error(
             `component ${roleOf(node) ?? node.tag} "${nameOf(node)}" has no native transition`,
           );
         }
-        const transition = JSON.parse(encoded) as { generation?: unknown };
-        if (!Number.isSafeInteger(transition.generation)) {
+        const transition = JSON.parse(encoded) as {
+          kind?: unknown;
+          generation?: unknown;
+        };
+        if (
+          transition.kind !== "transition" ||
+          !Number.isSafeInteger(transition.generation)
+        ) {
           throw new Error(
             `component native transition has an invalid generation: ${encoded}`,
           );
@@ -1407,9 +1413,8 @@ export function renderComponent(
         fakeFrameTime += elapsed;
         if (typeof tick === "function") tick(fakeFrameTime);
         flushUpdates();
-        // motion-dom clears its synchronous frame-time cache in a microtask.
-        // Yielding here makes a rapid retarget start from this frame rather
-        // than an earlier animation's timestamp.
+        // Let promise completions and reactive animation effects settle at
+        // the same boundary as a native frame.
         await Promise.resolve();
         remaining -= elapsed;
       }

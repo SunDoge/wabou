@@ -3,6 +3,7 @@
 !apps/*/icons/*.png
 node_modules/
 .turbo/
+reports/text-quality/
 **/dist/
 !packages/*/dist/
 !packages/*/dist/**

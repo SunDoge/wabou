@@ -1,14 +1,15 @@
 # Wabou animation implementation
 
-This is the animation layer inside the public `@wabou/ui` package.
-Applications import animation APIs from `@wabou/ui`.
+This is the animation layer inside the public `@wabou/ui` package. New code
+imports animation APIs from `@wabou/ui/animation`; the root re-export remains
+for compatibility.
 
-Motion's value animation engine adapted to Wabou's QuickJS runtime. It supports
-numbers, colors, springs and playback controls without pulling in React or DOM
-animation code.
+Wabou's Rust value-animation engine exposed through a small QuickJS host ABI.
+It supports numbers, colors, springs and playback controls without shipping a
+second JavaScript animation runtime.
 
 ```tsx
-import { animate, animateKeyframes } from "@wabou/ui";
+import { animate, animateKeyframes } from "@wabou/ui/animation";
 
 const controls = animate(0, 100, {
   duration: 0.3,
@@ -22,15 +23,19 @@ const pulse = animateKeyframes([0.5, 1, 0.5], {
 });
 ```
 
-As with Motion's public API, `duration`, `delay`, and `repeatDelay` are measured
-in seconds. The wrapper converts them to the millisecond units used internally
-by `motion-dom`.
+`duration`, `delay`, and `repeatDelay` are measured in seconds.
 
 The public options and playback controls are owned by Wabou; Motion types are
 not exposed. This keeps the backend replaceable. DOM targets, selectors,
 object timelines, scroll observers and gesture helpers are intentionally out
-of scope. Animate values into Solid signals, then bind those values to Wabou
-classes or inline styles.
+of scope.
+
+Use `useSpring` or `useTween` for renderer transform and opacity. Those APIs
+publish intent once and let the shared Rust motion system sample each frame on
+native and Web targets. Use value animation for values that remain in application logic, including
+colors, drag offsets, and measured layout transitions. Rust samples the curve;
+the small JS adapter publishes its value to Solid once per frame. Do not use
+that callback path for large sets of independently moving render nodes.
 
 For component-owned repeating motion, use the Solid-aware controllers. They
 create the signal, expose playback controls, and stop automatically when the
@@ -49,13 +54,12 @@ contain no manual pivot translation: Wabou's native scene builder applies
 runtime transforms around the node's border-box center.
 # Animation primitives
 
-Wabou uses Motion's DOM-independent value engine and keeps native rendering
-under application control. Prefer lifecycle-owned primitives over calling
-`motion-dom` directly:
+Wabou uses one Rust motion engine for native and web rendering. Prefer
+lifecycle-owned primitives over manually scheduling frame callbacks:
 
 - `createTransition` retargets a scalar from its current value.
-- `createKeyframeAnimation` owns arbitrary numeric or string keyframes.
-- `createInterpolation` derives numbers, colors, or complex values from one
+- `createKeyframeAnimation` owns numeric or CSS-color keyframes.
+- `createInterpolation` derives numbers or colors from one
   shared progress signal.
 - `createLoop`, `createPulse`, `createRotation`, and `createSweep` are focused
   compositions of the general primitive.

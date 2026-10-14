@@ -37,11 +37,38 @@ pub type ConnectionKey = ResourceKey<TcpConnection>;
 ///
 /// The family is a Rust-only brand. Every wire boundary uses the stable
 /// `{ lo, hi }` representation so JavaScript never has to represent a `u64`.
-#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub struct ResourceKey<Family> {
     lo: u32,
     hi: u32,
     family: PhantomData<fn() -> Family>,
+}
+
+impl<Family> Copy for ResourceKey<Family> {}
+impl<Family> Clone for ResourceKey<Family> {
+    fn clone(&self) -> Self {
+        *self
+    }
+}
+impl<Family> PartialEq for ResourceKey<Family> {
+    fn eq(&self, other: &Self) -> bool {
+        self.lo == other.lo && self.hi == other.hi
+    }
+}
+impl<Family> Eq for ResourceKey<Family> {}
+impl<Family> std::hash::Hash for ResourceKey<Family> {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        std::hash::Hash::hash(&self.lo, state);
+        std::hash::Hash::hash(&self.hi, state);
+    }
+}
+impl<Family> std::fmt::Debug for ResourceKey<Family> {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter
+            .debug_struct("ResourceKey")
+            .field("lo", &self.lo)
+            .field("hi", &self.hi)
+            .finish()
+    }
 }
 
 impl<Family> ResourceKey<Family> {

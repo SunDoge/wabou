@@ -47,19 +47,13 @@ struct WabouPackageFile {
 #[derive(Default, Debug, Deserialize)]
 #[serde(rename_all = "kebab-case", deny_unknown_fields)]
 pub(super) struct DevConfig {
-    pub(super) runtime_library: Option<PathBuf>,
     pub(super) runtime_config: Option<PathBuf>,
-    #[serde(default)]
-    pub(super) rust_hot_reload: bool,
 }
 pub(super) fn load_dev_config(app: &App) -> Result<DevConfig> {
     let mut config = load_config_file(app)?
         .and_then(|file| file.dev)
         .unwrap_or_default();
-    for path in [&mut config.runtime_library, &mut config.runtime_config]
-        .into_iter()
-        .flatten()
-    {
+    for path in [&mut config.runtime_config].into_iter().flatten() {
         *path = app.root.join(&*path);
     }
     Ok(config)
@@ -212,14 +206,13 @@ mod dev_tests {
             frontend: root.path().to_owned(),
             entry: "ui/index.tsx".into(),
         };
-        fs::write(root.path().join("wabou.toml"), "[dev]\nruntime-library = 'runtime/library.so'\nruntime-config = 'app.json'\nrust-hot-reload = true\n").unwrap();
+        fs::write(
+            root.path().join("wabou.toml"),
+            "[dev]\nruntime-config = 'app.json'\n",
+        )
+        .unwrap();
         let config = load_dev_config(&app).unwrap();
-        assert_eq!(
-            config.runtime_library,
-            Some(root.path().join("runtime/library.so"))
-        );
         assert_eq!(config.runtime_config, Some(root.path().join("app.json")));
-        assert!(config.rust_hot_reload);
         assert!(
             load_package_config(&app)
                 .unwrap_err()

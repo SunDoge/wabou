@@ -166,20 +166,3 @@ test("legacy crates stay unpublished and outside default workspace commands", ()
     "wabou-legacy-widgets is publishable",
   ]);
 });
-
-test("experimental Rust UI remains outside formal default verification", () => {
-  const names = [
-    "blockui",
-    "blockui-runtime",
-    "wabou-native",
-    "native-counter",
-    "ui-contract",
-  ];
-  expect(
-    formalVerificationViolations({
-      packages: names.map((name) => ({ id: name, name, dependencies: [] })),
-      workspace_members: names,
-      workspace_default_members: [],
-    }),
-  ).toEqual([]);
-});

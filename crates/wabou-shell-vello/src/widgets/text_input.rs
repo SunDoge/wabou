@@ -715,7 +715,7 @@ impl TextInput {
                         glyph_run.run().font(),
                         glyph_run.run().font_size() * device_scale as f32,
                         true,
-                        glyph_run.run().normalized_coords(),
+                        bytemuck::cast_slice(glyph_run.run().normalized_coords()),
                         vello_common::kurbo::Vec2::ZERO,
                         Fill::NonZero,
                         self.text_color,

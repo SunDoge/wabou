@@ -1,0 +1,20 @@
+[package]
+name = "wabou-web"
+version.workspace = true
+edition = "2024"
+license.workspace = true
+publish = false
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+wabou-render-core = { path = "../wabou-render-core" }
+wabou-motion = { workspace = true }
+wabou-protocol.workspace = true
+wabou-style.workspace = true
+taffy.workspace = true
+serde_json.workspace = true
+wasm-bindgen = "=0.2.127"
+web-sys = { version = "0.3", features = ["HtmlCanvasElement"] }
+vello-common.workspace = true
