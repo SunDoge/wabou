@@ -17,6 +17,7 @@ const packages: Record<string, UserConfig["entry"]> = {
     i18n: "src/i18n.ts",
     "jsx-runtime": "src/jsx.ts",
   },
+  pdf: { index: "generated/index.tsx" },
   terminal: { index: "src/index.tsx" },
   test: {
     index: "src/index.ts",

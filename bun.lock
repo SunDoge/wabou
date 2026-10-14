@@ -224,6 +224,14 @@
         "web-streams-polyfill": "4.3.0",
       },
     },
+    "packages/pdf": {
+      "name": "@wabou/pdf",
+      "version": "0.1.0-alpha.3",
+      "dependencies": {
+        "@wabou/ui": "workspace:*",
+        "solid-js": "2.0.0-rc.14",
+      },
+    },
     "packages/terminal": {
       "name": "@wabou/terminal",
       "version": "0.1.0-alpha.3",
@@ -768,6 +776,8 @@
     "@wabou/meow-starter": ["@wabou/meow-starter@workspace:apps/meow-starter"],
 
     "@wabou/motrix": ["@wabou/motrix@workspace:apps/motrix"],
+
+    "@wabou/pdf": ["@wabou/pdf@workspace:packages/pdf"],
 
     "@wabou/pi-agent": ["@wabou/pi-agent@workspace:apps/pi-agent"],
 

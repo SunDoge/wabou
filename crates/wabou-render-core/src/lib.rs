@@ -32,8 +32,9 @@ pub use source::{
 pub use text::TextContext;
 pub use wabou_shell_api::{EffectCompletion, EffectRequest};
 pub use widget::{
-    MeasureContext, PaintContext, Widget, WidgetAccessibility, WidgetAvailableSpace, WidgetChanges,
-    WidgetEventResult, WidgetFactory, WidgetGeometry, WidgetHarness, WidgetImePurpose,
-    WidgetImeState, WidgetNodeEvent, WidgetRasterImage, WidgetRasterImageError, WidgetStyle,
-    WidgetTextSelection, WidgetTextSelectionKind, decode_widget_config,
+    MeasureContext, NativeWidgetPlugin, PaintContext, Widget, WidgetAccessibility,
+    WidgetAvailableSpace, WidgetChanges, WidgetEventResult, WidgetFactory, WidgetGeometry,
+    WidgetHarness, WidgetImePurpose, WidgetImeState, WidgetNodeEvent, WidgetRasterImage,
+    WidgetRasterImageError, WidgetStyle, WidgetTextSelection, WidgetTextSelectionKind,
+    decode_widget_config,
 };

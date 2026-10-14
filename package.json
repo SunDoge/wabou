@@ -52,6 +52,7 @@
   },
   "workspaces": [
     "packages/core",
+    "packages/pdf",
     "packages/terminal",
     "packages/test",
     "packages/ui",

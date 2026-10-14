@@ -5,6 +5,7 @@
   "fixed": [
     [
       "@wabou/core",
+      "@wabou/pdf",
       "@wabou/terminal",
       "@wabou/test",
       "@wabou/ui",

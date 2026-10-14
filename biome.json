@@ -7,7 +7,7 @@
   },
   "files": {
     "ignoreUnknown": false,
-    "includes": ["**", "!**/ui/generated/**"]
+    "includes": ["**", "!**/ui/generated/**", "!packages/*/generated/**"]
   },
   "formatter": {
     "enabled": true,

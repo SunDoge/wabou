@@ -520,6 +520,33 @@ impl WidgetNodeEvent {
 /// Factory stored by the host to construct one widget per matching node.
 pub type WidgetFactory = Arc<dyn Fn() -> Box<dyn Widget>>;
 
+/// Static registration supplied by an optional native-widget crate.
+///
+/// The application host remains statically linked while feature crates expose
+/// one small value that carries both the native tag and widget constructor.
+#[derive(Clone, Copy)]
+pub struct NativeWidgetPlugin {
+    tag: &'static str,
+    factory: fn() -> Box<dyn Widget>,
+}
+
+impl NativeWidgetPlugin {
+    /// Define a native-widget plugin from its stable tag and constructor.
+    pub const fn new(tag: &'static str, factory: fn() -> Box<dyn Widget>) -> Self {
+        Self { tag, factory }
+    }
+
+    /// Native element tag consumed by the generated Solid component.
+    pub const fn tag(self) -> &'static str {
+        self.tag
+    }
+
+    /// Construct one independent widget instance.
+    pub fn create(self) -> Box<dyn Widget> {
+        (self.factory)()
+    }
+}
+
 bitflags::bitflags! {
     /// Framework work invalidated by a widget callback.
     ///

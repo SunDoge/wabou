@@ -3,7 +3,14 @@ import { mkdir, readdir, rename, rm, stat } from "node:fs/promises";
 import { dirname, join, relative, resolve } from "node:path";
 
 const root = resolve(import.meta.dir, "..");
-const allPackageNames = ["core", "terminal", "test", "ui", "vite"] as const;
+const allPackageNames = [
+  "core",
+  "pdf",
+  "terminal",
+  "test",
+  "ui",
+  "vite",
+] as const;
 type PackageName = (typeof allPackageNames)[number];
 
 const requestedNames = process.argv.slice(2);

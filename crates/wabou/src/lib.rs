@@ -18,7 +18,7 @@
 pub use wabou_backend_vello_hybrid::VelloHybridHostBuilder as HostBuilder;
 #[cfg(feature = "vello-hybrid")]
 pub use wabou_backend_vello_hybrid::{
-    Error, ImageResource, ImageResourceHandle, ImageResourceStore, Result,
+    Error, ImageResource, ImageResourceHandle, ImageResourceStore, NativeWidgetPlugin, Result,
     VelloHybridEffectRequest, VelloHybridExtensionContext, VelloHybridHostBuilder,
     VelloHybridPaintContext, VelloHybridPoint, VelloHybridPointerButton, VelloHybridPointerPhase,
     VelloHybridRasterImage, VelloHybridSecretStore, VelloHybridShellExtension,
@@ -26,7 +26,9 @@ pub use wabou_backend_vello_hybrid::{
     Widget as VelloHybridWidget,
 };
 #[cfg(feature = "bindings")]
-pub use wabou_bindgen::{Bindings, Capability, FunctionModule, NativeMethod, Type, specta};
+pub use wabou_bindgen::{
+    Bindings, Capability, FunctionModule, NativeMethod, Type, WidgetModule, specta,
+};
 pub use wabou_bindgen::{CapabilityContract, HostMethod, JsonMethod};
 pub use wabou_database::{
     AtomicCommit as KvAtomicCommit, KvCheck, KvEntry, KvKey, KvKeyPart, KvListOptions, KvMutation,
@@ -71,6 +73,7 @@ mod tests {
 
         let _ =
             Bindings::new().capability(Capability::new(CapabilityContract::new("workspace", 1)));
+        let _widgets = WidgetModule::new();
         let mut types = specta::Types::default();
         let _ = Payload::definition(&mut types);
     }

@@ -32,6 +32,7 @@ default-members = [
   "crates/wabou-devtools",
   "crates/wabou-host-api",
   "crates/wabou-motion",
+  "crates/wabou-pdf",
   "crates/wabou-protocol",
   "crates/wabou-runtime",
   "crates/wabou-shell-api",
@@ -57,7 +58,9 @@ wabou-database = { path = "crates/wabou-database" }
 wabou-devtools = { path = "crates/wabou-devtools", default-features = false }
 wabou-host-api = { path = "crates/wabou-host-api" }
 wabou-motion = { path = "crates/wabou-motion" }
+wabou-pdf = { path = "crates/wabou-pdf" }
 wabou-protocol = { path = "crates/wabou-protocol" }
+wabou-render-core = { path = "crates/wabou-render-core" }
 wabou-runtime = { path = "crates/wabou-runtime", default-features = false }
 wabou-shell-api = { path = "crates/wabou-shell-api" }
 wabou-shell-vello = { path = "crates/wabou-shell-vello" }
