@@ -142,6 +142,7 @@ export type WabouStaticUtility =
   | "justify-self-start"
   | "justify-self-stretch"
   | "justify-start"
+  | "leading-6"
   | "leading-normal"
   | "leading-relaxed"
   | "leading-tight"

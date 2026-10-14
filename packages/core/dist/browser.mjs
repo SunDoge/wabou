@@ -1,7 +1,7 @@
 import { t as hasBrowserDom } from "./browser-dom-BrHP4mZQ.mjs";
-import { t as EVENT_CODE, v as nodeKey } from "./protocol-D2bydZ2D.mjs";
-import { c as dispatchEvent, j as writer, l as disposeMountedApp } from "./renderer-Cfx6RltQ.mjs";
-import { t as tickAnimationFrame } from "./animation-frame-CboYMd9H.mjs";
+import { t as EVENT_CODE, v as nodeKey } from "./protocol-C0xTI-jG.mjs";
+import { c as dispatchEvent, j as writer, l as disposeMountedApp } from "./renderer-Dg15OQ5a.mjs";
+import { t as tickAnimationFrame } from "./animation-frame-BTPCXgGl.mjs";
 //#region src/browser/host.ts
 const hostKey = Symbol.for("@wabou/core.browser-host");
 const realm = globalThis;

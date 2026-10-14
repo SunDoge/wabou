@@ -251,6 +251,7 @@ pub fn compute_and_walk_with_scroll_and_widgets(
                                 paint.font_family.as_ref(),
                                 layout_width,
                                 paint.text_max_lines,
+                                !paint.text_clip_lines,
                             );
                             return Size {
                                 width: measured_width,

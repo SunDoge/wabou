@@ -68,7 +68,9 @@ describe("Writer limits", () => {
     const expected = new Writer();
     writer.createText(k(1), "retained");
     expected.createText(k(1), "retained");
-    expect(() => writer.setGraphicSource(k(2), GRAPHIC_SOURCE.Svg, "界".repeat(22000))).toThrow("maximum is 65534");
+    expect(() =>
+      writer.setGraphicSource(k(2), GRAPHIC_SOURCE.Svg, "界".repeat(22000)),
+    ).toThrow("maximum is 65534");
     writer.createText(k(3), "retained");
     expected.createText(k(3), "retained");
     expect(writer.flush()).toEqual(expected.flush());
@@ -241,8 +243,8 @@ describe("Writer limits", () => {
     expect(frame[8]).toBe(OP.SetTextBehavior);
     expect(view.getUint32(9, true)).toBe(42);
     expect(frame[17]).toBe(0x03);
-    expect(() => writer.setTextBehavior(k(42), 0x08)).toThrow(RangeError);
-    expect(() => writer.setTextBehavior(k(42), 0x07)).not.toThrow();
+    expect(() => writer.setTextBehavior(k(42), 0x10)).toThrow(RangeError);
+    expect(() => writer.setTextBehavior(k(42), 0x0f)).not.toThrow();
   });
 
   test("preserves the projection boundary v1 golden frame", () => {

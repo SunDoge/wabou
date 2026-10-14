@@ -861,6 +861,10 @@ pub(crate) fn static_utilities() -> BTreeMap<&'static str, Vec<Declaration>> {
         ("leading-normal", vec![number("line-height", 1.5)]),
         ("leading-relaxed", vec![number("line-height", 1.625)]),
         (
+            "leading-6",
+            vec![length("line-height", Length::Px { value: 24.0 })],
+        ),
+        (
             "tracking-tighter",
             vec![length("letter-spacing", Length::Px { value: -0.8 })],
         ),

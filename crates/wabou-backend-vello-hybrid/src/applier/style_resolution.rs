@@ -397,6 +397,7 @@ impl Applier {
                 .map(|p| p.selection_rects.clone())
                 .unwrap_or_else(|| Arc::from([])),
             text_max_lines: decl.text_max_lines,
+            text_clip_lines: decl.text_behavior & crate::protocol::TEXT_BEHAVIOR_CLIP_LINES != 0,
             svg: None,
             vector_path: decl.vector_path.clone(),
             image: prev.and_then(|p| p.image.clone()),
@@ -716,6 +717,7 @@ impl Applier {
             ))
         });
         let motion = self.document.motion.sample(node);
+        let declared = self.document.node_store.declared.get(&node);
         let host = HostPaint {
             text: resolved.host_text,
             text_runs: previous
@@ -726,19 +728,12 @@ impl Applier {
                 .as_ref()
                 .map(|paint| paint.selection_rects.clone())
                 .unwrap_or_else(|| Arc::from([])),
-            text_max_lines: self
-                .document
-                .node_store
-                .declared
-                .get(&node)
-                .map_or(0, |declared| declared.text_max_lines),
+            text_max_lines: declared.map_or(0, |declared| declared.text_max_lines),
+            text_clip_lines: declared.is_some_and(|declared| {
+                declared.text_behavior & crate::protocol::TEXT_BEHAVIOR_CLIP_LINES != 0
+            }),
             svg: previous.as_ref().and_then(|paint| paint.svg.clone()),
-            vector_path: self
-                .document
-                .node_store
-                .declared
-                .get(&node)
-                .and_then(|declared| declared.vector_path.clone()),
+            vector_path: declared.and_then(|declared| declared.vector_path.clone()),
             image,
             widget: previous.as_ref().and_then(|paint| paint.widget.clone()),
             intrinsic_size: resolved.host_intrinsic,

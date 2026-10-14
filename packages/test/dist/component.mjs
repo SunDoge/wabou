@@ -402,7 +402,13 @@ function renderComponent(render, options = {}) {
 	};
 	try {
 		if (options.clock === "fake") {
-			vi.useFakeTimers();
+			vi.useFakeTimers({ toFake: [
+				"Date",
+				"setInterval",
+				"clearInterval",
+				"setTimeout",
+				"clearTimeout"
+			] });
 			fakeFrameTime = performance.now();
 			const performanceNow = vi.spyOn(performance, "now").mockImplementation(() => fakeFrameTime);
 			restorePerformanceNow = () => performanceNow.mockRestore();

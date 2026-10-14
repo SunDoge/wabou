@@ -137,10 +137,12 @@ pub struct TextContext {
     cache: LruCache<TextLayoutKey, Arc<Layout<[u8; 4]>>>,
     intrinsic_width_cache: LruCache<(TextLayoutKey, bool), [f32; 2]>,
     ellipsis_cache: LruCache<TextLayoutKey, Arc<Layout<[u8; 4]>>>,
-    clamp_cache: LruCache<(TextLayoutKey, u32), Arc<Layout<[u8; 4]>>>,
+    clamp_cache: LruCache<TextClampCacheKey, SharedTextLayout>,
     glyph_cache: LruCache<(usize, u64), GlyphSceneEntry>,
 }
 
+type SharedTextLayout = Arc<Layout<[u8; 4]>>;
+type TextClampCacheKey = (TextLayoutKey, u32, bool);
 type GlyphSceneEntry = (std::sync::Weak<Layout<[u8; 4]>>, Arc<Scene>);
 
 fn synthetic_embolden(requested: bool, allowed: bool, font_size: f32, device_scale: f64) -> Vec2 {
@@ -597,11 +599,12 @@ pub fn measure_text_intrinsic_widths(
     measured
 }
 
-/// Shape text and limit the visible result to `max_lines` using an ellipsis.
+/// Shape text and limit the visible result to `max_lines`.
 ///
 /// `max_lines == 0` means unlimited. The truncation point follows grapheme
 /// boundaries and is derived from Parley's actual line breaking rather than
-/// an estimated character count.
+/// an estimated character count. `ellipsis` controls whether the final visible
+/// line receives an ellipsis or ends at its natural shaped boundary.
 #[allow(clippy::too_many_arguments)]
 pub fn layout_text_styled_clamped(
     tcx: &mut TextContext,
@@ -617,6 +620,7 @@ pub fn layout_text_styled_clamped(
     font_family: Option<&Arc<str>>,
     max_width: Option<f32>,
     max_lines: u32,
+    ellipsis: bool,
 ) -> Arc<Layout<[u8; 4]>> {
     let base = layout_text_styled_with_spacing(
         tcx,
@@ -652,7 +656,7 @@ pub fn layout_text_styled_clamped(
         font_family,
         max_width,
     );
-    if let Some(layout) = tcx.clamp_cache.get(&(key.clone(), max_lines)) {
+    if let Some(layout) = tcx.clamp_cache.get(&(key.clone(), max_lines, ellipsis)) {
         return layout.clone();
     }
     let final_line_end = base
@@ -660,6 +664,34 @@ pub fn layout_text_styled_clamped(
         .nth(line_limit - 1)
         .map(|line| line.text_range().end.min(text.len()))
         .unwrap_or(0);
+    if !ellipsis {
+        let clipped_runs: Arc<[TextRun]> = runs
+            .iter()
+            .filter(|run| run.range.start < final_line_end)
+            .map(|run| TextRun {
+                range: run.range.start..run.range.end.min(final_line_end),
+                ..run.clone()
+            })
+            .collect::<Vec<_>>()
+            .into();
+        let clipped = layout_text_styled_with_spacing(
+            tcx,
+            Arc::from(&text[..final_line_end]),
+            font_size,
+            font_weight,
+            font_italic,
+            letter_spacing,
+            line_height,
+            alignment,
+            color,
+            clipped_runs,
+            font_family,
+            max_width,
+        );
+        tcx.clamp_cache
+            .put((key, max_lines, ellipsis), clipped.clone());
+        return clipped;
+    }
     let boundaries = std::iter::once(0)
         .chain(
             text[..final_line_end]
@@ -717,7 +749,8 @@ pub fn layout_text_styled_clamped(
             high = middle;
         }
     }
-    tcx.clamp_cache.put((key, max_lines), best.clone());
+    tcx.clamp_cache
+        .put((key, max_lines, ellipsis), best.clone());
     best
 }
 
@@ -972,6 +1005,7 @@ mod tests {
             None,
             Some(120.0),
             2,
+            true,
         );
         let cached = layout_text_styled_clamped(
             &mut context,
@@ -987,12 +1021,33 @@ mod tests {
             None,
             Some(120.0),
             2,
+            true,
+        );
+        let clipped = layout_text_styled_clamped(
+            &mut context,
+            Arc::from(
+                "A long native UI description with emoji 👨‍👩‍👧‍👦 that needs several wrapped lines",
+            ),
+            16.0,
+            400.0,
+            false,
+            0.0,
+            None,
+            TextAlign::Start,
+            [0, 0, 0, 255],
+            Arc::from([]),
+            None,
+            Some(120.0),
+            2,
+            false,
         );
 
         assert!(full.len() > 2);
         assert_eq!(clamped.len(), 2);
         assert!(clamped.height() < full.height());
         assert!(Arc::ptr_eq(&clamped, &cached));
+        assert_eq!(clipped.len(), 2);
+        assert!(!Arc::ptr_eq(&clamped, &clipped));
     }
 
     #[test]

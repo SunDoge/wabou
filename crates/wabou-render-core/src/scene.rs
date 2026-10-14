@@ -424,6 +424,7 @@ pub fn layout_node_text(
             (node.paint.wrap_text || node.paint.text_ellipsis || node.paint.text_max_lines > 0)
                 .then_some((node.rect[2] - node.rect[0]).max(0.0)),
             node.paint.text_max_lines,
+            !node.paint.text_clip_lines,
         )
     } else {
         crate::text::layout_text_styled_overflow(

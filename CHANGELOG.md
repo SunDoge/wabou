@@ -8,6 +8,17 @@ tags.
 
 ### Changed
 
+- Consolidate the native runtime on Vello GPU 0.3 and the generated widget
+  contract while keeping `wabou`, `@wabou/ui`, and `@wabou/vite` as the normal
+  application-facing entry points.
+- Add a pure-Rust PDF widget, retained rich-text runs, CodeMirror-backed editor
+  state, and the GPUI shell visual benchmark application.
+- Upgrade the frontend toolchain to Solid 2 RC 14 and Vite 8.
+- Discover complete utility classes in static variant maps without requiring
+  manual registration. Dynamic construction from runtime fragments remains a
+  build error.
+- Extend the typed style contract with static transforms, `leading-6`, and
+  three-digit arbitrary colors.
 - Migrate the DataTable integration to TanStack Table v9 while preserving
   Solid-controlled filtering, sorting, selection, and reactive data updates.
 - Update Valibot to 1.5.0, Bun type definitions to 1.4.2, and Node type
@@ -15,6 +26,10 @@ tags.
 
 ### Fixed
 
+- Allow bounded text previews to clip at Parley's shaped line boundary without
+  inserting an ellipsis.
+- Keep Wabou's animation frame queue authoritative under Vitest 5 and allow
+  lifecycle-owned animation signals to update safely from frame callbacks.
 - Component tests share Solid's client runtime when using Vitest 5, preserving
   reactive context and updates through the universal renderer.
 

@@ -119,6 +119,10 @@ describe("presetWabou", () => {
     expect(validateWabouUtility("p-[var(--space)]")?.message).toContain(
       "invalid Wabou spacing",
     );
+    expect(resolveWabouUtility("bg-[#369]")?.declarations[0].value).toEqual({
+      type: "color",
+      value: { kind: "literal", rgba: 0x336699ff },
+    });
     expect(validateWabouUtility("w-[calc(100%-2rem)]")?.message).toContain(
       "invalid Wabou dimension",
     );

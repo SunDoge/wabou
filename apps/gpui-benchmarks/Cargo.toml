@@ -1,0 +1,12 @@
+[package]
+name = "gpui-benchmarks"
+version = "0.1.0"
+edition = "2024"
+
+[[bin]]
+name = "gpui-benchmarks"
+path = "src/main.rs"
+
+[dependencies]
+snafu = { workspace = true }
+wabou = { workspace = true, features = ["vello-hybrid"] }

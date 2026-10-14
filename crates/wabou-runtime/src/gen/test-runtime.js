@@ -10055,9 +10055,10 @@ ${footer}`;
   var TEXT_BEHAVIOR = {
     AggregateDirectText: 1,
     SingleLine: 2,
-    AggregateStyledText: 4
+    AggregateStyledText: 4,
+    ClipLines: 8
   };
-  var TEXT_BEHAVIOR_MASK = TEXT_BEHAVIOR.AggregateDirectText | TEXT_BEHAVIOR.SingleLine | TEXT_BEHAVIOR.AggregateStyledText;
+  var TEXT_BEHAVIOR_MASK = TEXT_BEHAVIOR.AggregateDirectText | TEXT_BEHAVIOR.SingleLine | TEXT_BEHAVIOR.AggregateStyledText | TEXT_BEHAVIOR.ClipLines;
   var INTERACTION_POLICY = {
     Focusable: 1,
     BlockSubtree: 2,
@@ -11396,6 +11397,7 @@ ${footer}`;
       "justify-self-start": ["justify-self"],
       "justify-self-stretch": ["justify-self"],
       "justify-start": ["justify-content"],
+      "leading-6": ["line-height"],
       "leading-normal": ["line-height"],
       "leading-relaxed": ["line-height"],
       "leading-tight": ["line-height"],

@@ -81,7 +81,15 @@
     "user-select": "text",
     "filter-blur": { "sample": "8px", "rustOnly": true },
     "backdrop-blur": { "sample": "8px", "rustOnly": true },
-    "box-shadow": "0 1px 2px #00000080"
+    "box-shadow": "0 1px 2px #00000080",
+    "transform": "rotate(0.7853982)",
+    "transform-component": "rotate(0.7853982)",
+    "transform-origin-x": "50%",
+    "transform-origin-y": "50%",
+    "transform-rotate": "rotate(0.7853982)",
+    "transform-scale": "scale(1.5)",
+    "transform-translate-x": "16px",
+    "transform-translate-y": "16px"
   },
   "unsupported": {
     "box-sizing": "GPUI owns box layout and does not expose a selectable CSS box model.",
@@ -101,15 +109,7 @@
     "outline-width": "GPUI Style does not expose production outlines.",
     "list-style-type": "List marker painting is not implemented.",
     "transition": "CSS is stateless; drive runtime transform state from JS or Rust.",
-    "animation": "CSS is stateless; drive runtime transform state from JS or Rust.",
-    "transform": "Use the explicit runtime transform opcode; GPUI Style has no CSS transform field.",
-    "transform-component": "Use the explicit runtime transform opcode.",
-    "transform-origin-x": "GPUI Style has no CSS transform-origin field.",
-    "transform-origin-y": "GPUI Style has no CSS transform-origin field.",
-    "transform-rotate": "Use the explicit runtime transform opcode.",
-    "transform-scale": "Use the explicit runtime transform opcode.",
-    "transform-translate-x": "Use the explicit runtime transform opcode.",
-    "transform-translate-y": "Use the explicit runtime transform opcode."
+    "animation": "CSS is stateless; drive runtime transform state from JS or Rust."
   },
   "unsupportedPrefixes": {
     "transition-": "CSS is stateless; drive runtime transform state from JS or Rust.",

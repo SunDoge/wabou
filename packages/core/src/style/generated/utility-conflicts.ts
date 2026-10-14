@@ -453,6 +453,7 @@ export const UTILITY_CONFLICT_DATA = {
     "justify-self-start": ["justify-self"],
     "justify-self-stretch": ["justify-self"],
     "justify-start": ["justify-content"],
+    "leading-6": ["line-height"],
     "leading-normal": ["line-height"],
     "leading-relaxed": ["line-height"],
     "leading-tight": ["line-height"],

@@ -4426,6 +4426,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "gpui-benchmarks"
+version = "0.1.0"
+dependencies = [
+ "snafu",
+ "wabou",
+]
+
+[[package]]
 name = "gtk"
 version = "0.18.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"

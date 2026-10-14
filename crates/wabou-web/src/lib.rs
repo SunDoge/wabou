@@ -585,6 +585,7 @@ impl BrowserRuntime {
             HostPaint {
                 text,
                 text_max_lines: node.text_max_lines,
+                text_clip_lines: node.text_behavior & wabou_protocol::TEXT_BEHAVIOR_CLIP_LINES != 0,
                 runtime_transform: node.transform,
                 motion_transform: motion.transform,
                 motion_opacity: motion.opacity,

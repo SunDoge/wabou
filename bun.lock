@@ -72,6 +72,20 @@
         "vite": "^8.3.4",
       },
     },
+    "apps/gpui-benchmarks": {
+      "name": "@wabou/gpui-benchmarks",
+      "version": "0.0.0",
+      "dependencies": {
+        "@wabou/ui": "workspace:*",
+        "lucide-static": "1.57.0",
+        "solid-js": "2.0.0-rc.14",
+      },
+      "devDependencies": {
+        "@wabou/test": "workspace:*",
+        "@wabou/vite": "workspace:*",
+        "vite": "^8.3.4",
+      },
+    },
     "apps/hackernews": {
       "name": "@wabou/hackernews",
       "version": "0.0.0",
@@ -768,6 +782,8 @@
     "@wabou/devtools-app": ["@wabou/devtools-app@workspace:apps/devtools"],
 
     "@wabou/gallery": ["@wabou/gallery@workspace:apps/gallery"],
+
+    "@wabou/gpui-benchmarks": ["@wabou/gpui-benchmarks@workspace:apps/gpui-benchmarks"],
 
     "@wabou/hackernews": ["@wabou/hackernews@workspace:apps/hackernews"],
 

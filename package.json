@@ -65,6 +65,7 @@
     "apps/meow-starter",
     "apps/motrix",
     "apps/pi-agent",
+    "apps/gpui-benchmarks",
     "apps/pulse",
     "apps/timestow",
     "apps/stress",

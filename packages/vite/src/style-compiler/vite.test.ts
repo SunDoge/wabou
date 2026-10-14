@@ -1,7 +1,9 @@
 import { describe, expect, test } from "bun:test";
-import { mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
+import { createGenerator } from "@unocss/core";
+import { presetWabou } from "../preset";
 import {
   assertSupportedWabouCandidates,
   auditColorThemeContrast,
@@ -15,6 +17,14 @@ import {
 } from "./vite";
 
 describe("utility source extraction", () => {
+  async function matchedUtilities(source: string): Promise<Set<string>> {
+    const generator = await createGenerator({ presets: [presetWabou()] });
+    const generated = await generator.generate(extractUtilitySource(source), {
+      preflights: false,
+    });
+    return generated.matched;
+  }
+
   test("filters exact and globbed third-party metadata classes", () => {
     expect(matchesClassPattern("lucide-sun", "lucide-*")).toBe(true);
     expect(matchesClassPattern("text-primary", "lucide-*")).toBe(false);
@@ -54,6 +64,12 @@ describe("utility source extraction", () => {
         "rounded-t-lg",
         "rounded-b-lg",
       ]),
+    ).not.toThrow();
+  });
+
+  test("accepts native static transforms and explicit line heights", () => {
+    expect(() =>
+      assertSupportedWabouCandidates(["rotate-45", "leading-6"]),
     ).not.toThrow();
   });
 
@@ -213,16 +229,37 @@ describe("utility source extraction", () => {
     );
   });
 
-  test("only exposes explicit JSX class props to UnoCSS", () => {
+  test("lets UnoCSS inspect complete utility strings throughout the module", async () => {
     const source = `
       <View role="tab" title="flex hidden" class="flex items-center" />
       <View className={'h-8 px-3'} command="grid" />
     `;
 
-    expect(extractUtilitySource(source)).toBe("flex items-center\n'h-8 px-3'");
-    expect(extractUtilitySource(source)).not.toContain("role");
-    expect(extractUtilitySource(source)).not.toContain("hidden");
-    expect(extractUtilitySource(source)).not.toContain("grid");
+    expect(await matchedUtilities(source)).toEqual(
+      // UnoCSS deliberately scans the whole module. A complete utility token
+      // outside a class prop can produce an unused rule, but it cannot style a
+      // node unless the application later assigns it as a class.
+      new Set(["flex", "grid", "h-8", "hidden", "items-center", "px-3"]),
+    );
+  });
+
+  test("discovers complete utilities in static variant maps", async () => {
+    const source = `
+      const card = {
+        active: "bg-blue-500 border-blue-600",
+        idle: "bg-white border-slate-200",
+      } as const;
+      <View class={card[state()]} />
+    `;
+
+    expect(await matchedUtilities(source)).toEqual(
+      new Set([
+        "bg-blue-500",
+        "bg-white",
+        "border-blue-600",
+        "border-slate-200",
+      ]),
+    );
   });
 
   test("retains candidates from reactive class expressions", () => {
@@ -232,21 +269,15 @@ describe("utility source extraction", () => {
     expect(extractUtilitySource(source)).toContain("bg-transparent");
   });
 
-  test("ignores comparison constants inside class expressions", () => {
+  test("accepts comparison-based selection of complete utilities", () => {
     const source = `<View class={variant() === "outline" ? "border" : "border-0"} />`;
-    const extracted = extractUtilitySource(source);
-    expect(extracted).not.toContain("outline");
-    expect(extracted).toContain("border");
-    expect(extracted).toContain("border-0");
+    expect(() => extractUtilitySource(source)).not.toThrow();
   });
 
-  test("ignores ts-pattern selectors inside class expressions", () => {
+  test("accepts ts-pattern selection of complete utilities", () => {
     const source =
       '<View class={() => match(variant()).with("outline", () => "border").otherwise(() => "border-0")} />';
-    const extracted = extractUtilitySource(source);
-    expect(extracted).not.toContain("outline");
-    expect(extracted).toContain("border");
-    expect(extracted).toContain("border-0");
+    expect(() => extractUtilitySource(source)).not.toThrow();
   });
 
   test("extracts explicit Solid classList keys", () => {

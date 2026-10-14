@@ -400,6 +400,12 @@ fn supports_typed_stateless_arbitrary_values_and_restricted_negatives() {
     assert!(parse_utility("-mt-4").is_ok());
     assert!(parse_utility("-inset-[5%]").is_ok());
     assert!(parse_utility("bg-[#336699cc]").is_ok());
+    assert_eq!(
+        parse_utility("bg-[#369]").unwrap().declarations[0].value,
+        Value::Color {
+            value: Color::Literal { rgba: 0x3366_99ff }
+        }
+    );
     assert!(parse_utility("aspect-[16/9]").is_ok());
     assert!(parse_utility("z-[-2]").is_ok());
     assert!(matches!(

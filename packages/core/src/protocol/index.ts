@@ -76,11 +76,13 @@ export const TEXT_BEHAVIOR = {
   AggregateDirectText: 0x01,
   SingleLine: 0x02,
   AggregateStyledText: 0x04,
+  ClipLines: 0x08,
 } as const;
 const TEXT_BEHAVIOR_MASK =
   TEXT_BEHAVIOR.AggregateDirectText |
   TEXT_BEHAVIOR.SingleLine |
-  TEXT_BEHAVIOR.AggregateStyledText;
+  TEXT_BEHAVIOR.AggregateStyledText |
+  TEXT_BEHAVIOR.ClipLines;
 
 export const INTERACTION_POLICY = {
   Focusable: 0x01,

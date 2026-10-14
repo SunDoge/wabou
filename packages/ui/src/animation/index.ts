@@ -460,9 +460,12 @@ export function createKeyframeAnimation<V extends AnimationValue>(
   } = options;
   const authoredAutoplay = animationOptions.autoplay ?? true;
   const initiallyReduced = untrack(() => read(reducedMotion, false));
-  const [box, setBox] = createSignal({
-    value: initiallyReduced ? reducedValue : keyframes[0],
-  });
+  const [box, setBox] = createSignal(
+    {
+      value: initiallyReduced ? reducedValue : keyframes[0],
+    },
+    { ownedWrite: true },
+  );
   const value = () => box().value;
   const controls = animateKeyframes(keyframes, {
     ...animationOptions,

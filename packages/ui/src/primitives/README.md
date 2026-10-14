@@ -55,6 +55,10 @@ Use `maxLines` when a component has a bounded text region:
 <Text class="w-64 whitespace-normal" maxLines={2}>
   A long description that ends with an ellipsis after its second shaped line.
 </Text>
+
+<Text class="w-64 whitespace-normal" maxLines={2} lineOverflow="clip">
+  A fixed-height preview that ends at the second shaped line without adding a glyph.
+</Text>
 ```
 
 The host clamps from Parley's actual shaped line breaks and preserves grapheme
@@ -62,7 +66,8 @@ clusters. `maxLines={1}` also opts into a width-constrained single line;
 omitting the prop keeps the normal `Text` single-line default, which authored
 `whitespace-normal` may override. As with `text-ellipsis`, clamped display text
 is not pointer-selectable because the visible ellipsis is not part of the
-source string.
+source string. `lineOverflow` defaults to `"ellipsis"`; use `"clip"` when the
+surrounding composition already communicates that the text is a preview.
 
 `View` does not choose a layout mode. Alignment utilities such as
 `items-center`, `justify-center`, and `gap-2` only take effect after the same

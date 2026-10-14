@@ -760,7 +760,18 @@ export function renderComponent(
   };
   try {
     if (options.clock === "fake") {
-      vi.useFakeTimers();
+      vi.useFakeTimers({
+        // Wabou owns requestAnimationFrame and drains it through __wabou_tick.
+        // Keeping rAF out of Vitest's clock preserves exact authored duration
+        // boundaries instead of quantizing them to 16 ms fake browser frames.
+        toFake: [
+          "Date",
+          "setInterval",
+          "clearInterval",
+          "setTimeout",
+          "clearTimeout",
+        ],
+      });
       fakeFrameTime = performance.now();
       const performanceNow = vi
         .spyOn(performance, "now")

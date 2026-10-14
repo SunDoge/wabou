@@ -63,8 +63,10 @@ export interface PrimitiveProps
 export interface ViewProps extends PrimitiveProps {}
 
 export interface TextProps extends PrimitiveProps {
-  /** Maximum rendered lines. Overflow on the final line is replaced by an ellipsis. */
+  /** Maximum rendered lines. */
   maxLines?: number;
+  /** How content beyond `maxLines` ends. Defaults to `ellipsis`. */
+  lineOverflow?: "ellipsis" | "clip";
 }
 
 export interface RichTextProps extends TextProps {}
@@ -292,14 +294,18 @@ export function ProjectionBoundary(props: ViewProps): JSX.Element {
   return node as unknown as JSX.Element;
 }
 
-function resolvedTextBehavior(maxLines: number | undefined) {
+function resolvedTextBehavior(
+  maxLines: number | undefined,
+  lineOverflow: TextProps["lineOverflow"],
+) {
   if (maxLines != null && (!Number.isInteger(maxLines) || maxLines < 1)) {
     throw new RangeError("Text maxLines must be a positive integer");
   }
   return {
     flags:
       TEXT_BEHAVIOR.AggregateDirectText |
-      (maxLines === 1 ? TEXT_BEHAVIOR.SingleLine : 0),
+      (maxLines === 1 ? TEXT_BEHAVIOR.SingleLine : 0) |
+      (lineOverflow === "clip" ? TEXT_BEHAVIOR.ClipLines : 0),
     maxLines: maxLines ?? 0,
   };
 }
@@ -315,15 +321,18 @@ export function Text(props: TextProps): JSX.Element {
   // Validate the initial value before Solid owns the reactive spread. An
   // exception thrown from inside a render effect becomes a StatusError and
   // intentionally halts the owner, which would obscure this public API error.
-  resolvedTextBehavior(untrack(() => props.maxLines));
+  resolvedTextBehavior(
+    untrack(() => props.maxLines),
+    untrack(() => props.lineOverflow),
+  );
   const node = createElement("text");
-  spread(node, omit(props, "maxLines"), false);
+  spread(node, omit(props, "maxLines", "lineOverflow"), false);
   spread(
     node,
     {
       role: props.role ?? "label",
       get textBehavior() {
-        return resolvedTextBehavior(props.maxLines);
+        return resolvedTextBehavior(props.maxLines, props.lineOverflow);
       },
     },
     true,
@@ -338,15 +347,21 @@ export function Text(props: TextProps): JSX.Element {
  * selection, and copy semantics because the native host lays them out once.
  */
 export function RichText(props: RichTextProps): JSX.Element {
-  resolvedTextBehavior(untrack(() => props.maxLines));
+  resolvedTextBehavior(
+    untrack(() => props.maxLines),
+    untrack(() => props.lineOverflow),
+  );
   const node = createElement("text");
-  spread(node, omit(props, "maxLines"), false);
+  spread(node, omit(props, "maxLines", "lineOverflow"), false);
   spread(
     node,
     {
       role: props.role ?? "label",
       get textBehavior() {
-        const behavior = resolvedTextBehavior(props.maxLines);
+        const behavior = resolvedTextBehavior(
+          props.maxLines,
+          props.lineOverflow,
+        );
         return {
           ...behavior,
           flags: behavior.flags | TEXT_BEHAVIOR.AggregateStyledText,

@@ -18,6 +18,7 @@ default-members = [
   "apps/meow-starter",
   "apps/motrix",
   "apps/pi-agent",
+  "apps/gpui-benchmarks",
   "apps/stress",
   "apps/terminal",
   "apps/timestow",

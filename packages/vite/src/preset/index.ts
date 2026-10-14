@@ -260,11 +260,19 @@ function parseCandidate(
     const [colorName, opacityToken] = color.token.split("/", 2);
     let rgba: number | undefined = wabouUtilityManifest.colors[colorName];
     const arbitrary = colorName.match(
-      /^\[#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})\]$/,
+      /^\[#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})\]$/,
     )?.[1];
     if (rgba === undefined && arbitrary) {
-      rgba = Number.parseInt(arbitrary, 16);
-      if (arbitrary.length === 6) rgba = ((rgba << 8) | 0xff) >>> 0;
+      if (arbitrary.length === 3) {
+        const [red, green, blue] = arbitrary;
+        rgba = Number.parseInt(
+          `${red}${red}${green}${green}${blue}${blue}ff`,
+          16,
+        );
+      } else {
+        rgba = Number.parseInt(arbitrary, 16);
+        if (arbitrary.length === 6) rgba = ((rgba << 8) | 0xff) >>> 0;
+      }
     }
     if (rgba !== undefined && opacityToken !== undefined) {
       const opacity = Number(opacityToken);
