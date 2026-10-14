@@ -6,6 +6,8 @@ tags.
 
 ## Unreleased
 
+## 0.1.0-alpha.4 - 2026-10-14
+
 ### Changed
 
 - Consolidate the native runtime on Vello GPU 0.3 and the generated widget
@@ -14,6 +16,9 @@ tags.
 - Add a pure-Rust PDF widget, retained rich-text runs, CodeMirror-backed editor
   state, and the GPUI shell visual benchmark application.
 - Upgrade the frontend toolchain to Solid 2 RC 14 and Vite 8.
+- Generate QuickJS names and browser/Wasm installation adapters from one host
+  ABI schema, and route generated capability clients through a side-effect-free
+  host-context entry so bindings cannot drift or install a second runtime.
 - Discover complete utility classes in static variant maps without requiring
   manual registration. Dynamic construction from runtime fragments remains a
   build error.

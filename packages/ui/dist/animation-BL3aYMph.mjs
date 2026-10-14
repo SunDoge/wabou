@@ -120,6 +120,7 @@ var Curve = class {
 		this.id = hasNativeMotion() ? globalThis.__wabou_motion_create(JSON.stringify(descriptor)) : void 0;
 	}
 	sample(elapsed) {
+		if (this.descriptor.kind === "tween" && elapsed >= this.descriptor.duration - 1e-9) elapsed = this.descriptor.duration;
 		if (this.id === void 0) return fallbackSample(this.descriptor, elapsed);
 		if (!globalThis.__wabou_motion_sample(this.id, elapsed, this.#output)) throw new Error("motion handle is no longer live");
 		return {
@@ -527,4 +528,4 @@ function createPulse(options = {}) {
 //#endregion
 export { createLoop as a, createRotation as c, normalizeSweepGeometry as d, useSpring as f, useReducedMotion as g, useMotionConfig as h, createKeyframeAnimation as i, createSweep as l, MotionConfigProvider as m, animateKeyframes as n, createNativeLoopAnimation as o, useTween as p, createInterpolation as r, createPulse as s, animate as t, createTransition as u };
 
-//# sourceMappingURL=animation-CPd7oyNk.mjs.map
+//# sourceMappingURL=animation-BL3aYMph.mjs.map

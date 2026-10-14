@@ -516,7 +516,7 @@ function SpinnerPage() {
         <Spinner label="Syncing workspace" />
         <Text class="text-sm text-secondary">Syncing workspace…</Text>
       </View>
-      <Button loading loadingLabel="Saving">
+      <Button loading loadingLabel="Saving workspace">
         Save
       </Button>
     </Preview>

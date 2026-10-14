@@ -55,7 +55,10 @@ export function defineWabouTestConfig(
           deps: {
             // Apply the client alias to transitive Solid imports too. Native
             // Node imports select the server runtime and split reactive roots.
-            inline: ["solid-js", /@solidjs\//],
+            // Wabou's component harness and renderer also keep process-global
+            // host glue. Transform them inside each Vitest isolate so a fresh
+            // component tree cannot reuse state from another test file.
+            inline: ["solid-js", /@solidjs\//, /@wabou\//],
           },
         },
       },

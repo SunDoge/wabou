@@ -42,7 +42,11 @@ function defineWabouTestConfig(options = {}) {
 		},
 		test: {
 			environment: "node",
-			server: { deps: { inline: ["solid-js", /@solidjs\//] } }
+			server: { deps: { inline: [
+				"solid-js",
+				/@solidjs\//,
+				/@wabou\//
+			] } }
 		}
 	}, options.vite ?? {});
 }

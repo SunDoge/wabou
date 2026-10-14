@@ -127,6 +127,12 @@ class Curve {
       : undefined;
   }
   sample(elapsed: number): CurveSample {
+    if (
+      this.descriptor.kind === "tween" &&
+      elapsed >= this.descriptor.duration - 1e-9
+    ) {
+      elapsed = this.descriptor.duration;
+    }
     if (this.id === undefined) return fallbackSample(this.descriptor, elapsed);
     if (!globalThis.__wabou_motion_sample(this.id, elapsed, this.#output))
       throw new Error("motion handle is no longer live");

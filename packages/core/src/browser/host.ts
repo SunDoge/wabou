@@ -1,18 +1,17 @@
 import { hasBrowserDom } from "../browser-dom";
+import {
+  createBrowserHostBindings,
+  type BrowserHostBridge,
+} from "../generated/browser-host-bindings";
 import { tickAnimationFrame } from "../glue/animation-frame";
 import { EVENT_CODE, nodeKey } from "../protocol";
 import { dispatchEvent, disposeMountedApp, writer } from "../renderer";
 
 /** @internal Generated Wasm transport; application code uses ordinary mount(). */
-interface BrowserRuntime {
-  intern(value: string): number;
-  set_stylesheet(json: string): void;
+interface BrowserRuntime extends BrowserHostBridge {
   load_font(bytes: Uint8Array): void;
   apply(bytes: Uint8Array): void;
   tick_motion(time: number): string;
-  motion_create(descriptor: string): number;
-  motion_sample(id: number, elapsed: number, output: Float64Array): boolean;
-  motion_drop(id: number): boolean;
   render(width: number, height: number, scale: number): void;
   hit_test(x: number, y: number, event: number): string;
   snapshot(): string;
@@ -186,23 +185,16 @@ export async function startBrowserApp(
     writer.reset();
     runtime = await options.createRuntime(canvas);
     const bridge = runtime;
-    own("__wabou_intern", (value: string) => bridge.intern(value));
-    own("__wabou_motion_create", (descriptor: string) =>
-      bridge.motion_create(descriptor),
-    );
-    own(
-      "__wabou_motion_sample",
-      (id: number, elapsed: number, output: Float64Array) =>
-        bridge.motion_sample(id, elapsed, output),
-    );
-    own("__wabou_motion_drop", (id: number) => bridge.motion_drop(id));
+    for (const [name, binding] of Object.entries(
+      createBrowserHostBindings(bridge, () => {
+        dirty = true;
+      }),
+    )) {
+      own(name, binding);
+    }
     own("__wabou_log", (_level: string, message: string) =>
       console.error(message),
     );
-    own("__wabou_set_stylesheet", (json: string) => {
-      bridge.set_stylesheet(json);
-      dirty = true;
-    });
     own("__wabou_preview", {
       canvas,
       snapshot: () => JSON.parse(bridge.snapshot()),

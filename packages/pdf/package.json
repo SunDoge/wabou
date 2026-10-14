@@ -1,6 +1,6 @@
 {
   "name": "@wabou/pdf",
-  "version": "0.1.0-alpha.3",
+  "version": "0.1.0-alpha.4",
   "description": "Typed Solid bindings for Wabou's pure-Rust PDF viewer widget.",
   "license": "Apache-2.0",
   "repository": {

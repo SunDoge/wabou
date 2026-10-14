@@ -1,3 +1,4 @@
+import "./host.mjs";
 //#region src/performance.ts
 const pending = [];
 let scheduled = false;

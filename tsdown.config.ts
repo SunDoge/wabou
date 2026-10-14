@@ -10,6 +10,7 @@ const packages: Record<string, UserConfig["entry"]> = {
     protocol: "src/protocol.ts",
     performance: "src/performance.ts",
     effects: "src/effects.ts",
+    host: "src/host.ts",
     registry: "src/registry.ts",
     renderer: "src/renderer.ts",
     testing: "src/testing.ts",

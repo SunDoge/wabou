@@ -1,6 +1,6 @@
 {
   "name": "@wabou/core",
-  "version": "0.1.0-alpha.3",
+  "version": "0.1.0-alpha.4",
   "description": "Core runtime APIs and QuickJS compatibility layer for Wabou.",
   "license": "Apache-2.0",
   "repository": {
@@ -34,6 +34,11 @@
       "wabou-source": "./src/effects.ts",
       "types": "./dist/effects.d.mts",
       "import": "./dist/effects.mjs"
+    },
+    "./host": {
+      "wabou-source": "./src/host.ts",
+      "types": "./dist/host.d.mts",
+      "import": "./dist/host.mjs"
     },
     "./registry": {
       "wabou-source": "./src/registry.ts",

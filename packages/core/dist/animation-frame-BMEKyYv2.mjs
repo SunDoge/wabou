@@ -1,5 +1,5 @@
 import { t as hasBrowserDom } from "./browser-dom-BrHP4mZQ.mjs";
-import { D as runSweep, j as writer } from "./renderer-Dg15OQ5a.mjs";
+import { D as runSweep, j as writer } from "./renderer-Dban-vxD.mjs";
 import { flush } from "solid-js";
 //#region src/glue/animation-frame.ts
 var AnimationFrameQueue = class {
@@ -58,4 +58,4 @@ globalThis.__wabou_has_raf = __wabou_has_raf;
 //#endregion
 export { tickAnimationFrame as t };
 
-//# sourceMappingURL=animation-frame-BTPCXgGl.mjs.map
+//# sourceMappingURL=animation-frame-BMEKyYv2.mjs.map

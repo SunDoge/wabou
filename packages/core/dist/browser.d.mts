@@ -1,14 +1,18 @@
-//#region src/browser/host.d.ts
-/** @internal Generated Wasm transport; application code uses ordinary mount(). */
-interface BrowserRuntime {
+//#region src/generated/browser-host-bindings.d.ts
+interface BrowserHostBridge {
   intern(value: string): number;
-  set_stylesheet(json: string): void;
-  load_font(bytes: Uint8Array): void;
-  apply(bytes: Uint8Array): void;
-  tick_motion(time: number): string;
   motion_create(descriptor: string): number;
   motion_sample(id: number, elapsed: number, output: Float64Array): boolean;
   motion_drop(id: number): boolean;
+  set_stylesheet(json: string): void;
+}
+//#endregion
+//#region src/browser/host.d.ts
+/** @internal Generated Wasm transport; application code uses ordinary mount(). */
+interface BrowserRuntime extends BrowserHostBridge {
+  load_font(bytes: Uint8Array): void;
+  apply(bytes: Uint8Array): void;
+  tick_motion(time: number): string;
   render(width: number, height: number, scale: number): void;
   hit_test(x: number, y: number, event: number): string;
   snapshot(): string;

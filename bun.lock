@@ -229,7 +229,7 @@
     },
     "packages/core": {
       "name": "@wabou/core",
-      "version": "0.1.0-alpha.3",
+      "version": "0.1.0-alpha.4",
       "dependencies": {
         "@solidjs/universal": "2.0.0-rc.14",
         "@tanstack/virtual-core": "3.18.0",
@@ -240,7 +240,7 @@
     },
     "packages/pdf": {
       "name": "@wabou/pdf",
-      "version": "0.1.0-alpha.3",
+      "version": "0.1.0-alpha.4",
       "dependencies": {
         "@wabou/ui": "workspace:*",
         "solid-js": "2.0.0-rc.14",
@@ -248,7 +248,7 @@
     },
     "packages/terminal": {
       "name": "@wabou/terminal",
-      "version": "0.1.0-alpha.3",
+      "version": "0.1.0-alpha.4",
       "dependencies": {
         "@wabou/core": "workspace:*",
         "solid-js": "2.0.0-rc.14",
@@ -256,7 +256,7 @@
     },
     "packages/test": {
       "name": "@wabou/test",
-      "version": "0.1.0-alpha.3",
+      "version": "0.1.0-alpha.4",
       "dependencies": {
         "@wabou/core": "workspace:*",
       },
@@ -267,7 +267,7 @@
     },
     "packages/ui": {
       "name": "@wabou/ui",
-      "version": "0.1.0-alpha.3",
+      "version": "0.1.0-alpha.4",
       "dependencies": {
         "@codemirror/state": "^6.7.6",
         "@internationalized/date": "^3.12.4",
@@ -290,7 +290,7 @@
     },
     "packages/vite": {
       "name": "@wabou/vite",
-      "version": "0.1.0-alpha.3",
+      "version": "0.1.0-alpha.4",
       "dependencies": {
         "@formatjs/intl-datetimeformat": "^7.8.1",
         "@formatjs/intl-getcanonicallocales": "^3.2.12",

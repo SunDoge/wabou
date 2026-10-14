@@ -695,7 +695,7 @@ impl Bindings {
     /// capability contract, and typed JSON clients.
     pub fn render(&self) -> String {
         let mut output = String::from(HEADER);
-        output.push_str("import { type Host, useHost } from \"@wabou/core\";\n\n");
+        output.push_str("import { type Host, useHost } from \"@wabou/core/host\";\n\n");
         output.push_str("export type NativeResult<T> = T | PromiseLike<T>;\n\n");
 
         let mut declarations = BTreeMap::new();
@@ -1491,6 +1491,7 @@ mod tests {
         assert!(output.contains("displayName: string"));
         assert!(output.contains("export type NativeResult<T> = T | PromiseLike<T>"));
         assert!(output.contains("interface NativeHostCapabilities"));
+        assert!(output.contains("@wabou/core/host"));
         assert!(!output.contains("@wabou/core/renderer"));
         assert!(output.contains("updateFile(request: string): NativeResult<string>"));
         assert!(output.contains("updateFile(request: FunctionRequest): Promise<FunctionResponse>"));

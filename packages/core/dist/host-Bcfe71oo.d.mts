@@ -2,79 +2,6 @@ import { g as NodeKey$1, h as Writer } from "./protocol-DY1oGbNE.mjs";
 import { n as WabouIntrinsicElements, t as HostCapabilities } from "./registry-DXOPfC3L.mjs";
 import { A as WabouStyle, t as Affine2D } from "./style-D7FlqLds.mjs";
 import { Accessor, Element as Element$1, JSX } from "solid-js";
-//#region src/vector-path.d.ts
-type PathFillRule = "nonzero" | "evenodd";
-type PathLineCap = "butt" | "round" | "square";
-type PathLineJoin = "miter" | "round" | "bevel";
-interface VectorPathPaint {
-  /** Packed RGBA (`0xRRGGBBAA`). Omit to disable filling. */
-  fill?: number;
-  /** Packed RGBA (`0xRRGGBBAA`). Omit to disable stroking. */
-  stroke?: number;
-  strokeWidth?: number;
-  fillRule?: PathFillRule;
-  lineCap?: PathLineCap;
-  lineJoin?: PathLineJoin;
-  miterLimit?: number;
-}
-interface PathPoint {
-  readonly x: number;
-  readonly y: number;
-}
-/** Immutable path snapshot suitable for signals, memos, and component props. */
-interface VectorPath {
-  readonly kind: "wabou-vector-path";
-  /** Whether the command stream contains at least one drawable segment. */
-  readonly drawable: boolean;
-  readonly data: Uint8Array;
-}
-declare class PathBuilder {
-  #private;
-  /** Whether line/curve/close commands currently have an active subpath. */
-  get hasCurrentPoint(): boolean;
-  moveTo(x: number, y: number): this;
-  lineTo(x: number, y: number): this;
-  quadTo(cx: number, cy: number, x: number, y: number): this;
-  cubicTo(c1x: number, c1y: number, c2x: number, c2y: number, x: number, y: number): this;
-  close(): this;
-  /** Append a Catmull–Rom spline converted to native cubic Bézier segments. */
-  splineThrough(points: readonly PathPoint[], tension?: number): this;
-  /** Create an immutable snapshot. Later builder mutations cannot alter it. */
-  build(paint?: VectorPathPaint): VectorPath;
-}
-declare function isVectorPath(value: unknown): value is VectorPath;
-//#endregion
-//#region src/renderer/jsx.d.ts
-/** Renderer-owned JSX namespace for Solid 2's automatic JSX type lookup. */
-declare namespace JSX$1 {
-  type Element = Element$1 | Handle | readonly Element[];
-  type CSSProperties = WabouStyle;
-  type ElementClass = {};
-  type ElementAttributesProperty = {};
-  interface ElementChildrenAttribute {
-    children: {};
-  }
-  interface IntrinsicElements extends WabouBuiltinIntrinsicElements, WabouIntrinsicElements {}
-  type IntrinsicAttributes = {};
-}
-declare module "solid-js" {
-  namespace JSX {
-    type Element = JSX$1.Element;
-    type CSSProperties = JSX$1.CSSProperties;
-    interface ElementClass {}
-    interface ElementAttributesProperty {}
-    interface ElementChildrenAttribute {
-      children: {};
-    }
-    interface IntrinsicElements extends WabouBuiltinIntrinsicElements, WabouIntrinsicElements {}
-    interface IntrinsicAttributes {}
-  }
-}
-declare function jsx(): never;
-declare const jsxs: typeof jsx;
-declare const jsxDEV: typeof jsx;
-declare const Fragment: (props: WabouElementProps) => JSX$1.Element;
-//#endregion
 //#region src/renderer/generated/native-host.d.ts
 type CalendarDateInfo = {
   /**  Proleptic Gregorian year. */
@@ -160,65 +87,78 @@ type NodeKey = {
   hi: number;
 };
 //#endregion
-//#region src/renderer/host.d.ts
-type LayoutTarget = NodeKey$1 | {
-  readonly id: NodeKey$1;
-};
-interface DebugOverlayOptions {
-  /** Draw every retained node's border box. */
-  layout?: boolean;
-  /** Draw unique effective overflow and scroll clips. */
-  clips?: boolean;
-  /** Draw the current native pointer hit target. */
-  hitTarget?: boolean;
+//#region src/vector-path.d.ts
+type PathFillRule = "nonzero" | "evenodd";
+type PathLineCap = "butt" | "round" | "square";
+type PathLineJoin = "miter" | "round" | "bevel";
+interface VectorPathPaint {
+  /** Packed RGBA (`0xRRGGBBAA`). Omit to disable filling. */
+  fill?: number;
+  /** Packed RGBA (`0xRRGGBBAA`). Omit to disable stroking. */
+  stroke?: number;
+  strokeWidth?: number;
+  fillRule?: PathFillRule;
+  lineCap?: PathLineCap;
+  lineJoin?: PathLineJoin;
+  miterLimit?: number;
 }
-interface BuiltinHost {
-  readonly system: {
-    /** Open an http(s) URL using the operating system's default handler. */
-    openUrl(url: string): boolean;
-  };
-  readonly fonts: {
-    /** Load a TTF/OTF file into this window's text context. */
-    load(path: string): boolean;
-  };
-  readonly diagnostics: {
-    /** Latest render timings, or null before the first completed frame. */
-    frameStats(): FrameStats | null;
-    /** Configure native diagnostic layers. Returns false without DevTools support. */
-    setOverlay(options: DebugOverlayOptions): boolean;
-    /** Evidence from the most recent native overlay paint pass. */
-    overlayPaintStats(): DebugOverlayPaintStats | null;
-  };
-  readonly intl: {
-    /** Locale reported by the operating system, falling back to en-US. */
-    locale(): string;
-    /** IANA time-zone identifier reported by the operating system. */
-    timeZone(): string;
-    /** Current Gregorian date in the operating system's local time zone. */
-    today(): CalendarDateInfo;
-  };
-  readonly layout: {
-    /** Measure several nodes from one coherent, completed native layout. */
-    snapshot(targets: readonly LayoutTarget[]): LayoutSnapshot;
-    /** Latest completed border-box measurement, or null for a stale handle. */
-    measure(target: LayoutTarget): LayoutRect | null;
-    /** Effective ancestor overflow clip, falling back to the viewport. */
-    clippingRect(target: LayoutTarget): LayoutRect | null;
-    /** Logical-pixel viewport from the latest completed layout. */
-    viewport(): LayoutRect;
-  };
+interface PathPoint {
+  readonly x: number;
+  readonly y: number;
 }
-/** Augment `HostCapabilities` in generated/user declarations. */
-type Host = BuiltinHost & HostCapabilities;
-declare const defaultHost: Host;
-interface HostProviderProps {
-  value: Host;
-  children?: JSX.Element;
+/** Immutable path snapshot suitable for signals, memos, and component props. */
+interface VectorPath {
+  readonly kind: "wabou-vector-path";
+  /** Whether the command stream contains at least one drawable segment. */
+  readonly drawable: boolean;
+  readonly data: Uint8Array;
 }
-/** Bind host capabilities to a Solid subtree (normally one window). */
-declare function HostProvider(props: HostProviderProps): JSX.Element;
-/** Return the host associated with the current Solid owner/window. */
-declare function useHost<T extends Host = Host>(): T;
+declare class PathBuilder {
+  #private;
+  /** Whether line/curve/close commands currently have an active subpath. */
+  get hasCurrentPoint(): boolean;
+  moveTo(x: number, y: number): this;
+  lineTo(x: number, y: number): this;
+  quadTo(cx: number, cy: number, x: number, y: number): this;
+  cubicTo(c1x: number, c1y: number, c2x: number, c2y: number, x: number, y: number): this;
+  close(): this;
+  /** Append a Catmull–Rom spline converted to native cubic Bézier segments. */
+  splineThrough(points: readonly PathPoint[], tension?: number): this;
+  /** Create an immutable snapshot. Later builder mutations cannot alter it. */
+  build(paint?: VectorPathPaint): VectorPath;
+}
+declare function isVectorPath(value: unknown): value is VectorPath;
+//#endregion
+//#region src/renderer/jsx.d.ts
+/** Renderer-owned JSX namespace for Solid 2's automatic JSX type lookup. */
+declare namespace JSX$1 {
+  type Element = Element$1 | Handle | readonly Element[];
+  type CSSProperties = WabouStyle;
+  type ElementClass = {};
+  type ElementAttributesProperty = {};
+  interface ElementChildrenAttribute {
+    children: {};
+  }
+  interface IntrinsicElements extends WabouBuiltinIntrinsicElements, WabouIntrinsicElements {}
+  type IntrinsicAttributes = {};
+}
+declare module "solid-js" {
+  namespace JSX {
+    type Element = JSX$1.Element;
+    type CSSProperties = JSX$1.CSSProperties;
+    interface ElementClass {}
+    interface ElementAttributesProperty {}
+    interface ElementChildrenAttribute {
+      children: {};
+    }
+    interface IntrinsicElements extends WabouBuiltinIntrinsicElements, WabouIntrinsicElements {}
+    interface IntrinsicAttributes {}
+  }
+}
+declare function jsx(): never;
+declare const jsxs: typeof jsx;
+declare const jsxDEV: typeof jsx;
+declare const Fragment: (props: WabouElementProps) => JSX$1.Element;
 //#endregion
 //#region src/renderer/portal.d.ts
 interface PortalProps extends Omit<WabouElementProps, "children"> {
@@ -673,5 +613,65 @@ declare function dispatchEvent(solidId: NodeKey$1, eventCode: number, payloadStr
  */
 declare function reconcileControlledInputValues(): void;
 //#endregion
-export { insertNode as $, WabouSecretStateChangeEvent as A, defaultHost as At, WabouWheelEvent as B, jsx as Bt, WabouNativeSpring as C, PortalProps as Ct, WabouPointerEvent as D, HostProvider as Dt, WabouNodeEvent as E, Host as Et, WabouTextCommitEvent as F, LayoutRect as Ft, createTextNode as G, PathLineCap as Gt, applyRef as H, jsxs as Ht, WabouTextSelectionChangeEvent as I, LayoutScrollMetrics as It, disposeMountedApp as J, VectorPath as Jt, delegateEvents as K, PathLineJoin as Kt, WabouTransitionEvent as L, LayoutSnapshot as Lt, WabouSubmitEvent as M, DebugOverlayPaintStats as Mt, WabouSvgProps as N, FrameStats as Nt, WabouPositionedEvent as O, HostProviderProps as Ot, WabouSvgShapeProps as P, LayoutNodeMetrics as Pt, insert as Q, WabouValueChangeEvent as R, Fragment as Rt, WabouNativeMotion as S, Portal as St, WabouNativeTransition as T, DebugOverlayOptions as Tt, createComponent$1 as U, PathBuilder as Ut, acquireOverlayRoot as V, jsxDEV as Vt, createElement as W, PathFillRule as Wt, getMountRoot as X, isVectorPath as Xt, effect as Y, VectorPathPaint as Yt, getRequestEvent as Z, WabouImePreeditEvent as _, VirtualList as _t, WabouBuiltinIntrinsicElements as a, observeGlobalPointerEvent as at, WabouKeyEvent as b, VirtualListRange as bt, WabouEventTarget as c, registerRoot as ct, WabouFloatingPlacement as d, render as dt, isDirectEvent as et, WabouFloatingPosition as f, runSweep as ft, WabouImeDeleteSurroundingEvent as g, writer as gt, WabouImageProps as h, spread as ht, NativeScrollbarStyle as i, mount as it, WabouSemanticRole as j, useHost as jt, WabouScrollEvent as k, LayoutTarget as kt, WabouExposedSemanticRole as l, releaseOverlayRoot as lt, WabouGlobalPointerListener as m, setTransform2D as mt, DynamicProps as n, memo as nt, WabouControlProps as o, reconcileControlledInputValues as ot, WabouGlobalPointerEventType as p, setProp as pt, dispatchEvent as q, PathPoint as qt, Handle as r, mergeProps as rt, WabouElementProps as s, ref as st, Dynamic as t, isServer as tt, WabouFloatingAnchor as u, removeNode as ut, WabouInputEvent as v, VirtualListController as vt, WabouNativeTag as w, BuiltinHost as wt, WabouNativeElements as x, VirtualListScrollAlignment as xt, WabouInputProps as y, VirtualListProps as yt, WabouVectorPathProps as z, JSX$1 as zt };
-//# sourceMappingURL=index-BIF5vm6l.d.mts.map
+//#region src/renderer/host.d.ts
+type LayoutTarget = NodeKey$1 | {
+  readonly id: NodeKey$1;
+};
+interface DebugOverlayOptions {
+  /** Draw every retained node's border box. */
+  layout?: boolean;
+  /** Draw unique effective overflow and scroll clips. */
+  clips?: boolean;
+  /** Draw the current native pointer hit target. */
+  hitTarget?: boolean;
+}
+interface BuiltinHost {
+  readonly system: {
+    /** Open an http(s) URL using the operating system's default handler. */
+    openUrl(url: string): boolean;
+  };
+  readonly fonts: {
+    /** Load a TTF/OTF file into this window's text context. */
+    load(path: string): boolean;
+  };
+  readonly diagnostics: {
+    /** Latest render timings, or null before the first completed frame. */
+    frameStats(): FrameStats | null;
+    /** Configure native diagnostic layers. Returns false without DevTools support. */
+    setOverlay(options: DebugOverlayOptions): boolean;
+    /** Evidence from the most recent native overlay paint pass. */
+    overlayPaintStats(): DebugOverlayPaintStats | null;
+  };
+  readonly intl: {
+    /** Locale reported by the operating system, falling back to en-US. */
+    locale(): string;
+    /** IANA time-zone identifier reported by the operating system. */
+    timeZone(): string;
+    /** Current Gregorian date in the operating system's local time zone. */
+    today(): CalendarDateInfo;
+  };
+  readonly layout: {
+    /** Measure several nodes from one coherent, completed native layout. */
+    snapshot(targets: readonly LayoutTarget[]): LayoutSnapshot;
+    /** Latest completed border-box measurement, or null for a stale handle. */
+    measure(target: LayoutTarget): LayoutRect | null;
+    /** Effective ancestor overflow clip, falling back to the viewport. */
+    clippingRect(target: LayoutTarget): LayoutRect | null;
+    /** Logical-pixel viewport from the latest completed layout. */
+    viewport(): LayoutRect;
+  };
+}
+/** Augment `HostCapabilities` in generated/user declarations. */
+type Host = BuiltinHost & HostCapabilities;
+declare const defaultHost: Host;
+interface HostProviderProps {
+  value: Host;
+  children?: JSX.Element;
+}
+/** Bind host capabilities to a Solid subtree (normally one window). */
+declare function HostProvider(props: HostProviderProps): JSX.Element;
+/** Return the host associated with the current Solid owner/window. */
+declare function useHost<T extends Host = Host>(): T;
+//#endregion
+export { createTextNode as $, WabouNativeMotion as A, Portal as At, WabouSubmitEvent as B, PathLineJoin as Bt, WabouImageProps as C, spread as Ct, WabouInputProps as D, VirtualListProps as Dt, WabouInputEvent as E, VirtualListController as Et, WabouPointerEvent as F, jsxDEV as Ft, WabouTransitionEvent as G, DebugOverlayPaintStats as Gt, WabouSvgShapeProps as H, VectorPath as Ht, WabouPositionedEvent as I, jsxs as It, WabouWheelEvent as J, LayoutRect as Jt, WabouValueChangeEvent as K, FrameStats as Kt, WabouScrollEvent as L, PathBuilder as Lt, WabouNativeTag as M, Fragment as Mt, WabouNativeTransition as N, JSX$1 as Nt, WabouKeyEvent as O, VirtualListRange as Ot, WabouNodeEvent as P, jsx as Pt, createElement as Q, WabouSecretStateChangeEvent as R, PathFillRule as Rt, WabouGlobalPointerListener as S, setTransform2D as St, WabouImePreeditEvent as T, VirtualList as Tt, WabouTextCommitEvent as U, VectorPathPaint as Ut, WabouSvgProps as V, PathPoint as Vt, WabouTextSelectionChangeEvent as W, isVectorPath as Wt, applyRef as X, LayoutSnapshot as Xt, acquireOverlayRoot as Y, LayoutScrollMetrics as Yt, createComponent$1 as Z, WabouExposedSemanticRole as _, releaseOverlayRoot as _t, HostProviderProps as a, getRequestEvent as at, WabouFloatingPosition as b, runSweep as bt, useHost as c, isDirectEvent as ct, Handle as d, mergeProps as dt, delegateEvents as et, NativeScrollbarStyle as f, mount as ft, WabouEventTarget as g, registerRoot as gt, WabouElementProps as h, ref as ht, HostProvider as i, getMountRoot as it, WabouNativeSpring as j, PortalProps as jt, WabouNativeElements as k, VirtualListScrollAlignment as kt, Dynamic as l, isServer as lt, WabouControlProps as m, reconcileControlledInputValues as mt, DebugOverlayOptions as n, disposeMountedApp as nt, LayoutTarget as o, insert as ot, WabouBuiltinIntrinsicElements as p, observeGlobalPointerEvent as pt, WabouVectorPathProps as q, LayoutNodeMetrics as qt, Host as r, effect as rt, defaultHost as s, insertNode as st, BuiltinHost as t, dispatchEvent as tt, DynamicProps as u, memo as ut, WabouFloatingAnchor as v, removeNode as vt, WabouImeDeleteSurroundingEvent as w, writer as wt, WabouGlobalPointerEventType as x, setProp as xt, WabouFloatingPlacement as y, render as yt, WabouSemanticRole as z, PathLineCap as zt };
+//# sourceMappingURL=host-Bcfe71oo.d.mts.map

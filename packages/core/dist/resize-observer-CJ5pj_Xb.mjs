@@ -1,5 +1,5 @@
-import { t as hasBrowserDom } from "./browser-dom-BrHP4mZQ.mjs";
 import { m as NodeKeyTable } from "./protocol-C0xTI-jG.mjs";
+import { t as hasBrowserDom } from "./browser-dom-BrHP4mZQ.mjs";
 //#region src/glue/host-messages.ts
 const listeners = /* @__PURE__ */ new Map();
 const allListeners = /* @__PURE__ */ new Set();
@@ -127,4 +127,4 @@ if (!hasBrowserDom()) globalThis.ResizeObserver = WabouResizeObserver;
 //#endregion
 export { subscribeAll as a, subscribe as i, dispatchHostMessage as n, subscribeJson as o, hostMessages as r, dispatchResizeObservation as t };
 
-//# sourceMappingURL=resize-observer-C81Nlzsq.mjs.map
+//# sourceMappingURL=resize-observer-CJ5pj_Xb.mjs.map

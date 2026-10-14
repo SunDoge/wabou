@@ -65,7 +65,7 @@ During the Git-preview phase, install the CLI from the release tag:
 
 ```bash
 cargo install --git https://github.com/SunDoge/wabou.git \
-  --tag v0.1.0-alpha.3 --locked wabou-cli
+  --tag v0.1.0-alpha.4 --locked wabou-cli
 wabou new hello-wabou
 cd hello-wabou
 bun install
@@ -286,7 +286,7 @@ preview tag you are testing:
 
 ```toml
 [dependencies]
-wabou = { git = "https://github.com/SunDoge/wabou.git", tag = "v0.1.0-alpha.3" }
+wabou = { git = "https://github.com/SunDoge/wabou.git", tag = "v0.1.0-alpha.4" }
 ```
 
 Other examples include a [Hacker News client](apps/hackernews) and a

@@ -1,7 +1,22 @@
-import { t as hasBrowserDom } from "./browser-dom-BrHP4mZQ.mjs";
 import { t as EVENT_CODE, v as nodeKey } from "./protocol-C0xTI-jG.mjs";
-import { c as dispatchEvent, j as writer, l as disposeMountedApp } from "./renderer-Dg15OQ5a.mjs";
-import { t as tickAnimationFrame } from "./animation-frame-BTPCXgGl.mjs";
+import { t as hasBrowserDom } from "./browser-dom-BrHP4mZQ.mjs";
+import { c as dispatchEvent, j as writer, l as disposeMountedApp } from "./renderer-Dban-vxD.mjs";
+import { t as tickAnimationFrame } from "./animation-frame-BMEKyYv2.mjs";
+//#region src/generated/browser-host-bindings.ts
+function createBrowserHostBindings(bridge, invalidate) {
+	return {
+		__wabou_intern: (value) => bridge.intern(value),
+		__wabou_motion_create: (descriptor) => bridge.motion_create(descriptor),
+		__wabou_motion_sample: (id, elapsed, output) => bridge.motion_sample(id, elapsed, output),
+		__wabou_motion_drop: (id) => bridge.motion_drop(id),
+		__wabou_set_stylesheet: (json) => {
+			const result = bridge.set_stylesheet(json);
+			invalidate();
+			return result;
+		}
+	};
+}
+//#endregion
 //#region src/browser/host.ts
 const hostKey = Symbol.for("@wabou/core.browser-host");
 const realm = globalThis;
@@ -115,15 +130,10 @@ async function startBrowserApp(options) {
 		writer.reset();
 		runtime = await options.createRuntime(canvas);
 		const bridge = runtime;
-		own("__wabou_intern", (value) => bridge.intern(value));
-		own("__wabou_motion_create", (descriptor) => bridge.motion_create(descriptor));
-		own("__wabou_motion_sample", (id, elapsed, output) => bridge.motion_sample(id, elapsed, output));
-		own("__wabou_motion_drop", (id) => bridge.motion_drop(id));
-		own("__wabou_log", (_level, message) => console.error(message));
-		own("__wabou_set_stylesheet", (json) => {
-			bridge.set_stylesheet(json);
+		for (const [name, binding] of Object.entries(createBrowserHostBindings(bridge, () => {
 			dirty = true;
-		});
+		}))) own(name, binding);
+		own("__wabou_log", (_level, message) => console.error(message));
 		own("__wabou_preview", {
 			canvas,
 			snapshot: () => JSON.parse(bridge.snapshot())
