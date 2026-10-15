@@ -1,4 +1,4 @@
-import { n as resolveWabouUtility, r as validateWabouUtility } from "./preset-sPXDTbYy.mjs";
+import { n as resolveWabouUtility, r as validateWabouUtility } from "./preset-Ds47hqQP.mjs";
 //#region src/style-compiler/browser.ts
 function semanticColorDeclaration(candidate, tokens) {
 	const match = candidate.match(/^(bg|text|border)-(.+)$/);
@@ -42,4 +42,4 @@ function compileWabouUtilities(candidates, sourceOrderStart = 0, semanticTokens 
 //#endregion
 export { compileWabouUtilities as n, assertSupportedWabouCandidates as t };
 
-//# sourceMappingURL=browser-5IInXhPn.mjs.map
+//# sourceMappingURL=browser-wDHnSa2Q.mjs.map

@@ -243,6 +243,9 @@ const defaultWabouSemanticColorTokens = Object.freeze(Object.keys(defaultWabouCo
 //#endregion
 //#region src/preset/index.ts
 const wabouUtilityManifest = manifest_default;
+function ownValue(record, key) {
+	return Object.hasOwn(record, key) ? record[key] : void 0;
+}
 function matchDynamic(utility, resolver) {
 	const negative = [
 		"spacing",
@@ -272,7 +275,7 @@ function parseLength(token, spacing) {
 		unit: "px",
 		value: 1
 	};
-	const scale = spacing ? wabouUtilityManifest.spacing[token] : void 0;
+	const scale = spacing ? ownValue(wabouUtilityManifest.spacing, token) : void 0;
 	if (scale !== void 0) return {
 		unit: "px",
 		value: scale
@@ -364,7 +367,7 @@ function parseCandidate(candidate) {
 		candidate,
 		message: `Wabou variants are not supported in \`${candidate}\`; use Solid classList or typed style`
 	};
-	let declarations = wabouUtilityManifest.staticUtilities[matcher];
+	let declarations = ownValue(wabouUtilityManifest.staticUtilities, matcher);
 	const spacing = matchDynamic(matcher, "spacing");
 	if (!declarations && spacing) {
 		let value = parseLength(spacing.token, true);
@@ -414,7 +417,7 @@ function parseCandidate(candidate) {
 	const color = matchDynamic(matcher, "color");
 	if (!declarations && color) {
 		const [colorName, opacityToken] = color.token.split("/", 2);
-		let rgba = wabouUtilityManifest.colors[colorName];
+		let rgba = ownValue(wabouUtilityManifest.colors, colorName);
 		const arbitrary = colorName.match(/^\[#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})\]$/)?.[1];
 		if (rgba === void 0 && arbitrary) {
 			if (arbitrary.length === 3) {
@@ -675,4 +678,4 @@ function presetWabou(options = {}) {
 //#endregion
 export { defaultWabouColorThemes as a, wabouUtilityManifest as i, resolveWabouUtility as n, defaultWabouSemanticColorTokens as o, validateWabouUtility as r, presetWabou as t };
 
-//# sourceMappingURL=preset-sPXDTbYy.mjs.map
+//# sourceMappingURL=preset-Ds47hqQP.mjs.map
