@@ -106,13 +106,14 @@ the public JavaScript facades through `workspace:*`:
 {
   "workspaces": ["vendor/wabou/packages/*"],
   "dependencies": {
+    "@solidjs/web": "2.0.0-rc.14",
     "@wabou/ui": "workspace:*",
-    "solid-js": "2.0.0-rc.6"
+    "solid-js": "2.0.0-rc.14"
   },
   "devDependencies": {
     "@wabou/test": "workspace:*",
     "@wabou/vite": "workspace:*",
-    "vite": "^8.2.2"
+    "vite": "^8.3.4"
   }
 }
 ```
