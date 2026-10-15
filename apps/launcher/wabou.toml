@@ -1,0 +1,7 @@
+[package]
+product-name = "Wabou Launcher"
+identifier = "dev.wabou.launcher"
+description = "A keyboard-first native application launcher built with Wabou."
+authors = ["Wabou contributors"]
+license-file = "../../LICENSE"
+formats = ["appimage"]

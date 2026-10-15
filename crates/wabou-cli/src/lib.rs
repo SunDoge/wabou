@@ -40,7 +40,7 @@ mod scaffold;
 mod ts_config;
 
 use artifact::{
-    app_binary, app_bindings_target, app_dev_features, app_framework_feature,
+    BindingsTarget, app_binary, app_bindings_target, app_dev_features, app_framework_feature,
     app_profiling_feature, artifact_from_metadata_for_target, cargo_metadata,
     optional_app_bindings_target,
 };
@@ -1344,7 +1344,7 @@ fn bindings(workspace: &Path, app: &App, mode: BindingsCommand) -> Result<()> {
 fn run_bindings_target(
     workspace: &Path,
     app: &App,
-    target: &str,
+    target: &BindingsTarget,
     mode: &str,
     cargo_features: &[String],
 ) -> Result<()> {
@@ -1356,9 +1356,13 @@ fn run_bindings_target(
         "--manifest-path",
         &manifest,
         "--example",
-        target,
+        &target.name,
     ]);
-    apply_cargo_features(&mut cargo, cargo_features);
+    let mut features = target.required_features.clone();
+    features.extend_from_slice(cargo_features);
+    features.sort();
+    features.dedup();
+    apply_cargo_features(&mut cargo, &features);
     cargo.args(["--", mode]);
     ensure(cargo.status()?, "Wabou bindings generator")
 }

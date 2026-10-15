@@ -1,0 +1,28 @@
+[package]
+name = "wabou-launcher"
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+[features]
+bindings = ["wabou/bindings"]
+
+[[bin]]
+name = "wabou-launcher"
+path = "src/main.rs"
+
+[[example]]
+name = "launcher-bindgen"
+path = "examples/wabou-bindgen.rs"
+required-features = ["bindings"]
+
+[dependencies]
+flume.workspace = true
+global-hotkey = "0.8.0"
+serde = { workspace = true, features = ["derive"] }
+snafu.workspace = true
+tracing.workspace = true
+wabou = { workspace = true, features = ["tray", "vello-hybrid"] }
+
+[dev-dependencies]
+tempfile = "3"

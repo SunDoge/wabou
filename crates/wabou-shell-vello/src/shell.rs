@@ -72,6 +72,21 @@ impl Shell {
         if let Some((width, height)) = options.min_inner_size {
             attrs = attrs.with_min_surface_size(winit::dpi::LogicalSize::new(width, height));
         }
+        if options.centered
+            && let Some(monitor) = event_loop
+                .primary_monitor()
+                .or_else(|| event_loop.available_monitors().next())
+            && let (Some(origin), Some(mode)) = (monitor.position(), monitor.current_video_mode())
+        {
+            let scale = monitor.scale_factor().max(f64::EPSILON);
+            let width = (f64::from(options.initial_inner_size.0) * scale).round() as i32;
+            let height = (f64::from(options.initial_inner_size.1) * scale).round() as i32;
+            let size = mode.size();
+            attrs = attrs.with_position(winit::dpi::PhysicalPosition::new(
+                origin.x + (size.width as i32 - width).max(0) / 2,
+                origin.y + (size.height as i32 - height).max(0) / 2,
+            ));
+        }
 
         let window: Arc<dyn Window> = Arc::from(
             event_loop

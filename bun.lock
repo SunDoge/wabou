@@ -100,6 +100,20 @@
         "vite": "^8.3.4",
       },
     },
+    "apps/launcher": {
+      "name": "@wabou/launcher",
+      "version": "0.0.0",
+      "dependencies": {
+        "@wabou/ui": "workspace:*",
+        "lucide-static": "1.57.0",
+        "solid-js": "2.0.0-rc.14",
+      },
+      "devDependencies": {
+        "@wabou/test": "workspace:*",
+        "@wabou/vite": "workspace:*",
+        "vite": "^8.3.4",
+      },
+    },
     "apps/manga-ocr": {
       "name": "@wabou/manga-ocr",
       "version": "0.0.0",
@@ -168,6 +182,21 @@
         "solid-js": "2.0.0-rc.14",
       },
       "devDependencies": {
+        "@wabou/vite": "workspace:*",
+        "vite": "^8.3.4",
+      },
+    },
+    "apps/reader": {
+      "name": "@wabou/reader",
+      "version": "0.0.0",
+      "dependencies": {
+        "@wabou/pdf": "workspace:*",
+        "@wabou/ui": "workspace:*",
+        "lucide-static": "1.57.0",
+        "solid-js": "2.0.0-rc.14",
+      },
+      "devDependencies": {
+        "@wabou/test": "workspace:*",
         "@wabou/vite": "workspace:*",
         "vite": "^8.3.4",
       },
@@ -787,6 +816,8 @@
 
     "@wabou/hackernews": ["@wabou/hackernews@workspace:apps/hackernews"],
 
+    "@wabou/launcher": ["@wabou/launcher@workspace:apps/launcher"],
+
     "@wabou/manga-ocr": ["@wabou/manga-ocr@workspace:apps/manga-ocr"],
 
     "@wabou/meow-starter": ["@wabou/meow-starter@workspace:apps/meow-starter"],
@@ -798,6 +829,8 @@
     "@wabou/pi-agent": ["@wabou/pi-agent@workspace:apps/pi-agent"],
 
     "@wabou/pulse-reference": ["@wabou/pulse-reference@workspace:apps/pulse"],
+
+    "@wabou/reader": ["@wabou/reader@workspace:apps/reader"],
 
     "@wabou/stress": ["@wabou/stress@workspace:apps/stress"],
 

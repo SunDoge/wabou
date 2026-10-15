@@ -2,8 +2,10 @@ import { resolve } from "node:path";
 
 export type LayoutTestApp =
   | "gallery"
+  | "launcher"
   | "meow-starter"
   | "pi-agent"
+  | "reader"
   | "timestow";
 
 export interface LayoutTestSelection {
@@ -15,8 +17,10 @@ export interface LayoutTestSelection {
 
 const ALL_APPS: readonly LayoutTestApp[] = [
   "gallery",
+  "launcher",
   "meow-starter",
   "pi-agent",
+  "reader",
   "timestow",
 ];
 const PI_AGENT_FIXTURE_PREFIXES = [
@@ -30,7 +34,9 @@ function inferApps(filters: readonly string[]): readonly LayoutTestApp[] {
   if (filters.length === 0) return ALL_APPS;
   const applications = new Set<LayoutTestApp>();
   for (const filter of filters) {
-    if (filter.startsWith("timestow/")) applications.add("timestow");
+    if (filter.startsWith("launcher/")) applications.add("launcher");
+    else if (filter.startsWith("reader/")) applications.add("reader");
+    else if (filter.startsWith("timestow/")) applications.add("timestow");
     else if (filter.startsWith("meow-starter/"))
       applications.add("meow-starter");
     else if (
@@ -43,6 +49,8 @@ function inferApps(filters: readonly string[]): readonly LayoutTestApp[] {
 }
 
 function fixtureBelongsToApp(filter: string, app: LayoutTestApp): boolean {
+  if (filter.startsWith("launcher/")) return app === "launcher";
+  if (filter.startsWith("reader/")) return app === "reader";
   if (filter.startsWith("timestow/")) return app === "timestow";
   if (filter.startsWith("meow-starter/")) return app === "meow-starter";
   const piAgentFixture = PI_AGENT_FIXTURE_PREFIXES.some((prefix) =>
@@ -54,13 +62,15 @@ function fixtureBelongsToApp(filter: string, app: LayoutTestApp): boolean {
 function parseApp(value: string | undefined): LayoutTestApp {
   if (
     value === "gallery" ||
+    value === "launcher" ||
     value === "meow-starter" ||
     value === "pi-agent" ||
+    value === "reader" ||
     value === "timestow"
   )
     return value;
   throw new Error(
-    `unknown layout app ${JSON.stringify(value)}; expected gallery, meow-starter, pi-agent, or timestow`,
+    `unknown layout app ${JSON.stringify(value)}; expected gallery, launcher, meow-starter, pi-agent, reader, or timestow`,
   );
 }
 

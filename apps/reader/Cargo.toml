@@ -1,0 +1,14 @@
+[package]
+name = "wabou-reader"
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+[[bin]]
+name = "wabou-reader"
+path = "src/main.rs"
+
+[dependencies]
+snafu = { workspace = true }
+wabou = { workspace = true, features = ["vello-hybrid"] }
+wabou-pdf = { workspace = true }

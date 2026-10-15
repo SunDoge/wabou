@@ -6,6 +6,12 @@ use serde_json::Value;
 
 use super::{App, Result};
 
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(super) struct BindingsTarget {
+    pub(super) name: String,
+    pub(super) required_features: Vec<String>,
+}
+
 pub(super) fn built_executable(workspace: &Path, app: &App, release: bool) -> Result<PathBuf> {
     let metadata = cargo_metadata(workspace, app)?;
     artifact_from_metadata(
@@ -61,18 +67,31 @@ pub(super) fn app_framework_feature(workspace: &Path, app: &App, feature: &str) 
         .ok_or_else(|| "application must depend on `wabou` or `wabou-runtime`".into())
 }
 
-pub(super) fn app_bindings_target(workspace: &Path, app: &App) -> Result<String> {
+pub(super) fn app_bindings_target(workspace: &Path, app: &App) -> Result<BindingsTarget> {
     optional_app_bindings_target(workspace, app)?.ok_or_else(|| {
         "application must define one example sourced from `examples/wabou-bindgen.rs`".into()
     })
 }
 
-pub(super) fn optional_app_bindings_target(workspace: &Path, app: &App) -> Result<Option<String>> {
+pub(super) fn optional_app_bindings_target(
+    workspace: &Path,
+    app: &App,
+) -> Result<Option<BindingsTarget>> {
     let metadata = cargo_metadata(workspace, app)?;
     let manifest_path = app.root.join("Cargo.toml").canonicalize()?;
-    Ok(bindings_target(&metadata, &manifest_path)
-        .and_then(|target| target["name"].as_str())
-        .map(str::to_owned))
+    Ok(bindings_target(&metadata, &manifest_path).and_then(bindings_target_details))
+}
+
+fn bindings_target_details(target: &Value) -> Option<BindingsTarget> {
+    Some(BindingsTarget {
+        name: target["name"].as_str()?.to_owned(),
+        required_features: target["required-features"]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .filter_map(|feature| feature.as_str().map(str::to_owned))
+            .collect(),
+    })
 }
 
 pub(super) fn framework_feature(
@@ -244,5 +263,20 @@ mod tests {
             "app"
         );
         assert_eq!(binary_target(&metadata, &canonical).unwrap()["name"], "app");
+    }
+
+    #[test]
+    fn bindings_target_preserves_required_features() {
+        let target = serde_json::json!({
+            "name": "launcher-bindgen",
+            "required-features": ["bindings", "schema"]
+        });
+        assert_eq!(
+            bindings_target_details(&target),
+            Some(BindingsTarget {
+                name: "launcher-bindgen".into(),
+                required_features: vec!["bindings".into(), "schema".into()],
+            })
+        );
     }
 }
