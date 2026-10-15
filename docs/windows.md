@@ -37,7 +37,7 @@ returns the current runtime's reactive metrics plus the same controls.
 
 ## Rendering runtime
 
-`HostBuilder` owns the Winit + Taffy + Vello Hybrid window lifecycle.
+`HostBuilder` owns the Winit + Taffy + Vello GPU window lifecycle.
 `WindowOptions` describes window behavior and does not expose a renderer
 selector. Native widgets and platform extensions therefore cannot silently
 change implementation at runtime.

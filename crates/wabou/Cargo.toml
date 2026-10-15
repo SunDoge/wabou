@@ -2,28 +2,51 @@
 name = "wabou"
 version.workspace = true
 edition = "2024"
-description = "Public Rust application API for the Wabou native SolidJS runtime."
+description = "Native SolidJS application runtime built on Winit, Taffy, and Vello."
 readme = "README.md"
+license.workspace = true
 publish = false
 
-license.workspace = true
+[lib]
+name = "wabou"
+path = "src/lib.rs"
 
 [dependencies]
-wabou-bindgen = { workspace = true }
-wabou-database = { workspace = true }
-wabou-runtime = { workspace = true, default-features = false }
-wabou-backend-vello-hybrid = { workspace = true, optional = true }
+wabou-telemetry.workspace = true
+bitflags.workspace = true
+runtime-api = { package = "wabou-runtime", path = "../wabou-runtime", default-features = false }
+image = { workspace = true, features = ["jpeg", "png", "webp"] }
+wabou-shell = { workspace = true, features = ["widgets"] }
+parley.workspace = true
+rquickjs = { version = "0.14.0", features = ["full-async", "loader", "rust-alloc"] }
+serde = { workspace = true, features = ["derive"] }
+serde_json.workspace = true
+snafu.workspace = true
+taffy = { workspace = true, features = ["content_size", "parse"] }
+tokio = { workspace = true, features = ["fs", "macros", "rt-multi-thread", "sync", "time"] }
+tracing.workspace = true
+tracing-subscriber = { workspace = true, features = ["env-filter"] }
+vello-common.workspace = true
+wabou-devtools = { workspace = true, optional = true }
+wabou-bindgen.workspace = true
+wabou-database.workspace = true
+wabou-host-api.workspace = true
+wabou-protocol.workspace = true
+wabou-shell-api.workspace = true
+wabou-style.workspace = true
 wabou-tray = { workspace = true, optional = true }
 
 [features]
-default = ["vello-hybrid"]
+default = []
 bindings = ["wabou-bindgen/generate"]
-devtools = ["wabou-runtime/devtools", "wabou-backend-vello-hybrid?/devtools"]
-headless = ["wabou-runtime/headless"]
-profiling = ["wabou-runtime/profiling"]
+devtools = ["dep:wabou-devtools", "runtime-api/devtools"]
+headless = ["runtime-api/headless"]
+profiling = []
 tray = ["dep:wabou-tray"]
-vite = ["wabou-runtime/vite", "wabou-backend-vello-hybrid?/vite"]
-vello-hybrid = ["dep:wabou-backend-vello-hybrid"]
+vite = ["runtime-api/vite"]
 
 [dev-dependencies]
-serde = { workspace = true, features = ["derive"] }
+wabou-devtools.workspace = true
+proptest = "1"
+runtime-api = { package = "wabou-runtime", path = "../wabou-runtime", default-features = false, features = ["devtools"] }
+tempfile = "3"

@@ -59,7 +59,7 @@ tags.
   including asynchronous window creation and native file drag-and-drop events.
 - The router adapter now supports typed search, asynchronous loaders, caching,
   preloading, guards, and native memory history.
-- Wabou now uses a single Winit, Taffy, Parley, and Vello Hybrid backend; the
+- Wabou now uses a single Winit, Taffy, Parley, and Vello GPU backend; the
   retired GPUI, AnyRender, and Skia experiments are no longer public choices.
 - Native windows persist their logical size for responsive desktop layouts.
 - Behavior tests now resolve controls from the rendered semantic tree, scroll

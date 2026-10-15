@@ -3,7 +3,7 @@
 //! Ported from blitz-js's `vite.rs` (host-agnostic). In dev mode the rquickjs
 //! runtime gets a module [`Loader`] + [`Resolver`] that fetch ESM from the
 //! Vite dev server; the HMR client connects to Vite's WebSocket, prefetches
-//! updated module sources, and forwards them to the GPUI controller.
+//! updated module sources, and forwards them to the native host controller.
 
 use std::collections::HashMap;
 use std::sync::{

@@ -112,7 +112,7 @@ completed captures are retained; normal frames do not perform a GPU readback.
 
 ## Headless screenshots
 
-`wabou render` defaults to the offscreen Vello Hybrid renderer with the same
+`wabou render` defaults to the offscreen Vello GPU renderer with the same
 host-global ordering as the native runtime. In bundle-only mode it does not run
 application-owned Rust services or capabilities. This is appropriate for
 isolated component and interaction captures. Both render backends drive frames
@@ -133,7 +133,7 @@ wabou render apps/gallery --out /tmp/gallery.png \
   --snapshot /tmp/gallery-tree.json
 ```
 
-Captures carry an explicit `vello-hybrid` provenance label, so stale artifacts
+Captures carry an explicit `vello-gpu` provenance label, so stale artifacts
 cannot satisfy the current renderer gate. Use `--with-host` when the rendered
 state depends on registrations in the application's `HostBuilder`. Wabou starts
 the real application binary on its

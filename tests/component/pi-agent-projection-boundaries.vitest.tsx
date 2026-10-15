@@ -24,7 +24,7 @@ test("component tests observe the formal projection-boundary opcode", () => {
   ).toContain("Retained child");
 });
 
-test("the pi transcript authors an explicit GPUI projection boundary", () => {
+test("the pi transcript authors an explicit native projection boundary", () => {
   const screen = renderComponent(() => (
     <MessageScroller
       projectionBoundary
@@ -46,7 +46,7 @@ test("the pi transcript authors an explicit GPUI projection boundary", () => {
   ).toBe(true);
 });
 
-test("the retained terminal surface owns its GPUI projection boundary", () => {
+test("the retained terminal surface owns its native projection boundary", () => {
   const screen = renderComponent(() => (
     <AgentTerminalPanel
       cwd="/tmp/wabou-agent"

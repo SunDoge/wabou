@@ -2,50 +2,26 @@
 resolver = "3"
 members = ["apps/*", "crates/*"]
 exclude = [
-  "apps/pulse",
   "experiments/*",
   "templates/basic",
   "vendor/bitwarden-sdk",
 ]
 default-members = [
-  "apps/7guis",
-  "apps/devtools",
   "apps/gallery",
-  "apps/gallery-api",
-  "apps/gallery-functions",
-  "apps/hackernews",
-  "apps/launcher",
-  "apps/manga-ocr",
-  "apps/meow-starter",
-  "apps/motrix",
-  "apps/pi-agent",
-  "apps/reader",
-  "apps/gpui-benchmarks",
-  "apps/stress",
-  "apps/terminal",
-  "apps/timestow",
-  "apps/vlist",
   "crates/wabou",
-  "crates/wabou-backend-vello-hybrid",
   "crates/wabou-bindgen",
   "crates/wabou-cli",
-  "crates/wabou-launch",
-  "crates/wabou-runtime-library",
-  "crates/wabou-database",
   "crates/wabou-devtools",
   "crates/wabou-host-api",
   "crates/wabou-motion",
-  "crates/wabou-pdf",
   "crates/wabou-protocol",
   "crates/wabou-runtime",
   "crates/wabou-shell-api",
-  "crates/wabou-shell-vello",
-  "crates/wabou-render-core",
+  "crates/wabou-shell",
+  "crates/wabou-renderer",
   "crates/wabou-web",
   "crates/wabou-style",
-  "crates/wabou-terminal-vello",
   "crates/wabou-telemetry",
-  "crates/wabou-tray",
 ]
 
 [workspace.package]
@@ -55,7 +31,6 @@ license = "Apache-2.0"
 [workspace.dependencies]
 wabou-telemetry = { path = "crates/wabou-telemetry" }
 wabou = { path = "crates/wabou", default-features = false }
-wabou-backend-vello-hybrid = { path = "crates/wabou-backend-vello-hybrid" }
 wabou-bindgen = { path = "crates/wabou-bindgen", default-features = false }
 wabou-database = { path = "crates/wabou-database" }
 wabou-devtools = { path = "crates/wabou-devtools", default-features = false }
@@ -63,12 +38,12 @@ wabou-host-api = { path = "crates/wabou-host-api" }
 wabou-motion = { path = "crates/wabou-motion" }
 wabou-pdf = { path = "crates/wabou-pdf" }
 wabou-protocol = { path = "crates/wabou-protocol" }
-wabou-render-core = { path = "crates/wabou-render-core" }
+wabou-renderer = { path = "crates/wabou-renderer" }
 wabou-runtime = { path = "crates/wabou-runtime", default-features = false }
 wabou-shell-api = { path = "crates/wabou-shell-api" }
-wabou-shell-vello = { path = "crates/wabou-shell-vello" }
+wabou-shell = { path = "crates/wabou-shell" }
 wabou-style = { path = "crates/wabou-style" }
-wabou-terminal-vello = { path = "crates/wabou-terminal-vello" }
+wabou-terminal-widget = { path = "crates/wabou-terminal-widget" }
 wabou-tray = { path = "crates/wabou-tray" }
 
 arboard = { version = "3.6.1", default-features = false, features = ["wayland-data-control"] }

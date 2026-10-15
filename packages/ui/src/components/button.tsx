@@ -45,7 +45,7 @@ function buttonColors(
 ): string {
   if (visuallyDisabled) return "bg-surface-muted border-subtle text-muted";
   const focus = state.focusVisible ? "border-focus" : "";
-  // A selected button is a persistent active control. Match gpui-component's
+  // A selected button is a persistent active control. Keep its
   // state ordering: selected owns the active palette and hover must not wash
   // it out while an associated page, menu or mode remains active.
   const active = state.pressed || state.selected;

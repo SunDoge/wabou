@@ -16,13 +16,12 @@ mod behavior_test;
 mod clean;
 mod config;
 mod devtools;
-mod distribution;
 mod doctor;
 mod frontend;
 #[cfg(feature = "embedded-renderer")]
-mod hybrid_render;
+mod native_render;
 #[cfg(not(feature = "embedded-renderer"))]
-mod hybrid_render {
+mod native_render {
     use super::{App, RenderOptions, Result};
     use std::path::Path;
     pub(super) fn run(_: &Path, _: &App, _: &RenderOptions) -> Result<()> {
@@ -92,20 +91,6 @@ struct CargoFeatures {
 
 #[derive(usage_rs::Subcommands)]
 enum Commands {
-    /// Run a JSON application configuration through the linked fallback host.
-    Launch {
-        #[usage(value_name = "CONFIG_JSON")]
-        config: PathBuf,
-    },
-    /// Build a portable application using the embedded runtime and capability libraries.
-    Bundle {
-        #[usage(value_name = "APP")]
-        app: Option<PathBuf>,
-        #[usage(long)]
-        config: Option<PathBuf>,
-        #[usage(long)]
-        out: PathBuf,
-    },
     /// Create a standalone Wabou application pinned to a Git revision.
     New {
         #[usage(value_name = "PATH")]
@@ -163,9 +148,6 @@ enum Commands {
         /// Show the renderer-native performance HUD.
         #[usage(long)]
         hud: bool,
-        /// Capability/window launch configuration; Vite source is set by dev.
-        #[usage(long, value_name = "JSON")]
-        runtime_config: Option<PathBuf>,
         /// Vite mode used to select an application-owned development entry.
         #[usage(long)]
         mode: Option<String>,
@@ -188,7 +170,7 @@ enum Commands {
     Package {
         #[usage(value_name = "APP")]
         app: Option<PathBuf>,
-        /// Override the formats declared in wabou.toml.
+        /// Override the formats declared in wabou.config.ts.
         #[usage(long, value_enum)]
         format: Vec<PackageFormat>,
         /// Build the Rust host with cargo-zigbuild for this target before packaging.
@@ -328,7 +310,7 @@ enum Commands {
         #[usage(flatten)]
         cargo_features: CargoFeatures,
     },
-    /// Evaluate JavaScript, Style IR, and Taffy through the Vello Hybrid backend.
+    /// Evaluate JavaScript, Style IR, and Taffy through the Vello GPU backend.
     Layout {
         #[usage(value_name = "APP")]
         app: Option<PathBuf>,
@@ -423,10 +405,7 @@ fn resolve_behavior_test_target(
     } else {
         target.parent().unwrap_or(target.as_path())
     };
-    (
-        project::find_frontend_root(search_from).or_else(|| find_app_root(search_from)),
-        Some(target),
-    )
+    (find_app_root(search_from), Some(target))
 }
 
 pub fn execute() -> Result<()> {
@@ -434,7 +413,7 @@ pub fn execute() -> Result<()> {
     #[cfg(not(feature = "embedded-renderer"))]
     if matches!(
         arguments.get(1).and_then(|argument| argument.to_str()),
-        Some("launch" | "bundle" | "render" | "layout")
+        Some("render" | "layout")
     ) {
         return delegate_renderer(&arguments);
     }
@@ -447,25 +426,6 @@ pub fn execute() -> Result<()> {
         Ok::<_, Box<dyn Error>>((workspace, app))
     };
     match cli.command {
-        Commands::Launch { config } => launch_application(&config),
-        Commands::Bundle { app, config, out } => {
-            let frontend_root = project::find_frontend_root(&cwd).unwrap_or_else(|| cwd.clone());
-            let workspace = find_workspace(&cwd).unwrap_or(frontend_root);
-            let mut app = project::load_frontend_app(&workspace, &cwd, app.as_deref())?;
-            let prepared = if config.is_none() {
-                ts_config::prepare(&app)?
-            } else {
-                None
-            };
-            if let Some(prepared) = &prepared {
-                app.entry = prepared.entry.clone();
-            }
-            let config = config
-                .or_else(|| prepared.as_ref().map(|p| p.file.path().to_owned()))
-                .or(config::load_dev_config(&app)?.runtime_config)
-                .ok_or("bundle needs wabou.config.ts or --config")?;
-            distribution::bundle(&workspace, &app, &config, &out)
-        }
         Commands::New {
             path,
             wabou_repository,
@@ -491,7 +451,8 @@ pub fn execute() -> Result<()> {
                 .map(|p| cwd.join(p))
                 .unwrap_or_else(|| cwd.clone());
             let workspace = find_workspace(&start)?;
-            let app = project::load_frontend_app(&workspace, &cwd, app.as_deref())?;
+            let mut app = load_app(&workspace, &cwd, app.as_deref())?;
+            apply_configured_entry(&mut app, "build", "development")?;
             check(&workspace, &app, skip_behavior, &cargo_features.values)
         }
         Commands::Clean { app, packages } => {
@@ -503,31 +464,12 @@ pub fn execute() -> Result<()> {
             port,
             devtools,
             hud,
-            runtime_config,
             mode,
             cargo_features,
         } => {
-            let frontend_root = project::find_frontend_root(&cwd).unwrap_or_else(|| cwd.clone());
-            let workspace = find_workspace(&cwd).unwrap_or(frontend_root);
-            let mut app = project::load_frontend_app(&workspace, &cwd, app.as_deref())?;
-            let configured = config::load_dev_config(&app)?;
-            let runtime_config = runtime_config.or(configured.runtime_config);
-            let prepared = if runtime_config.is_none() {
-                ts_config::prepare(&app)?
-            } else {
-                None
-            };
-            if let Some(prepared) = &prepared {
-                app.entry = prepared.entry.clone();
-            }
-            let runtime_config =
-                runtime_config.or_else(|| prepared.as_ref().map(|p| p.file.path().to_owned()));
-            if runtime_config.is_none() && !app.root.join("Cargo.toml").is_file() {
-                return Err(
-                    "frontend-only dev needs wabou.config.ts or [dev] runtime-config in wabou.toml"
-                        .into(),
-                );
-            }
+            let workspace = find_workspace(&cwd)?;
+            let mut app = load_app(&workspace, &cwd, app.as_deref())?;
+            apply_configured_entry(&mut app, "serve", mode.as_deref().unwrap_or("development"))?;
             dev(
                 &workspace,
                 app,
@@ -535,7 +477,6 @@ pub fn execute() -> Result<()> {
                     port,
                     open_devtools: devtools,
                     hud,
-                    runtime_config: runtime_config.as_deref(),
                     mode: mode.as_deref(),
                     cargo_features: &cargo_features.values,
                 },
@@ -552,7 +493,7 @@ pub fn execute() -> Result<()> {
                 .map(|p| cwd.join(p))
                 .unwrap_or_else(|| cwd.clone());
             let workspace = find_workspace(&start)?;
-            let app = project::load_frontend_app(&workspace, &cwd, app.as_deref())?;
+            let app = load_app(&workspace, &cwd, app.as_deref())?;
             build(
                 &workspace,
                 &app,
@@ -589,7 +530,7 @@ pub fn execute() -> Result<()> {
                 .map(|p| cwd.join(p))
                 .unwrap_or_else(|| cwd.clone());
             let workspace = find_workspace(&start)?;
-            let app = project::load_frontend_app(&workspace, &cwd, app.as_deref())?;
+            let app = load_app(&workspace, &cwd, app.as_deref())?;
             let profile_trace = profile_trace.map(|path| cwd.join(path));
             run(
                 &workspace,
@@ -620,7 +561,7 @@ pub fn execute() -> Result<()> {
                 .map(|p| cwd.join(p))
                 .unwrap_or_else(|| cwd.clone());
             let workspace = find_workspace(&start)?;
-            let app = project::load_frontend_app(&workspace, &cwd, app_path.as_deref())?;
+            let app = load_app(&workspace, &cwd, app_path.as_deref())?;
             let options = TestOptions {
                 scenario,
                 replay: replay.map(|path| cwd.join(path)),
@@ -671,7 +612,8 @@ pub fn execute() -> Result<()> {
                 .map(|path| cwd.join(path))
                 .unwrap_or_else(|| cwd.clone());
             let workspace = find_workspace(&start)?;
-            let app = project::load_frontend_app(&workspace, &cwd, app.as_deref())?;
+            let mut app = load_app(&workspace, &cwd, app.as_deref())?;
+            apply_configured_entry(&mut app, "build", mode.as_deref().unwrap_or("development"))?;
             let options = RenderOptions {
                 out,
                 batch: None,
@@ -694,7 +636,7 @@ pub fn execute() -> Result<()> {
                 layout_only: false,
                 cargo_features: cargo_features.values,
             };
-            hybrid_render::run(&workspace, &app, &options)
+            native_render::run(&workspace, &app, &options)
         }
         Commands::Layout {
             app,
@@ -715,8 +657,9 @@ pub fn execute() -> Result<()> {
                 .map(|path| cwd.join(path))
                 .unwrap_or_else(|| cwd.clone());
             let workspace = find_workspace(&start)?;
-            let app = project::load_frontend_app(&workspace, &cwd, app.as_deref())?;
-            hybrid_render::run_layout(
+            let mut app = load_app(&workspace, &cwd, app.as_deref())?;
+            apply_configured_entry(&mut app, "build", mode.as_deref().unwrap_or("development"))?;
+            native_render::run_layout(
                 &workspace,
                 &app,
                 &RenderOptions {
@@ -754,11 +697,9 @@ pub fn run_renderer() -> Result<()> {
     let command = env::args_os().nth(1);
     if !matches!(
         command.as_deref().and_then(|value| value.to_str()),
-        Some("launch" | "bundle" | "render" | "layout")
+        Some("render" | "layout")
     ) {
-        return Err(
-            "wabou-render only accepts the launch, bundle, render, and layout commands".into(),
-        );
+        return Err("wabou-render only accepts the render and layout commands".into());
     }
     execute()
 }
@@ -921,33 +862,14 @@ fn build(
     cargo_features: &[String],
 ) -> Result<()> {
     let mut app = app.clone();
-    let launch = app_launch_configuration(&mut app)?;
-    let app = &app;
     let profile = BuildProfile::from_release(release);
+    apply_configured_entry(
+        &mut app,
+        "build",
+        if release { "production" } else { "development" },
+    )?;
+    let app = &app;
     let source_map = source_map_override.unwrap_or(configured_source_map(app, profile)?);
-    if let Some(mut config) = launch {
-        ensure(
-            build_frontend(workspace, app, &[], profile, source_map)?,
-            "Vite build",
-        )?;
-        let bundle = bundle_path(workspace, app, profile)?;
-        if config.resource_directory.is_none() {
-            config.resource_directory = bundle.parent().map(Path::to_path_buf);
-        }
-        config.source = wabou_launch::UiSource::Bundle {
-            path: bundle.clone(),
-        };
-        let configuration = bundle
-            .parent()
-            .ok_or("bundle has no parent")?
-            .join("app.json");
-        fs::write(&configuration, serde_json::to_vec_pretty(&config)?)?;
-        println!(
-            "[wabou] built CLI-hosted application: {}",
-            configuration.display()
-        );
-        return Ok(());
-    }
     let manifest = manifest(app);
     let mut cargo = Command::new("cargo");
     cargo
@@ -1032,7 +954,11 @@ fn run(
     cargo_features: &[String],
 ) -> Result<()> {
     let mut app = app.clone();
-    let launch = app_launch_configuration(&mut app)?;
+    apply_configured_entry(
+        &mut app,
+        "build",
+        if release { "production" } else { "development" },
+    )?;
     let app = &app;
     let profile = BuildProfile::from_release(release);
     let source_map = source_map_override.unwrap_or(configured_source_map(app, profile)?);
@@ -1040,21 +966,6 @@ fn run(
         build_frontend(workspace, app, &[], profile, source_map)?,
         "Vite build",
     )?;
-    if let Some(config) = launch {
-        let (mut host, _configuration) =
-            bundled_launch_command(workspace, app, config, profile, cargo_features)?;
-        host.current_dir(workspace);
-        if let Some(path) = profile_trace {
-            if let Some(parent) = path.parent() {
-                fs::create_dir_all(parent)?;
-            }
-            host.env("WABOU_PROFILE_TRACE", path);
-        }
-        if hud {
-            host.env("WABOU_PERFORMANCE_HUD", "1");
-        }
-        return ensure_host_exit(host.status()?);
-    }
     let manifest = manifest(app);
     let binary = app_binary(workspace, app)?;
     let mut cargo = Command::new("cargo");
@@ -1082,7 +993,11 @@ fn run(
 
 fn test_scenario(workspace: &Path, app: &App, options: &TestOptions) -> Result<()> {
     let mut app = app.clone();
-    let launch = app_launch_configuration(&mut app)?;
+    apply_configured_entry(
+        &mut app,
+        "build",
+        options.mode.as_deref().unwrap_or("development"),
+    )?;
     let app = &app;
     // The JavaScript runner derives a bounded suite budget from its registered
     // tests (currently capped at five minutes). Keep this watchdog outside that
@@ -1140,26 +1055,15 @@ fn test_scenario(workspace: &Path, app: &App, options: &TestOptions) -> Result<(
     )?;
 
     let test_data = tempfile::tempdir_in(&test_dir)?;
-    let (mut host, _configuration) = if let Some(config) = launch {
-        let (host, file) = bundled_launch_command(
-            workspace,
-            app,
-            config,
-            BuildProfile::Debug,
-            &options.cargo_features,
-        )?;
-        (host, Some(file))
-    } else {
-        let manifest = manifest(app);
-        let binary = app_binary(workspace, app)?;
-        let mut features = options.cargo_features.clone();
-        features.push(app_framework_feature(workspace, app, "devtools")?);
-        if !options.native {
-            features.push(app_framework_feature(workspace, app, "headless")?);
-        }
-        let executable = build_behavior_host(workspace, &manifest, &binary, &features)?;
-        (Command::new(executable), None)
-    };
+    let manifest = manifest(app);
+    let binary = app_binary(workspace, app)?;
+    let mut features = options.cargo_features.clone();
+    features.push(app_framework_feature(workspace, app, "devtools")?);
+    if !options.native {
+        features.push(app_framework_feature(workspace, app, "headless")?);
+    }
+    let executable = build_behavior_host(workspace, &manifest, &binary, &features)?;
+    let mut host = Command::new(executable);
     host.current_dir(workspace)
         .env(
             "WABOU_BUNDLE_PATH",
@@ -1167,7 +1071,7 @@ fn test_scenario(workspace: &Path, app: &App, options: &TestOptions) -> Result<(
         )
         .env("WABOU_TEST_SCRIPT", scenario_bundle)
         .env("WABOU_TEST_ARTIFACT_DIR", artifact_dir)
-        .env("WABOU_TEST_RENDERER", "vello-hybrid")
+        .env("WABOU_TEST_RENDERER", "vello-gpu")
         .env("WABOU_TEST_APP_DATA_ROOT", test_data.path())
         // Also isolate libraries that use the XDG convention directly rather
         // than resolving paths through Wabou's AppDirectories API.
@@ -1388,64 +1292,17 @@ fn run_bindings_target(
     ensure(cargo.status()?, "Wabou bindings generator")
 }
 
-fn load_launch_config(path: &Path) -> Result<wabou_launch::LaunchConfig> {
-    let path = path.canonicalize()?;
-    let mut config: wabou_launch::LaunchConfig = serde_json::from_slice(&fs::read(&path)?)?;
-    config.resolve_paths(
-        path.parent()
-            .ok_or("configuration has no parent directory")?,
-    );
-    Ok(config)
-}
-
-fn app_launch_configuration(app: &mut App) -> Result<Option<wabou_launch::LaunchConfig>> {
-    let configured = config::load_dev_config(app)?;
-    if let Some(path) = configured.runtime_config {
-        return load_launch_config(&path).map(Some);
+fn apply_configured_entry(app: &mut App, command: &str, mode: &str) -> Result<()> {
+    if let Some(entry) = ts_config::entry(app, command, mode)? {
+        app.entry = entry;
     }
-    if let Some(prepared) = ts_config::prepare(app)? {
-        app.entry = prepared.entry;
-        return load_launch_config(prepared.file.path()).map(Some);
-    }
-    Ok(None)
-}
-
-fn bundled_launch_command(
-    workspace: &Path,
-    app: &App,
-    mut config: wabou_launch::LaunchConfig,
-    profile: BuildProfile,
-    features: &[String],
-) -> Result<(Command, tempfile::NamedTempFile)> {
-    let _ = features;
-    let bundle = bundle_path(workspace, app, profile)?;
-    if config.resource_directory.is_none() {
-        config.resource_directory = bundle.parent().map(Path::to_path_buf);
-    }
-    config.source = wabou_launch::UiSource::Bundle { path: bundle };
-    let file = tempfile::NamedTempFile::new()?;
-    fs::write(file.path(), serde_json::to_vec(&config)?)?;
-    let mut host = Command::new(env::current_exe()?);
-    host.arg("launch").arg(file.path());
-    Ok((host, file))
-}
-
-fn launch_application(configuration: &Path) -> Result<()> {
-    #[cfg(feature = "embedded-renderer")]
-    return wabou_runtime_library::run_config(load_launch_config(configuration)?)
-        .map_err(Into::into);
-    #[cfg(not(feature = "embedded-renderer"))]
-    {
-        let _ = configuration;
-        Err("this CLI has no linked fallback host".into())
-    }
+    Ok(())
 }
 
 struct DevOptions<'a> {
     port: u16,
     open_devtools: bool,
     hud: bool,
-    runtime_config: Option<&'a Path>,
     mode: Option<&'a str>,
     cargo_features: &'a [String],
 }
@@ -1479,43 +1336,23 @@ fn dev(workspace: &Path, app: App, options: DevOptions<'_>) -> Result<()> {
     let url = format!("http://127.0.0.1:{}", options.port);
     wait_for_vite(&url, vite.child.as_mut())?;
 
-    // Keep the generated configuration alive for the supervised host process.
-    let mut runtime_configuration = None;
-    let mut host_command = if let Some(configuration) = options.runtime_config {
-        if !options.cargo_features.is_empty() {
-            return Err("--features applies to a linked host; configure module features in the runtime JSON".into());
-        }
-        let mut config = load_launch_config(configuration)?;
-        config.source = wabou_launch::UiSource::Vite {
-            url: url.clone(),
-            entry: app.entry.clone(),
-        };
-        let file = tempfile::NamedTempFile::new()?;
-        serde_json::to_writer(file.as_file(), &config)?;
-        let mut command = Command::new(env::current_exe()?);
-        command.arg("launch").arg(file.path());
-        runtime_configuration = Some(file);
-        command
-    } else {
-        let binary = app_binary(workspace, &app)?;
-        let dev_features = app_dev_features(workspace, &app)?;
-        let app_manifest = manifest(&app);
-        let mut command = Command::new("cargo");
-        command.current_dir(workspace).args([
-            "run",
-            "--manifest-path",
-            &app_manifest,
-            "--bin",
-            &binary,
-            "--features",
-            &dev_features,
-        ]);
-        command
-            .env("WABOU_VITE_URL", &url)
-            .env("WABOU_VITE_ENTRY", &app.entry);
-        apply_cargo_features(&mut command, options.cargo_features);
-        command
-    };
+    let binary = app_binary(workspace, &app)?;
+    let dev_features = app_dev_features(workspace, &app)?;
+    let app_manifest = manifest(&app);
+    let mut host_command = Command::new("cargo");
+    host_command.current_dir(workspace).args([
+        "run",
+        "--manifest-path",
+        &app_manifest,
+        "--bin",
+        &binary,
+        "--features",
+        &dev_features,
+    ]);
+    host_command
+        .env("WABOU_VITE_URL", &url)
+        .env("WABOU_VITE_ENTRY", &app.entry);
+    apply_cargo_features(&mut host_command, options.cargo_features);
     if options.hud {
         host_command.env("WABOU_PERFORMANCE_HUD", "1");
     }
@@ -1529,9 +1366,7 @@ fn dev(workspace: &Path, app: App, options: DevOptions<'_>) -> Result<()> {
     };
 
     println!("[wabou] dev server ready at {url}; press Ctrl-C to stop");
-    let result = supervise(&mut host, &mut vite, inspector.as_mut());
-    drop(runtime_configuration);
-    result
+    supervise(&mut host, &mut vite, inspector.as_mut())
 }
 
 fn package_executable(workspace: &Path, app: &App, release: bool) -> Result<()> {
@@ -1582,58 +1417,6 @@ mod tests {
         Cli::try_parse_from(&arguments)
     }
 
-    #[test]
-    fn embedded_launch_and_bundle_commands() {
-        assert!(matches!(
-            parse(&["wabou", "launch", "app.json"]).unwrap().command,
-            Commands::Launch { .. }
-        ));
-        assert!(matches!(
-            parse(&[
-                "wabou",
-                "bundle",
-                "app",
-                "--config",
-                "app/app.json",
-                "--out",
-                "dist"
-            ])
-            .unwrap()
-            .command,
-            Commands::Bundle { .. }
-        ));
-    }
-    #[test]
-    fn fallback_host_config_can_override_project_configuration() {
-        assert!(parse(&["wabou", "dev", "--runtime-config", "app.json"]).is_ok());
-        let parsed = parse(&["wabou", "dev", "--runtime-config", "app.json"]).unwrap();
-        assert!(matches!(
-            parsed.command,
-            Commands::Dev {
-                runtime_config: Some(_),
-                ..
-            }
-        ));
-    }
-    #[test]
-    fn launch_configuration_resolves_bundle_paths_from_its_directory() {
-        let directory = tempfile::tempdir().unwrap();
-        let path = directory.path().join("app.json");
-        std::fs::write(
-            &path,
-            r#"{
-            "version":1,"title":"Example","width":800,"height":600,
-            "source":{"kind":"bundle","path":"bundle.js"}
-        }"#,
-        )
-        .unwrap();
-        let config = super::load_launch_config(&path).unwrap();
-        let root = directory.path().canonicalize().unwrap();
-        let wabou_launch::UiSource::Bundle { path } = config.source else {
-            panic!("expected bundle")
-        };
-        assert_eq!(path, root.join("bundle.js"));
-    }
     #[cfg(unix)]
     use std::thread;
     #[cfg(unix)]
@@ -2401,16 +2184,13 @@ mod tests {
         let root = env::temp_dir().join(format!("wabou-cli-package-config-{}", std::process::id()));
         fs::create_dir_all(&root).unwrap();
         fs::write(
-            root.join("wabou.toml"),
-            r#"[package]
-product-name = "Example"
-identifier = "dev.wabou.example"
-resources = ["assets"]
-formats = ["deb"]
-
-[build]
-out-dir = "dist/resources"
-"#,
+            root.join("wabou.config.ts"),
+            r#"export default { package: {
+productName: "Example",
+identifier: "dev.wabou.example",
+resources: ["assets"],
+formats: ["deb"],
+} };"#,
         )
         .unwrap();
         let app = App {
@@ -2755,14 +2535,9 @@ out-dir = "dist/resources"
     }
 
     #[test]
-    fn manifest_build_output_is_the_bundle_path_source_of_truth() {
+    fn conventional_build_output_is_the_bundle_path_source_of_truth() {
         let root = env::temp_dir().join(format!("wabou-cli-build-output-{}", std::process::id()));
         fs::create_dir_all(&root).unwrap();
-        fs::write(
-            root.join("wabou.toml"),
-            "[package]\nproduct-name = \"App\"\nidentifier = \"dev.wabou.app\"\n\n[build]\nout-dir = \"artifacts/ui\"\n",
-        )
-        .unwrap();
         let app = App {
             name: "app".into(),
             root: root.clone(),
@@ -2771,7 +2546,7 @@ out-dir = "dist/resources"
         };
         assert_eq!(
             bundle_path(&root, &app, BuildProfile::Release).unwrap(),
-            root.join("artifacts/release/ui/bundle.js")
+            root.join("dist/release/resources/bundle.js")
         );
         fs::remove_dir_all(root).unwrap();
     }
@@ -2779,11 +2554,7 @@ out-dir = "dist/resources"
     #[test]
     fn source_maps_follow_the_profile_unless_configured() {
         let root = tempfile::tempdir().unwrap();
-        fs::write(
-            root.path().join("wabou.toml"),
-            "[package]\nproduct-name = \"App\"\nidentifier = \"dev.wabou.app\"\n\n[build]\nout-dir = \"dist/resources\"\n",
-        )
-        .unwrap();
+        fs::write(root.path().join("wabou.config.ts"), "export default {};").unwrap();
         let app = App {
             name: "app".into(),
             root: root.path().into(),
@@ -2794,17 +2565,17 @@ out-dir = "dist/resources"
         assert!(!configured_source_map(&app, BuildProfile::Release).unwrap());
 
         fs::write(
-            root.path().join("wabou.toml"),
-            "[package]\nproduct-name = \"App\"\nidentifier = \"dev.wabou.app\"\n\n[build]\nout-dir = \"dist/resources\"\nsource-map = true\n",
+            root.path().join("wabou.config.ts"),
+            "export default { sourceMap: true };",
         )
         .unwrap();
         assert!(configured_source_map(&app, BuildProfile::Release).unwrap());
     }
 
     #[test]
-    fn invalid_application_config_does_not_silently_select_default_outputs() {
+    fn invalid_application_config_does_not_silently_select_source_map_defaults() {
         let root = tempfile::tempdir().unwrap();
-        fs::write(root.path().join("wabou.toml"), "[build\nout-dir = 42").unwrap();
+        fs::write(root.path().join("wabou.config.ts"), "export default {").unwrap();
         let app = App {
             name: "app".into(),
             root: root.path().into(),
@@ -2812,15 +2583,10 @@ out-dir = "dist/resources"
             entry: "ui/index.tsx".into(),
         };
 
-        let path_error = bundle_path(root.path(), &app, BuildProfile::Debug)
-            .unwrap_err()
-            .to_string();
         let source_map_error = configured_source_map(&app, BuildProfile::Debug)
             .unwrap_err()
             .to_string();
-        assert!(path_error.contains("invalid"));
-        assert!(source_map_error.contains("invalid"));
-        assert!(path_error.contains("wabou.toml"));
+        assert!(source_map_error.contains("Wabou TS configuration failed"));
     }
 
     #[test]

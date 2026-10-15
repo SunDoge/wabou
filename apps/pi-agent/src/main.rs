@@ -30,7 +30,7 @@ fn main() -> Result<(), Whatever> {
                 // flex children to be compressed into one another.
                 .min_inner_size(1180, 680),
         )
-        .widget("terminal", wabou_terminal_vello::terminal_widget)
+        .widget("terminal", wabou_terminal_widget::terminal_widget)
         .capability(service::CAPABILITY, move |host| {
             service::mount(host, capability.clone())
         })

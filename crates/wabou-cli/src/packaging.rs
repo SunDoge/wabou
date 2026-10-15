@@ -58,7 +58,7 @@ pub(super) fn package_built_application(
         format_override
     };
     if formats.is_empty() {
-        return Err("wabou.toml must declare at least one package format".into());
+        return Err("wabou.config.ts must declare at least one package format".into());
     }
 
     let package_root = distribution_root(workspace, app)?;

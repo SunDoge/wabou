@@ -137,7 +137,7 @@ async function main() {
   }[] = [];
   const report = {
     schemaVersion: 1,
-    kind: values.probe ? "hybrid-memory-probe" : "application-memory",
+    kind: values.probe ? "gpu-memory-probe" : "application-memory",
     label: values.label ?? "two-rectangles",
     startedAt: new Date().toISOString(),
     host: {

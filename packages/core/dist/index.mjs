@@ -1339,7 +1339,7 @@ function paletteFor(name) {
 		if (globalThis.__wabou_get_color_theme_palette(name, output) !== length) throw new TypeError("palette length changed");
 		palette = output;
 	} catch {
-		throw new Error(`Unknown Wabou color theme \`${name}\`; declare it in the \`theme.themes\` section of vite.config.ts`);
+		throw new Error(`Unknown Wabou color theme \`${name}\`; declare it in the \`theme.themes\` section of wabou.config.ts`);
 	}
 	if (!(palette instanceof Uint32Array)) throw new Error(`Wabou color theme \`${name}\` returned an invalid palette`);
 	return palette;

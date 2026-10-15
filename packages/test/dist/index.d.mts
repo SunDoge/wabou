@@ -249,7 +249,7 @@ export interface LocatorReference extends LocatorSelector {
 }
 export interface TestEnvironment {
   backend: "deterministic" | "native";
-  renderer: "vello-hybrid" | "unknown";
+  renderer: "vello-gpu" | "unknown";
   os: string;
   arch: string;
   wabouVersion: string;

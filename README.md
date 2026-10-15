@@ -43,11 +43,11 @@ Wabou explores a narrower combination:
 - SolidJS signals and JSX for application state and composition;
 - QuickJS as a small, embeddable JavaScript runtime;
 - a compact binary protocol instead of a DOM or JSON bridge;
-- a retained Winit + Taffy + Parley projection rendered by Vello Hybrid;
+- a retained Winit + Taffy + Parley projection rendered by Vello GPU;
 - Rust for windows, input, text, native widgets, and platform integration;
 - Vite HMR and an inspector for a short development loop.
 
-The native backend is Winit + Taffy + Parley + Vello Hybrid:
+The native backend is Winit + Taffy + Parley + Vello GPU:
 
 ```bash
 wabou run apps/7guis
@@ -56,7 +56,7 @@ wabou run apps/gallery
 
 Vite HMR, typed application capabilities, services, application KV, window
 persistence, DevTools, the Winit native-widget set, native behavior tests, and
-offscreen Vello Hybrid capture all use the same retained document and widget
+offscreen Vello GPU capture all use the same retained document and widget
 contracts.
 
 ## Create an application

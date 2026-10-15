@@ -2,7 +2,7 @@ import { renderComponent } from "@wabou/test/component";
 import { Kbd, KbdGroup } from "@wabou/ui";
 import { expect, test } from "vitest";
 
-test("Kbd owns a compact GPUI-aligned keycap rhythm", () => {
+test("Kbd owns a compact native keycap rhythm", () => {
   const screen = renderComponent(() => (
     <KbdGroup aria-label="Shortcut">
       <Kbd aria-label="Control key">Ctrl</Kbd>

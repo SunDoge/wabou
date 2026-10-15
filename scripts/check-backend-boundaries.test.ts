@@ -3,7 +3,6 @@ import {
   backendFeatureIsolationViolations,
   formalVerificationViolations,
   sharedBoundaryViolations,
-  transitionalPackagingViolations,
 } from "./check-backend-boundaries";
 
 test("backend entry points cannot reactivate runtime backend defaults", () => {
@@ -11,7 +10,7 @@ test("backend entry points cannot reactivate runtime backend defaults", () => {
     backendFeatureIsolationViolations({
       packages: [
         {
-          id: "facade-id",
+          id: "runtime-id",
           name: "wabou",
           dependencies: [
             {
@@ -22,18 +21,6 @@ test("backend entry points cannot reactivate runtime backend defaults", () => {
             },
           ],
         },
-        {
-          id: "hybrid-id",
-          name: "wabou-backend-vello-hybrid",
-          dependencies: [
-            {
-              kind: null,
-              name: "wabou-runtime",
-              rename: "runtime-api",
-              uses_default_features: false,
-            },
-          ],
-        },
       ],
     }),
   ).toEqual([
@@ -41,7 +28,7 @@ test("backend entry points cannot reactivate runtime backend defaults", () => {
   ]);
 });
 
-test("backend-neutral packages cannot import either backend", () => {
+test("renderer-neutral packages cannot import the native renderer", () => {
   expect(
     sharedBoundaryViolations({
       packages: [
@@ -50,7 +37,7 @@ test("backend-neutral packages cannot import either backend", () => {
           name: "wabou-protocol",
           dependencies: [
             { kind: null, name: "wabou-shell", rename: null },
-            { kind: "dev", name: "wabou-shell-vello", rename: "vello-shell" },
+            { kind: "dev", name: "wabou-shell", rename: "native-shell" },
             { kind: null, name: "vello", rename: null },
             { kind: null, name: "vello_gpu", rename: "vello-gpu" },
           ],
@@ -63,14 +50,14 @@ test("backend-neutral packages cannot import either backend", () => {
       ],
     }),
   ).toEqual([
+    "wabou-protocol -> native-shell (wabou-shell, dev)",
     "wabou-protocol -> vello (vello, normal)",
     "wabou-protocol -> vello-gpu (vello_gpu, normal)",
-    "wabou-protocol -> vello-shell (wabou-shell-vello, dev)",
     "wabou-protocol -> wabou-shell (wabou-shell, normal)",
   ]);
 });
 
-test("shared runtime rejects retired GPUI host dependencies", () => {
+test("shared runtime rejects native host dependencies", () => {
   expect(
     sharedBoundaryViolations({
       packages: [
@@ -84,18 +71,7 @@ test("shared runtime rejects retired GPUI host dependencies", () => {
               optional: true,
               rename: null,
             },
-            {
-              kind: "dev",
-              name: "gpui-ce",
-              optional: false,
-              rename: "gpui",
-            },
-            {
-              kind: null,
-              name: "gpui_ce_platform",
-              optional: false,
-              rename: "gpui-platform",
-            },
+            { kind: "dev", name: "vello", optional: false, rename: null },
             {
               kind: null,
               name: "winit",
@@ -107,14 +83,13 @@ test("shared runtime rejects retired GPUI host dependencies", () => {
       ],
     }),
   ).toEqual([
-    "wabou-runtime -> gpui (gpui-ce, dev)",
-    "wabou-runtime -> gpui-platform (gpui_ce_platform, normal)",
+    "wabou-runtime -> vello (vello, dev)",
     "wabou-runtime -> wabou-shell (wabou-shell, normal)",
     "wabou-runtime -> winit (winit, normal)",
   ]);
 });
 
-test("every formal workspace crate participates in ordinary verification", () => {
+test("the active framework spine participates in ordinary verification", () => {
   expect(
     formalVerificationViolations({
       packages: [
@@ -125,44 +100,12 @@ test("every formal workspace crate participates in ordinary verification", () =>
         },
         {
           id: "future-id",
-          name: "wabou-future-widget",
-          dependencies: [],
-        },
-        {
-          id: "vello-id",
-          name: "wabou-shell-vello",
+          name: "wabou-runtime",
           dependencies: [],
         },
       ],
-      workspace_members: ["shell-id", "future-id", "vello-id"],
-      workspace_default_members: ["shell-id", "vello-id"],
+      workspace_members: ["shell-id", "future-id"],
+      workspace_default_members: ["shell-id"],
     }),
-  ).toEqual([
-    "wabou-future-widget is missing from formal default workspace members",
-  ]);
-});
-
-test("legacy crates stay unpublished and outside default workspace commands", () => {
-  expect(
-    transitionalPackagingViolations({
-      packages: [
-        {
-          dependencies: [],
-          id: "legacy-widgets-id",
-          name: "wabou-legacy-widgets",
-          publish: null,
-        },
-        {
-          dependencies: [],
-          id: "legacy-runtime-id",
-          name: "wabou-legacy-runtime",
-          publish: [],
-        },
-      ],
-      workspace_default_members: ["legacy-widgets-id"],
-    }),
-  ).toEqual([
-    "wabou-legacy-widgets is a default workspace member",
-    "wabou-legacy-widgets is publishable",
-  ]);
+  ).toEqual(["wabou-runtime is missing from formal default workspace members"]);
 });

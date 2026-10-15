@@ -396,7 +396,7 @@ export function OverviewPage(props: {
               />
             </View>
             <View class="flex flex-col gap-3">
-              <Capability icon={layers} text="Retained GPUI projection" />
+              <Capability icon={layers} text="Retained native projection" />
               <Capability icon={cpu} text="Rust native widgets" />
               <Capability icon={boxes} text="Explicit overlay planes" />
             </View>

@@ -259,7 +259,7 @@ const descriptions: Record<ComponentId, string> = {
   platform: "Native windows and Rust-powered custom widgets.",
   system: "Native file dialogs, message dialogs and desktop notifications.",
   "shader-layer":
-    "Runs validated custom WGSL inside a retained, layout-aware Vello Hybrid surface.",
+    "Runs validated custom WGSL inside a retained, layout-aware Vello GPU surface.",
   colors: "Every color token exported by the native Wabou utility theme.",
   shadows: "Backend-neutral box shadows with explicit Gaussian parameters.",
   "layout-styles":

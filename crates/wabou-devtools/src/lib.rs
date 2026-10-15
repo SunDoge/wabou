@@ -405,7 +405,7 @@ pub struct DebugStatus {
     /// Platform policy used when ordinary raster text must fall back to outlines.
     #[serde(default)]
     pub text_outline_fallback: String,
-    /// Application-requested GPUI glyph rasterization mode.
+    /// Application-requested glyph rasterization mode.
     #[serde(default)]
     pub text_rendering_mode: String,
     /// Runtime policy after applying known platform and window constraints.

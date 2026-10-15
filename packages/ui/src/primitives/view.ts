@@ -280,7 +280,7 @@ export function View(props: ViewProps): JSX.Element {
 }
 
 /**
- * Stable retained region projected through its own GPUI Entity.
+ * Stable retained region with an independent native invalidation boundary.
  *
  * Use this around independently changing route content, scroll viewports,
  * overlays, native-widget regions, animation surfaces, or diagnostic HUDs.
@@ -614,7 +614,7 @@ export function Editor(props: EditorProps): JSX.Element {
   );
 }
 
-/** Mount an explicitly registered Rust/GPUI widget without web-element semantics. */
+/** Mount an explicitly registered Rust widget without web-element semantics. */
 export function NativeWidget<Config extends NativeWidgetConfig = object>(
   props: NativeWidgetProps<Config>,
 ): JSX.Element {

@@ -17,8 +17,7 @@ use rustic_core::{
 };
 use serde::{Deserialize, Serialize};
 use wabou::{
-    CapabilityContract, HostMessageHandle, HostMethod, NativeCapability, VelloHybridSecretStore,
-    rquickjs,
+    CapabilityContract, HostMessageHandle, HostMethod, NativeCapability, SecretStore, rquickjs,
 };
 use zeroize::Zeroizing;
 
@@ -112,7 +111,7 @@ const OPEN_PATH: HostMethod<OpenPathRequest, ()> = HostMethod::new("openPath");
 pub struct RusticService {
     state: Arc<RwLock<ServiceState>>,
     progress: ProgressEmitter,
-    secrets: VelloHybridSecretStore,
+    secrets: SecretStore,
     preview_roots: Arc<Mutex<VecDeque<tempfile::TempDir>>>,
     repository_writes: Arc<Mutex<BTreeSet<PathBuf>>>,
     repository_caches: Arc<Mutex<RepositoryCaches>>,
@@ -144,7 +143,7 @@ impl Default for RusticService {
         Self {
             state: Arc::default(),
             progress: ProgressEmitter::default(),
-            secrets: VelloHybridSecretStore::default(),
+            secrets: SecretStore::default(),
             preview_roots: Arc::default(),
             repository_writes: Arc::default(),
             repository_caches: Arc::new(Mutex::new(RepositoryCaches::new())),
@@ -445,7 +444,7 @@ pub struct RestorePreview {
 }
 
 impl RusticService {
-    pub fn new(secrets: VelloHybridSecretStore) -> Self {
+    pub fn new(secrets: SecretStore) -> Self {
         Self {
             secrets,
             ..Self::default()
@@ -1916,7 +1915,7 @@ mod tests {
 
     #[test]
     fn failed_native_profile_creation_restores_secret_slots_for_retry() {
-        let secrets = VelloHybridSecretStore::default();
+        let secrets = SecretStore::default();
         assert!(secrets.restore("password", Zeroizing::new("correct horse".to_string()),));
         assert!(secrets.restore("confirmation", Zeroizing::new("correct house".to_string()),));
         let service = RusticService::new(secrets.clone());

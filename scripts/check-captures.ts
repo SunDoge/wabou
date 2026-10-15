@@ -27,7 +27,7 @@ interface CaptureConfig {
 }
 
 export interface CaptureCase extends CaptureViewport {
-  renderer: "vello-hybrid";
+  renderer: "vello-gpu";
   application: string;
   scenario: string;
   output: string;
@@ -381,9 +381,9 @@ export async function discoverCaptureCases(
     cases.push({
       application,
       scenario,
-      renderer: "vello-hybrid",
-      output: `target/wabou-captures/${basename(application)}/vello-hybrid/${relativeScenario.replace(/\.ts$/u, ".png")}`,
-      snapshot: `target/wabou-captures/${basename(application)}/vello-hybrid/${relativeScenario.replace(/\.ts$/u, ".json")}`,
+      renderer: "vello-gpu",
+      output: `target/wabou-captures/${basename(application)}/vello-gpu/${relativeScenario.replace(/\.ts$/u, ".png")}`,
+      snapshot: `target/wabou-captures/${basename(application)}/vello-gpu/${relativeScenario.replace(/\.ts$/u, ".json")}`,
       ...viewport,
     });
   }

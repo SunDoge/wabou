@@ -59,7 +59,7 @@ function paletteFor(name: string): ColorPalette {
     palette = output;
   } catch {
     throw new Error(
-      `Unknown Wabou color theme \`${name}\`; declare it in the \`theme.themes\` section of vite.config.ts`,
+      `Unknown Wabou color theme \`${name}\`; declare it in the \`theme.themes\` section of wabou.config.ts`,
     );
   }
   if (!(palette instanceof Uint32Array))

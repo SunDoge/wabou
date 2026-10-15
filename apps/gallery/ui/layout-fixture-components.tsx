@@ -210,7 +210,7 @@ export function ToolLayoutFixture() {
       <Tool defaultOpen reducedMotion role="group" aria-label="Tool fixture">
         <ToolHeader
           title="workspace.read_repository_file"
-          summary="crates/wabou-runtime/src/gpui_projection_boundary.rs"
+          summary="crates/wabou-runtime/src/native_projection_boundary.rs"
           status="running"
         />
         <ToolContent role="region" aria-label="Tool details">

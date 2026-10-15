@@ -1,22 +1,4 @@
-const BACKEND_LIBRARY_DEPENDENCIES = new Set([
-  "anyrender",
-  "anyrender_skia",
-  "anyrender_svg",
-  "anyrender_vello",
-  "anyrender_vello_hybrid",
-  "anyrender-skia",
-  "anyrender-svg",
-  "anyrender-vello",
-  "anyrender-vello-hybrid",
-  "gpui-ce",
-  "gpui-pre",
-  "gpui_ce_components_base",
-  "gpui_ce_platform",
-  "vello",
-  "vello_hybrid",
-  "vello_gpu",
-  "winit",
-]);
+const RENDERER_LIBRARY_DEPENDENCIES = new Set(["vello", "vello_gpu", "winit"]);
 
 const SHARED_PACKAGES = new Set([
   "wabou-bindgen",
@@ -29,16 +11,36 @@ const SHARED_PACKAGES = new Set([
   "wabou-style",
 ]);
 
-const HYBRID_BACKEND_PACKAGES = new Set([
-  "wabou-render-core",
+const NATIVE_RENDERER_PACKAGES = new Set([
+  "wabou-renderer",
   "wabou-web",
-  "wabou-backend-vello-hybrid",
-  "wabou-shell-vello",
-  "wabou-terminal-vello",
+  "wabou",
+  "wabou-shell",
+  "wabou-terminal-widget",
   "wabou-tray",
 ]);
 
-const RETIRED_GPUI_PACKAGES = new Set(["wabou-shell", "wabou-terminal"]);
+// Ordinary workspace commands validate the framework's active dependency
+// spine plus one representative application. Optional integrations and demo
+// applications remain workspace members and are exercised by their owning
+// application, behavior, and layout checks.
+const FORMAL_VERIFICATION_PACKAGES = new Set([
+  "gallery",
+  "wabou",
+  "wabou-bindgen",
+  "wabou-cli",
+  "wabou-devtools",
+  "wabou-host-api",
+  "wabou-motion",
+  "wabou-protocol",
+  "wabou-renderer",
+  "wabou-runtime",
+  "wabou-shell-api",
+  "wabou-shell",
+  "wabou-style",
+  "wabou-telemetry",
+  "wabou-web",
+]);
 
 interface CargoDependency {
   kind: "build" | "dev" | null;
@@ -52,7 +54,6 @@ interface CargoPackage {
   dependencies: CargoDependency[];
   id?: string;
   name: string;
-  publish?: string[] | null;
 }
 
 interface CargoMetadata {
@@ -65,8 +66,7 @@ function formalWorkspacePackages(metadata: CargoMetadata): CargoPackage[] {
   const members = new Set(metadata.workspace_members ?? []);
   return metadata.packages.filter(
     (pkg) =>
-      !pkg.name.startsWith("wabou-legacy-") &&
-      (members.size === 0 || (pkg.id !== undefined && members.has(pkg.id))),
+      members.size === 0 || (pkg.id !== undefined && members.has(pkg.id)),
   );
 }
 
@@ -79,11 +79,10 @@ function dependencyLabel(
   return `${pkg.name} -> ${visibleName} (${dependency.name}, ${kind})`;
 }
 
-function isBackendDependency(name: string): boolean {
+function isRendererDependency(name: string): boolean {
   return (
-    BACKEND_LIBRARY_DEPENDENCIES.has(name) ||
-    RETIRED_GPUI_PACKAGES.has(name) ||
-    HYBRID_BACKEND_PACKAGES.has(name)
+    RENDERER_LIBRARY_DEPENDENCIES.has(name) ||
+    NATIVE_RENDERER_PACKAGES.has(name)
   );
 }
 
@@ -93,7 +92,7 @@ export function sharedBoundaryViolations(metadata: CargoMetadata): string[] {
   for (const pkg of metadata.packages) {
     if (!SHARED_PACKAGES.has(pkg.name)) continue;
     for (const dependency of pkg.dependencies) {
-      if (isBackendDependency(dependency.name)) {
+      if (isRendererDependency(dependency.name)) {
         violations.push(dependencyLabel(pkg, dependency));
       }
     }
@@ -107,8 +106,7 @@ export function backendFeatureIsolationViolations(
 ): string[] {
   const violations: string[] = [];
   for (const pkg of metadata.packages) {
-    if (pkg.name !== "wabou" && !HYBRID_BACKEND_PACKAGES.has(pkg.name))
-      continue;
+    if (!NATIVE_RENDERER_PACKAGES.has(pkg.name)) continue;
     for (const dependency of pkg.dependencies) {
       if (
         dependency.name === "wabou-runtime" &&
@@ -123,30 +121,17 @@ export function backendFeatureIsolationViolations(
   return violations.sort();
 }
 
-export function transitionalPackagingViolations(
-  metadata: CargoMetadata,
-): string[] {
-  const defaultMembers = new Set(metadata.workspace_default_members ?? []);
-  const violations: string[] = [];
-  for (const pkg of metadata.packages) {
-    if (!pkg.name.startsWith("wabou-legacy-")) continue;
-    // Cargo represents `publish = false` as an empty registry list.
-    if (pkg.publish === undefined || pkg.publish === null) {
-      violations.push(`${pkg.name} is publishable`);
-    }
-    if (pkg.id !== undefined && defaultMembers.has(pkg.id)) {
-      violations.push(`${pkg.name} is a default workspace member`);
-    }
-  }
-  return violations.sort();
-}
-
 export function formalVerificationViolations(
   metadata: CargoMetadata,
 ): string[] {
   const defaultMembers = new Set(metadata.workspace_default_members ?? []);
   return formalWorkspacePackages(metadata)
-    .filter((pkg) => pkg.id !== undefined && !defaultMembers.has(pkg.id))
+    .filter(
+      (pkg) =>
+        FORMAL_VERIFICATION_PACKAGES.has(pkg.name) &&
+        pkg.id !== undefined &&
+        !defaultMembers.has(pkg.id),
+    )
     .map(
       (pkg) => `${pkg.name} is missing from formal default workspace members`,
     )
@@ -171,7 +156,6 @@ async function main(): Promise<void> {
   const violations = [
     ...sharedBoundaryViolations(cargo),
     ...backendFeatureIsolationViolations(cargo),
-    ...transitionalPackagingViolations(cargo),
     ...formalVerificationViolations(cargo),
   ];
   if (violations.length === 0) return;

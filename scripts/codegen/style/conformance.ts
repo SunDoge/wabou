@@ -36,7 +36,7 @@ const stylesheet = {
   diagnostics: [],
   // The parser manifest describes every recognized utility, including
   // legacy-only candidates. Formal conformance exercises only candidates that
-  // the GPUI support contract allows the compiler to emit.
+  // the native renderer contract allows the compiler to emit.
   rules: compileWabouUtilities(
     [...candidates].filter((candidate) => !validateWabouUtility(candidate)),
   ),

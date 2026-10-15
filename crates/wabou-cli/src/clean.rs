@@ -143,24 +143,4 @@ mod tests {
 
         assert!(dist.exists());
     }
-
-    #[test]
-    fn refuses_configured_outputs_outside_the_workspace() {
-        let root = tempfile::tempdir().unwrap();
-        let outside = tempfile::tempdir().unwrap();
-        let app = app(root.path());
-        fs::create_dir_all(&app.root).unwrap();
-        fs::write(
-            app.root.join("wabou.toml"),
-            format!(
-                "[package]\nproduct-name = \"Gallery\"\nidentifier = \"dev.wabou.gallery\"\n\n[build]\nout-dir = {:?}\n",
-                outside.path().join("resources")
-            ),
-        )
-        .unwrap();
-
-        let error = run(root.path(), &app, false).unwrap_err().to_string();
-        assert!(error.contains("outside"));
-        assert!(outside.path().exists());
-    }
 }

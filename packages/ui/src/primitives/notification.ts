@@ -191,7 +191,7 @@ export interface NotificationRegionProps {
   placement?: NotificationPlacement;
   class?: string;
   style?: WabouStyle;
-  /** Width and presentation of the native GPUI-base stack container. */
+  /** Width and presentation of the native notification stack container. */
   stackClass?: string;
   itemClass?: string;
   itemStyle?: WabouStyle;

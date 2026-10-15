@@ -15,4 +15,4 @@ path = "examples/wabou-bindgen.rs"
 gallery-api = { path = "../gallery-api" }
 gallery-functions = { path = "../gallery-functions" }
 snafu = { workspace = true }
-wabou = { workspace = true, features = ["bindings", "vello-hybrid"] }
+wabou = { workspace = true, features = ["bindings"] }

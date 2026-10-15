@@ -182,7 +182,7 @@ function App() {
       <View class="h-9 flex-none px-3 flex items-center gap-3 border-b border-subtle bg-surface">
         <Text class="text-sm font-semibold text-primary">Emoji stress</Text>
         <Text class="text-xs text-muted">
-          GPUI retained projection · per-node transform updates
+          Native retained projection · per-node transform updates
         </Text>
       </View>
 

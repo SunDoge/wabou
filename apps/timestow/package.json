@@ -4,8 +4,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build": "vite build",
-    "dev": "vite --host 127.0.0.1 --port 5188 --strictPort"
+    "build": "vite --config wabou.config.ts build",
+    "dev": "vite --config wabou.config.ts --host 127.0.0.1 --port 5188 --strictPort"
   },
   "dependencies": {
     "@wabou/ui": "workspace:*",

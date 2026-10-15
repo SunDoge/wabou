@@ -1,13 +1,12 @@
 # Wabou CLI
 
-Wabou applications use a convention-based layout with no framework config
-file:
+Wabou applications use one typed configuration file:
 
 ```text
 my-app/
 ├── Cargo.toml
 ├── package.json
-├── vite.config.ts
+├── wabou.config.ts
 ├── src/
 │   └── main.rs
 └── ui/
@@ -36,13 +35,14 @@ avoids accidentally combining Rust and JavaScript packages from different
 commits. The default revision is `v0.1.0-alpha.4`; maintainers can exercise a
 candidate commit with `--wabou-repository` and `--wabou-ref`.
 
-The app's Vite config delegates Wabou's compiler, Solid universal renderer,
-aliases, optimizer policy, and bundle defaults to `@wabou/vite`:
+The app's Wabou config contains native application metadata and delegates the
+frontend compiler, Solid universal renderer, aliases, optimizer policy, and
+bundle defaults to `@wabou/vite`:
 
 ```ts
-import { defineWabouConfig } from "@wabou/vite";
+import { defineConfig } from "@wabou/vite";
 
-export default defineWabouConfig({
+export default defineConfig({
   outDir: "../../dist/gallery/resources",
 });
 ```
@@ -90,15 +90,14 @@ Rust-owned client declarations with `wabou bindings write` and verify them with
 
 The installed `wabou` executable is an orchestration CLI and does not link the
 renderer, QuickJS, Winit, or wgpu. Headless `render` and `layout` commands are
-forwarded to the separate `wabou-render` helper, as are the compatibility
-`launch` and `bundle` paths for frontend-only projects. In the Wabou source
-workspace the CLI builds that helper on first use; binary distributions should
-place it next to `wabou`.
+forwarded to the separate `wabou-render` helper. In the Wabou source workspace
+the CLI builds that helper on first use; binary distributions should place it
+next to `wabou`.
 
 The CLI invokes the project-local Vite executable directly. An application
 does not need specially named `build` or `dev` package scripts; those scripts
 are optional shortcuts such as `"build": "wabou build"`. Build customization
-belongs in `vite.config.ts`, where it applies consistently to development,
+belongs in `wabou.config.ts`, where it applies consistently to development,
 tests, rendering, and packaging.
 
 When running directly from the Wabou source workspace, `@wabou/vite`
@@ -146,7 +145,7 @@ fixture's declared viewport, device scale, and settling time. The PNG and
 DevTools snapshot therefore describe the same frame used by layout contracts.
 Use this for focused visual review after component behavior and geometry tests
 pass; it is not a replacement for those deterministic assertions. Pixel
-capture uses the offscreen Vello Hybrid renderer. Use `wabou layout` when only
+capture uses the offscreen Vello GPU renderer. Use `wabou layout` when only
 structured geometry is required.
 
 ## Run and package
@@ -215,13 +214,11 @@ dist/gallery/
 ```
 
 Debug builds generate JavaScript source maps by default; release builds do not.
-Set `build.source-map` in `wabou.toml` to override that default, or pass
+Set `sourceMap` in `wabou.config.ts` to override that default, or pass
 `--source-map`/`--source-map=false` for one build:
 
-```toml
-[build]
-out-dir = "dist/resources"
-source-map = true
+```ts
+export default defineConfig({ sourceMap: true });
 ```
 
 The CLI profile and explicit command-line override are the source of truth for
@@ -236,19 +233,22 @@ later map to `Gallery.app/Contents/Resources/wabou` before signing.
 `package` always performs a release build, copies the executable and resources
 into a deterministic `dist/<app>/stage/` directory, then invokes the typed
 `cargo-packager` library embedded in `wabou-cli`. Users do not install a
-separate packaging executable. Each application opts into native packaging
-with `wabou.toml`:
+separate packaging executable. Each application opts into native packaging in
+`wabou.config.ts`:
 
-```toml
-[package]
-product-name = "Example"
-identifier = "dev.example.desktop"
-description = "A native Wabou application."
-authors = ["Example Team"]
-license-file = "../../LICENSE"
-icons = ["icons/*.png"]
-resources = ["assets"]
-formats = ["appimage", "deb"]
+```ts
+export default defineConfig({
+  package: {
+    productName: "Example",
+    identifier: "dev.example.desktop",
+    description: "A native Wabou application.",
+    authors: ["Example Team"],
+    licenseFile: "../../LICENSE",
+    icons: ["icons/*.png"],
+    resources: ["assets"],
+    formats: ["appimage", "deb"],
+  },
+});
 ```
 
 Command-line formats override the file without changing it:
@@ -404,19 +404,18 @@ The Vite configuration includes English and Chinese Intl data by default. Apps
 that do not use Intl or widgets requiring it can omit that data:
 
 ```ts
-export default defineWabouConfig({ intl: false });
+export default defineConfig({ intl: false });
 ```
 
 Apps needing only number formatting can avoid date and time-zone data:
 
 ```ts
-export default defineWabouConfig({
+export default defineConfig({
   intl: { locales: ["en"], apis: ["number"] },
 });
 ```
 
 `apis` accepts `number`, `date`, and `plural`; required FormatJS dependencies are
-included automatically. This is configured in `vite.config.ts`, independently of
-`wabou.config.ts`. TOML projects can use `intl = false` at the root or set `apis`
-in the `[intl]` table. Disabling Intl is explicit: date/number widgets and libraries
+included automatically. This is configured in `wabou.config.ts`. Disabling Intl
+is explicit: date/number widgets and libraries
 using Intl still require the relevant APIs.

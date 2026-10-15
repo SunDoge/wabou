@@ -20,29 +20,27 @@ pub(super) fn find_workspace(start: &Path) -> Result<PathBuf> {
             return Ok(dir.to_path_buf());
         }
     }
-    find_frontend_root(start)
-        .or_else(|| find_app_root(start))
-        .ok_or_else(|| "not inside a Wabou project".into())
+    find_app_root(start).ok_or_else(|| "not inside a Wabou project".into())
 }
 
 pub(super) fn load_app(workspace: &Path, cwd: &Path, app_path: Option<&Path>) -> Result<App> {
     let app = load_frontend_app(workspace, cwd, app_path)?;
     if !app.root.join("Cargo.toml").is_file() {
-        return Err(format!("{} is not a linked Wabou app: Cargo.toml is missing; use dev --runtime-config for a frontend-only app", app.root.display()).into());
+        return Err(format!(
+            "{} is not a linked Wabou app: Cargo.toml is missing",
+            app.root.display()
+        )
+        .into());
     }
     Ok(app)
 }
 
-/// A prebuilt runtime owns the native host. Its frontend needs no Cargo package.
-pub(super) fn load_frontend_app(
-    workspace: &Path,
-    cwd: &Path,
-    app_path: Option<&Path>,
-) -> Result<App> {
+/// Load the frontend half of an application or a renderer-only fixture.
+fn load_frontend_app(workspace: &Path, cwd: &Path, app_path: Option<&Path>) -> Result<App> {
     let root = match app_path {
         Some(path) if path.is_absolute() => path.to_path_buf(),
         Some(path) => cwd.join(path),
-        None => find_frontend_root(cwd).unwrap_or_else(|| workspace.join("apps/gallery")),
+        None => find_app_root(cwd).unwrap_or_else(|| workspace.join("apps/gallery")),
     };
     if !root.join("package.json").is_file() {
         return Err(format!(
@@ -66,16 +64,6 @@ pub(super) fn load_frontend_app(
         root,
         entry: entry.to_string(),
     })
-}
-
-pub(super) fn find_frontend_root(start: &Path) -> Option<PathBuf> {
-    start
-        .ancestors()
-        .find(|dir| {
-            dir.join("package.json").is_file()
-                && (dir.join("ui/index.tsx").is_file() || dir.join("wabou.config.ts").is_file())
-        })
-        .map(Path::to_path_buf)
 }
 
 pub(super) fn find_app_root(start: &Path) -> Option<PathBuf> {
@@ -241,18 +229,6 @@ mod tests {
     }
 
     #[test]
-    fn prebuilt_frontend_needs_no_cargo_manifest() {
-        let directory = tempfile::tempdir().unwrap();
-        let root = directory.path().join("app");
-        fs::create_dir_all(root.join("ui")).unwrap();
-        fs::write(root.join("package.json"), "{}").unwrap();
-        fs::write(root.join("ui/index.tsx"), "export {};").unwrap();
-        let app = load_frontend_app(&root, &root.join("ui"), None).unwrap();
-        assert_eq!(app.root, root);
-        assert!(load_app(&root, &root, None).is_err());
-    }
-
-    #[test]
     fn javascript_dependency_preflight_reports_missing_workspace_links() {
         let root = tempfile::tempdir().unwrap();
         let app = test_app(root.path());
@@ -295,23 +271,5 @@ mod tests {
         }
 
         ensure_javascript_dependencies(root.path(), &app).unwrap();
-    }
-}
-
-#[cfg(test)]
-mod cli_hosted_tests {
-    use super::*;
-    #[test]
-    fn frontend_only_project_is_discovered_from_nested_sources() {
-        let root = tempfile::tempdir().unwrap();
-        fs::create_dir_all(root.path().join("ui/components")).unwrap();
-        fs::write(root.path().join("package.json"), "{}").unwrap();
-        fs::write(root.path().join("ui/index.tsx"), "export {};").unwrap();
-        assert_eq!(
-            find_workspace(&root.path().join("ui/components")).unwrap(),
-            root.path()
-        );
-        assert!(load_frontend_app(root.path(), root.path(), None).is_ok());
-        assert!(load_app(root.path(), root.path(), None).is_err());
     }
 }

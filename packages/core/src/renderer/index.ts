@@ -64,9 +64,9 @@ import type { JSX } from "./jsx";
  */
 export interface WabouBuiltinIntrinsicElements {
   view: WabouElementProps;
-  /** GPUI-owned animated activity indicator. Prefer the `Spinner` component. */
+  /** Renderer-owned animated activity indicator. Prefer the `Spinner` component. */
   spinner: WabouElementProps;
-  /** GPUI-backed uniform virtual list. Prefer the `VirtualList` component. */
+  /** Renderer-backed uniform virtual list. Prefer the `VirtualList` component. */
   "virtual-list": WabouElementProps;
   "vector-path": WabouVectorPathProps;
 }
@@ -152,11 +152,11 @@ export interface WabouElementProps {
   focusContained?: boolean;
   /** Places this subtree in a native overlay plane above ordinary content. */
   overlayPlane?: "content" | "floating" | "modal";
-  /** Retains this subtree behind an independently invalidated GPUI Entity. */
+  /** Retains this subtree behind an independently invalidated projection boundary. */
   projectionBoundary?: boolean;
   /** Renderer-owned motion sampled without per-frame JS traffic. */
   nativeMotion?: WabouNativeMotion;
-  /** Positions this element from a retained node or viewport point in GPUI. */
+  /** Positions this element from a retained node or viewport point. */
   floatingPosition?: WabouFloatingPosition;
   "aria-label"?: string;
   "aria-hidden"?: boolean | "true" | "false";

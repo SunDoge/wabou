@@ -4,12 +4,14 @@ Wabou installs standards-compatible FormatJS implementations for the Intl
 constructors used by its components. Locale and time-zone data are selected at
 build time rather than shipping every CLDR record in every application.
 
-Configure data in `wabou.toml`:
+Configure data in `wabou.config.ts`:
 
-```toml
-[intl]
-locales = ["en", "zh"]
-time-zones = "golden"
+```ts
+import { defineConfig } from "@wabou/vite";
+
+export default defineConfig({
+  intl: { locales: ["en", "zh"], timeZones: "golden" },
+});
 ```
 
 `locales` names FormatJS locale-data modules. The default is `["en", "zh"]`.

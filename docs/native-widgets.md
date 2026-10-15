@@ -9,7 +9,7 @@ Solid NativeWidget + generational NodeKey
                   |
        complete config/style snapshots
                   |
-       wabou-shell-vello::Widget
+       wabou-shell::Widget
           /        |         \
       measure     paint      input
                   |
@@ -24,9 +24,9 @@ Register a factory on the Rust host. One widget instance is created for one
 live Solid node:
 
 ```rust
-use wabou::{HostBuilder, VelloHybridWidget};
+use wabou::{HostBuilder, Widget};
 
-fn meter_widget() -> Box<dyn VelloHybridWidget> {
+fn meter_widget() -> Box<dyn Widget> {
     Box::new(Meter::default())
 }
 
@@ -56,14 +56,14 @@ export function Meter(props: { value: number; onChange(value: number): void }) {
 
 `config` is the complete authored snapshot. Prefer a concrete Rust DTO with
 `#[serde(deny_unknown_fields)]` and decode it with
-`wabou_shell_vello::decode_widget_config`. Lightweight string attributes remain
+`wabou_shell::decode_widget_config`. Lightweight string attributes remain
 available for semantics and simple metadata. The tag does not imply HTML or CSS
 behavior.
 
 ## Statically linked widget implementations
 
 Application widgets are ordinary Rust values linked into the host executable.
-Use `wabou_shell_vello::Widget` when the widget needs direct renderer and
+Use `wabou_shell::Widget` when the widget needs direct renderer and
 platform access. The data-only
 `wabou_shell_api::widget_implementation::WidgetImplementation` contract and
 `WidgetAdapter::from_implementation` are available when a pure state,
@@ -75,7 +75,7 @@ and styling continue to update through Solid HMR.
 
 ## Widget contract
 
-Implement `wabou_shell_vello::Widget` for the renderer-owned object:
+Implement `wabou_shell::Widget` for the renderer-owned object:
 
 - `measure` returns intrinsic content size when the host cannot derive it;
 - `paint` records content-local Vello scene operations;

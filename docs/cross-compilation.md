@@ -59,7 +59,7 @@ cargo zigbuild \
 
 The result was a 64-bit PE executable. Linux-only GTK, GLib, Wayland,
 fontconfig, and AT-SPI dependencies were correctly excluded by target `cfg`.
-The Wabou host, QuickJS, Winit/Vello Hybrid, rfd, and their required
+The Wabou host, QuickJS, Winit/Vello GPU, rfd, and their required
 native C code all compiled and linked.
 
 Wabou's final link currently contains more than 1,000 object files. A shell

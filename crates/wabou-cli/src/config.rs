@@ -1,10 +1,9 @@
-use std::fs;
 use std::path::{Path, PathBuf};
 
 use serde::Deserialize;
 
-use super::Result;
 use super::project::App;
+use super::{Result, ts_config};
 
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, usage_rs::ValueEnum)]
 #[serde(rename_all = "lowercase")]
@@ -33,37 +32,24 @@ impl PackageFormat {
 }
 
 #[derive(Debug, Deserialize)]
-#[serde(deny_unknown_fields)]
-struct WabouPackageFile {
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub(super) struct PackageConfig {
+    pub(super) product_name: String,
+    pub(super) identifier: String,
     #[serde(default)]
-    package: Option<PackageConfig>,
+    pub(super) description: Option<String>,
     #[serde(default)]
-    dev: Option<DevConfig>,
+    pub(super) authors: Vec<String>,
     #[serde(default)]
-    build: Option<BuildConfig>,
-}
-
-#[derive(Default, Debug, Deserialize)]
-#[serde(rename_all = "kebab-case", deny_unknown_fields)]
-pub(super) struct DevConfig {
-    pub(super) runtime_config: Option<PathBuf>,
-}
-pub(super) fn load_dev_config(app: &App) -> Result<DevConfig> {
-    let mut config = load_config_file(app)?
-        .and_then(|file| file.dev)
-        .unwrap_or_default();
-    for path in [&mut config.runtime_config].into_iter().flatten() {
-        *path = app.root.join(&*path);
-    }
-    Ok(config)
-}
-
-#[derive(Debug, Deserialize)]
-#[serde(rename_all = "kebab-case", deny_unknown_fields)]
-struct BuildConfig {
-    out_dir: PathBuf,
+    pub(super) copyright: Option<String>,
     #[serde(default)]
-    source_map: Option<bool>,
+    pub(super) license_file: Option<PathBuf>,
+    #[serde(default)]
+    pub(super) icons: Vec<String>,
+    #[serde(default)]
+    pub(super) resources: Vec<PathBuf>,
+    #[serde(default)]
+    pub(super) formats: Vec<PackageFormat>,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -85,45 +71,7 @@ impl BuildProfile {
     }
 }
 
-#[derive(Debug, Deserialize)]
-#[serde(rename_all = "kebab-case", deny_unknown_fields)]
-pub(super) struct PackageConfig {
-    pub(super) product_name: String,
-    pub(super) identifier: String,
-    #[serde(default)]
-    pub(super) description: Option<String>,
-    #[serde(default)]
-    pub(super) authors: Vec<String>,
-    #[serde(default)]
-    pub(super) copyright: Option<String>,
-    #[serde(default)]
-    pub(super) license_file: Option<PathBuf>,
-    #[serde(default)]
-    pub(super) icons: Vec<String>,
-    #[serde(default)]
-    pub(super) resources: Vec<PathBuf>,
-    #[serde(default)]
-    pub(super) formats: Vec<PackageFormat>,
-}
-
-fn load_config_file(app: &App) -> Result<Option<WabouPackageFile>> {
-    let path = app.root.join("wabou.toml");
-    let source = match fs::read_to_string(&path) {
-        Ok(source) => source,
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
-        Err(error) => {
-            return Err(format!("cannot read configuration {}: {error}", path.display()).into());
-        }
-    };
-    toml::from_str(&source)
-        .map(Some)
-        .map_err(|error| format!("invalid {}: {error}", path.display()).into())
-}
-
 pub(super) fn configured_resource_dir(workspace: &Path, app: &App) -> Result<PathBuf> {
-    if let Some(build) = load_config_file(app)?.and_then(|file| file.build) {
-        return Ok(app.root.join(build.out_dir));
-    }
     let dist = workspace.join("dist");
     Ok(if workspace == app.root {
         dist.join("resources")
@@ -164,23 +112,27 @@ pub(super) fn bundle_path(workspace: &Path, app: &App, profile: BuildProfile) ->
 }
 
 pub(super) fn configured_source_map(app: &App, profile: BuildProfile) -> Result<bool> {
-    let setting = load_config_file(app)?
-        .and_then(|file| file.build)
-        .and_then(|build| build.source_map);
+    let mode = match profile {
+        BuildProfile::Debug => "development",
+        BuildProfile::Release => "production",
+    };
+    let setting = ts_config::load(app, "build", mode)?.and_then(|config| config.source_map);
     Ok(setting.unwrap_or(profile == BuildProfile::Debug))
 }
 
 pub(super) fn load_package_config(app: &App) -> Result<PackageConfig> {
-    let path = app.root.join("wabou.toml");
-    let file = load_config_file(app)?.ok_or_else(|| {
-        format!(
-            "cannot read package configuration {}: file not found",
-            path.display()
-        )
-    })?;
-    let package = file.package.ok_or("wabou.toml has no [package] section")?;
+    let path = app.root.join("wabou.config.ts");
+    let package = ts_config::load(app, "build", "production")?
+        .ok_or_else(|| {
+            format!(
+                "cannot read package configuration {}: file not found",
+                path.display()
+            )
+        })?
+        .package
+        .ok_or("wabou.config.ts has no package section")?;
     if package.product_name.trim().is_empty() {
-        return Err("package.product-name cannot be empty".into());
+        return Err("package.productName cannot be empty".into());
     }
     let identifier = package.identifier.as_str();
     if !identifier.contains('.')
@@ -191,38 +143,4 @@ pub(super) fn load_package_config(app: &App) -> Result<PackageConfig> {
         return Err("package.identifier must be a reverse-domain identifier".into());
     }
     Ok(package)
-}
-
-#[cfg(test)]
-mod dev_tests {
-    use super::*;
-    #[test]
-    fn dev_only_config_resolves_paths_relative_to_app() {
-        let root = tempfile::tempdir().unwrap();
-        let app = App {
-            name: "frontend".into(),
-            root: root.path().to_owned(),
-            frontend: root.path().to_owned(),
-            entry: "ui/index.tsx".into(),
-        };
-        fs::write(
-            root.path().join("wabou.toml"),
-            "[dev]\nruntime-config = 'app.json'\n",
-        )
-        .unwrap();
-        let config = load_dev_config(&app).unwrap();
-        assert_eq!(config.runtime_config, Some(root.path().join("app.json")));
-        assert!(
-            load_package_config(&app)
-                .unwrap_err()
-                .to_string()
-                .contains("[package]")
-        );
-        fs::write(
-            root.path().join("wabou.toml"),
-            "[dev]\nruntime-libray = 'typo.so'\n",
-        )
-        .unwrap();
-        assert!(load_dev_config(&app).is_err());
-    }
 }

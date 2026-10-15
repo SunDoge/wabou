@@ -18,5 +18,5 @@ snafu = { workspace = true }
 tempfile = "3"
 toml = "0.9"
 tokio = { workspace = true, features = ["rt", "sync"] }
-wabou = { workspace = true, features = ["vello-hybrid"] }
+wabou = { workspace = true }
 zeroize = { workspace = true }

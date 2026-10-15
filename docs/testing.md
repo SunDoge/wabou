@@ -22,7 +22,7 @@ compatible `rquickjs-serde`. Run the runtime contracts and backend feature check
 
 ```bash
 cargo test -p wabou-runtime --features vite --lib
-cargo check -p wabou-backend-vello-hybrid --features vite,devtools
+cargo check -p wabou --features vite,devtools
 ```
 
 To exercise the real Vite module graph reported in issue #29 without a window or
@@ -58,7 +58,7 @@ to the same node. The contract is split into deterministic layers:
    emitted by a signal;
 2. backend tests feed that operation into the retained document and assert
    deterministic style, layout, interaction, and paint state;
-3. Vello Hybrid layout fixtures assert final geometry and native-widget metrics
+3. Vello GPU layout fixtures assert final geometry and native-widget metrics
    without opening a platform window.
 
 Do not replace these assertions with FPS thresholds. Timing is machine-specific;
@@ -97,7 +97,7 @@ bun run wabou render apps/gallery \
   --snapshot /tmp/gallery-dark.json
 ```
 
-The default capture backend is Vello Hybrid and runs in a completely offscreen
+The default capture backend is Vello GPU and runs in a completely offscreen
 process. The command still boots the real application bundle and can mount
 named layout fixtures or replay ordered input actions, but it does not connect
 to the user's desktop session:
@@ -105,8 +105,8 @@ to the user's desktop session:
 ```bash
 bun run wabou render apps/gallery \
   --fixture widgets/Select \
-  --out /tmp/gallery-hybrid.png \
-  --snapshot /tmp/gallery-hybrid.json
+  --out /tmp/gallery-vello-gpu.png \
+  --snapshot /tmp/gallery-vello-gpu.json
 ```
 
 Application capture suites can set the same contract in
@@ -679,7 +679,7 @@ bun run wabou test /path/to/app/tests/window-lifecycle.behavior.ts \
   --app /path/to/app
 ```
 
-The deterministic backend boots the same retained Vello Hybrid document as a
+The deterministic backend boots the same retained Vello GPU document as a
 normal application. It exercises QuickJS, Solid flushes, the protocol, Taffy
 layout, native widgets, and projected input without requiring a compositor. It
 also uses an isolated temporary XDG data directory so
@@ -698,7 +698,7 @@ equivalent to the native integration it is meant to verify.
 
 Every run writes versioned `report.json` and `trace.json` artifacts beneath
 `target/wabou-test/<app>/artifacts` by default. Use `--artifacts <dir>` to
-select another destination. The offscreen Vello Hybrid renderer can run without
+select another destination. The offscreen Vello GPU renderer can run without
 a display server. Pass `--failure-screenshot` to request `failure.png`.
 At the start of a run, Wabou removes only its known report, trace, temporary
 JSON, and failure-screenshot outputs from that directory. This prevents a
@@ -900,10 +900,10 @@ Type checking uses TypeScript 7. The AST-based identity/package checks import
 TypeScript 7 package does not expose the legacy JavaScript compiler API. Keep this
 separation until those checks migrate to a supported parser API.
 
-The Vello GPU 0.3 backend (formerly Vello Hybrid) requires wgpu 30. Keep the
+The Vello GPU 0.3 backend (formerly Vello GPU) requires wgpu 30. Keep the
 direct wgpu dependency and `wgpu_context` 0.10 on that same generation, along
 with `vello_common` 0.3 and `glifo` 0.4. Public Wabou crate/feature names and
-capture provenance labels retain `vello-hybrid` for compatibility; the renderer
+capture provenance labels retain `vello-gpu` for compatibility; the renderer
 implementation uses `vello_gpu`. winit 0.31 beta.3 replaces path-based file-drop
 events with asynchronous data transfer; keep beta.2 until the native input
 adapter and drag/drop contracts are migrated.

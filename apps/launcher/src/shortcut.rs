@@ -2,10 +2,7 @@ use global_hotkey::{
     GlobalHotKeyEvent, GlobalHotKeyManager, HotKeyState,
     hotkey::{Code, HotKey, Modifiers},
 };
-use wabou::{
-    VelloHybridExtensionContext, VelloHybridShellExtension, VelloHybridWakeCallback,
-    initial_window_resource_key,
-};
+use wabou::{ExtensionContext, ShellExtension, WakeCallback, initial_window_resource_key};
 
 /// Best-effort global launcher shortcut. Linux support is limited to X11 by
 /// the platform crate; failure leaves the tray and ordinary window usable.
@@ -25,8 +22,8 @@ impl LauncherShortcut {
     }
 }
 
-impl VelloHybridShellExtension for LauncherShortcut {
-    fn initialize(&mut self, wake: VelloHybridWakeCallback) -> Result<(), String> {
+impl ShellExtension for LauncherShortcut {
+    fn initialize(&mut self, wake: WakeCallback) -> Result<(), String> {
         let manager = match GlobalHotKeyManager::new() {
             Ok(manager) => manager,
             Err(error) => {
@@ -48,7 +45,7 @@ impl VelloHybridShellExtension for LauncherShortcut {
         Ok(())
     }
 
-    fn poll(&mut self, context: &mut VelloHybridExtensionContext<'_>) {
+    fn poll(&mut self, context: &mut ExtensionContext<'_>) {
         let Some(receiver) = &self.receiver else {
             return;
         };
@@ -59,7 +56,7 @@ impl VelloHybridShellExtension for LauncherShortcut {
         }
     }
 
-    fn shutdown(&mut self, _context: &mut VelloHybridExtensionContext<'_>) {
+    fn shutdown(&mut self, _context: &mut ExtensionContext<'_>) {
         if let Some(manager) = self.manager.take() {
             let _ = manager.unregister(self.hotkey);
         }

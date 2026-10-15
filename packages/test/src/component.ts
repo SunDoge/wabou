@@ -171,7 +171,7 @@ export interface ComponentLocator extends ComponentQueries {
   readonly focusContained: boolean;
   /** Native stacking plane authored for this node. */
   readonly overlayPlane: ComponentOverlayPlane;
-  /** Whether this node owns an explicit retained GPUI projection boundary. */
+  /** Whether this node owns an explicit retained projection boundary. */
   readonly projectionBoundary: boolean;
   attribute(name: string): string | null;
   pointerDown(position?: ComponentPointerPosition): void;

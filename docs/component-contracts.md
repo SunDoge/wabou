@@ -108,7 +108,7 @@ metadata therefore cannot hide visual chrome on native content.
 
 `wabou layout` evaluates the application through QuickJS and Style IR, then
 runs the retained Taffy layout path without opening a visible window. Use
-`wabou render` when the contract must also be checked against Vello Hybrid
+`wabou render` when the contract must also be checked against Vello GPU
 paint output:
 
 ```bash
@@ -179,7 +179,7 @@ defineLayoutFixtures({
 });
 ```
 
-Select that entry from `defineWabouConfig` for a Vite mode, then run all cases
+Select that entry from `defineConfig` for a Vite mode, then run all cases
 through one release CLI. Every fixture receives an isolated native/QuickJS
 runtime so retained state cannot leak between cases:
 
@@ -267,7 +267,7 @@ Use the cheapest layer that can prove the property:
 3. TS layout contracts: QuickJS + Style IR + Taffy geometry, overflow and
    collisions without a visible platform window.
 4. native layout fixtures: lower-level geometry, clipping and scroll ranges.
-5. Vello Hybrid headless captures: pixels,
+5. Vello GPU headless captures: pixels,
    text containment and real native widgets.
 6. platform captures: backend-specific and HiDPI claims.
 

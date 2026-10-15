@@ -54,7 +54,7 @@ test("reports a missing compiled theme with configuration guidance", () => {
   };
 
   expect(() => colorTheme.set("midnight")).toThrow(
-    "declare it in the `theme.themes` section of vite.config.ts",
+    "declare it in the `theme.themes` section of wabou.config.ts",
   );
 });
 

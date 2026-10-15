@@ -47,12 +47,8 @@ const TEMPLATE_FILES: &[(&str, &str)] = &[
         include_str!("../../../templates/basic/ui/index.tsx"),
     ),
     (
-        "vite.config.ts",
-        include_str!("../../../templates/basic/vite.config.ts"),
-    ),
-    (
-        "wabou.toml",
-        include_str!("../../../templates/basic/wabou.toml"),
+        "wabou.config.ts",
+        include_str!("../../../templates/basic/wabou.config.ts"),
     ),
 ];
 

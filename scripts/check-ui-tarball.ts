@@ -94,10 +94,10 @@ await writeFile(
   )}\n`,
 );
 await writeFile(
-  join(temporary, "vite.config.ts"),
-  `import { defineWabouConfig } from "@wabou/vite";
+  join(temporary, "wabou.config.ts"),
+  `import { defineConfig } from "@wabou/vite";
 
-export default defineWabouConfig({ outDir: "dist" });
+export default defineConfig({ outDir: "dist" });
 `,
 );
 await mkdir(join(temporary, "ui"));
@@ -115,7 +115,10 @@ export const Example = () => <View><Button>Run</Button><Text>Ready</Text></View>
 
 await run(["bun", "install"], temporary);
 await run(["bun", "x", "tsc", "--noEmit"], temporary);
-await run(["bun", "x", "vite", "build"], temporary);
+await run(
+  ["bun", "x", "vite", "--config", "wabou.config.ts", "build"],
+  temporary,
+);
 
 for (const packageName of obsoleteUiPackages) {
   const internal = packageName.slice("@wabou/".length);

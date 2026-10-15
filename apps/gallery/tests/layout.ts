@@ -232,14 +232,14 @@ const assertToolLayout = (snapshot: LayoutSnapshot) => {
   const root = getLayoutNode(snapshot, { role: "group", name: "Tool fixture" });
   const trigger = getLayoutNode(snapshot, {
     role: "button",
-    name: "workspace.read_repository_file: crates/wabou-runtime/src/gpui_projection_boundary.rs: Running",
+    name: "workspace.read_repository_file: crates/wabou-runtime/src/native_projection_boundary.rs: Running",
   });
   const details = getLayoutNode(snapshot, {
     role: "region",
     name: "Tool details",
   });
   const summary = getLayoutNode(snapshot, {
-    text: "crates/wabou-runtime/src/gpui_projection_boundary.rs",
+    text: "crates/wabou-runtime/src/native_projection_boundary.rs",
   });
   const title = getLayoutNode(snapshot, {
     text: "workspace.read_repository_file",
@@ -1594,7 +1594,7 @@ const overrides: Readonly<Record<string, Omit<LayoutFixtureCase, "id">>> = {
   },
   "gallery/Overview": {
     // The complete overview is intentionally taller than the fixture viewport;
-    // this contract targets its real GPUI SVG projection and paint path.
+    // this contract targets its real native SVG projection and paint path.
     checks: [],
     assert: assertOverviewSvgPaint,
   },

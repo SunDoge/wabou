@@ -11,5 +11,5 @@
     "skipLibCheck": true,
     "types": ["bun"]
   },
-  "include": ["ui/**/*.ts", "ui/**/*.tsx"]
+  "include": ["ui/**/*.ts", "ui/**/*.tsx", "wabou.config.ts"]
 }

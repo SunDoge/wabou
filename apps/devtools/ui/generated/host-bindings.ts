@@ -275,7 +275,7 @@ type DebugStatus = {
 	textBackend?: string,
 	/**  Platform policy used when ordinary raster text must fall back to outlines. */
 	textOutlineFallback?: string,
-	/**  Application-requested GPUI glyph rasterization mode. */
+	/**  Application-requested glyph rasterization mode. */
 	textRenderingMode?: string,
 	/**  Runtime policy after applying known platform and window constraints. */
 	textRenderingPolicy?: string,

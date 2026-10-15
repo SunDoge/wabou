@@ -92,7 +92,7 @@ await run([
   "cargo",
   "run",
   "-p",
-  "wabou-shell-vello",
+  "wabou-shell",
   "--example",
   "text_quality_probe",
   "--",

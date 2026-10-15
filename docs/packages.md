@@ -77,6 +77,6 @@ internal crates to be merged or renamed without reserving permanent public
 crate names. `wabou-runtime` and the remaining workspace crates are
 implementation details; the preview tag and the facade are the supported Rust
 boundary. `wabou-runtime` contains backend-neutral QuickJS and host machinery;
-the Vello Hybrid backend owns windows, layout projection, painting, and native
+the Vello GPU backend owns windows, layout projection, painting, and native
 widgets. Optional widget and code-generation crates may be added alongside
 `wabou`, but must not replace it as the application runtime.

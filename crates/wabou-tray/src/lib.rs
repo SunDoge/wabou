@@ -10,8 +10,8 @@ use std::rc::Rc;
 use tray_icon::TrayIcon;
 use tray_icon::menu::{Menu, MenuEvent, MenuId, MenuItem, PredefinedMenuItem};
 use tray_icon::{Icon, TrayIconBuilder};
+use wabou_shell::{ExtensionContext, ShellExtension, WakeCallback};
 use wabou_shell_api::{WindowResourceKey, initial_window_resource_key};
-use wabou_shell_vello::{ExtensionContext, ShellExtension, WakeCallback};
 
 type Action = Box<dyn FnMut(&mut TrayContext<'_>)>;
 
@@ -104,7 +104,7 @@ impl TrayContext<'_> {
     }
 }
 
-/// A native tray icon installed into the GPUI application lifecycle.
+/// A native tray icon installed into the application lifecycle.
 pub struct SystemTray {
     tooltip: Option<String>,
     icon: TrayImage,

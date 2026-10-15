@@ -491,7 +491,7 @@ impl JsRuntime {
 
             self.register_intl_host_fns(ctx.clone(), &globals)?;
 
-            // Read a raw font file (TTF/OTF) and queue it for the GPUI text
+            // Read a raw font file (TTF/OTF) and queue it for the native text
             // system on the next frame. Call once at boot before first paint.
             // Returns false (and warns) if the file can't be read.
             let pf = self.pending_fonts.clone();

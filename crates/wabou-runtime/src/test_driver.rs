@@ -215,7 +215,7 @@ pub struct TestController {
 ///
 /// This is intentionally a narrow semantic/input contract rather than a
 /// renderer API. Alternate window hosts can therefore execute the same
-/// `@wabou/test` scenarios without projecting a GPUI tree.
+/// `@wabou/test` scenarios without projecting a native tree.
 #[doc(hidden)]
 pub trait NativeTestHost {
     fn semantic_snapshot(&mut self, window_key: WindowKey) -> Option<Arc<SemanticSnapshot>>;
@@ -295,7 +295,7 @@ impl TestController {
     }
 
     /// Drain one native host checkpoint through the same semantic locator and
-    /// input machinery used by GPUI behavior tests.
+    /// input machinery used by native behavior tests.
     #[doc(hidden)]
     pub fn poll_native_host(&self, window_key: WindowKey, host: &mut dyn NativeTestHost) -> bool {
         if let Some(viewport) = host.window_viewport(window_key)

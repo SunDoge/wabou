@@ -1,7 +1,7 @@
 // Check independently: workspace feature unification would hide accidental links.
 const forbidden =
-  /\b(?:wabou-runtime|wabou-runtime-library|wabou-backend-vello-hybrid|wabou-shell-vello|wabou-render-core|wabou-web|rquickjs|rquickjs-core|rquickjs-sys|vello|vello_hybrid|vello_gpu|wgpu|winit) v/;
-for (const name of ["wabou-launch", "gallery-functions", "wabou-cli"]) {
+  /\b(?:wabou-runtime|wabou|wabou-shell|wabou-renderer|wabou-web|rquickjs|rquickjs-core|rquickjs-sys|vello|vello_gpu|wgpu|winit) v/;
+for (const name of ["gallery-functions", "wabou-cli"]) {
   const result = Bun.spawnSync(
     ["cargo", "tree", "-p", name, "--no-default-features", "--edges", "normal"],
     { stdout: "pipe", stderr: "pipe" },
@@ -25,7 +25,7 @@ const release = Bun.spawnSync(
     "cargo",
     "tree",
     "-p",
-    "wabou-runtime-library",
+    "wabou",
     "--no-default-features",
     "--edges",
     "normal",
@@ -42,7 +42,7 @@ if (development)
     `Release runtime contains development dependencies: ${development}`,
   );
 console.log(
-  "release runtime: Vite, DevTools and source watcher dependencies are absent",
+  "release backend: Vite, DevTools and source watcher dependencies are absent",
 );
 
 const web = Bun.spawnSync(
@@ -63,7 +63,7 @@ const native = web.stdout
   .toString()
   .split("\n")
   .find((line) =>
-    /\b(?:wabou-shell-vello|wabou-runtime|rquickjs|rquickjs-core|rquickjs-sys|winit|arboard|rfd|notify-rust|wgpu) v/.test(
+    /\b(?:wabou-shell|wabou-runtime|rquickjs|rquickjs-core|rquickjs-sys|winit|arboard|rfd|notify-rust|wgpu) v/.test(
       line,
     ),
   );

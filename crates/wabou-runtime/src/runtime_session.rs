@@ -19,7 +19,7 @@ use wabou_shell_api::{FrameStats, HostAction, WakeCallback, WindowResourceKey};
 /// QuickJS and host-bridge state with one shared cancellation lifetime.
 ///
 /// This layer deliberately owns no layout tree, renderer object, or platform
-/// event-loop state. GPUI, Winit/Vello Hybrid, and their headless harnesses can
+/// event-loop state. Native shells and their headless harnesses can
 /// therefore compose it without making the JavaScript host backend-aware.
 #[doc(hidden)]
 pub struct RuntimeSession {

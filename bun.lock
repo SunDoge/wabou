@@ -175,18 +175,6 @@
         "vite": "^8.3.4",
       },
     },
-    "apps/pulse": {
-      "name": "@wabou/pulse-reference",
-      "dependencies": {
-        "@wabou/ui": "workspace:*",
-        "lucide-static": "1.57.0",
-        "solid-js": "2.0.0-rc.14",
-      },
-      "devDependencies": {
-        "@wabou/vite": "workspace:*",
-        "vite": "^8.3.4",
-      },
-    },
     "apps/reader": {
       "name": "@wabou/reader",
       "version": "0.0.0",
@@ -330,7 +318,6 @@
         "@unocss/core": "^66.11.0",
         "@wabou/core": "workspace:*",
         "magic-string": "^1.4.3",
-        "smol-toml": "^1.9.1",
         "vite": "^8.3.4",
       },
     },
@@ -839,8 +826,6 @@
 
     "@wabou/pi-agent": ["@wabou/pi-agent@workspace:apps/pi-agent"],
 
-    "@wabou/pulse-reference": ["@wabou/pulse-reference@workspace:apps/pulse"],
-
     "@wabou/reader": ["@wabou/reader@workspace:apps/reader"],
 
     "@wabou/stress": ["@wabou/stress@workspace:apps/stress"],
@@ -1120,8 +1105,6 @@
     "shell-quote": ["shell-quote@1.10.0", "", {}, "sha512-w1aiOKwKuRgtwAReIIj89puqg+I7GvX4IbLrvmhXbzQsj1+Zwi4VO3+fa6ZF91TWSjIxoEkKnMeHcLEODK5ZXA=="],
 
     "sisteransi": ["sisteransi@1.0.5", "", {}, "sha512-bLGGlR1QxBcynn2d5YmDX4MGjlZvy2MRBDRNHLJ8VI6l6+9FUiyTFNJ0IveOSP0bcXgVDPRcfGqA0pjaqUpfVg=="],
-
-    "smol-toml": ["smol-toml@1.9.1", "", {}, "sha512-j7WyPdf0CJoutMzMoPLF/bVXHtKZIT9Rb4eGeEbWw8X2t5oirjPgpL+OpaENZrILYaXqYwnVH+qgUwVbl+pUJQ=="],
 
     "solid-js": ["solid-js@2.0.0-rc.14", "", { "dependencies": { "@solidjs/signals": "^2.0.0-rc.14", "csstype": "^3.1.0", "seroval": "~1.6.7", "seroval-plugins": "~1.6.7" } }, "sha512-fmaqUHgbITf18Hedur6gPnaPE4GrdPgkTbLujHqM5Vl5jxWf9rxwFh6hZMXQs+Kg1pu8KYuOMfqnuSizFQ9I6Q=="],
 

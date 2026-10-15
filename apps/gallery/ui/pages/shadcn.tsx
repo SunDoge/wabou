@@ -239,7 +239,7 @@ export function PropertyListPage() {
         name="runtime"
         value="QuickJS with typed native capabilities"
       />
-      <PropertyRow name="renderer" value="GPUI retained projection" />
+      <PropertyRow name="renderer" value="Native retained projection" />
       <PropertyRow name="layout" value="Taffy logical pixels" />
     </PropertyList>
   );
@@ -281,8 +281,8 @@ export function TypographyPage() {
         <Text class="font-medium">Native text selection</Text>
         <Text class="text-sm text-muted">
           Drag across this paragraph, then use the platform copy shortcut. Text
-          selection and highlighting are retained by GPUI rather than simulated
-          in JavaScript.
+          selection and highlighting are retained by the renderer rather than
+          simulated in JavaScript.
         </Text>
       </View>
       <TypographyBlockquote>

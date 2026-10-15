@@ -121,10 +121,10 @@ payload. Register the store on the host and atomically take the secret in the
 native capability:
 
 ```rust
-let secrets = VelloHybridSecretStore::default();
+let secrets = SecretStore::default();
 let login_secrets = secrets.clone();
 const UNLOCK: JsonMethod<UnlockRequest, UnlockResult> = JsonMethod::new("unlock");
-VelloHybridHostBuilder::new()
+HostBuilder::new()
     .password_inputs(secrets)
     .capability(VAULT, move |capability| {
         let login_secrets = login_secrets.clone();
@@ -257,9 +257,9 @@ const shortcuts = createShortcuts({
 `Primary` accepts Control or Meta. Available modifier names are `Primary`,
 `Control`/`Ctrl`, `Meta`/`Cmd`, `Alt`/`Option`, and `Shift`.
 
-Floating overlays use GPUI's native positioner. The JavaScript layer sends a
+Floating overlays use the native renderer's positioner. The JavaScript layer sends a
 stable node handle or pointer coordinate together with placement, offset, and
-window-margin preferences. GPUI performs measurement, collision flipping, and
+window-margin preferences. The renderer performs measurement, collision flipping, and
 viewport clamping in the same native layout pass, without a JavaScript layout
 snapshot or animation-frame round trip.
 

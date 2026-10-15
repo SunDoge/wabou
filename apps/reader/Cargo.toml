@@ -10,5 +10,5 @@ path = "src/main.rs"
 
 [dependencies]
 snafu = { workspace = true }
-wabou = { workspace = true, features = ["vello-hybrid"] }
+wabou = { workspace = true }
 wabou-pdf = { workspace = true }

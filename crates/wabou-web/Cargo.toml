@@ -9,7 +9,7 @@ publish = false
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
-wabou-render-core = { path = "../wabou-render-core" }
+wabou-renderer = { path = "../wabou-renderer" }
 wabou-motion = { workspace = true }
 wabou-protocol.workspace = true
 wabou-style.workspace = true

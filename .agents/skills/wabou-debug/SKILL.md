@@ -196,7 +196,7 @@ mise exec -- bun run wabou render apps/gallery --out /tmp/gallery.png --snapshot
 ```
 
 `wabou render` exercises the real QuickJS → Style IR → Taffy → Wabou paint IR →
-Vello Hybrid pipeline without opening a desktop window. This path
+Vello GPU pipeline without opening a desktop window. This path
 supports named fixtures and ordered `--click`, `--wheel`, `--key`, and `--text`
 replay. It does not use `DISPLAY`, `WAYLAND_DISPLAY`, or an OS input injector.
 

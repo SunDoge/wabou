@@ -2,11 +2,11 @@ mod progress;
 mod service;
 
 use snafu::{ResultExt, Whatever};
-use wabou::{HostBuilder, VelloHybridSecretStore, WindowOptions};
+use wabou::{HostBuilder, SecretStore, WindowOptions};
 
 #[snafu::report]
 fn main() -> Result<(), Whatever> {
-    let secrets = VelloHybridSecretStore::default();
+    let secrets = SecretStore::default();
     let service = service::RusticService::new(secrets.clone());
     let progress_service = service.clone();
     HostBuilder::new()

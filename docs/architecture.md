@@ -3,7 +3,7 @@
 Wabou presents one application model: Solid 2 runs inside QuickJS and emits a
 versioned mutation protocol into a retained native runtime. The current backend
 uses Winit for windows and input, Taffy for layout, Parley for text, and
-Vello Hybrid for painting.
+Vello GPU for painting.
 
 ```text
 Application state and TSX (Solid 2)
@@ -16,15 +16,10 @@ Application state and TSX (Solid 2)
        /          |          \
     Taffy       Parley    native widgets
        \          |          /
-          Vello Hybrid scene
+          Vello GPU scene
                  |
                Winit
 ```
-
-The repository previously contained GPUI and AnyRender experiments. They are
-not application backends or public API. Backend-specific names remain only
-where a crate owns a real implementation boundary, such as
-`wabou-shell-vello` and `wabou-terminal-vello`.
 
 ## Sources of truth
 
@@ -88,7 +83,7 @@ events return facts to Solid. See [native widgets](native-widgets.md).
 - `@wabou/vite` owns build integration and static style compilation.
 - `@wabou/test` owns component, layout, native behavior, and capture tooling.
 - `@wabou/terminal` is the optional terminal component package.
-- `wabou` is the Rust application facade. Applications normally use
+- `wabou` is the Rust application runtime. Applications normally use
   `wabou::HostBuilder` and do not depend on backend internals.
 
 The five JavaScript packages have different consumers and build lifecycles.

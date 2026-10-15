@@ -155,7 +155,7 @@ impl ImageResourceStore {
 
     /// Fetch once and create a new explicit resource identity.
     ///
-    /// Display-only URL images use GPUI's asset and image caches. This path is
+    /// Display-only URL images use the renderer's asset and image caches. This path is
     /// for native consumers such as OCR which need stable access to source pixels.
     pub async fn create_network(&self, url: &str) -> Result<ImageResourceHandle, String> {
         let url = url::Url::parse(url).map_err(|error| error.to_string())?;

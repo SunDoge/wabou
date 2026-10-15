@@ -15,7 +15,6 @@ const applicationLayerPackages = new Set(["@wabou/core"]);
 const applicationDependencyExceptions = new Map([
   ["@wabou/devtools-app", new Set(["@wabou/core"])],
   ["@wabou/gallery", new Set(["@wabou/core"])],
-  ["@wabou/pulse-reference", new Set(["@wabou/core"])],
 ]);
 const rustApplicationDependencyExceptions = new Map([
   ["devtools", new Set(["wabou-devtools"])],

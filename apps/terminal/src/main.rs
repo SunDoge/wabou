@@ -6,7 +6,7 @@ use wabou::{HostBuilder, WindowOptions};
 #[snafu::report]
 fn main() -> Result<(), Whatever> {
     HostBuilder::new()
-        .widget("terminal", wabou_terminal_vello::terminal_widget)
+        .widget("terminal", wabou_terminal_widget::terminal_widget)
         .window(
             WindowOptions::new()
                 .title("Wabou Terminal")

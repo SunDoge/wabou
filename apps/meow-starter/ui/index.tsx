@@ -77,7 +77,7 @@ const about = new BaseRoute({
   component: () => (
     <PlaceholderPage
       title="About"
-      description="A native retained UI experiment driven by Solid and rendered by Vello Hybrid."
+      description="A native retained UI experiment driven by Solid and rendered by Vello GPU."
       icon={info}
     />
   ),
