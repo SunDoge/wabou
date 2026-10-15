@@ -3,7 +3,7 @@
 use std::error::Error;
 use std::fs;
 use std::path::Path;
-use std::process::Command;
+use std::process::{Command, Output};
 
 type Result<T> = std::result::Result<T, Box<dyn Error>>;
 
@@ -64,12 +64,7 @@ pub(crate) fn create(destination: &Path, repository: &str, revision: &str) -> Re
         )
         .into());
     }
-    if repository.trim().is_empty() || revision.trim().is_empty() {
-        return Err("Wabou repository and revision must not be empty".into());
-    }
-    if repository.starts_with('-') || revision.starts_with('-') {
-        return Err("Wabou repository and revision must not start with `-`".into());
-    }
+    validate_source(repository, revision)?;
     let name = destination
         .file_name()
         .and_then(|name| name.to_str())
@@ -87,6 +82,61 @@ pub(crate) fn create(destination: &Path, repository: &str, revision: &str) -> Re
     println!("  cd {}", destination.display());
     println!("  bun install");
     println!("  bun run dev");
+    Ok(())
+}
+
+pub(crate) fn vendor(root: &Path, repository: &str, revision: &str) -> Result<()> {
+    validate_source(repository, revision)?;
+    if !root.is_dir() {
+        return Err(format!("application directory does not exist: {}", root.display()).into());
+    }
+    let root = root.canonicalize()?;
+    if git_output(&root, &["rev-parse", "--is-inside-work-tree"])?.trim() != "true" {
+        return Err(format!("{} is not inside a Git worktree", root.display()).into());
+    }
+
+    let target = root.join("vendor/wabou");
+    let tracked =
+        git_output(&root, &["ls-files", "--stage", "--", "vendor/wabou"])?.starts_with("160000 ");
+    if target.join(".git").exists() {
+        ensure_clean_submodule(&target)?;
+    } else if tracked {
+        run_git(
+            &root,
+            &["submodule", "update", "--init", "--", "vendor/wabou"],
+        )?;
+    } else {
+        if target.exists() {
+            return Err(format!(
+                "cannot add Wabou submodule: {} already exists",
+                target.display()
+            )
+            .into());
+        }
+        fs::create_dir_all(target.parent().ok_or("submodule path has no parent")?)?;
+        run_git(
+            &root,
+            &[
+                "-c",
+                "protocol.file.allow=always",
+                "submodule",
+                "add",
+                "--quiet",
+                "--",
+                repository,
+                "vendor/wabou",
+            ],
+        )?;
+    }
+
+    ensure_clean_submodule(&target)?;
+    run_git(&target, &["fetch", "--quiet", "origin", "--tags"])?;
+    run_git(&target, &["checkout", "--quiet", "--detach", revision])?;
+    run_git(&root, &["add", "--", "vendor/wabou"])?;
+    println!(
+        "Vendored Wabou {revision} at {}",
+        root.join("vendor/wabou").display()
+    );
     Ok(())
 }
 
@@ -114,6 +164,29 @@ fn initialize(root: &Path, name: &str, repository: &str, revision: &str) -> Resu
     Ok(())
 }
 
+fn validate_source(repository: &str, revision: &str) -> Result<()> {
+    if repository.trim().is_empty() || revision.trim().is_empty() {
+        return Err("Wabou repository and revision must not be empty".into());
+    }
+    if repository.starts_with('-') || revision.starts_with('-') {
+        return Err("Wabou repository and revision must not start with `-`".into());
+    }
+    Ok(())
+}
+
+fn ensure_clean_submodule(target: &Path) -> Result<()> {
+    let status = git_output(target, &["status", "--porcelain"])?;
+    if status.is_empty() {
+        Ok(())
+    } else {
+        Err(format!(
+            "refusing to update dirty Wabou submodule at {}; commit or discard its changes first",
+            target.display()
+        )
+        .into())
+    }
+}
+
 fn validate_project_name(name: &str) -> Result<()> {
     let mut chars = name.chars();
     if !chars.next().is_some_and(|ch| ch.is_ascii_alphabetic())
@@ -137,6 +210,27 @@ fn run_git(current_dir: &Path, args: &[&str]) -> Result<()> {
         return Err(format!("git {} failed with {status}", args.join(" ")).into());
     }
     Ok(())
+}
+
+fn git_output(current_dir: &Path, args: &[&str]) -> Result<String> {
+    let Output {
+        status,
+        stdout,
+        stderr,
+    } = Command::new("git")
+        .args(args)
+        .current_dir(current_dir)
+        .output()
+        .map_err(|error| format!("failed to start git: {error}"))?;
+    if !status.success() {
+        return Err(format!(
+            "git {} failed with {status}: {}",
+            args.join(" "),
+            String::from_utf8_lossy(&stderr).trim()
+        )
+        .into());
+    }
+    Ok(String::from_utf8(stdout)?.trim().to_owned())
 }
 
 fn write_project(root: &Path, name: &str) -> Result<()> {
@@ -178,6 +272,57 @@ mod tests {
             assert!(!rendered.contains("__WABOU_PROJECT_NAME__"));
         }
         fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn adds_updates_and_protects_a_vendored_submodule() {
+        let source = tempfile::tempdir().unwrap();
+        run_git(source.path(), &["init", "--quiet"]).unwrap();
+        run_git(source.path(), &["config", "user.name", "Wabou Test"]).unwrap();
+        run_git(
+            source.path(),
+            &["config", "user.email", "wabou@example.invalid"],
+        )
+        .unwrap();
+        fs::write(source.path().join("version.txt"), "one").unwrap();
+        run_git(source.path(), &["add", "version.txt"]).unwrap();
+        run_git(source.path(), &["commit", "--quiet", "-m", "one"]).unwrap();
+        let first = git_output(source.path(), &["rev-parse", "HEAD"]).unwrap();
+
+        let app = tempfile::tempdir().unwrap();
+        run_git(app.path(), &["init", "--quiet"]).unwrap();
+        vendor(app.path(), source.path().to_str().unwrap(), &first).unwrap();
+        assert_eq!(
+            fs::read_to_string(app.path().join("vendor/wabou/version.txt")).unwrap(),
+            "one"
+        );
+        let staged = git_output(app.path(), &["diff", "--cached", "--name-only"]).unwrap();
+        assert!(staged.lines().any(|path| path == ".gitmodules"));
+        assert!(staged.lines().any(|path| path == "vendor/wabou"));
+
+        run_git(
+            app.path(),
+            &["submodule", "deinit", "--force", "--", "vendor/wabou"],
+        )
+        .unwrap();
+        assert!(!app.path().join("vendor/wabou/.git").exists());
+        vendor(app.path(), source.path().to_str().unwrap(), &first).unwrap();
+
+        fs::write(source.path().join("version.txt"), "two").unwrap();
+        run_git(source.path(), &["add", "version.txt"]).unwrap();
+        run_git(source.path(), &["commit", "--quiet", "-m", "two"]).unwrap();
+        let second = git_output(source.path(), &["rev-parse", "HEAD"]).unwrap();
+        vendor(app.path(), source.path().to_str().unwrap(), &second).unwrap();
+        assert_eq!(
+            fs::read_to_string(app.path().join("vendor/wabou/version.txt")).unwrap(),
+            "two"
+        );
+
+        fs::write(app.path().join("vendor/wabou/version.txt"), "dirty").unwrap();
+        let message = vendor(app.path(), source.path().to_str().unwrap(), &second)
+            .expect_err("dirty submodule was updated")
+            .to_string();
+        assert!(message.contains("refusing to update dirty Wabou submodule"));
     }
 
     #[test]

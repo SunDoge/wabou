@@ -117,6 +117,18 @@ enum Commands {
         #[usage(long, default_fn = scaffold::default_revision, default_note = "current CLI version")]
         wabou_ref: String,
     },
+    /// Add or update the pinned Wabou source submodule in an existing application.
+    Vendor {
+        /// Application repository root. Defaults to the current directory.
+        #[usage(value_name = "APP")]
+        app: Option<PathBuf>,
+        /// Git repository used when adding the Wabou submodule.
+        #[usage(long, default = "https://github.com/SunDoge/wabou.git")]
+        wabou_repository: String,
+        /// Tag or commit checked out in the Wabou submodule.
+        #[usage(long, default_fn = scaffold::default_revision, default_note = "current CLI version")]
+        wabou_ref: String,
+    },
     /// Check the development environment and Wabou project setup.
     Doctor {
         #[usage(value_name = "APP")]
@@ -459,6 +471,15 @@ pub fn execute() -> Result<()> {
             wabou_repository,
             wabou_ref,
         } => scaffold::create(&cwd.join(path), &wabou_repository, &wabou_ref),
+        Commands::Vendor {
+            app,
+            wabou_repository,
+            wabou_ref,
+        } => scaffold::vendor(
+            &app.map(|path| cwd.join(path)).unwrap_or(cwd),
+            &wabou_repository,
+            &wabou_ref,
+        ),
         Commands::Doctor { app } => doctor::run(&cwd, app.as_deref()),
         Commands::Check {
             app,
@@ -1752,6 +1773,48 @@ mod tests {
         else {
             panic!("expected new command");
         };
+        assert_eq!(wabou_repository, "https://github.com/SunDoge/wabou.git");
+        assert_eq!(wabou_ref, "v0.1.0-alpha.4");
+    }
+
+    #[test]
+    fn parses_vendor_submodule_source() {
+        let Cli {
+            command:
+                Commands::Vendor {
+                    app,
+                    wabou_repository,
+                    wabou_ref,
+                },
+        } = parse(&[
+            "wabou",
+            "vendor",
+            "apps/desktop",
+            "--wabou-repository",
+            "/tmp/wabou",
+            "--wabou-ref",
+            "abc123",
+        ])
+        .unwrap()
+        else {
+            panic!("expected vendor command");
+        };
+        assert_eq!(app.as_deref(), Some(Path::new("apps/desktop")));
+        assert_eq!(wabou_repository, "/tmp/wabou");
+        assert_eq!(wabou_ref, "abc123");
+
+        let Cli {
+            command:
+                Commands::Vendor {
+                    app,
+                    wabou_repository,
+                    wabou_ref,
+                },
+        } = parse(&["wabou", "vendor"]).unwrap()
+        else {
+            panic!("expected vendor command");
+        };
+        assert_eq!(app, None);
         assert_eq!(wabou_repository, "https://github.com/SunDoge/wabou.git");
         assert_eq!(wabou_ref, "v0.1.0-alpha.4");
     }

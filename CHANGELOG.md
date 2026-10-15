@@ -37,7 +37,8 @@ tags.
 - Generate application host bindings from Rust types and automatically enable
   the generator target's required Cargo features.
 - Use a pinned `vendor/wabou` Git submodule as the preview integration path so
-  Rust crates, JavaScript packages, and the CLI share one revision.
+  Rust crates, JavaScript packages, and the CLI share one revision, with
+  `wabou vendor` adding, initializing, or updating that checkout safely.
 
 ### Fixed
 

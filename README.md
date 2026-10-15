@@ -87,6 +87,14 @@ dependencies with separately published npm packages. `wabou new` creates this
 layout automatically. To add Wabou to an existing repository:
 
 ```bash
+wabou vendor . --wabou-ref v0.1.0-alpha.4
+```
+
+The command refuses to move a submodule with local changes and stages the
+resulting `vendor/wabou` gitlink for the application to commit. The equivalent
+manual steps are:
+
+```bash
 git submodule add https://github.com/SunDoge/wabou.git vendor/wabou
 git -C vendor/wabou checkout <wabou-tag-or-commit>
 git add .gitmodules vendor/wabou
