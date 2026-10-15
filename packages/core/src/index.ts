@@ -257,6 +257,7 @@ export {
   type WabouInputProps,
   type WabouKeyEvent,
   type WabouNativeElements,
+  type WabouNativeMotion,
   type WabouNativeSpring,
   type WabouNativeTag,
   type WabouNativeTransition,

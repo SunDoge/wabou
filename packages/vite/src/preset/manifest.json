@@ -2410,6 +2410,18 @@
         }
       }
     ],
+    "leading-6": [
+      {
+        "property": "line-height",
+        "value": {
+          "type": "length",
+          "value": {
+            "unit": "px",
+            "value": 24.0
+          }
+        }
+      }
+    ],
     "leading-normal": [
       {
         "property": "line-height",

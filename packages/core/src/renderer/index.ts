@@ -154,10 +154,8 @@ export interface WabouElementProps {
   overlayPlane?: "content" | "floating" | "modal";
   /** Retains this subtree behind an independently invalidated GPUI Entity. */
   projectionBoundary?: boolean;
-  /** A finite transition sampled by the native renderer without per-frame JS traffic. */
-  nativeTransition?: WabouNativeTransition;
-  /** Persistent GPUI spring targeting the authored transform. */
-  nativeSpring?: WabouNativeSpring;
+  /** Renderer-owned motion sampled without per-frame JS traffic. */
+  nativeMotion?: WabouNativeMotion;
   /** Positions this element from a retained node or viewport point in GPUI. */
   floatingPosition?: WabouFloatingPosition;
   "aria-label"?: string;
@@ -219,6 +217,7 @@ export interface WabouTransitionEvent extends WabouNodeEvent {
 }
 
 export interface WabouNativeTransition {
+  readonly kind: "transition";
   /** Changes whenever a transition should restart. */
   generation: number;
   duration: number;
@@ -230,12 +229,21 @@ export interface WabouNativeTransition {
 }
 
 export interface WabouNativeSpring {
+  readonly kind: "spring";
   /** Approximate response period in seconds. */
   response: number;
   damping?: number;
   epsilon?: number;
+  mass?: number;
+  stiffness?: number;
   targetTransform: Affine2D;
+  targetOpacity?: number;
+  initialTransform?: Affine2D;
+  initialOpacity?: number;
+  reducedMotion?: boolean;
 }
+
+export type WabouNativeMotion = WabouNativeTransition | WabouNativeSpring;
 
 export type WabouFloatingPlacement =
   | "top"
@@ -698,32 +706,17 @@ function applyProperty(
     writer.setProjectionBoundary(node.id, value === true);
     return;
   }
-  if (name === "nativeTransition") {
+  if (name === "nativeMotion") {
     if (value == null || value === false) {
-      writer.removeAttribute(node.id, "__wabou_native_transition");
+      writer.removeAttribute(node.id, "__wabou_native_motion");
       return;
     }
     if (!isStructuredConfigValue(value)) {
-      throw new TypeError("nativeTransition must be a plain object");
+      throw new TypeError("nativeMotion must be a plain object");
     }
     writer.setAttribute(
       node.id,
-      "__wabou_native_transition",
-      stringifyWidgetConfig(value),
-    );
-    return;
-  }
-  if (name === "nativeSpring") {
-    if (value == null || value === false) {
-      writer.removeAttribute(node.id, "__wabou_native_spring");
-      return;
-    }
-    if (!isStructuredConfigValue(value)) {
-      throw new TypeError("nativeSpring must be a plain object");
-    }
-    writer.setAttribute(
-      node.id,
-      "__wabou_native_spring",
+      "__wabou_native_motion",
       stringifyWidgetConfig(value),
     );
     return;
@@ -1215,6 +1208,11 @@ export function releaseOverlayRoot(plane: PublicOverlayPlane): void {
   if (!entry || --entry.users > 0) return;
   mountState.overlayRoots.delete(plane);
   if (entry.node.parent) removeNode(entry.node.parent, entry.node);
+}
+
+/** Release the current application when its host is disposed. Host infrastructure only. */
+export function disposeMountedApp(): void {
+  mountState.activeMountDispose?.();
 }
 
 /** Mount a Solid application into the host-provided root node. */

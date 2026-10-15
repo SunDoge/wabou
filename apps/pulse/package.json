@@ -5,7 +5,7 @@
   "dependencies": {
     "@wabou/ui": "workspace:*",
     "solid-js": "2.0.0-rc.14",
-    "lucide-static": "1.54.0"
+    "lucide-static": "1.57.0"
   },
   "devDependencies": {
     "@wabou/vite": "workspace:*",

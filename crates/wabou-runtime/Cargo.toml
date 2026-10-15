@@ -12,12 +12,8 @@ path = "src/lib.rs"
 [dependencies]
 wabou-telemetry.workspace = true
 encoding_rs = "0.8"
-notify = { version = "8.2", optional = true }
 arc-swap = { workspace = true }
 flume = { workspace = true }
-libloading = { version = ">=0.7.3, <0.10", optional = true }
-stabby = { version = "=72.1.16", features = ["libloading"], optional = true }
-wabou-capability-abi = { path = "../wabou-capability-abi", optional = true }
 futures-lite = "2"
 getrandom = { workspace = true }
 image = { workspace = true, features = ["jpeg", "png", "webp"] }
@@ -40,7 +36,7 @@ sha1 = { workspace = true }
 sha2 = { workspace = true }
 snafu = { workspace = true }
 slotmap = { workspace = true }
-sourcemap = "9.2.2"
+sourcemap = "9.3.2"
 sys-locale = { workspace = true }
 tempfile = "3"
 tokio = { workspace = true, features = ["fs", "io-util", "net", "macros", "rt-multi-thread", "sync", "time"] }
@@ -51,6 +47,7 @@ wabou-bindgen = { workspace = true }
 wabou-database = { workspace = true }
 wabou-devtools = { workspace = true, optional = true }
 wabou-host-api = { workspace = true }
+wabou-motion = { workspace = true }
 wabou-protocol = { workspace = true }
 wabou-shell-api.workspace = true
 wabou-style = { workspace = true }
@@ -62,21 +59,17 @@ tungstenite = {
   optional = true
 }
 # vite feature only
-ureq = { version = "3.3", default-features = false, optional = true }
+ureq = { version = "3.4", default-features = false, optional = true }
 
 [features]
 default = []
 devtools = ["dep:wabou-devtools"]
 profiling = []
-rust-hot-reload = ["capability-development"]
-capability-development = ["capability-modules", "dep:notify"]
-capability-modules = ["dep:libloading", "dep:stabby", "dep:wabou-capability-abi"]
 # Shared deterministic mode used by backend-owned headless harnesses.
 headless = []
 # Live vite dev-server integration (module fetching + HMR). Step 2.
 vite = ["dep:tungstenite", "dep:ureq"]
 
 [dev-dependencies]
-notify = "8.2"
 image = { workspace = true, features = ["png"] }
 wabou-devtools = { workspace = true }

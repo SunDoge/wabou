@@ -4,7 +4,14 @@ import { parseLayoutTestArgs } from "./test-layout";
 describe("layout test selection", () => {
   test("runs every layout-tested application when no fixture is selected", () => {
     expect(parseLayoutTestArgs([])).toEqual({
-      apps: ["gallery", "meow-starter", "pi-agent", "timestow"],
+      apps: [
+        "gallery",
+        "launcher",
+        "meow-starter",
+        "pi-agent",
+        "reader",
+        "timestow",
+      ],
       filters: [],
       skipBuild: false,
     });
@@ -24,6 +31,16 @@ describe("layout test selection", () => {
     expect(parseLayoutTestArgs(["timestow/setup-minimum"])).toEqual({
       apps: ["timestow"],
       filters: ["timestow/setup-minimum"],
+      skipBuild: false,
+    });
+    expect(parseLayoutTestArgs(["launcher/default"])).toEqual({
+      apps: ["launcher"],
+      filters: ["launcher/default"],
+      skipBuild: false,
+    });
+    expect(parseLayoutTestArgs(["reader/default"])).toEqual({
+      apps: ["reader"],
+      filters: ["reader/default"],
       skipBuild: false,
     });
     expect(
@@ -62,7 +79,7 @@ describe("layout test selection", () => {
 
   test("rejects misspelled applications and options", () => {
     expect(() => parseLayoutTestArgs(["--app", "agent"])).toThrow(
-      "expected gallery, meow-starter, pi-agent, or timestow",
+      "expected gallery, launcher, meow-starter, pi-agent, reader, or timestow",
     );
     expect(() => parseLayoutTestArgs(["--quick"])).toThrow(
       "unknown layout test option",

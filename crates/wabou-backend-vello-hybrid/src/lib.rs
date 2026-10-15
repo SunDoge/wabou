@@ -81,7 +81,7 @@ pub use runtime_api::{ImageResource, ImageResourceHandle, ImageResourceStore};
 pub use vello_shell::widgets::SecretStore as VelloHybridSecretStore;
 pub use vello_shell::{
     EffectRequest as VelloHybridEffectRequest, ExtensionContext as VelloHybridExtensionContext,
-    PaintContext as VelloHybridPaintContext, Point as VelloHybridPoint,
+    NativeWidgetPlugin, PaintContext as VelloHybridPaintContext, Point as VelloHybridPoint,
     PointerButton as VelloHybridPointerButton, PointerPhase as VelloHybridPointerPhase,
     ShellExtension as VelloHybridShellExtension, TextContext as VelloHybridTextContext,
     WakeCallback as VelloHybridWakeCallback, Widget, WidgetChanges as VelloHybridWidgetChanges,

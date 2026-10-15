@@ -387,6 +387,7 @@ impl Applier {
         // Preserve host-owned content from the previous computed paint (text,
         // widget scene, intrinsic size). Cascade never owns these.
         let prev = self.document.node_store.tree.get_node_context(node);
+        let motion = self.document.motion.sample(node);
         let mut host = HostPaint {
             text: prev.and_then(|p| p.text.clone()),
             text_runs: prev
@@ -396,12 +397,15 @@ impl Applier {
                 .map(|p| p.selection_rects.clone())
                 .unwrap_or_else(|| Arc::from([])),
             text_max_lines: decl.text_max_lines,
+            text_clip_lines: decl.text_behavior & crate::protocol::TEXT_BEHAVIOR_CLIP_LINES != 0,
             svg: None,
             vector_path: decl.vector_path.clone(),
             image: prev.and_then(|p| p.image.clone()),
             widget: prev.and_then(|p| p.widget.clone()),
             intrinsic_size: prev.and_then(|p| p.intrinsic_size),
             runtime_transform: self.document.runtime_transforms.get(&node).copied(),
+            motion_transform: motion.transform,
+            motion_opacity: motion.opacity,
             overlay_plane: self
                 .document
                 .overlay_planes
@@ -712,6 +716,8 @@ impl Applier {
                 resource.to_rgba8(),
             ))
         });
+        let motion = self.document.motion.sample(node);
+        let declared = self.document.node_store.declared.get(&node);
         let host = HostPaint {
             text: resolved.host_text,
             text_runs: previous
@@ -722,23 +728,18 @@ impl Applier {
                 .as_ref()
                 .map(|paint| paint.selection_rects.clone())
                 .unwrap_or_else(|| Arc::from([])),
-            text_max_lines: self
-                .document
-                .node_store
-                .declared
-                .get(&node)
-                .map_or(0, |declared| declared.text_max_lines),
+            text_max_lines: declared.map_or(0, |declared| declared.text_max_lines),
+            text_clip_lines: declared.is_some_and(|declared| {
+                declared.text_behavior & crate::protocol::TEXT_BEHAVIOR_CLIP_LINES != 0
+            }),
             svg: previous.as_ref().and_then(|paint| paint.svg.clone()),
-            vector_path: self
-                .document
-                .node_store
-                .declared
-                .get(&node)
-                .and_then(|declared| declared.vector_path.clone()),
+            vector_path: declared.and_then(|declared| declared.vector_path.clone()),
             image,
             widget: previous.as_ref().and_then(|paint| paint.widget.clone()),
             intrinsic_size: resolved.host_intrinsic,
             runtime_transform: self.document.runtime_transforms.get(&node).copied(),
+            motion_transform: motion.transform,
+            motion_opacity: motion.opacity,
             overlay_plane: self
                 .document
                 .overlay_planes

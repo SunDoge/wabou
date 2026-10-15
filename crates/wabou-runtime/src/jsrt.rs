@@ -18,6 +18,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::task::{Context as TaskContext, Poll, Wake, Waker};
 
+use crate::host_abi::{HostBinding, register_function};
 use rquickjs::{
     AsyncContext, AsyncRuntime, CatchResultExt, Ctx, Function, Object, TypedArray,
     context::EvalOptions,
@@ -221,6 +222,8 @@ pub struct JsRuntime {
     /// Runtime-scoped structural strings. Rust owns ID allocation; JS caches
     /// returned IDs and sends them through the bridge on subsequent uses.
     atoms: Rc<RefCell<AtomPool>>,
+    /// Scalar animation curves retained outside the replaceable JS bundle.
+    value_motions: Rc<RefCell<wabou_motion::ValueMotionStore>>,
     host_frame_sequence: u64,
     host_frame_epoch: std::time::Instant,
     #[cfg(any(feature = "devtools", test))]
@@ -286,7 +289,11 @@ impl JsRuntime {
         let source_map = Rc::new(RefCell::new(None));
         futures_lite::future::block_on(ctx.with(|ctx| -> JsResult<()> {
             let globals = ctx.globals();
-            globals.set("__wabou_capabilities", Object::new(ctx.clone())?)?;
+            crate::host_abi::register_value(
+                &globals,
+                HostBinding::Capabilities,
+                Object::new(ctx.clone())?,
+            )?;
 
             // __wabou_flush(Uint8Array) -> copy the frame bytes out.
             let out = out.clone();
@@ -296,9 +303,8 @@ impl JsRuntime {
                     *out.borrow_mut() = bytes.to_vec();
                 }
                 Ok(())
-            })?
-            .with_name("__wabou_flush")?;
-            globals.set("__wabou_flush", f)?;
+            })?;
+            crate::host_abi::register_function(&globals, HostBinding::Flush, f)?;
 
             Ok(())
         }))?;
@@ -319,6 +325,7 @@ impl JsRuntime {
             frame_stats: Rc::new(RefCell::new(None)),
             layout_metrics: Rc::new(RefCell::new(LayoutMetricsSnapshot::default())),
             atoms: Rc::new(RefCell::new(AtomPool::default())),
+            value_motions: Rc::new(RefCell::new(wabou_motion::ValueMotionStore::default())),
             host_frame_sequence: 0,
             host_frame_epoch: std::time::Instant::now(),
             #[cfg(any(feature = "devtools", test))]
@@ -347,38 +354,62 @@ impl JsRuntime {
         self.with(|ctx| -> JsResult<()> {
             let globals = ctx.globals();
             let source_map = self.source_map.clone();
-            globals.set(
-                "__wabou_log",
+            register_function(
+                &globals,
+                HostBinding::Log,
                 rquickjs::Function::new(ctx.clone(), move |tag: String, msg: String| {
                     let mapped = source_map
                         .borrow()
                         .as_ref()
                         .map_or_else(|| msg.clone(), |map| map.map_stack(&msg));
                     crate::host_ffi::host_log(tag, mapped);
-                })?
-                    .with_name("__wabou_log")?,
+                })?,
             )?;
-            globals.set(
-                "__wabou_utf8_encode",
-                rquickjs::Function::new(ctx.clone(), crate::host_ffi::host_utf8_encode)?
-                    .with_name("__wabou_utf8_encode")?,
+            register_function(
+                &globals,
+                HostBinding::Utf8Encode,
+                rquickjs::Function::new(ctx.clone(), crate::host_ffi::host_utf8_encode)?,
             )?;
-            globals.set(
-                "__wabou_utf8_decode",
-                rquickjs::Function::new(ctx.clone(), crate::host_ffi::host_utf8_decode)?
-                    .with_name("__wabou_utf8_decode")?,
+            register_function(
+                &globals,
+                HostBinding::Utf8Decode,
+                rquickjs::Function::new(ctx.clone(), crate::host_ffi::host_utf8_decode)?,
             )?;
-
-            globals.set("__wabou_utf8_encode_into", Function::new(ctx.clone(), crate::host_ffi::host_utf8_encode_into)?)?;
+            register_function(
+                &globals,
+                HostBinding::Utf8EncodeInto,
+                Function::new(ctx.clone(), crate::host_ffi::host_utf8_encode_into)?,
+            )?;
             rquickjs::Class::<crate::web_encoding::NativeTextDecoderState>::define(&globals)?;
-            globals.set("__wabou_url", rquickjs::Function::new(ctx.clone(), crate::web_url::url_operation)?)?;
-            globals.set("__wabou_form_decode", rquickjs::Function::new(ctx.clone(), crate::web_url::form_decode)?)?;
-            globals.set("__wabou_form_encode", rquickjs::Function::new(ctx.clone(), crate::web_url::form_encode)?)?;
-
-            globals.set("__wabou_profile_enabled", Function::new(ctx.clone(), || wabou_telemetry::global().enabled())?)?;
-            globals.set("__wabou_profile_batch", Function::new(ctx.clone(), |ctx: Ctx<'_>, raw: String| {
-                wabou_telemetry::global().batch(&raw).map_err(|error| rquickjs::Exception::throw_type(&ctx, &error))
-            })?)?;
+            register_function(
+                &globals,
+                HostBinding::Url,
+                rquickjs::Function::new(ctx.clone(), crate::web_url::url_operation)?,
+            )?;
+            register_function(
+                &globals,
+                HostBinding::FormDecode,
+                rquickjs::Function::new(ctx.clone(), crate::web_url::form_decode)?,
+            )?;
+            register_function(
+                &globals,
+                HostBinding::FormEncode,
+                rquickjs::Function::new(ctx.clone(), crate::web_url::form_encode)?,
+            )?;
+            register_function(
+                &globals,
+                HostBinding::ProfileEnabled,
+                Function::new(ctx.clone(), || wabou_telemetry::global().enabled())?,
+            )?;
+            register_function(
+                &globals,
+                HostBinding::ProfileBatch,
+                Function::new(ctx.clone(), |ctx: Ctx<'_>, raw: String| {
+                    wabou_telemetry::global().batch(&raw).map_err(|error| {
+                        rquickjs::Exception::throw_type(&ctx, &error)
+                    })
+                })?,
+            )?;
             let perf = rquickjs::Object::new(ctx.clone())?;
             let clock = Arc::clone(&self.clock);
             perf.set(
@@ -391,15 +422,16 @@ impl JsRuntime {
             // Private native ABI. Application code reaches these capabilities
             // through @wabou/core's typed Host context.
             let atoms = self.atoms.clone();
-            globals.set(
-                "__wabou_intern",
+            crate::host_abi::register_function(
+                &globals,
+                HostBinding::Intern,
                 rquickjs::Function::new(ctx.clone(), move |value: String| -> u32 {
                     atoms.borrow_mut().intern(&value).get()
-                })?
-                .with_name("__wabou_intern")?,
+                })?,
             )?;
-            globals.set(
-                "__wabou_open_url",
+            crate::host_abi::register_function(
+                &globals,
+                HostBinding::OpenUrl,
                 rquickjs::Function::new(ctx.clone(), move |raw: String| -> bool {
                     let Ok(url) = url::Url::parse(&raw) else {
                         tracing::warn!(url = %raw, "refused invalid external URL");
@@ -410,8 +442,51 @@ impl JsRuntime {
                         return false;
                     }
                     open::that_detached(url.as_str()).is_ok()
-                })?
-                .with_name("__wabou_open_url")?,
+                })?,
+            )?;
+
+            let value_motions = self.value_motions.clone();
+            crate::host_abi::register_function(
+                &globals,
+                HostBinding::MotionCreate,
+                Function::new(ctx.clone(), move |ctx: Ctx<'_>, descriptor: String| {
+                    value_motions
+                        .borrow_mut()
+                        .create_json(&descriptor)
+                        .map(wabou_motion::ValueMotionId::into_raw)
+                        .map_err(|error| rquickjs::Exception::throw_type(&ctx, &error))
+                })?,
+            )?;
+            let value_motions = self.value_motions.clone();
+            crate::host_abi::register_function(
+                &globals,
+                HostBinding::MotionSample,
+                Function::new(
+                    ctx.clone(),
+                    move |id: u32, elapsed: f64, output: TypedArray<f64>| -> JsResult<bool> {
+                        let Some(sample) = value_motions
+                        .borrow()
+                        .sample(wabou_motion::ValueMotionId::from_raw(id), elapsed)
+                        else {
+                            return Ok(false);
+                        };
+                        crate::host_ffi::fill_typed_array(
+                            &output,
+                            &[sample.value, sample.velocity, f64::from(sample.done)],
+                        )?;
+                        Ok(true)
+                    },
+                )?,
+            )?;
+            let value_motions = self.value_motions.clone();
+            crate::host_abi::register_function(
+                &globals,
+                HostBinding::MotionDrop,
+                Function::new(ctx.clone(), move |id: u32| {
+                    value_motions
+                        .borrow_mut()
+                        .remove(wabou_motion::ValueMotionId::from_raw(id))
+                })?,
             )?;
 
             self.register_intl_host_fns(ctx.clone(), &globals)?;
@@ -420,8 +495,9 @@ impl JsRuntime {
             // system on the next frame. Call once at boot before first paint.
             // Returns false (and warns) if the file can't be read.
             let pf = self.pending_fonts.clone();
-            globals.set(
-                "__wabou_load_font",
+            register_function(
+                &globals,
+                HostBinding::LoadFont,
                 rquickjs::Function::new(ctx.clone(), move |path: String| -> bool {
                     match std::fs::read(&path) {
                         Ok(bytes) => {
@@ -433,8 +509,7 @@ impl JsRuntime {
                             false
                         }
                     }
-                })?
-                .with_name("__wabou_load_font")?,
+                })?,
             )?;
 
             self.register_observability_host_fns(ctx.clone(), &globals)?;
@@ -442,24 +517,24 @@ impl JsRuntime {
             self.register_style_host_fns(ctx.clone(), &globals)?;
 
             let targets = self.resize_targets.clone();
-            globals.set(
-                "__wabou_resize_observe",
+            register_function(
+                &globals,
+                HostBinding::ResizeObserve,
                 rquickjs::Function::new(ctx.clone(), move |lo: u32, hi: u32| -> JsResult<()> {
                     let key = checked_node_key(lo, hi, "resize observer")?;
                     targets.borrow_mut().entry(key).or_insert(None);
                     Ok(())
-                })?
-                .with_name("__wabou_resize_observe")?,
+                })?,
             )?;
             let targets = self.resize_targets.clone();
-            globals.set(
-                "__wabou_resize_unobserve",
+            register_function(
+                &globals,
+                HostBinding::ResizeUnobserve,
                 rquickjs::Function::new(ctx.clone(), move |lo: u32, hi: u32| -> JsResult<()> {
                     let key = checked_node_key(lo, hi, "resize observer")?;
                     targets.borrow_mut().remove(&key);
                     Ok(())
-                })?
-                .with_name("__wabou_resize_unobserve")?,
+                })?,
             )?;
             Ok(())
         })
@@ -470,23 +545,23 @@ impl JsRuntime {
         ctx: rquickjs::Ctx<'js>,
         globals: &rquickjs::Object<'js>,
     ) -> JsResult<()> {
-        globals.set(
-            "__wabou_system_locale",
-            rquickjs::Function::new(ctx.clone(), crate::intl::system_locale)?
-                .with_name("__wabou_system_locale")?,
+        register_function(
+            globals,
+            HostBinding::SystemLocale,
+            rquickjs::Function::new(ctx.clone(), crate::intl::system_locale)?,
         )?;
-        globals.set(
-            "__wabou_system_time_zone",
-            rquickjs::Function::new(ctx.clone(), crate::intl::system_time_zone)?
-                .with_name("__wabou_system_time_zone")?,
+        register_function(
+            globals,
+            HostBinding::SystemTimeZone,
+            rquickjs::Function::new(ctx.clone(), crate::intl::system_time_zone)?,
         )?;
-        globals.set(
-            "__wabou_system_calendar_date",
+        register_function(
+            globals,
+            HostBinding::SystemCalendarDate,
             rquickjs::Function::new(ctx.clone(), || -> String {
                 serde_json::to_string(&crate::intl::system_calendar_date())
                     .expect("calendar date serialization is infallible")
-            })?
-            .with_name("__wabou_system_calendar_date")?,
+            })?,
         )?;
         Ok(())
     }
@@ -498,8 +573,9 @@ impl JsRuntime {
     ) -> JsResult<()> {
         let pending_css = self.pending_css.clone();
         let available_themes = self.color_themes.clone();
-        globals.set(
-            "__wabou_set_stylesheet",
+        register_function(
+            globals,
+            HostBinding::SetStylesheet,
             rquickjs::Function::new(ctx.clone(), move |source: String| -> JsResult<()> {
                 match serde_json::from_str::<StylesheetUpdate>(&source) {
                     Ok(update) => {
@@ -513,24 +589,24 @@ impl JsRuntime {
                         Err(rquickjs::Error::Unknown)
                     }
                 }
-            })?
-            .with_name("__wabou_set_stylesheet")?,
+            })?,
         )?;
 
         let pending_theme = self.pending_color_theme.clone();
         let wake = self.runtime_wake.clone();
-        globals.set(
-            "__wabou_set_color_theme",
+        register_function(
+            globals,
+            HostBinding::SetColorTheme,
             rquickjs::Function::new(ctx.clone(), move |name: String| {
                 *pending_theme.borrow_mut() = Some(name);
                 wake.notify();
-            })?
-            .with_name("__wabou_set_color_theme")?,
+            })?,
         )?;
 
         let available_themes = self.color_themes.clone();
-        globals.set(
-            "__wabou_get_color_theme_palette",
+        register_function(
+            globals,
+            HostBinding::GetColorThemePalette,
             rquickjs::Function::new(
                 ctx.clone(),
                 move |name: String, output: Option<TypedArray<u32>>| -> JsResult<u32> {
@@ -549,14 +625,14 @@ impl JsRuntime {
                     }
                     Ok(len)
                 },
-            )?
-            .with_name("__wabou_get_color_theme_palette")?,
+            )?,
         )?;
 
         let pending_palette = self.pending_color_palette.clone();
         let wake = self.runtime_wake.clone();
-        globals.set(
-            "__wabou_set_color_palette",
+        register_function(
+            globals,
+            HostBinding::SetColorPalette,
             rquickjs::Function::new(
                 ctx.clone(),
                 move |colors: TypedArray<u32>| -> JsResult<()> {
@@ -571,8 +647,7 @@ impl JsRuntime {
                     wake.notify();
                     Ok(())
                 },
-            )?
-            .with_name("__wabou_set_color_palette")?,
+            )?,
         )?;
         Ok(())
     }
@@ -583,8 +658,9 @@ impl JsRuntime {
         globals: &rquickjs::Object<'js>,
     ) -> JsResult<()> {
         let stats = self.frame_stats.clone();
-        globals.set(
-            "__wabou_frame_stats",
+        register_function(
+            globals,
+            HostBinding::FrameStats,
             rquickjs::Function::new(ctx.clone(), move || -> String {
                 let cell = stats.borrow();
                 serde_json::to_string(&cell.as_ref().map(|frame| HostFrameStats {
@@ -597,14 +673,14 @@ impl JsRuntime {
                     viewport_h: frame.viewport_h,
                 }))
                 .expect("frame stats are serializable")
-            })?
-            .with_name("__wabou_frame_stats")?,
+            })?,
         )?;
 
         #[cfg(any(feature = "devtools", test))]
         let debug_state = self.debug_state.clone();
-        globals.set(
-            "__wabou_set_debug_overlay",
+        register_function(
+            globals,
+            HostBinding::SetDebugOverlay,
             rquickjs::Function::new(
                 ctx.clone(),
                 move |layout: bool, clips: bool, hit_target: bool| -> bool {
@@ -631,14 +707,14 @@ impl JsRuntime {
                         false
                     }
                 },
-            )?
-            .with_name("__wabou_set_debug_overlay")?,
+            )?,
         )?;
 
         #[cfg(any(feature = "devtools", test))]
         let debug_state = self.debug_state.clone();
-        globals.set(
-            "__wabou_debug_overlay_paint_stats",
+        register_function(
+            globals,
+            HostBinding::DebugOverlayPaintStats,
             rquickjs::Function::new(ctx.clone(), move || -> String {
                 #[cfg(any(feature = "devtools", test))]
                 let stats = debug_state
@@ -648,13 +724,13 @@ impl JsRuntime {
                 #[cfg(not(any(feature = "devtools", test)))]
                 let stats: Option<wabou_host_api::DebugOverlayPaintStats> = None;
                 serde_json::to_string(&stats).expect("overlay paint stats are serializable")
-            })?
-            .with_name("__wabou_debug_overlay_paint_stats")?,
+            })?,
         )?;
 
         let metrics = self.layout_metrics.clone();
-        globals.set(
-            "__wabou_layout_snapshot",
+        register_function(
+            globals,
+            HostBinding::LayoutSnapshot,
             rquickjs::Function::new(
                 ctx.clone(),
                 move |ids: TypedArray<u32>, output: Option<TypedArray<f64>>| -> JsResult<u32> {
@@ -738,11 +814,11 @@ impl JsRuntime {
                     }?;
                     Ok(required_u32)
                 },
-            )?
-            .with_name("__wabou_layout_snapshot")?,
+            )?,
         )?;
-        globals.set(
-            "__wabou_crypto_random",
+        register_function(
+            globals,
+            HostBinding::CryptoRandom,
             rquickjs::Function::new(ctx.clone(), |output: TypedArray<u8>| -> JsResult<()> {
                 if output.len() > 65_536 {
                     return Err(rquickjs::Error::new_from_js_message(
@@ -764,11 +840,11 @@ impl JsRuntime {
                         error.to_string(),
                     )
                 })
-            })?
-            .with_name("__wabou_crypto_random")?,
+            })?,
         )?;
-        globals.set(
-            "__wabou_crypto_digest",
+        register_function(
+            globals,
+            HostBinding::CryptoDigest,
             rquickjs::Function::new(
                 ctx.clone(),
                 rquickjs::prelude::Async(|algorithm: u8, input: TypedArray<u8>| -> _ {
@@ -782,8 +858,7 @@ impl JsRuntime {
                             .map(crate::host_ffi::OwnedJsBytes)
                     }
                 }),
-            )?
-            .with_name("__wabou_crypto_digest")?,
+            )?,
         )?;
         Ok(())
     }
@@ -802,8 +877,9 @@ impl JsRuntime {
         >::new()));
         self.with(|ctx| {
             let active = cancellations.clone();
-            ctx.globals().set(
-                "__wabou_fetch_start",
+            register_function(
+                &ctx.globals(),
+                HostBinding::FetchStart,
                 Function::new(ctx.clone(), move |id: u32| {
                     active
                         .lock()
@@ -812,60 +888,67 @@ impl JsRuntime {
                 })?,
             )?;
             let active = cancellations.clone();
-            ctx.globals().set(
-                "__wabou_fetch_cancel",
+            register_function(
+                &ctx.globals(),
+                HostBinding::FetchCancel,
                 Function::new(ctx.clone(), move |id: u32| {
                     if let Some(token) = active.lock().unwrap().get(&id) {
                         token.cancel();
                     }
                 })?,
             )?;
-            let function = Function::new(
-                ctx.clone(),
-                rquickjs::prelude::Async(
-                    move |url: String, init_json: String, id: rquickjs::function::Opt<u32>| {
-                        let client = client.clone();
-                        let active = cancellations.clone();
-                        let token = id.0.and_then(|id| active.lock().unwrap().get(&id).cloned());
-                        async move {
-                            let result = if let Some(token) = token {
-                                tokio::select! {
-                                    biased;
-                                    _ = token.cancelled() => Err(rquickjs::Error::Unknown),
-                                    result = fetch_request(client, url, init_json) => result,
+            register_function(
+                &ctx.globals(),
+                HostBinding::Fetch,
+                Function::new(
+                    ctx.clone(),
+                    rquickjs::prelude::Async(
+                        move |url: String, init_json: String, id: rquickjs::function::Opt<u32>| {
+                            let client = client.clone();
+                            let active = cancellations.clone();
+                            let token =
+                                id.0.and_then(|id| active.lock().unwrap().get(&id).cloned());
+                            async move {
+                                let result = if let Some(token) = token {
+                                    tokio::select! {
+                                        biased;
+                                        _ = token.cancelled() => Err(rquickjs::Error::Unknown),
+                                        result = fetch_request(client, url, init_json) => result,
+                                    }
+                                } else {
+                                    fetch_request(client, url, init_json).await
+                                };
+                                if let Some(id) = id.0 {
+                                    active.lock().unwrap().remove(&id);
                                 }
-                            } else {
-                                fetch_request(client, url, init_json).await
-                            };
-                            if let Some(id) = id.0 {
-                                active.lock().unwrap().remove(&id);
+                                result
                             }
-                            result
-                        }
-                    },
-                ),
-            )?
-            .with_name("__wabou_fetch")?;
-            ctx.globals().set("__wabou_fetch", function)
+                        },
+                    ),
+                )?,
+            )
         })
     }
 
     fn register_sleep(&self) -> JsResult<()> {
         self.with(|ctx| {
-            let function = Function::new(
-                ctx.clone(),
-                rquickjs::prelude::Async(|delay_ms: f64| async move {
-                    let delay_ms = if delay_ms.is_finite() {
-                        delay_ms.max(0.0)
-                    } else {
-                        0.0
-                    };
-                    tokio::time::sleep(std::time::Duration::from_secs_f64(delay_ms / 1000.0)).await;
-                    Ok::<(), rquickjs::Error>(())
-                }),
-            )?
-            .with_name("__wabou_sleep")?;
-            ctx.globals().set("__wabou_sleep", function)
+            register_function(
+                &ctx.globals(),
+                HostBinding::Sleep,
+                Function::new(
+                    ctx.clone(),
+                    rquickjs::prelude::Async(|delay_ms: f64| async move {
+                        let delay_ms = if delay_ms.is_finite() {
+                            delay_ms.max(0.0)
+                        } else {
+                            0.0
+                        };
+                        tokio::time::sleep(std::time::Duration::from_secs_f64(delay_ms / 1000.0))
+                            .await;
+                        Ok::<(), rquickjs::Error>(())
+                    }),
+                )?,
+            )
         })
     }
 
@@ -1336,15 +1419,15 @@ impl JsRuntime {
         )?;
         this.with(|ctx| -> JsResult<()> {
             let g = ctx.globals();
-            g.set(
-                "__wabou_vite_update_style",
-                rquickjs::Function::new(ctx.clone(), |_id: String, _css: String| {})?
-                    .with_name("__wabou_vite_update_style")?,
+            register_function(
+                &g,
+                HostBinding::ViteUpdateStyle,
+                rquickjs::Function::new(ctx.clone(), |_id: String, _css: String| {})?,
             )?;
-            g.set(
-                "__wabou_vite_remove_style",
-                rquickjs::Function::new(ctx.clone(), |_id: String| {})?
-                    .with_name("__wabou_vite_remove_style")?,
+            register_function(
+                &g,
+                HostBinding::ViteRemoveStyle,
+                rquickjs::Function::new(ctx.clone(), |_id: String| {})?,
             )?;
             Ok(())
         })?;
@@ -1491,5 +1574,4 @@ fn digest_bytes(algorithm: u8, bytes: &[u8]) -> JsResult<Vec<u8>> {
 }
 
 #[cfg(test)]
-#[path = "jsrt/tests.rs"]
 mod tests;

@@ -389,6 +389,7 @@ describe("host primitives", () => {
       Text({});
       Text({ maxLines: 1 });
       Text({ maxLines: 2 });
+      Text({ maxLines: 2, lineOverflow: "clip" });
       RichText({});
       Svg({ source: "<svg/>" });
       Image({ resource: { lo: 2, hi: 1 } });
@@ -406,6 +407,9 @@ describe("host primitives", () => {
       ["textMaxLines", "1"],
       ["role", "label"],
       ["textBehavior", "1"],
+      ["textMaxLines", "2"],
+      ["role", "label"],
+      ["textBehavior", "9"],
       ["textMaxLines", "2"],
       ["role", "label"],
       ["textBehavior", "5"],

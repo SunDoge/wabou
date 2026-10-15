@@ -20,6 +20,7 @@ const applicationDependencyExceptions = new Map([
 const rustApplicationDependencyExceptions = new Map([
   ["devtools", new Set(["wabou-devtools"])],
   ["pi-agent", new Set(["wabou-terminal"])],
+  ["reader", new Set(["wabou-pdf"])],
   ["terminal", new Set(["wabou-terminal"])],
 ]);
 

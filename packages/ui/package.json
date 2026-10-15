@@ -1,6 +1,6 @@
 {
   "name": "@wabou/ui",
-  "version": "0.1.0-alpha.3",
+  "version": "0.1.0-alpha.4",
   "description": "The primary application-facing API for Wabou native interfaces.",
   "license": "Apache-2.0",
   "repository": {
@@ -19,6 +19,11 @@
       "wabou-source": "./src/index.ts",
       "types": "./dist/index.d.mts",
       "import": "./dist/index.mjs"
+    },
+    "./animation": {
+      "wabou-source": "./src/animation/index.ts",
+      "types": "./dist/animation.d.mts",
+      "import": "./dist/animation.mjs"
     },
     "./primitives": {
       "wabou-source": "./src/primitives/index.ts",
@@ -56,16 +61,15 @@
     "@lezer/common": "^1.5.3",
     "@lezer/highlight": "^1.2.5",
     "@lezer/json": "^1.0.3",
-    "@tanstack/history": "1.162.4",
-    "@tanstack/router-core": "1.171.34",
-    "@tanstack/table-core": "^9.2.8",
+    "@tanstack/history": "1.162.5",
+    "@tanstack/router-core": "1.171.37",
+    "@tanstack/table-core": "^9.3.1",
     "@wabou/core": "workspace:*",
-    "lucide-static": "1.54.0",
-    "marked": "18.1.0",
-    "motion-dom": "13.1.1",
+    "lucide-static": "1.57.0",
+    "marked": "18.1.1",
     "remend": "1.4.0",
     "solid-js": "2.0.0-rc.14",
-    "ts-pattern": "^5.9.0",
+    "ts-pattern": "^5.9.1",
     "uqr": "^0.1.3"
   }
 }

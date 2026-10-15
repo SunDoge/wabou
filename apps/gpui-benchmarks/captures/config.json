@@ -1,0 +1,44 @@
+{
+  "defaults": {
+    "width": 1440,
+    "height": 900,
+    "scaleFactor": 2,
+    "waitMs": 250
+  },
+  "overrides": {
+    "catalog-hidpi.ts": {
+      "width": 1440,
+      "height": 868,
+      "scaleFactor": 2
+    },
+    "catalog-light.ts": {
+      "width": 1440,
+      "height": 868,
+      "scaleFactor": 1
+    },
+    "folio.ts": {
+      "width": 1198,
+      "height": 827
+    },
+    "tendra.ts": {
+      "width": 1440,
+      "height": 914
+    },
+    "ocean.ts": {
+      "width": 1461,
+      "height": 940
+    },
+    "signed.ts": {
+      "width": 1152,
+      "height": 980
+    },
+    "omanta.ts": {
+      "width": 1240,
+      "height": 820
+    },
+    "disktree.ts": {
+      "width": 1067,
+      "height": 750
+    }
+  }
+}

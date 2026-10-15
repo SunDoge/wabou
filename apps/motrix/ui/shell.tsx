@@ -6,7 +6,6 @@ import {
   createEventEffect,
   createNotifications,
   createShortcuts,
-  createTransition,
   Icon,
   Modal,
   NotificationRegion,
@@ -19,6 +18,7 @@ import {
   View,
   WindowFrame,
 } from "@wabou/ui";
+import { createTransition } from "@wabou/ui/animation";
 import download from "lucide-static/icons/download.svg?raw";
 import { createEffect, createSignal, type JSX, Show } from "solid-js";
 import { match } from "ts-pattern";

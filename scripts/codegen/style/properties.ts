@@ -165,6 +165,14 @@ const missing = Object.keys(matrix.supported).filter(
       "box-shadow",
       "gap-x",
       "gap-y",
+      "transform",
+      "transform-component",
+      "transform-origin-x",
+      "transform-origin-y",
+      "transform-rotate",
+      "transform-scale",
+      "transform-translate-x",
+      "transform-translate-y",
     ].includes(property),
 );
 if (missing.length) {

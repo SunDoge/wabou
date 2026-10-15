@@ -1,0 +1,31 @@
+{
+  "name": "@wabou/pdf",
+  "version": "0.1.0-alpha.4",
+  "description": "Typed Solid bindings for Wabou's pure-Rust PDF viewer widget.",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/SunDoge/wabou.git",
+    "directory": "packages/pdf"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "files": [
+    "dist"
+  ],
+  "exports": {
+    ".": {
+      "wabou-source": "./generated/index.tsx",
+      "types": "./dist/index.d.mts",
+      "import": "./dist/index.mjs"
+    }
+  },
+  "scripts": {
+    "build": "bun run ../../scripts/build-packages.ts pdf"
+  },
+  "dependencies": {
+    "@wabou/ui": "workspace:*",
+    "solid-js": "2.0.0-rc.14"
+  }
+}

@@ -10,11 +10,16 @@ repository = "https://github.com/SunDoge/wabou"
 name = "wabou"
 path = "src/main.rs"
 
+[[bin]]
+name = "wabou-render"
+path = "src/render_main.rs"
+required-features = ["embedded-renderer"]
+
 [dependencies]
-clap = { workspace = true, features = ["derive", "env"] }
+usage-rs.workspace = true
 ctrlc = "3.5"
 fs4 = "0.13.1"
-process-wrap = { version = "10.0.0", features = ["std"] }
+process-wrap = { version = "10.0.1", features = ["std"] }
 cargo-packager = { version = "0.11.8", default-features = false, features = ["rustls-tls"] }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
@@ -26,14 +31,14 @@ wabou-backend-vello-hybrid = { workspace = true, features = ["devtools"], option
 wabou-shell-vello = { workspace = true, optional = true, features = ["widgets"] }
 wabou-shell-api.workspace = true
 
-# Transitional native Rust frontend command adapter.
-blockui-cli = { path = "../../native/blockui-cli", optional = true }
-
 wabou-runtime-library = { path = "../wabou-runtime-library", optional = true }
 
 [features]
-# QuickJS GUI tooling is the default. Experimental Rust UI is opt-in.
-# External-runtime launchers can use --no-default-features.
-default = ["embedded-renderer"]
-embedded-renderer = ["dep:wabou-backend-vello-hybrid", "dep:wabou-shell-vello", "dep:wabou-runtime-library"]
-native-ui = ["dep:blockui-cli"]
+default = []
+# The engine is isolated in the wabou-render helper. Normal CLI commands do not
+# compile or link the renderer, QuickJS, Winit, or wgpu.
+embedded-renderer = [
+  "dep:wabou-backend-vello-hybrid",
+  "dep:wabou-shell-vello",
+  "dep:wabou-runtime-library",
+]

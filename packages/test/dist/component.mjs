@@ -402,7 +402,13 @@ function renderComponent(render, options = {}) {
 	};
 	try {
 		if (options.clock === "fake") {
-			vi.useFakeTimers();
+			vi.useFakeTimers({ toFake: [
+				"Date",
+				"setInterval",
+				"clearInterval",
+				"setTimeout",
+				"clearTimeout"
+			] });
 			fakeFrameTime = performance.now();
 			const performanceNow = vi.spyOn(performance, "now").mockImplementation(() => fakeFrameTime);
 			restorePerformanceNow = () => performanceNow.mockRestore();
@@ -769,10 +775,10 @@ function renderComponent(render, options = {}) {
 			},
 			finishNativeTransition: () => {
 				ensureAttached(node, "finish the native transition of");
-				const encoded = node.attributes.get("__wabou_native_transition");
+				const encoded = node.attributes.get("__wabou_native_motion");
 				if (!encoded) throw new Error(`component ${roleOf(node) ?? node.tag} "${nameOf(node)}" has no native transition`);
 				const transition = JSON.parse(encoded);
-				if (!Number.isSafeInteger(transition.generation)) throw new Error(`component native transition has an invalid generation: ${encoded}`);
+				if (transition.kind !== "transition" || !Number.isSafeInteger(transition.generation)) throw new Error(`component native transition has an invalid generation: ${encoded}`);
 				commitEvent(node, EVENT_CODE.transitionend, JSON.stringify({ generation: transition.generation }));
 			},
 			focus: () => {

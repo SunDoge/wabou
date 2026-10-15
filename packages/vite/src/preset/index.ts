@@ -52,6 +52,10 @@ export type UtilityDiagnostic = {
   message: string;
 };
 
+function ownValue<T>(record: Record<string, T>, key: string): T | undefined {
+  return Object.hasOwn(record, key) ? record[key] : undefined;
+}
+
 export type ResolvedUtility = {
   candidate: string;
   matcher: string;
@@ -91,7 +95,9 @@ function parseLength(token: string, spacing: boolean): Length | undefined {
   if (token === "auto") return { unit: "auto" };
   if (token === "full") return { unit: "percent", value: 1 };
   if (spacing && token === "px") return { unit: "px", value: 1 };
-  const scale = spacing ? wabouUtilityManifest.spacing[token] : undefined;
+  const scale = spacing
+    ? ownValue(wabouUtilityManifest.spacing, token)
+    : undefined;
   if (scale !== undefined) return { unit: "px", value: scale };
   if (token.endsWith("%")) {
     const value = Number(token.slice(0, -1));
@@ -191,7 +197,7 @@ function parseCandidate(
       message: `Wabou variants are not supported in \`${candidate}\`; use Solid classList or typed style`,
     };
 
-  let declarations = wabouUtilityManifest.staticUtilities[matcher];
+  let declarations = ownValue(wabouUtilityManifest.staticUtilities, matcher);
   const spacing = matchDynamic(matcher, "spacing");
   if (!declarations && spacing) {
     let value = parseLength(spacing.token, true);
@@ -258,13 +264,24 @@ function parseCandidate(
   const color = matchDynamic(matcher, "color");
   if (!declarations && color) {
     const [colorName, opacityToken] = color.token.split("/", 2);
-    let rgba: number | undefined = wabouUtilityManifest.colors[colorName];
+    let rgba: number | undefined = ownValue(
+      wabouUtilityManifest.colors,
+      colorName,
+    );
     const arbitrary = colorName.match(
-      /^\[#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})\]$/,
+      /^\[#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})\]$/,
     )?.[1];
     if (rgba === undefined && arbitrary) {
-      rgba = Number.parseInt(arbitrary, 16);
-      if (arbitrary.length === 6) rgba = ((rgba << 8) | 0xff) >>> 0;
+      if (arbitrary.length === 3) {
+        const [red, green, blue] = arbitrary;
+        rgba = Number.parseInt(
+          `${red}${red}${green}${green}${blue}${blue}ff`,
+          16,
+        );
+      } else {
+        rgba = Number.parseInt(arbitrary, 16);
+        if (arbitrary.length === 6) rgba = ((rgba << 8) | 0xff) >>> 0;
+      }
     }
     if (rgba !== undefined && opacityToken !== undefined) {
       const opacity = Number(opacityToken);

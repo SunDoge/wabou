@@ -18,14 +18,13 @@ const PRIMARY = 1 << 4;
 const VALID_MASK = SHIFT | CONTROL | ALT | META | PRIMARY;
 
 function decodeKeyboardModifiers(value: unknown): KeyboardModifiers {
-  if (
-    !Number.isInteger(value) ||
-    (value as number) < 0 ||
-    ((value as number) & ~VALID_MASK) !== 0
-  ) {
+  if (typeof value !== "number" || !Number.isInteger(value)) {
     throw new TypeError("keyboard modifier bits are invalid");
   }
-  const bits = value as number;
+  const bits = value;
+  if (bits < 0 || (bits & ~VALID_MASK) !== 0) {
+    throw new TypeError("keyboard modifier bits are invalid");
+  }
   return Object.freeze({
     bits: bits & (SHIFT | CONTROL | ALT | META),
     shift: (bits & SHIFT) !== 0,

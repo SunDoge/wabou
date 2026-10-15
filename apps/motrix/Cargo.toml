@@ -13,7 +13,7 @@ flume = { workspace = true }
 gosh-dl = { workspace = true }
 jiff = { workspace = true }
 open = { workspace = true }
-portmapper = "0.19.1"
+portmapper = "0.19.3"
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
 specta = { workspace = true, optional = true }

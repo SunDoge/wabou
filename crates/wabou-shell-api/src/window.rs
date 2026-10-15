@@ -57,6 +57,9 @@ pub struct WindowOptions {
     pub resizable: bool,
     /// Whether the OS draws its standard title bar and border.
     pub decorations: bool,
+    /// Whether to place the initial window in the center of the primary monitor.
+    #[serde(default)]
+    pub centered: bool,
     /// Native compositor material visible through transparent app content.
     pub background: WindowBackground,
     /// Requested initial stacking level.
@@ -73,6 +76,7 @@ impl Default for WindowOptions {
             min_inner_size: None,
             resizable: true,
             decorations: true,
+            centered: false,
             background: WindowBackground::Opaque,
             window_level: WindowLevel::Normal,
             input_mode: WindowInputMode::Interactive,
@@ -113,6 +117,12 @@ impl WindowOptions {
     /// Enable or disable native window-manager decorations.
     pub fn decorations(mut self, decorations: bool) -> Self {
         self.decorations = decorations;
+        self
+    }
+
+    /// Place the initial window in the center of the primary monitor when supported.
+    pub fn centered(mut self, centered: bool) -> Self {
+        self.centered = centered;
         self
     }
 

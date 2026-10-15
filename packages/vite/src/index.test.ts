@@ -59,6 +59,7 @@ describe("@wabou/vite", () => {
       "solid:boundary-modules",
       "solid",
       "solid:diagnostics",
+      "solid:performance-tracks",
       "wabou-configure-deps-optimizer",
     ];
     const positions = required.map((name) => names.indexOf(name));
@@ -138,6 +139,45 @@ describe("@wabou/vite", () => {
         },
       }),
     ).toThrow("does not exist");
+  });
+
+  test("browser builds keep the same UI entry and generate the host before HTML bundling", async () => {
+    const config = await resolveConfig(
+      defineWabouConfig({
+        root: "/app",
+        target: "browser",
+        entry: "ui/index.tsx",
+        browser: { canvas: "#canvas", runtimeModule: "runtime.js" },
+      }),
+    );
+    expect(config.root).toBe("/app");
+    expect(config.build?.lib).toBeUndefined();
+    expect(config.build?.target).toBe("esnext");
+    const plugin = (config.plugins as Plugin[]).find(
+      (plugin) => plugin.name === "wabou-browser-host",
+    );
+    if (!plugin) throw new Error("browser bootstrap plugin missing");
+    expect(plugin.transformIndexHtml).toHaveProperty("order", "pre");
+    expect(config.resolve?.conditions).toContain("browser");
+  });
+
+  test("requires browser host options only when the browser target is selected", async () => {
+    await expect(
+      resolveConfig(defineWabouConfig({ target: "browser" })),
+    ).rejects.toThrow("requires browser host options");
+    const native = await resolveConfig(
+      defineWabouConfig({
+        target: "native",
+        outDir: "dist",
+        browser: { canvas: "#canvas", runtimeModule: "runtime.js" },
+      }),
+    );
+    expect(native.build?.lib).toMatchObject({ formats: ["iife"] });
+    expect(
+      (native.plugins as Plugin[]).some(
+        (plugin) => plugin.name === "wabou-browser-host",
+      ),
+    ).toBe(false);
   });
 
   test("defines conventional entry and bundle output", async () => {

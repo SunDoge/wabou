@@ -5,7 +5,6 @@ import { createGenerator } from "@unocss/core";
 import type { ModuleNode, Plugin } from "vite";
 import {
   presetWabou,
-  resolveWabouUtility,
   validateWabouUtility,
   wabouUtilityManifest,
 } from "../preset";
@@ -13,6 +12,10 @@ import type {
   WabouColorThemeOptions,
   WabouThemeColor,
 } from "../theme-contract.ts";
+import {
+  assertSupportedWabouCandidates,
+  compileWabouUtilities,
+} from "./browser";
 import {
   STYLE_IR_VERSION,
   type StyleRule,
@@ -269,89 +272,21 @@ export function defineWabouTheme<const T extends WabouColorThemeOptions>(
   return theme;
 }
 
-function semanticColorDeclaration(
-  candidate: string,
-  tokens: ReadonlySet<string>,
-): StyleRule["declarations"][number] | undefined {
-  const match = candidate.match(/^(bg|text|border)-(.+)$/);
-  if (!match || !tokens.has(match[2])) return;
-  return {
-    property:
-      match[1] === "bg"
-        ? "background-color"
-        : match[1] === "text"
-          ? "color"
-          : "border-color",
-    value: { type: "color", value: { kind: "token", name: match[2] } },
-  };
-}
-
-export function assertSupportedWabouCandidates(
-  candidates: Iterable<string>,
-  semanticTokens: ReadonlySet<string> = new Set(),
-): void {
-  const unsupported = [...candidates]
-    .filter((candidate) => !semanticColorDeclaration(candidate, semanticTokens))
-    .map((candidate) => validateWabouUtility(candidate))
-    .filter((diagnostic) => diagnostic !== undefined);
-  if (unsupported.length) {
-    throw new Error(
-      `unsupported Wabou utilities:\n${unsupported
-        .map(({ message }) => `  - ${message}`)
-        .join("\n")}`,
-    );
-  }
-}
-
-export function compileWabouUtilities(
-  candidates: Iterable<string>,
-  sourceOrderStart = 0,
-  semanticTokens: ReadonlySet<string> = new Set(),
-): StyleRule[] {
-  const ordered = [...candidates].sort();
-  assertSupportedWabouCandidates(ordered, semanticTokens);
-  return ordered.map((candidate, index) => {
-    const semantic = semanticColorDeclaration(candidate, semanticTokens);
-    if (semantic) {
-      return {
-        className: candidate,
-        specificity: 10,
-        sourceOrder: sourceOrderStart + index,
-        declarations: [semantic],
-      };
-    }
-    const utility = resolveWabouUtility(candidate);
-    if (!utility) throw new Error(`unsupported Wabou utility \`${candidate}\``);
-    return {
-      className: candidate,
-      specificity: 10,
-      sourceOrder: sourceOrderStart + index,
-      declarations: utility.declarations,
-    };
-  });
-}
-
+export {
+  assertSupportedWabouCandidates,
+  compileWabouUtilities,
+} from "./browser";
 /**
- * Keep UnoCSS candidates scoped to JSX class props.
- *
- * Uno's default extractor scans every token, which turns values like
- * `role="tab"` or terminal command strings into accidental utilities.
+ * Validate authored class expressions, then let UnoCSS inspect the complete
+ * module. Complete utilities often live in static variant maps outside JSX;
+ * Uno's extractor already discovers those without a second registration API.
  */
-export function extractUtilitySource(source: string): string {
-  const values: string[] = [];
-  const pushValue = (value: string, expression = false) => {
-    if (expression) {
-      value = value.replace(
-        /(?:===|!==|==|!=)\s*(?:"[^"]*"|'[^']*'|`[^`]*`)/g,
-        "",
-      );
-      // `ts-pattern` selectors inside a class-producing expression describe
-      // state, not utilities. Only the callback result contributes classes.
-      value = value.replace(
-        /\.with\s*\(\s*(?:"[^"]*"|'[^']*'|`[^`]*`)\s*,/g,
-        ".with(,",
-      );
-    }
+function analyzeUtilitySource(source: string): {
+  source: string;
+  explicit: string;
+} {
+  const explicitValues: string[] = [];
+  const validateClassValue = (value: string, expression = false) => {
     // Reactive selection between complete static utilities is valid, but
     // manufacturing utility names from runtime fragments bypasses build-time
     // validation and theme/conformance guarantees.
@@ -368,11 +303,21 @@ export function extractUtilitySource(source: string): string {
         "dynamic class construction is not supported; select complete static utilities with classList and put continuous values in typed style",
       );
     }
-    values.push(value);
+    if (expression) {
+      value = value.replace(
+        /(?:===|!==|==|!=)\s*(?:"[^"]*"|'[^']*'|`[^`]*`)/g,
+        "",
+      );
+      value = value.replace(
+        /\.with\s*\(\s*(?:"[^"]*"|'[^']*'|`[^`]*`)\s*,/g,
+        ".with(,",
+      );
+    }
+    explicitValues.push(value);
   };
   const classProp = /\bclass(?:Name)?\s*=\s*(?:"([^"]*)"|'([^']*)'|`([^`]*)`)/g;
   for (const match of source.matchAll(classProp)) {
-    pushValue(match[1] ?? match[2] ?? match[3] ?? "");
+    validateClassValue(match[1] ?? match[2] ?? match[3] ?? "");
   }
   const expressionStart = /\bclass(?:Name)?\s*=\s*\{/g;
   for (const match of source.matchAll(expressionStart)) {
@@ -403,17 +348,21 @@ export function extractUtilitySource(source: string): string {
         depth--;
       }
     }
-    pushValue(source.slice(start, depth === 0 ? end - 1 : end), true);
+    validateClassValue(source.slice(start, depth === 0 ? end - 1 : end), true);
   }
   const classListProp = /\bclassList\s*=\s*\{\{([\s\S]*?)\}\}/g;
   for (const match of source.matchAll(classListProp)) {
     const entries = match[1];
     const key = /(?:^|,)\s*(?:"([^"]+)"|'([^']+)'|([A-Za-z_][\w-]*))\s*:/g;
     for (const candidate of entries.matchAll(key)) {
-      pushValue(candidate[1] ?? candidate[2] ?? candidate[3]);
+      validateClassValue(candidate[1] ?? candidate[2] ?? candidate[3]);
     }
   }
-  return values.join("\n");
+  return { source, explicit: explicitValues.join("\n") };
+}
+
+export function extractUtilitySource(source: string): string {
+  return analyzeUtilitySource(source).source;
 }
 
 /** Conventional Wabou source roots that may contain utility classes. */
@@ -460,7 +409,7 @@ export function wabouHotUpdateModules(
 
 export function wabouStylePlugin(options: WabouStylePluginOptions): Plugin {
   let referenceGenerator: Awaited<ReturnType<typeof createGenerator>>;
-  const sources = new Map<string, string>();
+  const sources = new Map<string, { source: string; explicit: string }>();
   const sourceRoots = new Set([options.root]);
   const colorThemes = compileColorThemes(options.colorThemes);
   const contrastDiagnostics = auditColorThemeContrast(colorThemes);
@@ -487,15 +436,54 @@ export function wabouStylePlugin(options: WabouStylePluginOptions): Plugin {
   const virtual = "virtual:wabou-stylesheet";
   const resolved = `\0${virtual}`;
 
+  function updateSource(id: string, source: string): boolean {
+    const analyzed = analyzeUtilitySource(source);
+    const previous = sources.get(id);
+    if (
+      previous?.source === analyzed.source &&
+      previous.explicit === analyzed.explicit
+    ) {
+      return false;
+    }
+    sources.set(id, analyzed);
+    return true;
+  }
+
   async function regenerate() {
     if (!referenceGenerator) return;
-    const utilitySource = [...sources.values()].join("\n");
+    const utilitySource = [...sources.values()]
+      .map(({ source }) => source)
+      .join("\n");
+    const explicitSource = [...sources.values()]
+      .map(({ explicit }) => explicit)
+      .join("\n");
     const reference = await referenceGenerator.generate(utilitySource, {
       preflights: false,
     });
-    const matched = filterIgnoredClasses(
+    const explicitReference = await referenceGenerator.generate(
+      explicitSource,
+      {
+        preflights: false,
+      },
+    );
+    const discovered = filterIgnoredClasses(
       reference.matched,
       ignoredClassPatterns,
+    );
+    const explicit = new Set(
+      filterIgnoredClasses(explicitReference.matched, ignoredClassPatterns),
+    );
+    const isSemanticColor = (candidate: string) => {
+      const match = candidate.match(/^(?:bg|text|border)-(.+)$/);
+      return match !== null && semanticTokens.has(match[1]);
+    };
+    const matched = new Set(
+      [...discovered].filter(
+        (candidate) =>
+          explicit.has(candidate) ||
+          isSemanticColor(candidate) ||
+          validateWabouUtility(candidate) === undefined,
+      ),
     );
     assertSupportedWabouCandidates(matched, semanticTokens);
     stylesheet = {
@@ -545,7 +533,7 @@ export function wabouStylePlugin(options: WabouStylePluginOptions): Plugin {
         }
         if (accepts(path)) {
           const contents = await readFile(path, "utf8");
-          sources.set(path, extractUtilitySource(contents));
+          updateSource(path, contents);
         }
       }),
     );
@@ -604,8 +592,7 @@ export function wabouStylePlugin(options: WabouStylePluginOptions): Plugin {
     async transform(code, id) {
       if (id === resolved) return;
       if (!accepts(id)) return;
-      sources.set(id, extractUtilitySource(code));
-      await regenerate();
+      if (updateSource(id, code)) await regenerate();
     },
     resolveId(id) {
       return id === virtual ? resolved : null;
@@ -623,8 +610,7 @@ export function wabouStylePlugin(options: WabouStylePluginOptions): Plugin {
     async handleHotUpdate({ file, server, modules }) {
       if (!accepts(file)) return;
       const contents = await readFile(file, "utf8");
-      sources.set(file, extractUtilitySource(contents));
-      await regenerate();
+      if (updateSource(file, contents)) await regenerate();
       const module = server.moduleGraph.getModuleById(resolved);
       if (module) {
         server.moduleGraph.invalidateModule(module);

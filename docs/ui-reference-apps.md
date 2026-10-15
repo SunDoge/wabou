@@ -44,7 +44,7 @@ Run the focused proof with:
 
 ```bash
 bun apps/pi-agent/tests/layout.ts shell/electron-reference
-target/release/wabou render apps/pi-agent \
+target/release/wabou-render render apps/pi-agent \
   --fixture shell/electron-reference \
   --out target/pi-agent-electron-reference.png
 ```

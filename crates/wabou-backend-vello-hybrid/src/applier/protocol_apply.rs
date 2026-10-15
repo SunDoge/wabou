@@ -1,110 +1,6 @@
 use super::*;
 
-fn decode_vector_path(data: &[u8]) -> Option<Arc<vello_shell::style::VectorPath>> {
-    use vello_common::kurbo::{BezPath, Cap, Join, Stroke};
-
-    const MAGIC: u32 = 0x3150_4257;
-    if data.len() < 36
-        || u32::from_le_bytes(data[0..4].try_into().ok()?) != MAGIC
-        || u16::from_le_bytes(data[4..6].try_into().ok()?) != 1
-        || u16::from_le_bytes(data[6..8].try_into().ok()?) != 0
-        || u32::from_le_bytes(data[12..16].try_into().ok()?) as usize != data.len()
-    {
-        return None;
-    }
-    let count = u32::from_le_bytes(data[8..12].try_into().ok()?) as usize;
-    if count > (data.len() - 36) / 4 {
-        return None;
-    }
-    let fill = u32::from_le_bytes(data[16..20].try_into().ok()?);
-    let stroke = u32::from_le_bytes(data[20..24].try_into().ok()?);
-    let stroke_width = f32::from_le_bytes(data[24..28].try_into().ok()?);
-    let fill_rule = data[28];
-    let line_cap = data[29];
-    let line_join = data[30];
-    let miter_limit = f32::from_le_bytes(data[32..36].try_into().ok()?);
-    if data[31] != 0
-        || !stroke_width.is_finite()
-        || stroke_width <= 0.0
-        || !miter_limit.is_finite()
-        || miter_limit <= 0.0
-        || fill_rule > 1
-        || line_cap > 2
-        || line_join > 2
-    {
-        return None;
-    }
-    let mut offset = 36usize;
-    let mut path = BezPath::new();
-    let mut has_subpath = false;
-    let read = |offset: &mut usize| -> Option<f64> {
-        let end = offset.checked_add(4)?;
-        let value = f32::from_le_bytes(data.get(*offset..end)?.try_into().ok()?);
-        *offset = end;
-        value.is_finite().then_some(f64::from(value))
-    };
-    for _ in 0..count {
-        let command = *data.get(offset)?;
-        if data.get(offset + 1..offset + 4)? != [0, 0, 0] {
-            return None;
-        }
-        offset += 4;
-        match command {
-            1 => {
-                path.move_to((read(&mut offset)?, read(&mut offset)?));
-                has_subpath = true;
-            }
-            2 if has_subpath => path.line_to((read(&mut offset)?, read(&mut offset)?)),
-            3 if has_subpath => path.quad_to(
-                (read(&mut offset)?, read(&mut offset)?),
-                (read(&mut offset)?, read(&mut offset)?),
-            ),
-            4 if has_subpath => path.curve_to(
-                (read(&mut offset)?, read(&mut offset)?),
-                (read(&mut offset)?, read(&mut offset)?),
-                (read(&mut offset)?, read(&mut offset)?),
-            ),
-            5 if has_subpath => {
-                path.close_path();
-                has_subpath = false;
-            }
-            _ => return None,
-        }
-    }
-    if offset != data.len() || path.is_empty() {
-        return None;
-    }
-    let color = |rgba: u32| {
-        ((rgba & 0xff) != 0).then(|| {
-            Color::from_rgba8(
-                (rgba >> 24) as u8,
-                (rgba >> 16) as u8,
-                (rgba >> 8) as u8,
-                rgba as u8,
-            )
-        })
-    };
-    let cap = match line_cap {
-        1 => Cap::Round,
-        2 => Cap::Square,
-        _ => Cap::Butt,
-    };
-    let join = match line_join {
-        1 => Join::Round,
-        2 => Join::Bevel,
-        _ => Join::Miter,
-    };
-    Some(Arc::new(vello_shell::style::VectorPath {
-        path: Arc::new(path),
-        fill: color(fill),
-        stroke: color(stroke),
-        even_odd: fill_rule == 1,
-        stroke_style: Stroke::new(f64::from(stroke_width))
-            .with_caps(cap)
-            .with_join(join)
-            .with_miter_limit(f64::from(miter_limit)),
-    }))
-}
+use vello_shell::vector_path::decode_vector_path;
 
 fn style_value_ir(value: crate::protocol::StyleValue) -> IrValue {
     use crate::protocol::StyleValue;
@@ -385,6 +281,7 @@ impl Applier {
         let Some(node) = self.document.node_store.remove(id) else {
             return;
         };
+        self.document.motion.remove_node(node);
         self.document.runtime_transforms.remove(&node);
         self.document.overlay_planes.remove(&node);
         self.interaction.scroll.styles.remove(&node);
@@ -414,10 +311,13 @@ impl Applier {
         let Some(&node) = self.document.node_store.solid_to_node.get(&id) else {
             return;
         };
-        let is_class = matches!(
-            self.document.atoms.borrow().resolve(name),
-            Some("class" | "className")
-        );
+        let attribute_name = self
+            .document
+            .atoms
+            .borrow()
+            .resolve(name)
+            .map(str::to_owned);
+        let is_class = matches!(attribute_name.as_deref(), Some("class" | "className"));
         let affects_resolved_style = is_class || self.is_in_svg_subtree(node);
         if let Some(declared) = self.document.node_store.declared.get_mut(&node) {
             if is_class {
@@ -429,9 +329,14 @@ impl Applier {
             }
             declared.attrs.insert(name, Arc::from(value));
         }
+        if matches!(attribute_name.as_deref(), Some("__wabou_native_motion"))
+            && let Err(error) = self.document.motion.set_json(node, value)
+        {
+            tracing::warn!(?id, %error, "ignored invalid native motion");
+        }
         let widget_changes = if !is_class
             && let Some(widget) = self.document.widget_manager.widgets.get_mut(&node)
-            && let Some(name) = self.document.atoms.borrow().resolve(name)
+            && let Some(name) = attribute_name.as_deref()
         {
             widget.attribute_changed(name, value)
         } else {
@@ -540,10 +445,13 @@ impl Applier {
         let Some(&node) = self.document.node_store.solid_to_node.get(&id) else {
             return;
         };
-        let is_class = matches!(
-            self.document.atoms.borrow().resolve(name),
-            Some("class" | "className")
-        );
+        let attribute_name = self
+            .document
+            .atoms
+            .borrow()
+            .resolve(name)
+            .map(str::to_owned);
+        let is_class = matches!(attribute_name.as_deref(), Some("class" | "className"));
         let affects_resolved_style = is_class || self.is_in_svg_subtree(node);
         if let Some(declared) = self.document.node_store.declared.get_mut(&node) {
             declared.attrs.remove(&name);
@@ -551,9 +459,12 @@ impl Applier {
                 declared.classes.clear();
             }
         }
+        if matches!(attribute_name.as_deref(), Some("__wabou_native_motion")) {
+            self.clear_native_motion(node);
+        }
         let widget_changes = if let Some(widget) =
             self.document.widget_manager.widgets.get_mut(&node)
-            && let Some(name) = self.document.atoms.borrow().resolve(name)
+            && let Some(name) = attribute_name.as_deref()
         {
             widget.attribute_removed(name)
         } else {
@@ -903,5 +814,4 @@ impl Applier {
 }
 
 #[cfg(test)]
-#[path = "protocol_apply/vector_path_tests.rs"]
 mod vector_path_tests;

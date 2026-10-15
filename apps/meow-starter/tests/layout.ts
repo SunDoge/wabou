@@ -18,7 +18,7 @@ import { renderAppLayout } from "@wabou/test/layout/node";
 
 const command = process.env.WABOU_LAYOUT_COMMAND
   ? process.env.WABOU_LAYOUT_COMMAND.split(" ").filter(Boolean)
-  : [resolve("target/release/wabou")];
+  : [resolve("target/release/wabou-render")];
 const selected = process.argv.slice(2).filter(Boolean);
 const cases = [
   { id: "meow-starter/overview-normal", width: 1_000, height: 680 },

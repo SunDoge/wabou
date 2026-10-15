@@ -1,6 +1,6 @@
 {
   "name": "@wabou/vite",
-  "version": "0.1.0-alpha.3",
+  "version": "0.1.0-alpha.4",
   "description": "Vite integration for Wabou applications.",
   "license": "Apache-2.0",
   "repository": {
@@ -45,6 +45,11 @@
       "wabou-source": "./src/config.ts",
       "types": "./dist/config.d.mts",
       "import": "./dist/config.mjs"
+    },
+    "./browser-style": {
+      "wabou-source": "./src/browser-style.ts",
+      "types": "./dist/browser-style.d.mts",
+      "import": "./dist/browser-style.mjs"
     }
   },
   "scripts": {
@@ -57,7 +62,7 @@
     "@formatjs/intl-locale": "^5.3.12",
     "@formatjs/intl-numberformat": "^9.4.3",
     "@formatjs/intl-pluralrules": "^6.3.15",
-    "@unocss/core": "^66.7.5",
+    "@unocss/core": "^66.11.0",
     "@wabou/core": "workspace:*",
     "magic-string": "^1.4.3",
     "smol-toml": "^1.9.1",

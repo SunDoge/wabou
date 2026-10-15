@@ -292,6 +292,8 @@ impl FrameSource for Applier {
             return Vec::new();
         }
 
+        self.tick_native_motions();
+
         let selection_scrolled = self.tick_text_selection_autoscroll();
         self.tick_scroll_motions();
         // Only re-inherit when a change can affect inherited content styles.
@@ -922,6 +924,7 @@ impl FrameSource for Applier {
             // become observable to AccessKit, DevTools, and behavior tests.
             || self.frame.projections.semantics_dirty
             || !self.interaction.scroll.motions.is_empty()
+            || self.document.motion.is_active()
             || self.document.invalidation.contains(InvalidationFlags::TICK)
     }
 

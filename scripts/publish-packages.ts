@@ -7,6 +7,7 @@ const root = new URL("..", import.meta.url).pathname;
 const packageDirectories = [
   "core",
   "ui",
+  "pdf",
   "terminal",
   "test",
   "vite",

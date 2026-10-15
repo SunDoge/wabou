@@ -18,7 +18,7 @@
 pub use wabou_backend_vello_hybrid::VelloHybridHostBuilder as HostBuilder;
 #[cfg(feature = "vello-hybrid")]
 pub use wabou_backend_vello_hybrid::{
-    Error, ImageResource, ImageResourceHandle, ImageResourceStore, Result,
+    Error, ImageResource, ImageResourceHandle, ImageResourceStore, NativeWidgetPlugin, Result,
     VelloHybridEffectRequest, VelloHybridExtensionContext, VelloHybridHostBuilder,
     VelloHybridPaintContext, VelloHybridPoint, VelloHybridPointerButton, VelloHybridPointerPhase,
     VelloHybridRasterImage, VelloHybridSecretStore, VelloHybridShellExtension,
@@ -26,27 +26,24 @@ pub use wabou_backend_vello_hybrid::{
     Widget as VelloHybridWidget,
 };
 #[cfg(feature = "bindings")]
-pub use wabou_bindgen::{Bindings, Capability, FunctionModule, NativeMethod, Type, specta};
+pub use wabou_bindgen::{
+    Bindings, Capability, FunctionModule, NativeMethod, Type, WidgetModule, specta,
+};
 pub use wabou_bindgen::{CapabilityContract, HostMethod, JsonMethod};
 pub use wabou_database::{
     AtomicCommit as KvAtomicCommit, KvCheck, KvEntry, KvKey, KvKeyPart, KvListOptions, KvMutation,
     KvStore, Versionstamp as KvVersionstamp,
 };
 pub use wabou_runtime::RgbaColor as Color;
-#[cfg(feature = "capability-modules")]
-pub use wabou_runtime::capability_development::{
-    CapabilityDevelopment, DevelopmentStatus, ModuleProject,
-};
-#[cfg(feature = "capability-modules")]
-pub use wabou_runtime::capability_module::{CapabilityModule, HostOperations, ModuleInvocation};
 pub use wabou_runtime::rquickjs;
 pub use wabou_runtime::{
     AppDirectories, AppDirectoryConfig, HostMessage, HostMessageContext, HostMessageError,
     HostMessageHandle, HostMessagePayload, HostMessageRouter, HostService, HostServiceContext,
     HostServiceHandle, ManagedHostService, NativeCapability, PersistentJsonCache,
-    RevisionedHostPublication, RevisionedHostPublisher, RevisionedHostSnapshot, SerialWorker,
-    WindowBackground, WindowInputMode, WindowLevel, WindowOptions, WindowResourceKey,
-    initial_window_resource_key, managed_host_service,
+    ResidentResources, ResourceKey, ResourceRegistry, RevisionedHostPublication,
+    RevisionedHostPublisher, RevisionedHostSnapshot, SerialWorker, WindowBackground,
+    WindowInputMode, WindowLevel, WindowOptions, WindowResourceKey, initial_window_resource_key,
+    managed_host_service,
 };
 #[cfg(feature = "tray")]
 pub use wabou_tray::{SystemTray, TrayContext, TrayImage};
@@ -76,6 +73,7 @@ mod tests {
 
         let _ =
             Bindings::new().capability(Capability::new(CapabilityContract::new("workspace", 1)));
+        let _widgets = WidgetModule::new();
         let mut types = specta::Types::default();
         let _ = Payload::definition(&mut types);
     }

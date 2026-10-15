@@ -1,3 +1,5 @@
+import { hasBrowserDom } from "../browser-dom";
+
 // Timer identity and cancellation stay in JavaScript. Rust only provides an
 // async sleep primitive, so rquickjs owns Promise scheduling and Tokio owns the
 // actual deadline.
@@ -52,23 +54,25 @@ function schedule(
   return id;
 }
 
-(globalThis as any).setTimeout = (
-  callback: (...args: any[]) => void,
-  delay = 0,
-  ...args: any[]
-): number => schedule(callback, Number(delay) || 0, false, args);
+if (!hasBrowserDom()) {
+  (globalThis as any).setTimeout = (
+    callback: (...args: any[]) => void,
+    delay = 0,
+    ...args: any[]
+  ): number => schedule(callback, Number(delay) || 0, false, args);
 
-(globalThis as any).setInterval = (
-  callback: (...args: any[]) => void,
-  delay = 0,
-  ...args: any[]
-): number => schedule(callback, Number(delay) || 0, true, args);
+  (globalThis as any).setInterval = (
+    callback: (...args: any[]) => void,
+    delay = 0,
+    ...args: any[]
+  ): number => schedule(callback, Number(delay) || 0, true, args);
+}
 
 function clearTimer(id: number): void {
   active.delete(id);
 }
 
-(globalThis as any).clearTimeout = clearTimer;
-(globalThis as any).clearInterval = clearTimer;
-
-export {};
+if (!hasBrowserDom()) {
+  (globalThis as any).clearTimeout = clearTimer;
+  (globalThis as any).clearInterval = clearTimer;
+}

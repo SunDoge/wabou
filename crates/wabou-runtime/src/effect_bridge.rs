@@ -6,6 +6,7 @@ use std::rc::Rc;
 use std::sync::atomic::{AtomicU32, Ordering};
 
 use crate::effect_trace::{EffectTrace, TraceSubmission};
+use crate::host_abi::{HostBinding, register_function, register_value};
 use crate::jsrt::JsRuntime;
 
 use wabou_shell_api as wabou_shell;
@@ -47,8 +48,9 @@ impl EffectBridge {
     fn install_functions(&self, js: &JsRuntime, window_key: wabou_shell::WindowResourceKey) {
         let submit_bridge = self.clone();
         js.with(|ctx| -> rquickjs::Result<()> {
-            ctx.globals().set(
-                "__wabou_effect_submit",
+            register_function(
+                &ctx.globals(),
+                HostBinding::EffectSubmit,
                 rquickjs::Function::new(
                     ctx.clone(),
                     move |capability: u32, method: u16, payload_json: String| -> u32 {
@@ -96,10 +98,13 @@ impl EffectBridge {
                     },
                 )?,
             )?;
-            ctx.globals()
-                .set("__wabou_effect_abi", wabou_shell::EFFECT_ABI_VERSION)?;
-            ctx.globals().set("__wabou_window_id_lo", window_key.lo())?;
-            ctx.globals().set("__wabou_window_id_hi", window_key.hi())?;
+            register_value(
+                &ctx.globals(),
+                HostBinding::EffectAbi,
+                wabou_shell::EFFECT_ABI_VERSION,
+            )?;
+            register_value(&ctx.globals(), HostBinding::WindowIdLo, window_key.lo())?;
+            register_value(&ctx.globals(), HostBinding::WindowIdHi, window_key.hi())?;
             Ok(())
         })
         .expect("install effect host functions");

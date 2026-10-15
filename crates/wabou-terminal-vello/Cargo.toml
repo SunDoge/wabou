@@ -8,11 +8,11 @@ description = "Winit terminal widget for Wabou's Vello Hybrid backend."
 
 [dependencies]
 percent-encoding = "2"
-rio-graphics = "0.5.5"
-rio-vt = "0.5.5"
+rio-graphics = "0.5.28"
+rio-vt = "0.5.28"
 rustc-hash = "2"
 serde_json = { workspace = true }
-teletypewriter = "0.5.5"
+teletypewriter = "0.5.28"
 tracing = { workspace = true }
 vello-common.workspace = true
 wabou-shell-vello = { workspace = true }

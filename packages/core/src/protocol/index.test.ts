@@ -32,12 +32,48 @@ const projectionBoundaryV1 = JSON.parse(
 ) as { name: string; bytes: number[] };
 
 describe("Writer limits", () => {
+  test("a new host receives atoms even when its tag was used by the previous host", () => {
+    let host = 1;
+    const calls: number[] = [];
+    const writer = new Writer(() => {
+      calls.push(host);
+      return host;
+    });
+    writer.createElement(k(1), "view");
+    writer.flush();
+    host = 2;
+    writer.reset();
+    writer.createElement(k(2), "view");
+    expect(calls).toEqual([1, 2]);
+    const frame = writer.flush()!;
+    expect(
+      new DataView(frame.buffer, frame.byteOffset).getUint32(0, true),
+    ).toBe(1);
+    expect(
+      new DataView(frame.buffer, frame.byteOffset).getUint32(17, true),
+    ).toBe(2);
+  });
+
   test("rejects strings that cannot be represented by the wire format", () => {
     const writer = new Writer();
 
     expect(() => writer.createText(k(1), "x".repeat(0xffff))).toThrow(
       "maximum is 65534",
     );
+    expect(writer.flush()).toBeNull();
+  });
+
+  test("oversized graphics leave previous operations and subsequent writes intact", () => {
+    const writer = new Writer();
+    const expected = new Writer();
+    writer.createText(k(1), "retained");
+    expected.createText(k(1), "retained");
+    expect(() =>
+      writer.setGraphicSource(k(2), GRAPHIC_SOURCE.Svg, "界".repeat(22000)),
+    ).toThrow("maximum is 65534");
+    writer.createText(k(3), "retained");
+    expected.createText(k(3), "retained");
+    expect(writer.flush()).toEqual(expected.flush());
   });
 
   test("deduplicates repeated text within one frame only", () => {
@@ -207,8 +243,8 @@ describe("Writer limits", () => {
     expect(frame[8]).toBe(OP.SetTextBehavior);
     expect(view.getUint32(9, true)).toBe(42);
     expect(frame[17]).toBe(0x03);
-    expect(() => writer.setTextBehavior(k(42), 0x08)).toThrow(RangeError);
-    expect(() => writer.setTextBehavior(k(42), 0x07)).not.toThrow();
+    expect(() => writer.setTextBehavior(k(42), 0x10)).toThrow(RangeError);
+    expect(() => writer.setTextBehavior(k(42), 0x0f)).not.toThrow();
   });
 
   test("preserves the projection boundary v1 golden frame", () => {

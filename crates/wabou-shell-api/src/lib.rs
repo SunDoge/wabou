@@ -6,11 +6,13 @@ pub mod accessibility;
 pub mod app_dirs;
 pub mod color;
 pub mod effect;
-#[path = "generated/effect_abi.rs"]
-mod effect_abi;
+mod generated;
+use generated::effect_abi;
 pub mod event;
 pub mod floating;
 pub mod service;
+pub mod widget;
+pub mod widget_implementation;
 pub mod window;
 pub mod window_lifecycle;
 

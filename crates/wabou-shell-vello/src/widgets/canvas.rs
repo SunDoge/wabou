@@ -1,69 +1,65 @@
-//! A simple Canvas widget — the "hello world" of the Widget trait.
-//!
-//! Paints custom shapes (rect + circle + line) to prove the pipeline:
-//! Widget::paint → Scene → build_scene append. No interaction.
-//! Registered when the applier encounters `tag == "canvas"`.
+//! Built-in demonstration canvas.
+use super::WidgetAdapter;
+use serde_json::Value;
+use wabou_shell_api::widget_implementation::{
+    WidgetDraw as Draw, WidgetEvent as Event, WidgetImplementation, WidgetInputs as Inputs,
+    WidgetPresentation as Presentation, WidgetUpdate as Update,
+};
 
-use crate::PaintScene;
-use vello_common::kurbo::{Affine, Circle, Line, Rect, Stroke};
-use vello_common::peniko::{Color, Fill};
-use wabou_shell::UiEvent;
-use wabou_shell::{PaintContext, Widget, WidgetEventResult};
+struct CanvasImplementation;
+impl WidgetImplementation for CanvasImplementation {
+    fn measure(_: &Inputs) -> Result<Option<[f32; 2]>, String> {
+        Ok(None)
+    }
+    fn presentation(_: &Inputs) -> Result<Presentation, String> {
+        Ok(Presentation {
+            focusable: false,
+            ..Default::default()
+        })
+    }
+    fn paint(inputs: &Inputs) -> Result<Vec<Draw>, String> {
+        let [width, height] = inputs.size.map(f64::from);
+        if !width.is_finite() || !height.is_finite() || width <= 0.0 || height <= 0.0 {
+            return Ok(Vec::new());
+        }
+        Ok(vec![
+            Draw::Rect {
+                rect: [0.0, 0.0, width, height],
+                color: [30, 41, 59, 255],
+            },
+            Draw::Circle {
+                center: [width / 2.0, height / 2.0],
+                radius: width.min(height) * 0.3,
+                color: [99, 102, 241, 128],
+            },
+            Draw::Line {
+                from: [0.0, 0.0],
+                to: [width, height],
+                width: 2.0,
+                color: [34, 211, 238, 255],
+            },
+        ])
+    }
+    fn event(inputs: &Inputs, _: Event) -> Result<Update, String> {
+        Ok(Update {
+            state: inputs.state.clone(),
+            handled: false,
+        })
+    }
+}
 
-/// Stateless demonstration widget that paints into a backend-neutral scene.
+pub(super) fn adapter() -> WidgetAdapter {
+    WidgetAdapter::from_implementation::<CanvasImplementation>(Value::Null)
+}
+
+/// Compatibility unit-struct factory for the built-in canvas.
 pub struct Canvas;
+use wabou_shell::{PaintContext, Widget};
 
+// Standard registration retains the adapter and resource cache. Rust hosts
+// using the original unit-struct factory still use the same implementation.
 impl Widget for Canvas {
     fn paint(&mut self, cx: &mut PaintContext<'_>) {
-        let w = cx.width() as f64;
-        let h = cx.height() as f64;
-
-        // A checkerboard background to show the widget fills the content box.
-        let tile = 16.0;
-        let cols = (w / tile).ceil() as u32;
-        let rows = (h / tile).ceil() as u32;
-        for r in 0..rows {
-            for c in 0..cols {
-                if (r + c) % 2 == 0 {
-                    cx.scene_mut().fill(
-                        Fill::NonZero,
-                        Affine::IDENTITY,
-                        Color::from_rgb8(0x1e, 0x29, 0x3b),
-                        None,
-                        &Rect::new(
-                            c as f64 * tile,
-                            r as f64 * tile,
-                            (c + 1) as f64 * tile,
-                            (r + 1) as f64 * tile,
-                        ),
-                    );
-                }
-            }
-        }
-
-        // A circle in the center.
-        let center_x = w / 2.0;
-        let center_y = h / 2.0;
-        let radius = w.min(h) * 0.3;
-        cx.scene_mut().fill(
-            Fill::NonZero,
-            Affine::IDENTITY,
-            Color::from_rgba8(0x63, 0x66, 0xf1, 0x80),
-            None,
-            &Circle::new((center_x, center_y), radius),
-        );
-
-        // A diagonal line.
-        cx.scene_mut().stroke(
-            &Stroke::new(2.0),
-            Affine::IDENTITY,
-            Color::from_rgb8(0x22, 0xd3, 0xee),
-            None,
-            &Line::new((0.0, 0.0), (w, h)),
-        );
-    }
-
-    fn handle_event(&mut self, _event: &UiEvent) -> WidgetEventResult {
-        WidgetEventResult::IGNORED
+        adapter().paint(cx);
     }
 }

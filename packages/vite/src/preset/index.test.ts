@@ -119,6 +119,10 @@ describe("presetWabou", () => {
     expect(validateWabouUtility("p-[var(--space)]")?.message).toContain(
       "invalid Wabou spacing",
     );
+    expect(resolveWabouUtility("bg-[#369]")?.declarations[0].value).toEqual({
+      type: "color",
+      value: { kind: "literal", rgba: 0x336699ff },
+    });
     expect(validateWabouUtility("w-[calc(100%-2rem)]")?.message).toContain(
       "invalid Wabou dimension",
     );
@@ -172,6 +176,27 @@ describe("presetWabou", () => {
     const dimensions = await uno.generate("w-2/3 max-w-md");
     expect(dimensions.css).toContain("width:66.666");
     expect(dimensions.css).toContain("max-width:448px");
+  });
+
+  test("ignores candidates inherited from Object.prototype", async () => {
+    for (const candidate of [
+      "constructor",
+      "toString",
+      "valueOf",
+      "__proto__",
+      "bg-constructor",
+      "p-constructor",
+    ]) {
+      expect(resolveWabouUtility(candidate)).toBeUndefined();
+    }
+
+    const uno = await createGenerator({ presets: [presetWabou()] });
+    const result = await uno.generate(
+      "constructor toString valueOf __proto__ bg-constructor p-constructor",
+    );
+    expect(result.css).toContain("/* layer: preflights */");
+    expect(result.css).not.toContain(".constructor{");
+    expect(result.css).not.toContain(".bg-constructor{");
   });
 
   test("exposes application semantic colors to UnoCSS tooling", async () => {

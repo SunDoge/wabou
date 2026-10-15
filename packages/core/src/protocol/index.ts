@@ -76,11 +76,13 @@ export const TEXT_BEHAVIOR = {
   AggregateDirectText: 0x01,
   SingleLine: 0x02,
   AggregateStyledText: 0x04,
+  ClipLines: 0x08,
 } as const;
 const TEXT_BEHAVIOR_MASK =
   TEXT_BEHAVIOR.AggregateDirectText |
   TEXT_BEHAVIOR.SingleLine |
-  TEXT_BEHAVIOR.AggregateStyledText;
+  TEXT_BEHAVIOR.AggregateStyledText |
+  TEXT_BEHAVIOR.ClipLines;
 
 export const INTERACTION_POLICY = {
   Focusable: 0x01,
@@ -253,6 +255,7 @@ export class Writer {
   private buf = new Uint8Array(4096);
   private cursor = 8; // Reserve first 8 bytes for header (seq u32 + count u32)
   private count = 0;
+  private operationStart = 8;
   private seq = 0;
   private atoms = new Map<string, number>();
   /** Strings already emitted in this frame (only values large enough to win). */
@@ -270,6 +273,15 @@ export class Writer {
         ).__wabou_intern;
         return hostIntern ? hostIntern(value) : fallbackIntern(value);
       });
+  }
+
+  /** Host-lifetime reset; application remounts must keep using the same atoms. */
+  reset(): void {
+    this.cursor = 8;
+    this.count = 0;
+    this.seq = 0;
+    this.atoms.clear();
+    this.frameStrings.clear();
   }
 
   private ensure(n: number): void {
@@ -318,6 +330,10 @@ export class Writer {
     }
     const bytes = utf8Encode(s);
     if (bytes.length >= 0xffff) {
+      // Each string-bearing operation contains one payload string. Reject the
+      // entire operation, preserving earlier complete ops for the next flush.
+      this.cursor = this.operationStart;
+      this.count--;
       throw new RangeError(
         `protocol string is ${bytes.length} bytes; maximum is 65534`,
       );
@@ -352,6 +368,7 @@ export class Writer {
         "protocol frame cannot contain more than 2^32-1 ops",
       );
     }
+    this.operationStart = this.cursor;
     this.u8(op);
     this.count++;
   }

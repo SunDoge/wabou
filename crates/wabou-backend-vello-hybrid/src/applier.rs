@@ -58,39 +58,23 @@ use crate::host_frame::{HostEvent, HostNodeEvent, NodeEventPayload, ResizeObserv
 use crate::protocol::NodeKey;
 
 #[cfg(any(feature = "devtools", test))]
-#[path = "applier/debug_projection.rs"]
 mod debug_projection;
-#[path = "applier/floating.rs"]
 mod floating;
-#[path = "applier/focus.rs"]
 mod focus;
-#[path = "applier/frame_source.rs"]
 mod frame_source;
-#[path = "applier/input_router.rs"]
 mod input_router;
-#[path = "applier/interaction.rs"]
 mod interaction;
-#[path = "applier/node_store.rs"]
+mod motion;
 mod node_store;
-#[path = "applier/projections.rs"]
 mod projections;
-#[path = "applier/protocol_apply.rs"]
 mod protocol_apply;
-#[path = "applier/resources.rs"]
 mod resources;
-#[path = "applier/runtime_updates.rs"]
 mod runtime_updates;
-#[path = "applier/scroll.rs"]
 mod scroll;
-#[path = "applier/semantics.rs"]
 mod semantics;
-#[path = "applier/style_resolution.rs"]
 mod style_resolution;
-#[path = "applier/text_selection.rs"]
 mod text_selection;
-#[path = "applier/widget_bridge.rs"]
 mod widget_bridge;
-#[path = "applier/widget_manager.rs"]
 mod widget_manager;
 use crate::atom::{Atom, AtomPool};
 use crate::inline_context::{InlineFormattingContext, NodeFacts};
@@ -106,6 +90,7 @@ use crate::style_ir::{self, StyleSheet, StylesheetUpdate};
 #[cfg(test)]
 use input_router::EventMask;
 use input_router::{HitClip, HitItem, HitNode, InputRouter, hit_contains};
+use motion::NativeMotionState;
 use node_store::NodeStore;
 use projections::FrameProjections;
 use resources::ResourceState;
@@ -366,6 +351,7 @@ struct DocumentState {
     style: StyleState,
     resources: ResourceState,
     runtime_transforms: HashMap<NodeId, [f32; 6]>,
+    motion: NativeMotionState,
     overlay_planes: HashMap<NodeId, OverlayPlane>,
     base_color: Color,
     atoms: Rc<RefCell<AtomPool>>,
@@ -390,6 +376,7 @@ impl DocumentState {
             style: StyleState::default(),
             resources: ResourceState::default(),
             runtime_transforms: HashMap::new(),
+            motion: NativeMotionState::default(),
             overlay_planes: HashMap::new(),
             base_color,
             atoms,
@@ -769,14 +756,11 @@ impl Applier {
 
 /// Layer 2 — cascade / inherit / priority (see `computed_style.rs`).
 #[cfg(test)]
-#[path = "computed_style.rs"]
 mod computed_style;
 
 /// Layer 3 — final layout geometry (see `layout_fixtures.rs`).
 #[cfg(test)]
-#[path = "layout_fixtures.rs"]
 mod layout_fixtures;
 
 #[cfg(test)]
-#[path = "applier/tests.rs"]
 mod tests;

@@ -12,7 +12,7 @@ During the developer preview, depend on a tagged Git revision:
 [dependencies]
 wabou = {
   git = "https://github.com/SunDoge/wabou.git",
-  tag = "v0.1.0-alpha.3",
+  tag = "v0.1.0-alpha.4",
 }
 ```
 

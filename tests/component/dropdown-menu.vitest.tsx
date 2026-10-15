@@ -97,7 +97,7 @@ test("drives explicit popup motion from JavaScript", async () => {
   expect(panel?.transform).toEqual([0.9, 0, 0, 0.9, 0, 0]);
   await screen.advanceTime(100);
   expect(panel?.transform).toEqual([1, 0, 0, 1, 0, 0]);
-  expect(panel?.attribute("__wabou_native_transition")).toBeNull();
+  expect(panel?.attribute("__wabou_native_motion")).toBeNull();
 });
 
 test("owns aligned leading status and shortcut slots", () => {

@@ -59,43 +59,13 @@ persistence, DevTools, the Winit native-widget set, native behavior tests, and
 offscreen Vello Hybrid capture all use the same retained document and widget
 contracts.
 
-## Experimental Rust UI frontend
-
-Wabou's primary development path is QuickJS + SolidJS/TSX + UnoCSS, with Rust
-capabilities for application behavior. The tag UI frontend is an experiment in
-using versioned actors to preserve state across Rust implementation replacement.
-It remains a workspace member, but is excluded from the default build/test set;
-select its packages explicitly or use `--workspace` to include the experiment.
-
-`wabou-native` provides tag UI in ordinary Rust, dynamically tracked signals,
-fine-grained live text/style updates and actor implementation replacement.
-SDK/runtime implementation crates live in this checkout. This frontend shares
-native shell/widgets with Wabou; its actor protocol and service catalogue remain
-separate from the TSX capability frontend.
-
-From the checkout:
-
-```sh
-cargo build -p wabou-cli --features native-ui
-./target/debug/wabou check native/apps/native-counter --tests
-./target/debug/wabou test native/apps/native-counter
-./target/debug/wabou dev native/apps/native-counter
-./target/debug/wabou build native/apps/native-counter --static --release
-```
-
-Create a standalone Rust app with `wabou native new PATH`. Generated projects
-use local SDK paths and explicit Rust frontend metadata. `cargo fmt` formats
-UI source. See the [Rust frontend guide](native/wabou-native/README.md),
-[tag UI example](native/wabou-native/TAG_UI.md), [async example](native/wabou-native/ASYNC.md)
-and [repository verification commands](scripts/native/README.md).
-
 ## Create an application
 
 During the Git-preview phase, install the CLI from the release tag:
 
 ```bash
 cargo install --git https://github.com/SunDoge/wabou.git \
-  --tag v0.1.0-alpha.3 --locked wabou-cli
+  --tag v0.1.0-alpha.4 --locked wabou-cli
 wabou new hello-wabou
 cd hello-wabou
 bun install
@@ -136,13 +106,14 @@ the public JavaScript facades through `workspace:*`:
 {
   "workspaces": ["vendor/wabou/packages/*"],
   "dependencies": {
+    "@solidjs/web": "2.0.0-rc.14",
     "@wabou/ui": "workspace:*",
-    "solid-js": "2.0.0-rc.6"
+    "solid-js": "2.0.0-rc.14"
   },
   "devDependencies": {
     "@wabou/test": "workspace:*",
     "@wabou/vite": "workspace:*",
-    "vite": "^8.2.2"
+    "vite": "^8.3.4"
   }
 }
 ```
@@ -316,7 +287,7 @@ preview tag you are testing:
 
 ```toml
 [dependencies]
-wabou = { git = "https://github.com/SunDoge/wabou.git", tag = "v0.1.0-alpha.3" }
+wabou = { git = "https://github.com/SunDoge/wabou.git", tag = "v0.1.0-alpha.4" }
 ```
 
 Other examples include a [Hacker News client](apps/hackernews) and a
@@ -345,6 +316,7 @@ Read more about [styling](docs/style.md), [windows](docs/windows.md),
 [SQLite KV persistence](docs/kv.md),
 [JavaScript packages](docs/packages.md),
 [native widgets](docs/native-widgets.md),
+[resident Rust resources](docs/resident-resources.md),
 [host-to-JavaScript communication](docs/host-to-js.md), and
 [composable events](docs/composable-events.md). Public API naming and embedded
 host testing are documented in the [JavaScript API design guide](docs/api-design.md).

@@ -259,6 +259,15 @@ fn theme_color(token: &str, theme: &Theme) -> Option<u32> {
 fn arbitrary_color(token: &str) -> Option<u32> {
     let hex = token.strip_prefix("[#")?.strip_suffix(']')?;
     match hex.len() {
+        3 => {
+            let nibble = |index| u8::from_str_radix(&hex[index..index + 1], 16).ok();
+            Some(
+                (u32::from(nibble(0)?) * 0x1100_0000)
+                    | (u32::from(nibble(1)?) * 0x0011_0000)
+                    | (u32::from(nibble(2)?) * 0x0000_1100)
+                    | 0xff,
+            )
+        }
         6 => u32::from_str_radix(hex, 16)
             .ok()
             .map(|rgb| (rgb << 8) | 0xff),

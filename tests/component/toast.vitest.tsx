@@ -28,7 +28,7 @@ test("animates and retains a polite toast by default", async () => {
   expect(toast.children[0]?.className).toContain("rounded-lg");
   expect(toast.children[0]?.className).toContain("border-strong");
   expect(toast.children[0]?.className).toContain("py-3.5");
-  expect(toast.attribute("__wabou_native_transition")).toBeNull();
+  expect(toast.attribute("__wabou_native_motion")).toBeNull();
   expect(toast.transform).toEqual([1, 0, 0, 1, 0, 12]);
   expect(toast.style("opacity")).toBe("0");
   await screen.advanceTime(180);

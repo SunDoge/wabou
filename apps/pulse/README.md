@@ -22,7 +22,7 @@ Gallery layout fixtures, allowing native offscreen comparison:
 cargo run -p wabou-cli -- render apps/gallery --fixture demos/pulse-overview --out /tmp/pulse.png
 cargo run -p wabou-cli -- render apps/gallery --fixture demos/pulse-compact --out /tmp/pulse-compact.png
 bun x vitest run tests/component/pulse.vitest.tsx
-WABOU_LAYOUT_COMMAND=target/debug/wabou bun apps/gallery/tests/layout.ts demos/pulse-overview demos/pulse-compact
+WABOU_LAYOUT_COMMAND=target/debug/wabou-render bun apps/gallery/tests/layout.ts demos/pulse-overview demos/pulse-compact
 ```
 
 Interval selection changes the sample history projection. Pause/resume changes

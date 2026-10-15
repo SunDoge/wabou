@@ -1,6 +1,5 @@
 //! Replaceable application behavior for the component gallery.
-use gallery_api::{CAPABILITY, DESCRIBE_PALETTE, DescribePaletteRequest, DescribePaletteResponse};
-use wabou_capability_sdk::export_handlers;
+use gallery_api::{DescribePaletteRequest, DescribePaletteResponse};
 
 /// Generates a small palette description for the binding demonstration.
 pub fn describe_palette(
@@ -12,9 +11,4 @@ pub fn describe_palette(
             .map(|index| format!("{}-{index}", request.name))
             .collect(),
     })
-}
-
-export_handlers! {
-    version: CAPABILITY.version(),
-    DESCRIBE_PALETTE => |_, request| describe_palette(request),
 }

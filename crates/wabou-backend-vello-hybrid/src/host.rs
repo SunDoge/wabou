@@ -17,7 +17,7 @@ use wabou_bindgen::{CapabilityContract, JsonMethod};
 use wabou_shell_api::WindowBackground;
 
 use crate::{Applier, ImageResourceStore, JsRuntime, JsRuntimeOptions};
-use vello_shell::{FrameSource, Widget, WidgetFactory, WindowOptions};
+use vello_shell::{FrameSource, NativeWidgetPlugin, Widget, WidgetFactory, WindowOptions};
 
 type CapabilityInstaller = Arc<dyn Fn(&JsRuntime) -> rquickjs::Result<()>>;
 type HostMessageProducer = Arc<dyn Fn(crate::HostMessageContext) + Send + Sync>;
@@ -404,6 +404,12 @@ impl VelloHybridHostBuilder {
     ) -> Self {
         self.widget_factories.insert(tag.into(), Arc::new(factory));
         self
+    }
+
+    /// Install an optional statically linked native-widget plugin.
+    pub fn plugin(self, plugin: NativeWidgetPlugin) -> Self {
+        let tag = plugin.tag();
+        self.widget(tag, move || plugin.create())
     }
 
     /// Register secure native password inputs backed by one Rust-only store.

@@ -1,5 +1,32 @@
 # @wabou/terminal
 
+## 0.1.0-alpha.4
+
+### Patch Changes
+
+- Bundle the protocol, renderer, and typed style implementation into
+  `@wabou/core`. Expose stable `core` subpaths for advanced imports and stop
+  publishing the three implementation workspaces as standalone packages. Add a
+  tree-shakeable `@wabou/core/i18n` entry for compiled message libraries.
+- be282e7: Upgrade the Solid 2 runtime to rc.6 and the matching Solid Vite compiler to
+  the current Vite 8-compatible preview.
+- Updated dependencies
+- Updated dependencies
+- Updated dependencies
+- Updated dependencies
+- Updated dependencies
+- Updated dependencies
+- Updated dependencies
+- Updated dependencies
+- Updated dependencies [851d731]
+- Updated dependencies
+- Updated dependencies
+- Updated dependencies [be282e7]
+- Updated dependencies [625e23c]
+- Updated dependencies
+- Updated dependencies
+  - @wabou/core@0.1.0-alpha.4
+
 ## 0.1.0-alpha.3
 
 ### Patch Changes

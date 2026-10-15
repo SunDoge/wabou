@@ -11,57 +11,53 @@ name = "wabou_shell_vello"
 path = "src/lib.rs"
 
 [dependencies]
+wabou-render-core = { path = "../wabou-render-core" }
 wabou-protocol = { workspace = true, optional = true }
 zeroize = { workspace = true, optional = true }
 unicode-width = { workspace = true, optional = true }
-wabou-runtime = { workspace = true, features = ["capability-modules"], optional = true }
-wabou-capability-sdk = { path = "../wabou-capability-sdk", optional = true }
+wabou-host-api.workspace = true
 wabou-telemetry.workspace = true
 accesskit = "0.24.1"
-accesskit_xplat = "=0.1.1"
-arboard = { workspace = true }
-bitflags = { workspace = true }
 bytemuck.workspace = true
 futures-util = "0.3"
 glifo = { workspace = true, features = ["png"] }
-skrifa = { version = "0.44", default-features = false, features = ["std"] }
 image = { workspace = true, features = ["ico", "jpeg", "png", "webp"] }
-lru = "0.18.1"
-naga.workspace = true
-notify-rust = { workspace = true }
-open = { workspace = true }
 parley = { workspace = true }
 raw-window-handle = "0.6"
-rfd = { workspace = true }
 rustc-hash = "2"
 serde = { workspace = true, features = ["derive"] }
 serde_json.workspace = true
+skrifa = { version = "0.44", default-features = false, features = ["std"] }
 slotmap = { workspace = true }
 snafu = { workspace = true }
-taffy = { workspace = true, features = ["content_size", "parse"] }
 tracing = { workspace = true }
-unicode-segmentation = "1.12"
 url = { workspace = true }
-usvg.workspace = true
 vello-common.workspace = true
 vello-gpu = { workspace = true, features = ["wgpu", "wgpu_default", "text"] }
 wgpu.workspace = true
-wgpu-context.workspace = true
-winit = { workspace = true }
 wabou-shell-api = { workspace = true }
-wabou-style = { workspace = true }
 
 [features]
-profiling = []
+profiling = ["wabou-render-core/profiling"]
 widgets = ["dep:wabou-protocol", "dep:zeroize", "dep:unicode-width", "image/bmp", "image/gif"]
-widget-hot-reload = ["widgets", "dep:wabou-runtime", "dep:wabou-capability-sdk"]
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+accesskit_xplat = "=0.1.1"
+arboard = { workspace = true }
+notify-rust = { workspace = true }
+open = { workspace = true }
+rfd = { workspace = true }
+wgpu-context.workspace = true
+winit = { workspace = true }
+
 pollster = "1.0"
 
 [dev-dependencies]
+taffy.workspace = true
 tempfile = "3"
 
 [target.'cfg(target_os = "macos")'.dependencies]
-objc2 = "0.6"
 objc2-app-kit = { version = "0.3", default-features = false, features = ["std", "NSView", "NSWindow", "NSScreen"] }
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+vello-gpu = { workspace = true, features = ["webgl", "text"] }

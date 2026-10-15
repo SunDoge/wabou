@@ -4,7 +4,7 @@ use std::collections::{HashMap, HashSet};
 
 macro_rules! semantic_roles {
     ($( $(#[$doc:meta])* $variant:ident => $name:literal ),+ $(,)?) => {
-        #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+        #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
         /// Renderer-independent role understood by Wabou's accessibility bridge.
         pub enum SemanticRole {
             $( $(#[$doc])* $variant, )+

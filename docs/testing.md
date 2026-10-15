@@ -21,7 +21,7 @@ Upgrade `rquickjs` in both the runtime and native backend together with a
 compatible `rquickjs-serde`. Run the runtime contracts and backend feature check:
 
 ```bash
-cargo test -p wabou-runtime --features capability-modules,vite --lib
+cargo test -p wabou-runtime --features vite --lib
 cargo check -p wabou-backend-vello-hybrid --features vite,devtools
 ```
 
@@ -876,7 +876,7 @@ For precompiled runtime/capability boundaries and hot-reload recovery:
 ```bash
 bun run scripts/check-runtime-boundaries.ts
 cargo test -p wabou-cli --no-default-features
-cargo test -p wabou-runtime --features vite,capability-modules --lib
+cargo test -p wabou-runtime --features vite --lib
 bun test packages/vite/src/runtime/client.test.ts
 ```
 

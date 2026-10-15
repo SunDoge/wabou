@@ -13,6 +13,7 @@
       "direction": "host",
       "owner": "runtime",
       "kind": "function",
+      "browserMethod": "intern",
       "params": [["value", "string"]],
       "returns": "number"
     },
@@ -25,10 +26,43 @@
       "returns": "boolean"
     },
     {
+      "name": "__wabou_motion_create",
+      "direction": "host",
+      "owner": "runtime",
+      "kind": "function",
+      "browserMethod": "motion_create",
+      "params": [["descriptor", "string"]],
+      "returns": "number"
+    },
+    {
+      "name": "__wabou_motion_sample",
+      "direction": "host",
+      "owner": "runtime",
+      "kind": "function",
+      "browserMethod": "motion_sample",
+      "params": [
+        ["id", "number"],
+        ["elapsed", "number"],
+        ["output", "Float64Array"]
+      ],
+      "returns": "boolean"
+    },
+    {
+      "name": "__wabou_motion_drop",
+      "direction": "host",
+      "owner": "runtime",
+      "kind": "function",
+      "browserMethod": "motion_drop",
+      "params": [["id", "number"]],
+      "returns": "boolean"
+    },
+    {
       "name": "__wabou_set_stylesheet",
       "direction": "host",
       "owner": "runtime",
       "kind": "function",
+      "browserMethod": "set_stylesheet",
+      "browserInvalidates": true,
       "params": [["json", "string"]],
       "returns": "void"
     },

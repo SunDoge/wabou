@@ -3,7 +3,6 @@
 #![allow(missing_docs)]
 
 use crate::{IrColor, IrLength, IrValue};
-use bon::Builder;
 use serde::Deserialize;
 
 pub const VERSION: u16 = 6;
@@ -14,24 +13,19 @@ pub enum StylesheetUpdate {
     Ir(StyleSheet),
 }
 
-#[derive(Builder, Clone, Debug, Deserialize)]
+#[derive(Clone, Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct StyleSheet {
-    #[builder(default = VERSION)]
     pub version: u16,
     #[serde(default)]
-    #[builder(default)]
     pub theme: crate::Theme,
     #[serde(default, rename = "colorThemes")]
     pub color_themes: Option<ColorThemes>,
     #[serde(default)]
-    #[builder(default)]
     pub diagnostics: Vec<String>,
     #[serde(default, rename = "ignoredClassPatterns")]
-    #[builder(default)]
     pub ignored_class_patterns: Vec<String>,
     #[serde(default)]
-    #[builder(default)]
     pub rules: Vec<StyleRule>,
 }
 
@@ -55,26 +49,55 @@ pub enum Appearance {
     Dark,
 }
 
-#[derive(Builder, Clone, Debug, Deserialize)]
+#[derive(Clone, Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct StyleRule {
-    #[builder(into)]
     pub class_name: String,
     pub declarations: Vec<StyleDeclaration>,
-    #[builder(default = 10)]
     pub specificity: u16,
-    #[builder(default)]
     pub source_order: u32,
 }
 
-#[derive(Builder, Clone, Debug, Deserialize)]
+#[derive(Clone, Debug, Deserialize)]
 pub struct StyleDeclaration {
-    #[builder(into)]
     pub property: String,
     pub value: IrValue,
     #[serde(default)]
-    #[builder(default)]
     pub important: bool,
+}
+
+impl Default for StyleSheet {
+    fn default() -> Self {
+        Self {
+            version: VERSION,
+            theme: crate::Theme::default(),
+            color_themes: None,
+            diagnostics: Vec::new(),
+            ignored_class_patterns: Vec::new(),
+            rules: Vec::new(),
+        }
+    }
+}
+
+impl StyleRule {
+    pub fn new(class_name: impl Into<String>, declarations: Vec<StyleDeclaration>) -> Self {
+        Self {
+            class_name: class_name.into(),
+            declarations,
+            specificity: 10,
+            source_order: 0,
+        }
+    }
+}
+
+impl StyleDeclaration {
+    pub fn new(property: impl Into<String>, value: IrValue) -> Self {
+        Self {
+            property: property.into(),
+            value,
+            important: false,
+        }
+    }
 }
 
 impl StyleSheet {
@@ -333,21 +356,18 @@ pub mod fixture {
     use super::*;
 
     pub fn sheet(rules: Vec<StyleRule>) -> StyleSheet {
-        StyleSheet::builder().rules(rules).build()
+        StyleSheet {
+            rules,
+            ..StyleSheet::default()
+        }
     }
 
     pub fn rule(class_name: &str, declarations: Vec<StyleDeclaration>) -> StyleRule {
-        StyleRule::builder()
-            .class_name(class_name)
-            .declarations(declarations)
-            .build()
+        StyleRule::new(class_name, declarations)
     }
 
     pub fn declaration(property: &str, value: IrValue) -> StyleDeclaration {
-        StyleDeclaration::builder()
-            .property(property)
-            .value(value)
-            .build()
+        StyleDeclaration::new(property, value)
     }
 
     pub fn keyword(value: &str) -> IrValue {
@@ -471,8 +491,8 @@ mod tests {
 
     #[test]
     fn class_cascade_resolves_active_theme_tokens_before_backend_projection() {
-        let sheet = StyleSheet::builder()
-            .color_themes(ColorThemes {
+        let sheet = StyleSheet {
+            color_themes: Some(ColorThemes {
                 default: "light".into(),
                 themes: std::collections::HashMap::from([(
                     "light".into(),
@@ -481,15 +501,16 @@ mod tests {
                         colors: std::collections::HashMap::from([("accent".into(), 0x1234_56ff)]),
                     },
                 )]),
-            })
-            .rules(vec![fixture::rule(
+            }),
+            rules: vec![fixture::rule(
                 "accent-text",
                 vec![fixture::declaration(
                     "color",
                     fixture::color_token("accent"),
                 )],
-            )])
-            .build();
+            )],
+            ..StyleSheet::default()
+        };
 
         let resolved = resolve_classes(&sheet, &["accent-text"]);
         assert_eq!(

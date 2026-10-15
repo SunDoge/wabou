@@ -1,4 +1,4 @@
-//! Deterministic TypeScript clients and declarations for Wabou capabilities.
+//! Deterministic TypeScript clients, declarations, and native-widget wrappers.
 //!
 //! A native QuickJS method may return immediately or through a Promise.
 //! Generated clients normalize both forms to an asynchronous typed API.
@@ -17,9 +17,13 @@ use std::marker::PhantomData;
 
 use serde::{Serialize, de::DeserializeOwned};
 #[cfg(feature = "generate")]
+use specta::datatype::{Fields, Reference};
+#[cfg(feature = "generate")]
 pub use specta::{self, Type};
 #[cfg(feature = "generate")]
 use specta::{Format, Types, datatype::DataType};
+#[cfg(feature = "generate")]
+pub use specta_typescript;
 #[cfg(feature = "generate")]
 use specta_typescript::{Typescript, primitives};
 #[cfg(feature = "generate")]
@@ -400,6 +404,155 @@ pub struct FunctionModule {
     declarations: BTreeMap<String, String>,
 }
 
+/// Generated Solid components for Rust-owned native widget configurations.
+///
+/// Specta supplies the Serde deserialization shape while this module adds the
+/// Wabou-specific component name, native tag, reactive configuration wrapper,
+/// and presentation-prop split.
+#[cfg(feature = "generate")]
+#[derive(Clone, Debug, Default, Eq, PartialEq)]
+pub struct WidgetModule {
+    widgets: Vec<WidgetBinding>,
+}
+
+#[cfg(feature = "generate")]
+#[derive(Clone, Debug, Eq, PartialEq)]
+struct WidgetBinding {
+    component: String,
+    tag: String,
+    config_type: String,
+    config_fields: Vec<String>,
+    declarations: BTreeMap<String, String>,
+}
+
+#[cfg(feature = "generate")]
+impl WidgetModule {
+    /// Construct an empty native-widget module.
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Add one component backed by a Serde-deserializable Rust configuration.
+    ///
+    /// `component` must be a PascalCase TypeScript identifier. `tag` is the
+    /// native widget tag registered with the Rust host. Config fields are read
+    /// from Specta after applying the Serde deserialization mapping, so renamed,
+    /// skipped, and defaulted fields stay aligned with the actual Rust decoder.
+    pub fn widget<Config>(mut self, component: impl Into<String>, tag: impl Into<String>) -> Self
+    where
+        Config: Type + DeserializeOwned,
+    {
+        let component = component.into();
+        let tag = tag.into();
+        assert_identifier(&component, "widget component");
+        assert!(
+            component
+                .chars()
+                .next()
+                .is_some_and(|character| character.is_ascii_uppercase()),
+            "widget component `{component}` must start with an uppercase letter"
+        );
+        assert_native_widget_tag(&tag);
+        assert!(
+            self.widgets
+                .iter()
+                .all(|widget| widget.component != component),
+            "duplicate widget component `{component}`"
+        );
+        assert!(
+            self.widgets.iter().all(|widget| widget.tag != tag),
+            "duplicate native widget tag `{tag}`"
+        );
+
+        let mut types = Types::default();
+        let config = Config::definition(&mut types);
+        let format = specta_serde::PhasesFormat;
+        let mapped_types = format
+            .map_types(&types)
+            .unwrap_or_else(|error| panic!("cannot map widget `{component}` config: {error}"));
+        let config = specta_serde::select_phase_datatype(
+            &config,
+            &mapped_types,
+            specta_serde::Phase::Deserialize,
+        );
+        let config_type = render_mapped_datatype(&mapped_types, &config)
+            .unwrap_or_else(|error| panic!("cannot export widget `{component}` config: {error}"));
+        let config_fields = named_struct_fields(&mapped_types, &config, &component);
+        let declarations = specta_declarations(&types, specta_serde::Phase::Deserialize);
+        self.widgets.push(WidgetBinding {
+            component,
+            tag,
+            config_type,
+            config_fields,
+            declarations,
+        });
+        self
+    }
+
+    /// Render deterministic TSX components and their Rust-derived config types.
+    pub fn render(&self) -> String {
+        let mut output = String::from(HEADER);
+        output.push_str(
+            "import { NativeWidget, type PrimitiveProps } from \"@wabou/ui/primitives\";\n",
+        );
+        output.push_str("import { type JSX, omit } from \"solid-js\";\n\n");
+
+        let mut declarations = BTreeMap::new();
+        for widget in &self.widgets {
+            merge_declarations(&mut declarations, widget.declarations.clone());
+        }
+        push_declarations(&mut output, &declarations);
+
+        let mut widgets = self.widgets.iter().collect::<Vec<_>>();
+        widgets.sort_by(|left, right| left.component.cmp(&right.component));
+        for widget in widgets {
+            let props = format!("{}Props", widget.component);
+            output.push_str(&format!(
+                "export type {props} = Omit<PrimitiveProps, \"children\"> & {};\n\n",
+                widget.config_type
+            ));
+            output.push_str(&format!(
+                "/** Typed Solid wrapper for the Rust `{}` native widget. */\n",
+                widget.tag
+            ));
+            output.push_str(&format!(
+                "export function {}(props: {props}): JSX.Element {{\n",
+                widget.component
+            ));
+            output.push_str("  const nativeProps = omit(\n    props,");
+            for field in &widget.config_fields {
+                output.push_str(&format!("\n    \"{field}\","));
+            }
+            output.push_str("\n  );\n");
+            output.push_str(&format!(
+                "  const config = (): {} => ({{\n",
+                widget.config_type
+            ));
+            for field in &widget.config_fields {
+                output.push_str(&format!("    {field}: props.{field},\n"));
+            }
+            output.push_str("  });\n\n");
+            output.push_str(&format!(
+                "  return (\n    <NativeWidget\n      {{...nativeProps}}\n      tag=\"{}\"\n      projectionBoundary\n      config={{config()}}\n    />\n  );\n}}\n\n",
+                widget.tag
+            ));
+        }
+        output.truncate(output.trim_end().len());
+        output.push('\n');
+        output
+    }
+
+    /// Render and write the generated TSX module.
+    pub fn write(&self, path: impl AsRef<Path>) -> Result<(), BindingsError> {
+        write_generated(path.as_ref(), self.render())
+    }
+
+    /// Verify that an existing generated TSX module matches the Rust contract.
+    pub fn check(&self, path: impl AsRef<Path>) -> Result<(), BindingsError> {
+        check_generated(path.as_ref(), self.render())
+    }
+}
+
 #[cfg(feature = "generate")]
 struct FunctionSignature {
     name: String,
@@ -542,7 +695,7 @@ impl Bindings {
     /// capability contract, and typed JSON clients.
     pub fn render(&self) -> String {
         let mut output = String::from(HEADER);
-        output.push_str("import { type Host, useHost } from \"@wabou/core\";\n\n");
+        output.push_str("import { type Host, useHost } from \"@wabou/core/host\";\n\n");
         output.push_str("export type NativeResult<T> = T | PromiseLike<T>;\n\n");
 
         let mut declarations = BTreeMap::new();
@@ -1047,6 +1200,65 @@ fn assert_identifier(value: &str, kind: &str) {
     );
 }
 
+#[cfg(feature = "generate")]
+fn assert_native_widget_tag(tag: &str) {
+    let mut characters = tag.chars();
+    assert!(
+        characters
+            .next()
+            .is_some_and(|character| character.is_ascii_lowercase())
+            && characters.all(|character| {
+                character.is_ascii_lowercase() || character.is_ascii_digit() || character == '-'
+            }),
+        "invalid native widget tag `{tag}`"
+    );
+}
+
+#[cfg(feature = "generate")]
+fn named_struct_fields(types: &Types, datatype: &DataType, component: &str) -> Vec<String> {
+    fn collect(types: &Types, datatype: &DataType, component: &str, fields: &mut Vec<String>) {
+        match datatype {
+            DataType::Reference(Reference::Named(reference)) => {
+                let datatype = types
+                    .get(reference)
+                    .and_then(|datatype| datatype.ty.as_ref())
+                    .unwrap_or_else(|| panic!("widget `{component}` config type is unavailable"));
+                collect(types, datatype, component, fields);
+            }
+            DataType::Struct(structure) => {
+                let Fields::Named(named) = &structure.fields else {
+                    panic!("widget `{component}` config must be a named-field struct");
+                };
+                fields.extend(
+                    named
+                        .fields
+                        .iter()
+                        .filter(|(_, field)| field.ty.is_some())
+                        .map(|(name, _)| name.to_string()),
+                );
+            }
+            DataType::Intersection(parts) => {
+                for part in parts {
+                    collect(types, part, component, fields);
+                }
+            }
+            _ => panic!("widget `{component}` config must be a named-field struct"),
+        }
+    }
+
+    let mut fields = Vec::new();
+    collect(types, datatype, component, &mut fields);
+    let mut unique = BTreeSet::new();
+    for field in &fields {
+        assert_identifier(field, "widget config field");
+        assert!(
+            unique.insert(field.clone()),
+            "duplicate widget config field `{field}` in `{component}`"
+        );
+    }
+    fields
+}
+
 /// Return whether `value` is a valid identifier for Wabou's generated
 /// TypeScript capability and method contracts.
 pub fn is_contract_identifier(value: &str) -> bool {
@@ -1191,6 +1403,28 @@ mod tests {
         accepted: bool,
     }
 
+    #[derive(Deserialize, Type)]
+    #[serde(rename_all = "camelCase")]
+    struct PdfWidgetConfig {
+        file_path: String,
+        #[serde(default)]
+        page: u32,
+        #[serde(skip)]
+        runtime_only: bool,
+    }
+
+    #[derive(Deserialize, Type)]
+    struct SharedWidgetConfig {
+        theme: String,
+    }
+
+    #[derive(Deserialize, Type)]
+    struct FlattenedWidgetConfig {
+        title: String,
+        #[serde(flatten)]
+        shared: SharedWidgetConfig,
+    }
+
     #[derive(Serialize, Type)]
     struct DirectionalResponse {
         #[serde(skip_serializing_if = "Option::is_none")]
@@ -1257,6 +1491,7 @@ mod tests {
         assert!(output.contains("displayName: string"));
         assert!(output.contains("export type NativeResult<T> = T | PromiseLike<T>"));
         assert!(output.contains("interface NativeHostCapabilities"));
+        assert!(output.contains("@wabou/core/host"));
         assert!(!output.contains("@wabou/core/renderer"));
         assert!(output.contains("updateFile(request: string): NativeResult<string>"));
         assert!(output.contains("updateFile(request: FunctionRequest): Promise<FunctionResponse>"));
@@ -1415,6 +1650,39 @@ mod tests {
         assert!(output.contains("displayName: string"));
         assert!(output.contains("accepted: boolean"));
         assert!(output.contains("updateFile(request: FunctionRequest): Promise<FunctionResponse>"));
+    }
+
+    #[test]
+    fn widget_modules_generate_reactive_solid_wrappers_from_serde_fields() {
+        let output = WidgetModule::new()
+            .widget::<PdfWidgetConfig>("PdfView", "pdf-view")
+            .render();
+
+        assert!(output.contains("export type PdfWidgetConfig"));
+        assert!(output.contains("filePath: string"));
+        assert!(output.contains("page?: number"));
+        assert!(!output.contains("runtimeOnly"));
+        assert!(output.contains(
+            "export type PdfViewProps = Omit<PrimitiveProps, \"children\"> & PdfWidgetConfig"
+        ));
+        assert!(output.contains("omit(\n    props,\n    \"filePath\",\n    \"page\","));
+        assert!(output.contains("filePath: props.filePath"));
+        assert!(output.contains("page: props.page"));
+        assert!(output.contains("tag=\"pdf-view\""));
+        assert!(output.contains("config={config()}"));
+    }
+
+    #[test]
+    fn widget_modules_split_flattened_serde_fields() {
+        let output = WidgetModule::new()
+            .widget::<FlattenedWidgetConfig>("Panel", "native-panel")
+            .render();
+
+        assert!(output.contains("\"title\""));
+        assert!(output.contains("\"theme\""));
+        assert!(output.contains("title: props.title"));
+        assert!(output.contains("theme: props.theme"));
+        assert!(!output.contains("shared: props.shared"));
     }
 
     #[test]

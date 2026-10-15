@@ -1,0 +1,26 @@
+[package]
+name = "wabou-pdf"
+version.workspace = true
+edition = "2024"
+license.workspace = true
+publish = false
+
+[dependencies]
+hayro = "0.8.0"
+serde = { workspace = true, features = ["derive"] }
+wabou-bindgen = { workspace = true, optional = true, features = ["generate"] }
+wabou-render-core.workspace = true
+
+[features]
+bindings = ["dep:wabou-bindgen"]
+
+[dev-dependencies]
+serde_json.workspace = true
+tempfile = "3"
+vello-common.workspace = true
+wabou-shell-vello.workspace = true
+
+[[example]]
+name = "wabou-pdf-bindings"
+path = "examples/wabou-pdf-bindings.rs"
+required-features = ["bindings"]

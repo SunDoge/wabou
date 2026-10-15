@@ -6,7 +6,6 @@ import {
   CardContent,
   CardHeader,
   CardTitle,
-  createTransition,
   createWindowMatch,
   Icon,
   IconFrame,
@@ -28,6 +27,7 @@ import {
   View,
   WindowFrame,
 } from "@wabou/ui";
+import { createTransition } from "@wabou/ui/animation";
 import bot from "lucide-static/icons/bot.svg?raw";
 import check from "lucide-static/icons/check.svg?raw";
 import code from "lucide-static/icons/code-2.svg?raw";

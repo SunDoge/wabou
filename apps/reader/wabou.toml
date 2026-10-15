@@ -1,0 +1,7 @@
+[package]
+product-name = "Wabou Reader"
+identifier = "dev.wabou.reader"
+description = "A local-first native PDF reading and research workspace built with Wabou."
+authors = ["Wabou contributors"]
+license-file = "../../LICENSE"
+formats = ["appimage"]
