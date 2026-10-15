@@ -116,7 +116,14 @@ export default async () => ({ window: { title: 'Configured', width: 900, decorat
             fs::write(directory.path().join("wabou.config.ts"), format!(
                 "export default {{ ui: {{ entry: './custom.tsx' }}, window: {{ width: {expression} }} }};"
             )).unwrap();
-            assert!(prepare(&app).is_err(), "accepted {expression}");
+            let message = prepare(&app)
+                .err()
+                .unwrap_or_else(|| panic!("accepted {expression}"))
+                .to_string();
+            assert!(
+                message.contains("Wabou TS configuration failed"),
+                "unexpected error for {expression}: {message}"
+            );
         }
     }
     #[test]
@@ -128,12 +135,20 @@ export default async () => ({ window: { title: 'Configured', width: 900, decorat
             "export default { windows: {} };",
         )
         .unwrap();
-        assert!(prepare(&app).is_err());
+        let message = prepare(&app)
+            .err()
+            .expect("accepted misspelled field")
+            .to_string();
+        assert!(message.contains("unknown field `windows`"), "{message}");
         fs::write(
             directory.path().join("wabou.config.ts"),
             "export default { ui: { entry: 'missing.tsx' } };",
         )
         .unwrap();
-        assert!(prepare(&app).is_err());
+        let message = prepare(&app)
+            .err()
+            .expect("accepted missing entry")
+            .to_string();
+        assert!(message.contains("UI entry does not exist"), "{message}");
     }
 }
