@@ -640,19 +640,15 @@ impl App {
         }
         let mut response = self.source.handle_event(event);
         if let Some(request) = response.clipboard.take() {
-            if self.clipboard.is_none() {
-                self.clipboard = arboard::Clipboard::new().ok();
-            }
             match request {
                 ClipboardRequest::Write(text) => {
-                    if let Some(clipboard) = self.clipboard.as_mut() {
+                    if let Some(clipboard) = self.clipboard_mut() {
                         let _ = clipboard.set_text(text);
                     }
                 }
                 ClipboardRequest::Read => {
                     let text = self
-                        .clipboard
-                        .as_mut()
+                        .clipboard_mut()
                         .and_then(|clipboard| clipboard.get_text().ok());
                     if let Some(text) = text.filter(|text| !text.is_empty()) {
                         let pasted = self.source.handle_event(UiEvent::Paste(text));
@@ -893,6 +889,31 @@ impl App {
         }
     }
 
+    /// Open the platform clipboard on first use, returning it when available.
+    fn clipboard_mut(&mut self) -> Option<&mut arboard::Clipboard> {
+        if self.clipboard.is_none() {
+            self.clipboard = arboard::Clipboard::new().ok();
+        }
+        self.clipboard.as_mut()
+    }
+
+    /// Run a modal effect (dialog) future to completion on the event loop.
+    fn push_modal_effect<F, T>(&mut self, id: crate::EffectId, op: crate::EffectOp, run: F)
+    where
+        F: FnOnce(Option<&dyn winit::window::Window>) -> T,
+        T: Future<Output = crate::EffectResult> + 'static,
+    {
+        let parent = self.state.as_ref().map(|shell| &**shell.window());
+        let future = run(parent);
+        self.pending_modal_effects.push(Box::pin(async move {
+            crate::EffectCompletion {
+                id,
+                op,
+                result: future.await,
+            }
+        }));
+    }
+
     fn drain_host_actions(&mut self) -> bool {
         let mut handled = false;
         while let Some(action) = self.source.take_host_action() {
@@ -906,20 +927,13 @@ impl App {
                     }
                 }
                 HostAction::SetClipboard(text) => {
-                    if self.clipboard.is_none() {
-                        self.clipboard = arboard::Clipboard::new().ok();
-                    }
-                    if let Some(clipboard) = self.clipboard.as_mut() {
+                    if let Some(clipboard) = self.clipboard_mut() {
                         let _ = clipboard.set_text(text);
                     }
                 }
                 HostAction::WriteClipboard { request_id, text } => {
-                    if self.clipboard.is_none() {
-                        self.clipboard = arboard::Clipboard::new().ok();
-                    }
                     let success = self
-                        .clipboard
-                        .as_mut()
+                        .clipboard_mut()
                         .is_some_and(|clipboard| clipboard.set_text(text).is_ok());
                     self.source
                         .complete_host_action(HostActionResult::ClipboardWrite {
@@ -928,12 +942,8 @@ impl App {
                         });
                 }
                 HostAction::ReadClipboard { request_id } => {
-                    if self.clipboard.is_none() {
-                        self.clipboard = arboard::Clipboard::new().ok();
-                    }
                     let text = self
-                        .clipboard
-                        .as_mut()
+                        .clipboard_mut()
                         .and_then(|clipboard| clipboard.get_text().ok());
                     self.source
                         .complete_host_action(HostActionResult::Clipboard { request_id, text });
@@ -965,12 +975,8 @@ impl App {
             let op = request.payload.op();
             match request.payload {
                 crate::EffectPayload::ClipboardRead => {
-                    if self.clipboard.is_none() {
-                        self.clipboard = arboard::Clipboard::new().ok();
-                    }
                     let text = self
-                        .clipboard
-                        .as_mut()
+                        .clipboard_mut()
                         .and_then(|clipboard| clipboard.get_text().ok());
                     self.source.complete_effect(crate::EffectCompletion {
                         id,
@@ -979,12 +985,8 @@ impl App {
                     });
                 }
                 crate::EffectPayload::ClipboardWrite { text } => {
-                    if self.clipboard.is_none() {
-                        self.clipboard = arboard::Clipboard::new().ok();
-                    }
                     let result = if self
-                        .clipboard
-                        .as_mut()
+                        .clipboard_mut()
                         .is_some_and(|clipboard| clipboard.set_text(text).is_ok())
                     {
                         crate::EffectResult::Unit
@@ -1020,48 +1022,28 @@ impl App {
                     });
                 }
                 crate::EffectPayload::DialogOpen(request) => {
-                    let parent = self.state.as_ref().map(|shell| &**shell.window());
-                    let future = crate::system::open_dialog(parent, request);
-                    self.pending_modal_effects.push(Box::pin(async move {
-                        crate::EffectCompletion {
-                            id,
-                            op,
-                            result: crate::EffectResult::DialogPaths(future.await),
-                        }
-                    }));
+                    self.push_modal_effect(id, op, move |parent| {
+                        let future = crate::system::open_dialog(parent, request);
+                        async move { crate::EffectResult::DialogPaths(future.await) }
+                    });
                 }
                 crate::EffectPayload::DialogSave(request) => {
-                    let parent = self.state.as_ref().map(|shell| &**shell.window());
-                    let future = crate::system::save_dialog(parent, request);
-                    self.pending_modal_effects.push(Box::pin(async move {
-                        crate::EffectCompletion {
-                            id,
-                            op,
-                            result: crate::EffectResult::DialogPaths(future.await),
-                        }
-                    }));
+                    self.push_modal_effect(id, op, move |parent| {
+                        let future = crate::system::save_dialog(parent, request);
+                        async move { crate::EffectResult::DialogPaths(future.await) }
+                    });
                 }
                 crate::EffectPayload::DialogPickDirectory(request) => {
-                    let parent = self.state.as_ref().map(|shell| &**shell.window());
-                    let future = crate::system::pick_directory(parent, request);
-                    self.pending_modal_effects.push(Box::pin(async move {
-                        crate::EffectCompletion {
-                            id,
-                            op,
-                            result: crate::EffectResult::DialogPaths(future.await),
-                        }
-                    }));
+                    self.push_modal_effect(id, op, move |parent| {
+                        let future = crate::system::pick_directory(parent, request);
+                        async move { crate::EffectResult::DialogPaths(future.await) }
+                    });
                 }
                 crate::EffectPayload::DialogMessage(request) => {
-                    let parent = self.state.as_ref().map(|shell| &**shell.window());
-                    let future = crate::system::message_dialog(parent, request);
-                    self.pending_modal_effects.push(Box::pin(async move {
-                        crate::EffectCompletion {
-                            id,
-                            op,
-                            result: crate::EffectResult::DialogMessage(future.await),
-                        }
-                    }));
+                    self.push_modal_effect(id, op, move |parent| {
+                        let future = crate::system::message_dialog(parent, request);
+                        async move { crate::EffectResult::DialogMessage(future.await) }
+                    });
                 }
                 crate::EffectPayload::NotificationShow(request) => {
                     if request.title.trim().is_empty() {
