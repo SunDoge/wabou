@@ -446,23 +446,28 @@ impl Applier {
                 if let Some(declared) = self.document.node_store.declared.get_mut(&node) {
                     declared.image_resource = resource.as_ref().and(handle);
                 }
-                if let Some(resource) = resource {
-                    let (width, height) = resource.dimensions();
-                    if let Some(&target) = self.document.node_store.node_to_solid.get(&node) {
-                        self.dispatch_image_resource_ready(
-                            target,
-                            handle.expect("resolved resource has a handle"),
-                            width as f32,
-                            height as f32,
+                match (handle, resource) {
+                    (Some(handle), Some(resource)) => {
+                        let (width, height) = resource.dimensions();
+                        if let Some(&target) = self.document.node_store.node_to_solid.get(&node) {
+                            self.dispatch_image_resource_ready(
+                                target,
+                                handle,
+                                width as f32,
+                                height as f32,
+                            );
+                        }
+                    }
+                    // A resource without a handle cannot occur: `resource` is
+                    // derived from `handle`, so only the handle can be missing.
+                    (handle, _) => {
+                        tracing::warn!(source, "rejected missing or stale image resource handle");
+                        self.dispatch_image_resource_error(
+                            node,
+                            handle,
+                            "image resource is missing or stale",
                         );
                     }
-                } else {
-                    tracing::warn!(source, "rejected missing or stale image resource handle");
-                    self.dispatch_image_resource_error(
-                        node,
-                        handle,
-                        "image resource is missing or stale",
-                    );
                 }
             }
             _ => unreachable!("graphic source kind was validated by the decoder"),
