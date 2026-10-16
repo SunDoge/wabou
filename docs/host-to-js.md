@@ -57,7 +57,7 @@ The Host owns facts and mechanisms:
 - hit testing, target validation, focus and pointer capture;
 - layout geometry and resize observations;
 - native widget semantic events;
-- native capabilities and their direct/native-Promise completion;
+- native host modules and their direct/native-Promise completion;
 - queue bounds, coalescing and wake-up behavior.
 
 The guest owns application policy:
@@ -66,7 +66,7 @@ The guest owns application policy:
 - Solid signal updates;
 - `preventDefault` and propagation flags;
 - subscriptions to observations and application topics;
-- Promise reactions for JSON capabilities.
+- Promise reactions for asynchronous host-module calls.
 
 JSX/Solid node IDs are runtime-local handles. Every received ID is validated by
 the Host immediately before encoding. IDs must become generational before node

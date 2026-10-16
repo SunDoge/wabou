@@ -54,7 +54,7 @@ wabou run apps/7guis
 wabou run apps/gallery
 ```
 
-Vite HMR, typed application capabilities, services, application KV, window
+Vite HMR, typed application host modules, services, application KV, window
 persistence, DevTools, the Winit native-widget set, native behavior tests, and
 offscreen Vello GPU capture all use the same retained document and widget
 contracts.

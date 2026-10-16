@@ -82,7 +82,7 @@ socket. `--devtools` additionally opens the visual inspector; it is not needed
 for the socket. No JavaScript production build is required before Rust
 compilation. Ctrl-C terminates Vite, the host, and the optional inspector.
 
-Rust capabilities and widgets are linked into the application executable. A
+Rust host modules and widgets are linked into the application executable. A
 Rust edit uses Cargo incremental compilation and restarts the host; a TSX edit
 stays on the Vite/Solid HMR path and does not rebuild Rust. Generate the
 Rust-owned client declarations with `wabou bindings write` and verify them with

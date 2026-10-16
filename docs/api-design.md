@@ -83,7 +83,7 @@ For a new host API:
 6. Test the native platform layer separately when correctness depends on the
 OS rather than only on routing and serialization.
 
-## TypeScript declarations for application capabilities
+## TypeScript declarations for application host modules
 
 `HostCapabilities` and `WabouIntrinsicElements` are low-level renderer
 extension registries. Ordinary application code imports `Host`, `useHost`, and

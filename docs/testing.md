@@ -323,7 +323,7 @@ actual protocol writer and remains live across reactive updates. It does not
 pretend to be computed layout or pixel output; keep those checks in native
 layout and screenshot tests.
 
-Promise-backed capabilities and async event handlers can be observed with the
+Promise-backed host modules and async event handlers can be observed with the
 harness-owned retry loop. `waitFor` commits Solid and protocol work before each
 assertion, reports the last locator/assertion failure on timeout, and does not
 implicitly advance a fake clock:
@@ -348,26 +348,21 @@ screen.getByRole("group", { name: "Panel" }).resize({
 This drives Wabou's real `ResizeObserver` callback and Solid update; it does not
 claim that Taffy would produce that geometry.
 
-Inject typed Host capabilities without booting Rust by passing a fixture to
-the component renderer. Generated DTOs remain the request and response types;
-the fixture does not introduce another schema. `wabou-bindgen` emits a test
-adapter beside every client, so tests implement typed DTO handlers rather than
-the native JSON strings and result envelope:
+Inject typed host-module methods without booting Rust by passing a fixture to
+the component renderer. Generated declarations remain the request and response
+types; the fixture does not introduce another schema. `createTestHost` records
+calls to the ordinary structured methods:
 
 ```tsx
-const downloads = createDownloadsTestCapability({
+const host = createTestHost({
+  downloads: {
     list: async () => [{ id: "1", name: "demo.zip" }],
+  },
 });
-const host = createTestHost({ downloads });
 
 const screen = renderComponent(() => <Downloads />, { host: host.host });
 expect(host.callsTo("downloads.list")).toHaveLength(1);
 ```
-
-The adapter mirrors the Rust capability boundary's `invalidRequest`,
-`handlerFailure`, and `responseEncodingFailure` envelopes. TypeScript catches
-DTO drift at authoring time; runtime schema validation remains Rust's job in a
-native run.
 
 Calls retain their path and exact arguments. Read-only locale/time defaults are
 deterministic (`en-US`, `UTC`, 1970-01-01). Layout reads return a deterministic

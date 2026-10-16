@@ -5,7 +5,7 @@ edition = "2024"
 license.workspace = true
 
 [dependencies]
-serde = { workspace = true }
+serde = { workspace = true, optional = true }
 wabou-bindgen-macros.workspace = true
 specta = { workspace = true, optional = true }
 specta-serde = { workspace = true, optional = true }
@@ -14,6 +14,7 @@ specta-typescript = { workspace = true, optional = true }
 [features]
 default = ["generate"]
 generate = [
+  "dep:serde",
   "dep:specta",
   "dep:specta-serde",
   "dep:specta-typescript",

@@ -211,7 +211,7 @@ export declare function assertFocusOwnerCount(root: ComponentLocator, expected: 
 /** Assert that a rendered overlay is attached to the requested native plane. */
 export declare function assertInOverlayPlane(locator: ComponentLocator, expected: Exclude<ComponentOverlayPlane, "content">): void;
 /** Create a typed, deterministic Host with automatic call recording. */
-export declare function createTestHost<C extends object = Record<string, never>>(capabilities?: C, builtins?: TestBuiltinHost): TestHostFixture<Host & C>;
+export declare function createTestHost<C extends object = Record<string, never>>(modules?: C, builtins?: TestBuiltinHost): TestHostFixture<Host & C>;
 /** Dispose the active component tree. Vitest users get this automatically. */
 export declare function cleanupComponents(): void;
 /**

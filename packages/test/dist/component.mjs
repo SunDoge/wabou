@@ -70,7 +70,7 @@ function missingHostMethod(path) {
 	throw new Error(`test host method ${path} is not configured`);
 }
 /** Create a typed, deterministic Host with automatic call recording. */
-function createTestHost(capabilities, builtins = {}) {
+function createTestHost(modules, builtins = {}) {
 	const calls = [];
 	const viewport = {
 		x: 0,
@@ -133,7 +133,7 @@ function createTestHost(capabilities, builtins = {}) {
 			...defaultLayout,
 			...builtins.layout
 		}
-	}, capabilities ?? {});
+	}, modules ?? {});
 	const cache = /* @__PURE__ */ new WeakMap();
 	const wrap = (value, path) => {
 		const cached = cache.get(value);

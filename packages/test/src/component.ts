@@ -386,7 +386,7 @@ function missingHostMethod(path: string): never {
 
 /** Create a typed, deterministic Host with automatic call recording. */
 export function createTestHost<C extends object = Record<string, never>>(
-  capabilities?: C,
+  modules?: C,
   builtins: TestBuiltinHost = {},
 ): TestHostFixture<Host & C> {
   const calls: TestHostCall[] = [];
@@ -434,7 +434,7 @@ export function createTestHost<C extends object = Record<string, never>>(
         ...builtins.layout,
       },
     } satisfies BuiltinHost,
-    capabilities ?? ({} as C),
+    modules ?? ({} as C),
   );
   const cache = new WeakMap<object, object>();
   const wrap = (value: object, path: string): object => {

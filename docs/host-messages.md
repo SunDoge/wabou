@@ -2,7 +2,7 @@
 
 Wabou applications use host messages for long-running Rust → JavaScript event
 streams such as WebSockets, file watchers, database subscriptions, and device
-events. Request/response operations should continue to use typed capabilities.
+events. Request/response operations use typed `rquickjs` host modules.
 
 Register a producer on `HostBuilder`:
 

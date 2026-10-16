@@ -194,9 +194,9 @@ Window scopes and targets in low-frequency native effects and recorded effect
 tapes use the same `{ lo, hi }` representation. A packed `u64` is permitted as
 an internal Rust lookup value, but it must not appear in JavaScript or JSON.
 
-JSON capabilities should normally return a structured `{ lo, hi }` handle
-when an application must retain one. Subsequent high-frequency operations
-carry the same pair in binary frames.
+Application host modules should return a structured `{ lo, hi }` handle when
+JavaScript must retain a Rust-owned resource. Subsequent high-frequency
+operations carry the same pair in binary frames.
 
 ## Selection rule
 
