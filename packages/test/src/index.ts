@@ -4,6 +4,7 @@ import {
   type DebugOverlayPaintStats,
   defaultHost,
   type FrameStats,
+  type Host,
   type WabouExposedSemanticRole,
 } from "@wabou/core/renderer";
 import {
@@ -108,12 +109,14 @@ interface NativeTestCapability {
 }
 
 declare module "@wabou/core/registry" {
-  interface HostCapabilities {
+  interface HostModules {
     readonly test: NativeTestCapability;
   }
 }
 
 export interface TestContext {
+  /** Host modules installed in the application runtime under test. */
+  readonly host: Host;
   readonly page: TestPage;
   readonly window: TestWindow;
   readonly effects: TestEffects;
@@ -859,6 +862,7 @@ function createPage(
 }
 
 const context: TestContext = {
+  host: defaultHost,
   page: createPage({
     lo: __wabou_window_id_lo,
     hi: __wabou_window_id_hi,

@@ -1,10 +1,11 @@
 # JavaScript packages
 
-Most applications install one UI entry point and the Vite integration:
+Preview applications consume the UI entry point and Vite integration from the
+pinned Wabou submodule:
 
 ```bash
-bun add @wabou/ui solid-js
-bun add -d @wabou/vite vite
+bun run wabou vendor . --wabou-ref v0.1.0-alpha.4
+bun install
 ```
 
 `@wabou/ui` is the application-facing facade. It exports the renderer and host
@@ -28,9 +29,8 @@ Their public capabilities are available from `@wabou/ui` and
 `@wabou/ui/primitives`. This keeps implementation ownership and tests modular
 without making source topology part of the installation contract.
 
-`@wabou/terminal` remains an optional public package for applications that use
-the native terminal widget. `@wabou/test` is the public behavior-test package,
-normally installed as a dev dependency.
+`@wabou/terminal` remains an optional workspace package for applications that
+use the native terminal widget. `@wabou/test` provides behavior-test helpers.
 
 The protocol, Solid renderer, and style value model are ordinary source modules
 inside `@wabou/core`, not separate packages. Their advanced entry points are
@@ -53,18 +53,14 @@ scroll restoration; it does not install TanStack's DOM-facing components.
 `@wabou/vite` exposes its bundled HMR client as `@wabou/vite/runtime`; there is
 no separate runtime package.
 
-All `@wabou/*` packages use one fixed version. Add a Changeset for a public
-change, then run `bun run version-packages` and `bun run release-packages`.
-The release command first compiles package source with tsdown into ESM and
-bundled declarations, then publishes with Bun so `workspace:*` dependencies
-are rewritten to the shared concrete version in the npm tarball. Published
-packages expose `dist` artifacts; consumers do not need to compile Wabou's
-TypeScript or TSX source. These artifacts are tracked in Git as well as npm so
-applications pinned to an immutable Wabou Git revision consume exactly the
-same package surface as registry installations.
-`bun run packages:check` verifies aligned versions, publication metadata, and
-that public artifacts and applications do not revive retired implementation
-package names.
+All `@wabou/*` packages use one fixed version and are private during the Git
+preview phase. `release:prepare` updates them together with the Rust workspace,
+while `wabou vendor` pins the complete source tree. Packages still compile with
+tsdown into ESM and bundled declarations, and those artifacts remain tracked
+so a pinned Git revision has a deterministic package surface.
+`bun run packages:check` verifies aligned versions, private distribution
+metadata, and that package artifacts and applications do not revive retired
+implementation package names.
 
 The component source remains layered: primitive interactions provide headless
 behavior, primitives connect it to the native host, and components supply

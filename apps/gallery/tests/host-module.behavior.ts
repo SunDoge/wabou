@@ -1,8 +1,7 @@
 import { expect, test } from "@wabou/test";
-import { useHost } from "@wabou/ui";
 
-test("palette host module calls Rust directly", () => {
-  const response = useHost().bindingsDemo.describePalette({
+test("palette host module calls Rust directly", ({ host }) => {
+  const response = host.bindingsDemo.describePalette({
     name: "ocean",
     swatchCount: 3,
   });

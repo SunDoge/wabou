@@ -851,7 +851,7 @@ fn render(
     }
     if !modules.is_empty() {
         output.push_str("declare module \"@wabou/core\" {\n");
-        output.push_str("  interface HostCapabilities {\n");
+        output.push_str("  interface HostModules {\n");
         for module in modules.values() {
             validate_identifier(&module.js_name, "host module")?;
             push_docs(&mut output, &module.docs, "    ");
@@ -1395,7 +1395,7 @@ export {};
 export type WabouHandle<Name extends string> = { readonly lo: number; readonly hi: number } & { readonly __wabouHandle?: Name };
 
 declare module "@wabou/core" {
-  interface HostCapabilities {
+  interface HostModules {
     /**
      * Native workspace operations.
      */

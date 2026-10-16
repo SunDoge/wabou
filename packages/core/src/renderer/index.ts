@@ -36,7 +36,7 @@ export {
 } from "../protocol";
 
 import { createMemo, flush, omit, untrack } from "solid-js";
-import type { HostCapabilities, WabouIntrinsicElements } from "../registry";
+import type { HostModules, WabouIntrinsicElements } from "../registry";
 import {
   type Affine2D,
   assertInlineStyleValue,
@@ -47,7 +47,7 @@ import {
 import { isVectorPath, type VectorPath } from "../vector-path";
 
 export type {
-  HostCapabilities,
+  HostModules,
   WabouIntrinsicElements,
 } from "../registry";
 export const isServer = false;

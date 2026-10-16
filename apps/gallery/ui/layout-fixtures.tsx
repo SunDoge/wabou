@@ -9,7 +9,6 @@ import {
 } from "@wabou/ui";
 import { createEffect, createSignal, onCleanup } from "solid-js";
 import { CrossRenderFixture } from "../../../tests/render-reference/cross-render-fixture";
-import { ModelControls } from "../../pi-agent/ui/model-controls";
 import { galleryLayoutFixtures } from "./layout-fixture-pages";
 import { OverviewPage } from "./pages/overview";
 import { PulseOverview } from "./pulse/overview";
@@ -66,40 +65,6 @@ function ProjectionBoundaryProbeFixture() {
       >
         <Text>stable sibling</Text>
       </ProjectionBoundary>
-    </View>
-  );
-}
-
-function PiAgentToolbarFixture() {
-  return (
-    <View
-      aria-label="Pi agent toolbar fixture"
-      class="w-full h-14 px-5 flex flex-row items-center gap-3 overflow-hidden border-b border-subtle"
-    >
-      <View class="min-w-0 flex-1 overflow-hidden">
-        <Text class="truncate">Agent 2 · a-repository-with-a-long-name</Text>
-      </View>
-      <View class="min-w-0 flex-none overflow-hidden flex flex-row items-center gap-1">
-        <Button size="icon" aria-label="Fixture terminal" />
-        <Button size="icon" aria-label="Fixture files" />
-        <ModelControls
-          models={[
-            {
-              provider: "openai",
-              id: "gpt-5.2-codex-with-a-long-model-id",
-              name: "GPT 5.2 Codex with a long display name",
-              reasoning: true,
-            },
-          ]}
-          modelProvider="openai"
-          modelId="gpt-5.2-codex-with-a-long-model-id"
-          thinking="xhigh"
-          thinkingLevels={["off", "medium", "xhigh"]}
-          chooseModel={() => {}}
-          chooseThinking={() => {}}
-        />
-        <Button size="icon" aria-label="Fixture search" />
-      </View>
     </View>
   );
 }
@@ -181,11 +146,6 @@ defineLayoutFixtures({
         />
       </View>
     ),
-  },
-  "pi-agent/toolbar": {
-    width: 892,
-    height: 120,
-    render: () => <PiAgentToolbarFixture />,
   },
   ...galleryLayoutFixtures,
 });

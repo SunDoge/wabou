@@ -1,12 +1,6 @@
 import { resolve } from "node:path";
 
-export type LayoutTestApp =
-  | "gallery"
-  | "launcher"
-  | "meow-starter"
-  | "pi-agent"
-  | "reader"
-  | "timestow";
+export type LayoutTestApp = "gallery" | "launcher" | "meow-starter" | "reader";
 
 export interface LayoutTestSelection {
   apps: readonly LayoutTestApp[];
@@ -19,16 +13,8 @@ const ALL_APPS: readonly LayoutTestApp[] = [
   "gallery",
   "launcher",
   "meow-starter",
-  "pi-agent",
   "reader",
-  "timestow",
 ];
-const PI_AGENT_FIXTURE_PREFIXES = [
-  "conversation/",
-  "settings/",
-  "shell/",
-  "workspace/",
-] as const;
 
 function inferApps(filters: readonly string[]): readonly LayoutTestApp[] {
   if (filters.length === 0) return ALL_APPS;
@@ -36,14 +22,9 @@ function inferApps(filters: readonly string[]): readonly LayoutTestApp[] {
   for (const filter of filters) {
     if (filter.startsWith("launcher/")) applications.add("launcher");
     else if (filter.startsWith("reader/")) applications.add("reader");
-    else if (filter.startsWith("timestow/")) applications.add("timestow");
     else if (filter.startsWith("meow-starter/"))
       applications.add("meow-starter");
-    else if (
-      PI_AGENT_FIXTURE_PREFIXES.some((prefix) => filter.startsWith(prefix))
-    ) {
-      applications.add("pi-agent");
-    } else applications.add("gallery");
+    else applications.add("gallery");
   }
   return ALL_APPS.filter((app) => applications.has(app));
 }
@@ -51,12 +32,8 @@ function inferApps(filters: readonly string[]): readonly LayoutTestApp[] {
 function fixtureBelongsToApp(filter: string, app: LayoutTestApp): boolean {
   if (filter.startsWith("launcher/")) return app === "launcher";
   if (filter.startsWith("reader/")) return app === "reader";
-  if (filter.startsWith("timestow/")) return app === "timestow";
   if (filter.startsWith("meow-starter/")) return app === "meow-starter";
-  const piAgentFixture = PI_AGENT_FIXTURE_PREFIXES.some((prefix) =>
-    filter.startsWith(prefix),
-  );
-  return piAgentFixture ? app === "pi-agent" : app === "gallery";
+  return app === "gallery";
 }
 
 function parseApp(value: string | undefined): LayoutTestApp {
@@ -64,13 +41,11 @@ function parseApp(value: string | undefined): LayoutTestApp {
     value === "gallery" ||
     value === "launcher" ||
     value === "meow-starter" ||
-    value === "pi-agent" ||
-    value === "reader" ||
-    value === "timestow"
+    value === "reader"
   )
     return value;
   throw new Error(
-    `unknown layout app ${JSON.stringify(value)}; expected gallery, launcher, meow-starter, pi-agent, reader, or timestow`,
+    `unknown layout app ${JSON.stringify(value)}; expected gallery, launcher, meow-starter, or reader`,
   );
 }
 

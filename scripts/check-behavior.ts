@@ -41,29 +41,12 @@ async function main(): Promise<void> {
       "run",
       "-p",
       "wabou-cli",
+      "--bin",
+      "wabou",
       "--",
       "test",
       application,
     ];
-    if (application === "apps/pi-agent") {
-      const fixture = Bun.spawnSync(
-        [
-          "cargo",
-          "build",
-          "-p",
-          "pi-agent-wabou",
-          "--example",
-          "pi-agent-fixture",
-        ],
-        { cwd: root, stdout: "inherit", stderr: "inherit" },
-      );
-      if (fixture.exitCode !== 0) process.exit(fixture.exitCode);
-      const executable = resolve(
-        root,
-        `target/debug/examples/pi-agent-fixture${process.platform === "win32" ? ".exe" : ""}`,
-      );
-      command.push("--env", `WABOU_PI_BIN=${executable}`);
-    }
     const child = Bun.spawn(command, {
       cwd: root,
       stdin: "inherit",

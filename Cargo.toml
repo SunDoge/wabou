@@ -2,11 +2,6 @@
 resolver = "3"
 members = ["apps/*", "crates/*"]
 exclude = [
-  "apps/devtools",
-  "apps/manga-ocr",
-  "apps/motrix",
-  "apps/pi-agent",
-  "apps/timestow",
   "experiments/*",
   "templates/basic",
   "vendor/bitwarden-sdk",

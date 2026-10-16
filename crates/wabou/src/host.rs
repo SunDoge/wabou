@@ -894,7 +894,7 @@ mod tests {
         let result = runtime
             .with(|ctx| {
                 ctx.eval::<String, _>(
-                    "JSON.stringify(__wabou_capabilities.winitTest.double({ value: 21 }).value)",
+                    "JSON.stringify(__wabou_host_modules.winitTest.double({ value: 21 }).value)",
                 )
             })
             .expect("invoke host module");
@@ -916,17 +916,17 @@ mod tests {
         let exports = runtime
             .with(|ctx| {
                 ctx.eval::<String, _>(
-                    "JSON.stringify(Object.keys(__wabou_capabilities.imageResources).sort())",
+                    "JSON.stringify(Object.keys(__wabou_host_modules.imageResources).sort())",
                 )
             })
             .expect("inspect image resource module");
         assert_eq!(exports, r#"["createFile","createNetwork","release"]"#);
         let source = format!(
             r#"(() => {{
-                return __wabou_capabilities.imageResources
+                return __wabou_host_modules.imageResources
                     .createFile({{ path: {} }})
                     .then((image) => [image.width, image.height,
-                        __wabou_capabilities.imageResources.release(image.handle)]);
+                        __wabou_host_modules.imageResources.release(image.handle)]);
             }})()"#,
             serde_json::to_string(path.to_str().expect("UTF-8 path")).expect("encode path"),
         );
@@ -958,7 +958,7 @@ mod tests {
                 code: r#"
                     globalThis.bootResult = [
                       JSON.parse(__wabou_window_options_json).title,
-                      __wabou_capabilities.winitTest.double({ value: 21 }).value,
+                      __wabou_host_modules.winitTest.double({ value: 21 }).value,
                     ];
                 "#
                 .to_owned(),
@@ -1106,9 +1106,9 @@ mod tests {
             .eval_promise_json(
                 r#"(() => {
                   const key = [{ type: "string", value: "backend" }];
-                  return __wabou_capabilities.kv
+                  return __wabou_host_modules.kv
                     .set({ key, value: { name: "vello-gpu" } })
-                    .then(() => __wabou_capabilities.kv.get({ key }));
+                    .then(() => __wabou_host_modules.kv.get({ key }));
                 })()"#,
                 Duration::from_secs(2),
             )

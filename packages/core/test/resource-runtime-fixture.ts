@@ -10,7 +10,7 @@ import {
 } from "solid-js";
 
 declare module "@wabou/core/registry" {
-  interface HostCapabilities {
+  interface HostModules {
     readonly promiseTest: {
       resolve(): Promise<string>;
       reject(): Promise<string>;

@@ -104,64 +104,21 @@ const packageManifests = (
 const oldVersions = new Set<string>();
 for (const path of packageManifests) {
   const manifest = await Bun.file(path).json();
-  if (manifest.private !== true) oldVersions.add(manifest.version);
+  oldVersions.add(manifest.version);
 }
 if (oldVersions.size !== 1) {
   throw new Error(
-    `public packages do not share one version: ${[...oldVersions]}`,
+    `vendored packages do not share one version: ${[...oldVersions]}`,
   );
 }
 const oldVersion = [...oldVersions][0];
 if (oldVersion === version)
   throw new Error(`workspace is already at ${version}`);
 
-const oldPackageChangelogs = new Map<string, string>();
 for (const path of packageManifests) {
   const manifest = await Bun.file(path).json();
-  if (manifest.private === true) continue;
-  const changelogPath = join(path, "..", "CHANGELOG.md");
-  if (await Bun.file(changelogPath).exists()) {
-    oldPackageChangelogs.set(
-      changelogPath,
-      await Bun.file(changelogPath).text(),
-    );
-  }
-}
-
-// Changesets owns package release notes and consumes pending changesets. The
-// explicit pass below then corrects its computed prerelease to the requested
-// version, which is necessary when an earlier Git tag was created by mistake.
-const changeset = await command(["bun", "x", "changeset", "version"]);
-if (changeset.status !== 0) throw new Error("changeset version failed");
-
-for (const path of packageManifests) {
-  const manifest = await Bun.file(path).json();
-  if (manifest.private === true) continue;
-  const computedVersion = manifest.version as string;
   manifest.version = version;
   await Bun.write(path, `${JSON.stringify(manifest, null, 2)}\n`);
-
-  const changelogPath = join(path, "..", "CHANGELOG.md");
-  if (!(await Bun.file(changelogPath).exists())) continue;
-  const changelog = await Bun.file(changelogPath).text();
-  if (changelog.includes(`## ${version}\n`)) continue;
-  const oldChangelog = oldPackageChangelogs.get(changelogPath);
-  if (
-    computedVersion !== oldVersion &&
-    oldChangelog &&
-    changelog.endsWith(oldChangelog)
-  ) {
-    const releaseNotes = changelog
-      .slice(0, -oldChangelog.length)
-      .replaceAll(computedVersion, version);
-    await Bun.write(changelogPath, `${releaseNotes}${oldChangelog}`);
-  } else {
-    const titleEnd = changelog.indexOf("\n");
-    await Bun.write(
-      changelogPath,
-      `${changelog.slice(0, titleEnd + 1)}\n## ${version}\n\n### Patch Changes\n\n- Prepare the ${version} developer preview.\n${changelog.slice(titleEnd + 1)}`,
-    );
-  }
 }
 
 await updateText(join(root, "Cargo.toml"), (source) =>

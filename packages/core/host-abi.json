@@ -2,7 +2,7 @@
   "version": 1,
   "entries": [
     {
-      "name": "__wabou_capabilities",
+      "name": "__wabou_host_modules",
       "direction": "host",
       "owner": "runtime",
       "kind": "const",

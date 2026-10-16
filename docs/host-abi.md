@@ -5,7 +5,7 @@ Source of truth: `packages/core/host-abi.json`.
 
 | Global | Direction | Owner | Availability |
 | --- | --- | --- | --- |
-| `__wabou_capabilities` | host | runtime | always |
+| `__wabou_host_modules` | host | runtime | always |
 | `__wabou_intern` | host | runtime | always |
 | `__wabou_open_url` | host | runtime | always |
 | `__wabou_motion_create` | host | runtime | always |

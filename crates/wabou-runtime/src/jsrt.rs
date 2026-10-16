@@ -291,7 +291,7 @@ impl JsRuntime {
             let globals = ctx.globals();
             crate::host_abi::register_value(
                 &globals,
-                HostBinding::Capabilities,
+                HostBinding::HostModules,
                 Object::new(ctx.clone())?,
             )?;
 
@@ -1100,7 +1100,7 @@ impl JsRuntime {
         }
         let name = name.to_owned();
         self.with(move |ctx| {
-            let root: Object = ctx.globals().get("__wabou_capabilities")?;
+            let root: Object = ctx.globals().get("__wabou_host_modules")?;
             if root.contains_key(name.as_str())? {
                 return Err(rquickjs::Exception::throw_type(
                     &ctx,

@@ -15,7 +15,7 @@ import type {
   NativeHostApi,
   NodeKey as NativeNodeKey,
 } from "./generated/native-host";
-import type { HostCapabilities } from "./index";
+import type { HostModules } from "./index";
 
 export type {
   DebugOverlayPaintStats,
@@ -42,7 +42,7 @@ declare function __wabou_layout_snapshot(
 declare function __wabou_system_locale(): string;
 declare function __wabou_system_time_zone(): string;
 declare function __wabou_system_calendar_date(): string;
-declare const __wabou_capabilities: Record<string, object>;
+declare const __wabou_host_modules: Record<string, object>;
 
 export type LayoutTarget = NodeKey | { readonly id: NodeKey };
 
@@ -92,8 +92,8 @@ export interface BuiltinHost {
   };
 }
 
-/** Augment `HostCapabilities` in generated/user declarations. */
-export type Host = BuiltinHost & HostCapabilities;
+/** Augment `HostModules` in generated/user declarations. */
+export type Host = BuiltinHost & HostModules;
 
 /** Checked adapter around the private Rust/QuickJS ABI. */
 const LAYOUT_SNAPSHOT_VERSION = 1;
@@ -214,7 +214,7 @@ const builtinHost: BuiltinHost = {
 
 export const defaultHost: Host = Object.assign(
   builtinHost,
-  typeof __wabou_capabilities === "undefined" ? {} : __wabou_capabilities,
+  typeof __wabou_host_modules === "undefined" ? {} : __wabou_host_modules,
 ) as unknown as Host;
 
 const HostContext = createContext<Host>(defaultHost);

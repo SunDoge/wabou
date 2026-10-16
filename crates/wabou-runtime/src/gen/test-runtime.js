@@ -7805,7 +7805,7 @@ ${footer}`;
       viewport: () => builtinHost.layout.snapshot([]).viewport
     }
   };
-  var defaultHost = Object.assign(builtinHost, typeof __wabou_capabilities === "undefined" ? {} : __wabou_capabilities);
+  var defaultHost = Object.assign(builtinHost, typeof __wabou_host_modules === "undefined" ? {} : __wabou_host_modules);
   var HostContext = createContext(defaultHost);
   // packages/core/src/polyfills/globals.ts
   function installMissingGlobal(name, value) {

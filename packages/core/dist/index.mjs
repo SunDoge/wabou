@@ -1,10 +1,10 @@
 import { S as HOST_RECORD_KIND, b as HOST_FRAME, d as createResourceKeyFamily, s as nodeKey, x as HOST_NODE_PAYLOAD } from "./protocol-B9cErdtk.mjs";
-import { n as defaultHost, r as useHost, t as HostProvider } from "./host-D1-83KiM.mjs";
+import { n as defaultHost, r as useHost, t as HostProvider } from "./host-Blui5REu.mjs";
 import "./host.mjs";
 import { t as hasBrowserDom } from "./browser-dom-BrHP4mZQ.mjs";
 import { _ as utilityConflictProperties, a as bool, c as mergeClasses, d as px, f as rgba, g as translate2d, h as shadow, i as auto, l as number, m as scale2d, n as StyleValueKind, o as classes, p as rotate2d, r as assertInlineStyleValue, s as isTypedStyleValue, t as STYLE_VALUE, u as percent, v as INLINE_STYLE_CONTRACT } from "./style-B3YAe2-h.mjs";
-import { F as PathBuilder, I as isVectorPath, M as VirtualList, N as createFps, P as Portal, b as observeGlobalPointerEvent, c as dispatchEvent, h as isDirectEvent, j as writer, k as setTransform2D, t as Dynamic, x as reconcileControlledInputValues, y as mount } from "./renderer-BNVewAz7.mjs";
-import "./animation-frame-DkhTJfy9.mjs";
+import { F as PathBuilder, I as isVectorPath, M as VirtualList, N as createFps, P as Portal, b as observeGlobalPointerEvent, c as dispatchEvent, h as isDirectEvent, j as writer, k as setTransform2D, t as Dynamic, x as reconcileControlledInputValues, y as mount } from "./renderer-BZp4nUlS.mjs";
+import "./animation-frame-BgKEm5Et.mjs";
 import { a as subscribeAll, i as subscribe, n as dispatchHostMessage, o as subscribeJson, r as hostMessages, t as dispatchResizeObservation } from "./resize-observer-DUViTMSv.mjs";
 import { n as effectOps } from "./effect-abi-BzPW8STE.mjs";
 import "./registry.mjs";

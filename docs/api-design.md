@@ -85,7 +85,7 @@ OS rather than only on routing and serialization.
 
 ## TypeScript declarations for application host modules
 
-`HostCapabilities` and `WabouIntrinsicElements` are low-level renderer
+`HostModules` and `WabouIntrinsicElements` are low-level renderer
 extension registries. Ordinary application code imports `Host`, `useHost`, and
 renderer types from `@wabou/ui`. Native widget packages that add intrinsic tags
 or deliberately expose direct synchronous host functions may augment the
@@ -93,7 +93,7 @@ stable registry subpath:
 
 ```ts
 declare module "@wabou/core/registry" {
-  interface HostCapabilities {
+  interface HostModules {
     readonly workspace: {
       readFile(request: ReadFileRequest): Promise<ReadFileResult>;
     };

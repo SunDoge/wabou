@@ -59,7 +59,7 @@ destination.
 ```bash
 bun run wabou doctor
 bun run wabou dev apps/gallery
-bun run wabou dev apps/hackernews --devtools
+bun run wabou dev apps/hackernews
 bun run wabou clean apps/gallery
 ```
 
@@ -77,9 +77,8 @@ source workspace, pass `--packages` to additionally remove every local
 
 Development starts Vite and compiles the Rust host with the `wabou/vite` and
 `wabou/devtools` facade features. QuickJS imports the live Vite graph and
-receives HMR updates, while `wabou inspect` can discover the local DevTools
-socket. `--devtools` additionally opens the visual inspector; it is not needed
-for the socket. No JavaScript production build is required before Rust
+receives HMR updates, while `wabou inspect` can query the local diagnostic
+socket. No JavaScript production build is required before Rust
 compilation. Ctrl-C terminates Vite, the host, and the optional inspector.
 
 Rust host modules and widgets are linked into the application executable. A
@@ -134,10 +133,10 @@ Render any named component layout fixture without adding an application-level
 screenshot scenario:
 
 ```bash
-bun run wabou render apps/pi-agent \
-  --fixture conversation/complete-turn \
-  --out target/complete-turn.png \
-  --snapshot target/complete-turn.json
+bun run wabou render apps/gallery \
+  --fixture component/Button \
+  --out target/button.png \
+  --snapshot target/button.json
 ```
 
 The command selects the application's `layout-test` bundle and reuses the
@@ -155,7 +154,6 @@ bun run wabou run apps/gallery
 bun run wabou build apps/gallery --release
 bun run wabou build apps/gallery --release --source-map
 bun run wabou package apps/gallery
-bun run wabou devtools
 ```
 
 Commands that compile the application host accept Cargo-style feature
@@ -437,7 +435,7 @@ pub mod database {
 }
 ```
 
-This augments `HostCapabilities` in `@wabou/core`; it does not add a version
+This augments `HostModules` in `@wabou/core`; it does not add a version
 field or generate a JavaScript adapter. Mount the generated module definition
 with `HostBuilder::host_module_def::<js_database>("database")`. JavaScript
 names come from `rquickjs` (`#[qjs(rename = ...)]` above); Wabou's method

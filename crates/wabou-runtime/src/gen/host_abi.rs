@@ -15,7 +15,7 @@ pub(crate) struct HostAbiEntry {
 
 pub(crate) const HOST_ABI: &[HostAbiEntry] = &[
     HostAbiEntry {
-        name: "__wabou_capabilities",
+        name: "__wabou_host_modules",
         direction: Direction::Host,
         owner: "runtime",
         feature: None,
@@ -306,7 +306,7 @@ pub(crate) const HOST_ABI: &[HostAbiEntry] = &[
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum HostBinding {
-    Capabilities,
+    HostModules,
     Intern,
     OpenUrl,
     MotionCreate,
@@ -359,7 +359,7 @@ pub enum HostBinding {
 impl HostBinding {
     pub const fn name(self) -> &'static str {
         match self {
-            Self::Capabilities => "__wabou_capabilities",
+            Self::HostModules => "__wabou_host_modules",
             Self::Intern => "__wabou_intern",
             Self::OpenUrl => "__wabou_open_url",
             Self::MotionCreate => "__wabou_motion_create",

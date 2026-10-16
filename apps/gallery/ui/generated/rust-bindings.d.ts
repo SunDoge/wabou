@@ -28,7 +28,7 @@ export interface DescribePaletteResponse {
 }
 
 declare module "@wabou/core" {
-  interface HostCapabilities {
+  interface HostModules {
     readonly bindingsDemo: {
       /**
        * Generate a small named palette.

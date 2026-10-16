@@ -1358,43 +1358,6 @@ const assertMessageLayout = (snapshot: LayoutSnapshot) => {
   }
 };
 
-const assertPiAgentToolbarLayout = (snapshot: LayoutSnapshot) => {
-  const toolbar = getLayoutNode(snapshot, {
-    name: "Pi agent toolbar fixture",
-  });
-  const controls = [
-    ...queryLayoutNodes(snapshot, { role: "button" }),
-    ...queryLayoutNodes(snapshot, { role: "combobox" }),
-  ].filter(
-    (node) =>
-      node.rect.y >= toolbar.rect.y &&
-      layoutRectBottom(node.rect) <= layoutRectBottom(toolbar.rect),
-  );
-  if (controls.length < 5)
-    throw new Error(`Pi Agent toolbar lost controls; found ${controls.length}`);
-  for (const control of controls)
-    assertLayoutRectContains(toolbar.contentRect, control.rect, {
-      label: control.semantic?.label ?? control.semantic?.role ?? control.tag,
-    });
-};
-
-const assertPiAgentHeaderLayout = (snapshot: LayoutSnapshot) => {
-  const sidebar = getLayoutNode(snapshot, {
-    name: "Pi agent sidebar header",
-  });
-  const content = getLayoutNode(snapshot, {
-    name: "Pi agent content header",
-  });
-  assertClose(sidebar.rect.y, content.rect.y, "Pi Agent header top edge");
-  assertClose(sidebar.rect.height, 48, "Pi Agent sidebar header height");
-  assertClose(content.rect.height, 48, "Pi Agent content header height");
-  assertClose(
-    layoutRectBottom(sidebar.rect),
-    layoutRectBottom(content.rect),
-    "Pi Agent header bottom edge",
-  );
-};
-
 const assertMarkdownInlineLayout = (snapshot: LayoutSnapshot) => {
   const candidates = snapshot.nodes.filter((node) => node.text != null);
   const paragraph = candidates.find(
@@ -1678,8 +1641,6 @@ const overrides: Readonly<Record<string, Omit<LayoutFixtureCase, "id">>> = {
   "reference/GithubDesktopMinimum": {
     assert: assertGithubDesktopReferenceLayout,
   },
-  "component/PiAgentHeader": { assert: assertPiAgentHeaderLayout },
-  "pi-agent/toolbar": { assert: assertPiAgentToolbarLayout },
   "primitive/Icon": { assert: assertIconLayout },
 };
 const fixtureCase = (id: string) => {

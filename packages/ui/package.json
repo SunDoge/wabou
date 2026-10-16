@@ -8,9 +8,6 @@
     "url": "git+https://github.com/SunDoge/wabou.git",
     "directory": "packages/ui"
   },
-  "publishConfig": {
-    "access": "public"
-  },
   "files": [
     "dist"
   ],
@@ -71,5 +68,6 @@
     "solid-js": "2.0.0-rc.14",
     "ts-pattern": "^5.9.1",
     "uqr": "^0.1.3"
-  }
+  },
+  "private": true
 }

@@ -6,16 +6,6 @@ use serde_json::Value;
 
 use super::{App, Result};
 
-pub(super) fn built_executable(workspace: &Path, app: &App, release: bool) -> Result<PathBuf> {
-    let metadata = cargo_metadata(workspace, app)?;
-    artifact_from_metadata(
-        &metadata,
-        &app.root.join("Cargo.toml").canonicalize()?,
-        release,
-    )
-    .map(|(path, _)| path)
-}
-
 pub(super) fn app_binary(workspace: &Path, app: &App) -> Result<String> {
     let metadata = cargo_metadata(workspace, app)?;
     let manifest_path = app.root.join("Cargo.toml").canonicalize()?;
@@ -141,6 +131,7 @@ fn paths_refer_to_same_manifest(left: &Path, right: &Path) -> bool {
     left == right
 }
 
+#[cfg(test)]
 pub(super) fn artifact_from_metadata(
     metadata: &Value,
     manifest_path: &Path,

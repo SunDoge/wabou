@@ -48,7 +48,7 @@ fn mounted_stateful_capability_releases_capture_on_runtime_drop() {
         );
         if mode == "invoked" {
             runtime
-                .with(|ctx| ctx.eval::<(), _>("__wabou_capabilities.host.tick()"))
+                .with(|ctx| ctx.eval::<(), _>("__wabou_host_modules.host.tick()"))
                 .expect("invoke capability");
             assert_eq!(*weak.upgrade().unwrap().lock().unwrap(), 1);
         } else if mode == "invalid_global" {
@@ -462,7 +462,7 @@ fn mounted_capabilities_are_namespaced_and_reject_duplicates() {
         .expect("mount workspace capability");
     let value = runtime
         .with(|ctx| {
-            ctx.eval::<String, _>("__wabou_capabilities.workspace.basename('/tmp/readme.md')")
+            ctx.eval::<String, _>("__wabou_host_modules.workspace.basename('/tmp/readme.md')")
         })
         .expect("call mounted function");
     assert_eq!(value, "readme.md");
@@ -486,13 +486,13 @@ fn mounts_rquickjs_generated_module_exports() {
 
     let keys = runtime
         .with(|ctx| {
-            ctx.eval::<String, _>("JSON.stringify(Object.keys(__wabou_capabilities.generated))")
+            ctx.eval::<String, _>("JSON.stringify(Object.keys(__wabou_host_modules.generated))")
         })
         .expect("inspect generated exports");
     assert_eq!(keys, r#"["addOne","increment"]"#);
 
     let value = runtime
-        .with(|ctx| ctx.eval::<u32, _>("__wabou_capabilities.generated.addOne(41)"))
+        .with(|ctx| ctx.eval::<u32, _>("__wabou_host_modules.generated.addOne(41)"))
         .expect("call generated export");
     assert_eq!(value, 42);
 }
@@ -518,7 +518,7 @@ fn mounts_rquickjs_generated_module_with_runtime_state() {
     );
 
     let result = runtime
-        .with(|ctx| ctx.eval::<u32, _>("__wabou_capabilities.statefulGenerated.increment()"))
+        .with(|ctx| ctx.eval::<u32, _>("__wabou_host_modules.statefulGenerated.increment()"))
         .expect("call stateful generated export");
     assert_eq!(result, 10);
     assert_eq!(value.get(), 10);

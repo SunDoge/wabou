@@ -1,2 +1,2 @@
-import { n as WabouIntrinsicElements, t as HostCapabilities } from "./registry-DXOPfC3L.mjs";
-export { HostCapabilities, WabouIntrinsicElements };
+import { n as WabouIntrinsicElements, t as HostModules } from "./registry-BK_gwbNC.mjs";
+export { HostModules, WabouIntrinsicElements };

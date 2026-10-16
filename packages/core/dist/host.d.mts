@@ -1,7 +1,7 @@
-import { c as useHost, r as Host } from "./host-BF472RcU.mjs";
+import { c as useHost, r as Host } from "./host-BnR8qAqs.mjs";
 //#region src/generated/host-abi.d.ts
 declare global {
-  const __wabou_capabilities: Record<string, object>;
+  const __wabou_host_modules: Record<string, object>;
   function __wabou_intern(value: string): number;
   function __wabou_open_url(url: string): boolean;
   function __wabou_motion_create(descriptor: string): number;

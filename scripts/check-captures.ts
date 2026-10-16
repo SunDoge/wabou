@@ -115,6 +115,8 @@ export function captureCommand(
     "run",
     "-p",
     "wabou-cli",
+    "--bin",
+    "wabou",
     "--",
     "render",
     capture.application,
@@ -1448,10 +1450,7 @@ export function parseCaptureArguments(arguments_: string[]): CaptureArguments {
       throw new Error(`unsupported argument ${argument}`);
     }
   }
-  if (
-    parsed.list &&
-    (parsed.checkExisting || parsed.scenarios.length > 0)
-  ) {
+  if (parsed.list && (parsed.checkExisting || parsed.scenarios.length > 0)) {
     throw new Error(
       "--list cannot be combined with capture selection or checking",
     );

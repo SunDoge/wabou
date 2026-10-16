@@ -8,9 +8,6 @@
     "url": "git+https://github.com/SunDoge/wabou.git",
     "directory": "packages/core"
   },
-  "publishConfig": {
-    "access": "public"
-  },
   "files": [
     "dist"
   ],
@@ -90,5 +87,6 @@
     "abort-controller": "3.0.0",
     "solid-js": "2.0.0-rc.14",
     "web-streams-polyfill": "4.3.0"
-  }
+  },
+  "private": true
 }

@@ -8,9 +8,6 @@
     "url": "git+https://github.com/SunDoge/wabou.git",
     "directory": "packages/test"
   },
-  "publishConfig": {
-    "access": "public"
-  },
   "files": [
     "dist"
   ],
@@ -50,5 +47,6 @@
   "peerDependencies": {
     "solid-js": ">=2.0.0-rc.14",
     "vitest": ">=2.1.0"
-  }
+  },
+  "private": true
 }

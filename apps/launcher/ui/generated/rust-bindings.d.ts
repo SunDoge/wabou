@@ -14,7 +14,7 @@ export interface LauncherEntry {
 }
 
 declare module "@wabou/core" {
-  interface HostCapabilities {
+  interface HostModules {
     readonly launcher: {
       launch(request: LaunchRequest): boolean;
       list(): Array<LauncherEntry>;

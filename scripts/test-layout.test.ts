@@ -4,14 +4,7 @@ import { parseLayoutTestArgs } from "./test-layout";
 describe("layout test selection", () => {
   test("runs every layout-tested application when no fixture is selected", () => {
     expect(parseLayoutTestArgs([])).toEqual({
-      apps: [
-        "gallery",
-        "launcher",
-        "meow-starter",
-        "pi-agent",
-        "reader",
-        "timestow",
-      ],
+      apps: ["gallery", "launcher", "meow-starter", "reader"],
       filters: [],
       skipBuild: false,
     });
@@ -21,16 +14,6 @@ describe("layout test selection", () => {
     expect(parseLayoutTestArgs(["component/Button"])).toEqual({
       apps: ["gallery"],
       filters: ["component/Button"],
-      skipBuild: false,
-    });
-    expect(parseLayoutTestArgs(["shell/sidebar"])).toEqual({
-      apps: ["pi-agent"],
-      filters: ["shell/sidebar"],
-      skipBuild: false,
-    });
-    expect(parseLayoutTestArgs(["timestow/setup-minimum"])).toEqual({
-      apps: ["timestow"],
-      filters: ["timestow/setup-minimum"],
       skipBuild: false,
     });
     expect(parseLayoutTestArgs(["launcher/default"])).toEqual({
@@ -43,23 +26,19 @@ describe("layout test selection", () => {
       filters: ["reader/default"],
       skipBuild: false,
     });
-    expect(
-      parseLayoutTestArgs(["component/Button", "conversation/complete-turn"]),
-    ).toEqual({
-      apps: ["gallery", "pi-agent"],
-      filters: ["component/Button", "conversation/complete-turn"],
+    expect(parseLayoutTestArgs(["component/Button", "form/inputs"])).toEqual({
+      apps: ["gallery"],
+      filters: ["component/Button", "form/inputs"],
       skipBuild: false,
     });
   });
 
   test("targets one application without consuming fixture filters", () => {
-    expect(parseLayoutTestArgs(["--app", "pi-agent", "shell/sidebar"])).toEqual(
-      {
-        apps: ["pi-agent"],
-        filters: ["shell/sidebar"],
-        skipBuild: false,
-      },
-    );
+    expect(parseLayoutTestArgs(["--app", "reader", "reader/default"])).toEqual({
+      apps: ["reader"],
+      filters: ["reader/default"],
+      skipBuild: false,
+    });
     expect(parseLayoutTestArgs(["--app=gallery", "component/Button"])).toEqual({
       apps: ["gallery"],
       filters: ["component/Button"],
@@ -68,18 +47,16 @@ describe("layout test selection", () => {
   });
 
   test("only reuses a fixture bundle when explicitly requested", () => {
-    expect(
-      parseLayoutTestArgs(["--skip-build", "conversation/complete-turn"]),
-    ).toEqual({
-      apps: ["pi-agent"],
-      filters: ["conversation/complete-turn"],
+    expect(parseLayoutTestArgs(["--skip-build", "component/Button"])).toEqual({
+      apps: ["gallery"],
+      filters: ["component/Button"],
       skipBuild: true,
     });
   });
 
   test("rejects misspelled applications and options", () => {
     expect(() => parseLayoutTestArgs(["--app", "agent"])).toThrow(
-      "expected gallery, launcher, meow-starter, pi-agent, reader, or timestow",
+      "expected gallery, launcher, meow-starter, or reader",
     );
     expect(() => parseLayoutTestArgs(["--quick"])).toThrow(
       "unknown layout test option",

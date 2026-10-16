@@ -141,8 +141,6 @@ enum Commands {
         app: Option<PathBuf>,
         #[usage(long, default = "5173")]
         port: u16,
-        #[usage(long)]
-        devtools: bool,
         /// Show the renderer-native performance HUD.
         #[usage(long)]
         hud: bool,
@@ -344,8 +342,6 @@ enum Commands {
         #[usage(long, default = "0")]
         wait_ms: u64,
     },
-    /// Open the native Wabou inspector.
-    Devtools,
     /// Inspect a running Wabou application from the terminal.
     Inspect {
         #[usage(long, env = "WABOU_DEVTOOLS_SOCKET")]
@@ -456,7 +452,6 @@ pub fn execute() -> Result<()> {
         Commands::Dev {
             app,
             port,
-            devtools,
             hud,
             mode,
             cargo_features,
@@ -469,7 +464,6 @@ pub fn execute() -> Result<()> {
                 app,
                 DevOptions {
                     port,
-                    open_devtools: devtools,
                     hud,
                     mode: mode.as_deref(),
                     cargo_features: &cargo_features.values,
@@ -679,7 +673,6 @@ pub fn execute() -> Result<()> {
                 },
             )
         }
-        Commands::Devtools => devtools::run(&find_workspace(&cwd).unwrap_or(cwd)),
         Commands::Inspect { socket, command } => devtools::inspect(socket, command),
     }
 }
@@ -1312,7 +1305,6 @@ fn apply_configured_entry(app: &mut App, command: &str, mode: &str) -> Result<()
 
 struct DevOptions<'a> {
     port: u16,
-    open_devtools: bool,
     hud: bool,
     mode: Option<&'a str>,
     cargo_features: &'a [String],
@@ -1369,15 +1361,8 @@ fn dev(workspace: &Path, app: App, options: DevOptions<'_>) -> Result<()> {
     }
     let mut host = ManagedChild::spawn(host_command)?;
 
-    let mut inspector = if options.open_devtools {
-        let command = devtools::command(workspace)?;
-        Some(ManagedChild::spawn(command)?)
-    } else {
-        None
-    };
-
     println!("[wabou] dev server ready at {url}; press Ctrl-C to stop");
-    supervise(&mut host, &mut vite, inspector.as_mut())
+    supervise(&mut host, &mut vite, None)
 }
 
 fn package_executable(workspace: &Path, app: &App, release: bool) -> Result<()> {
@@ -1481,11 +1466,11 @@ mod tests {
         } = parse(&[
             "wabou",
             "test",
-            "apps/pi-agent",
+            "apps/gallery",
             "--env",
-            "WABOU_PI_BIN=/tmp/fake-pi",
+            "WABOU_TEST_HELPER=/tmp/fake-helper",
             "--env",
-            "PI_TEST_MODE=deterministic",
+            "DEMO_TEST_MODE=deterministic",
         ])
         .unwrap()
         else {
@@ -1493,7 +1478,10 @@ mod tests {
         };
         assert_eq!(
             host_env,
-            ["WABOU_PI_BIN=/tmp/fake-pi", "PI_TEST_MODE=deterministic"]
+            [
+                "WABOU_TEST_HELPER=/tmp/fake-helper",
+                "DEMO_TEST_MODE=deterministic"
+            ]
         );
     }
 
@@ -1763,7 +1751,7 @@ mod tests {
         } = parse(&[
             "wabou",
             "render",
-            "apps/pi-agent",
+            "apps/gallery",
             "--out",
             "fixture.png",
             "--fixture",
@@ -1779,7 +1767,7 @@ mod tests {
             parse(&[
                 "wabou",
                 "render",
-                "apps/pi-agent",
+                "apps/gallery",
                 "--out",
                 "fixture.png",
                 "--fixture",
@@ -1984,10 +1972,10 @@ mod tests {
     #[test]
     fn infers_the_application_owning_a_behavior_scenario() {
         let root = tempfile::tempdir().unwrap();
-        let app = root.path().join("apps/motrix");
+        let app = root.path().join("apps/demo");
         let tests = app.join("tests/nested");
         fs::create_dir_all(&tests).unwrap();
-        fs::write(app.join("Cargo.toml"), "[package]\nname = \"motrix\"\n").unwrap();
+        fs::write(app.join("Cargo.toml"), "[package]\nname = \"demo\"\n").unwrap();
         fs::write(app.join("package.json"), "{}").unwrap();
         let scenario = tests.join("navigation.behavior.ts");
         fs::write(&scenario, "").unwrap();
