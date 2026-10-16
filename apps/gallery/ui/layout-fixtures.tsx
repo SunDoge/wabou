@@ -8,12 +8,10 @@ import {
   View,
 } from "@wabou/ui";
 import { createEffect, createSignal, onCleanup } from "solid-js";
-import { initialAgentState } from "../../pi-agent/ui/agent-state";
+import { CrossRenderFixture } from "../../../tests/render-reference/cross-render-fixture";
 import { ModelControls } from "../../pi-agent/ui/model-controls";
-import { Sidebar as PiAgentSidebar } from "../../pi-agent/ui/sidebar";
 import { galleryLayoutFixtures } from "./layout-fixture-pages";
 import { OverviewPage } from "./pages/overview";
-import { CrossRenderFixture } from "../../../tests/render-reference/cross-render-fixture";
 import { PulseOverview } from "./pulse/overview";
 
 let activeOwners = 0;
@@ -71,34 +69,6 @@ function ProjectionBoundaryProbeFixture() {
     </View>
   );
 }
-
-const fixtureAgents = [
-  {
-    id: "agent-1",
-    name: "Agent 1",
-    cwd: "/work/agent-one",
-    proxy: "",
-    noProxy: "",
-    provider: "",
-    model: "",
-    state: { ...initialAgentState, connection: "ready" as const, items: [] },
-  },
-  {
-    id: "agent-2",
-    name: "Agent 2",
-    cwd: "/work/a-repository-with-a-long-name",
-    proxy: "",
-    noProxy: "",
-    provider: "",
-    model: "",
-    state: {
-      ...initialAgentState,
-      connection: "running" as const,
-      sessionId: "session-2",
-      items: [],
-    },
-  },
-];
 
 function PiAgentToolbarFixture() {
   return (
@@ -216,48 +186,6 @@ defineLayoutFixtures({
     width: 892,
     height: 120,
     render: () => <PiAgentToolbarFixture />,
-  },
-  "pi-agent/sidebar": {
-    width: 288,
-    height: 620,
-    render: () => (
-      <PiAgentSidebar
-        agents={fixtureAgents}
-        activeId="agent-2"
-        select={() => {}}
-        add={() => {}}
-        newSession={() => {}}
-        canCreateSession
-        openSettings={() => {}}
-        sessions={[
-          {
-            agentId: "agent-2",
-            sessionId: "blank-session",
-            sessionFile: "blank.jsonl",
-            name: "   ",
-            cwd: "/work/a-repository-with-a-long-name",
-            updatedAt: 3,
-          },
-          {
-            agentId: "agent-1",
-            sessionId: "hidden-session",
-            sessionFile: "hidden.jsonl",
-            name: "Hidden inactive session",
-            cwd: "/work/agent-one",
-            updatedAt: 1,
-          },
-          {
-            agentId: "agent-2",
-            sessionId: "session-2",
-            sessionFile: "active.jsonl",
-            name: "A long active session name that must truncate",
-            cwd: "/work/a-repository-with-a-long-name",
-            updatedAt: 2,
-          },
-        ]}
-        selectSession={() => {}}
-      />
-    ),
   },
   ...galleryLayoutFixtures,
 });

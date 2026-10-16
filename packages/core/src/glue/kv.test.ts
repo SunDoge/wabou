@@ -15,7 +15,6 @@ function installKv(
   const host = defaultHost as unknown as Record<string, unknown>;
   const previous = host.kv;
   host.kv = {
-    __wabouCapabilityVersion: 2,
     get: async () => null,
     set: async () => ({ versionstamp: "1" }),
     delete: async () => ({ versionstamp: "1" }),

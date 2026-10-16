@@ -7,16 +7,15 @@ use std::{
 };
 
 use serde::{Deserialize, Serialize};
-#[cfg(feature = "bindings")]
-use wabou::specta;
-use wabou::{CapabilityContract, JsonMethod, NativeCapability, rquickjs};
-
-pub const CAPABILITY: CapabilityContract = CapabilityContract::new("launcher", 1);
-const LIST: JsonMethod<(), Vec<LauncherEntry>> = JsonMethod::no_request("list");
-const LAUNCH: JsonMethod<LaunchRequest, bool> = JsonMethod::new("launch");
+use wabou::{HostModuleState, JsValue, rquickjs};
 
 #[derive(Clone, Debug, Serialize)]
-#[cfg_attr(feature = "bindings", derive(wabou::Type))]
+#[wabou::js_type(fields(
+    id = string,
+    label = string,
+    description = string,
+    keywords = array(string)
+))]
 #[serde(rename_all = "camelCase")]
 pub struct LauncherEntry {
     id: String,
@@ -26,9 +25,9 @@ pub struct LauncherEntry {
 }
 
 #[derive(Debug, Deserialize)]
-#[cfg_attr(feature = "bindings", derive(wabou::Type))]
+#[wabou::js_type(fields(id = string))]
 #[serde(rename_all = "camelCase")]
-struct LaunchRequest {
+pub struct LaunchRequest {
     id: String,
 }
 
@@ -83,20 +82,34 @@ impl LauncherService {
     }
 }
 
-pub fn mount<'js>(
-    capability: &mut NativeCapability<'js>,
-    service: LauncherService,
-) -> rquickjs::Result<()> {
-    let list = service.entries.clone();
-    capability.json_method(LIST, move |(): ()| {
-        let entries = list.clone();
-        async move { Ok::<_, String>((*entries).clone()) }
-    })?;
+#[wabou::js_module(name = "launcher")]
+#[rquickjs::module]
+pub mod launcher_host {
+    use super::*;
 
-    capability.json_method(LAUNCH, move |request: LaunchRequest| {
-        let service = service.clone();
-        async move { service.launch(&request.id) }
-    })
+    #[rquickjs::function]
+    #[wabou::js(returns = array(named(LauncherEntry)))]
+    pub fn list(ctx: rquickjs::Ctx<'_>) -> rquickjs::Result<JsValue<Vec<LauncherEntry>>> {
+        let service = service(&ctx)?;
+        Ok(JsValue((*service.entries).clone()))
+    }
+
+    #[rquickjs::function]
+    #[wabou::js(args(request = named(LaunchRequest)), returns = boolean)]
+    pub fn launch(
+        ctx: rquickjs::Ctx<'_>,
+        JsValue(request): JsValue<LaunchRequest>,
+    ) -> rquickjs::Result<bool> {
+        service(&ctx)?.launch(&request.id).map_err(|error| {
+            rquickjs::Error::new_into_js_message("launcher request", "boolean", error)
+        })
+    }
+
+    fn service(ctx: &rquickjs::Ctx<'_>) -> rquickjs::Result<LauncherService> {
+        ctx.userdata::<HostModuleState<LauncherService>>()
+            .map(|state| state.0.clone())
+            .ok_or_else(|| rquickjs::Exception::throw_type(ctx, "launcher state is unavailable"))
+    }
 }
 
 #[cfg(target_os = "linux")]
@@ -261,16 +274,6 @@ fn discover_entries() -> Vec<(LauncherEntry, LaunchTarget)> {
         .collect()
 }
 
-/// Build the Rust-owned TypeScript client contract for this capability.
-#[cfg(feature = "bindings")]
-pub fn manifest() -> wabou::Bindings {
-    wabou::Bindings::new().capability(
-        wabou::Capability::new(CAPABILITY)
-            .method(LIST)
-            .method(LAUNCH),
-    )
-}
-
 #[cfg(not(any(target_os = "linux", target_os = "macos")))]
 fn discover_entries() -> Vec<(LauncherEntry, LaunchTarget)> {
     Vec::new()
@@ -303,16 +306,5 @@ mod tests {
         )
         .unwrap();
         assert!(parse_desktop_entry(&hidden).is_none());
-    }
-
-    #[cfg(feature = "bindings")]
-    #[test]
-    fn generated_host_bindings_are_current() {
-        manifest()
-            .check(concat!(
-                env!("CARGO_MANIFEST_DIR"),
-                "/ui/generated/host-bindings.ts"
-            ))
-            .expect("run `bun run gen` to refresh Launcher host bindings");
     }
 }

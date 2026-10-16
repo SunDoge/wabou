@@ -40,19 +40,6 @@
         "vite": "^8.3.4",
       },
     },
-    "apps/devtools": {
-      "name": "@wabou/devtools-app",
-      "version": "0.0.0",
-      "dependencies": {
-        "@wabou/ui": "workspace:*",
-        "solid-js": "2.0.0-rc.14",
-      },
-      "devDependencies": {
-        "@types/node": "^26.6.5",
-        "@wabou/vite": "workspace:*",
-        "vite": "^8.3.4",
-      },
-    },
     "apps/gallery": {
       "name": "@wabou/gallery",
       "version": "0.0.0",
@@ -115,20 +102,6 @@
         "vite": "^8.3.4",
       },
     },
-    "apps/manga-ocr": {
-      "name": "@wabou/manga-ocr",
-      "version": "0.0.0",
-      "dependencies": {
-        "@wabou/ui": "workspace:*",
-        "lucide-static": "1.57.0",
-        "solid-js": "2.0.0-rc.14",
-      },
-      "devDependencies": {
-        "@wabou/test": "workspace:*",
-        "@wabou/vite": "workspace:*",
-        "vite": "^8.3.4",
-      },
-    },
     "apps/meow-starter": {
       "name": "@wabou/meow-starter",
       "version": "0.0.0",
@@ -138,38 +111,6 @@
         "solid-js": "2.0.0-rc.14",
       },
       "devDependencies": {
-        "@wabou/test": "workspace:*",
-        "@wabou/vite": "workspace:*",
-        "vite": "^8.3.4",
-      },
-    },
-    "apps/motrix": {
-      "name": "@wabou/motrix",
-      "version": "0.0.0",
-      "dependencies": {
-        "@wabou/ui": "workspace:*",
-        "lucide-static": "1.57.0",
-        "solid-js": "2.0.0-rc.14",
-        "ts-pattern": "^5.9.1",
-      },
-      "devDependencies": {
-        "@wabou/test": "workspace:*",
-        "@wabou/vite": "workspace:*",
-        "vite": "^8.3.4",
-      },
-    },
-    "apps/pi-agent": {
-      "name": "@wabou/pi-agent",
-      "version": "0.0.0",
-      "dependencies": {
-        "@wabou/terminal": "workspace:*",
-        "@wabou/ui": "workspace:*",
-        "lucide-static": "1.57.0",
-        "solid-js": "2.0.0-rc.14",
-        "ts-pattern": "^5.9.1",
-      },
-      "devDependencies": {
-        "@inlang/paraglide-js": "^2.27.0",
         "@wabou/test": "workspace:*",
         "@wabou/vite": "workspace:*",
         "vite": "^8.3.4",
@@ -213,20 +154,6 @@
         "solid-js": "2.0.0-rc.14",
       },
       "devDependencies": {
-        "@wabou/vite": "workspace:*",
-        "vite": "^8.3.4",
-      },
-    },
-    "apps/timestow": {
-      "name": "@wabou/timestow",
-      "version": "0.0.0",
-      "dependencies": {
-        "@wabou/ui": "workspace:*",
-        "lucide-static": "1.57.0",
-        "solid-js": "2.0.0-rc.14",
-      },
-      "devDependencies": {
-        "@wabou/test": "workspace:*",
         "@wabou/vite": "workspace:*",
         "vite": "^8.3.4",
       },
@@ -806,8 +733,6 @@
 
     "@wabou/core": ["@wabou/core@workspace:packages/core"],
 
-    "@wabou/devtools-app": ["@wabou/devtools-app@workspace:apps/devtools"],
-
     "@wabou/gallery": ["@wabou/gallery@workspace:apps/gallery"],
 
     "@wabou/gpui-benchmarks": ["@wabou/gpui-benchmarks@workspace:apps/gpui-benchmarks"],
@@ -816,15 +741,9 @@
 
     "@wabou/launcher": ["@wabou/launcher@workspace:apps/launcher"],
 
-    "@wabou/manga-ocr": ["@wabou/manga-ocr@workspace:apps/manga-ocr"],
-
     "@wabou/meow-starter": ["@wabou/meow-starter@workspace:apps/meow-starter"],
 
-    "@wabou/motrix": ["@wabou/motrix@workspace:apps/motrix"],
-
     "@wabou/pdf": ["@wabou/pdf@workspace:packages/pdf"],
-
-    "@wabou/pi-agent": ["@wabou/pi-agent@workspace:apps/pi-agent"],
 
     "@wabou/reader": ["@wabou/reader@workspace:apps/reader"],
 
@@ -835,8 +754,6 @@
     "@wabou/terminal-demo": ["@wabou/terminal-demo@workspace:apps/terminal"],
 
     "@wabou/test": ["@wabou/test@workspace:packages/test"],
-
-    "@wabou/timestow": ["@wabou/timestow@workspace:apps/timestow"],
 
     "@wabou/ui": ["@wabou/ui@workspace:packages/ui"],
 

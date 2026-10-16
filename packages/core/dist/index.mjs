@@ -1,11 +1,11 @@
-import { S as createResourceKeyFamily, c as HOST_RECORD_KIND, n as EVENT_DATA_LEN, o as HOST_FRAME, s as HOST_NODE_PAYLOAD, v as nodeKey } from "./protocol-C0xTI-jG.mjs";
-import { n as defaultHost, r as useHost, t as HostProvider } from "./host-Bo4Kd5LZ.mjs";
+import { S as HOST_RECORD_KIND, b as HOST_FRAME, d as createResourceKeyFamily, s as nodeKey, x as HOST_NODE_PAYLOAD } from "./protocol-B9cErdtk.mjs";
+import { n as defaultHost, r as useHost, t as HostProvider } from "./host-D1-83KiM.mjs";
 import "./host.mjs";
 import { t as hasBrowserDom } from "./browser-dom-BrHP4mZQ.mjs";
 import { _ as utilityConflictProperties, a as bool, c as mergeClasses, d as px, f as rgba, g as translate2d, h as shadow, i as auto, l as number, m as scale2d, n as StyleValueKind, o as classes, p as rotate2d, r as assertInlineStyleValue, s as isTypedStyleValue, t as STYLE_VALUE, u as percent, v as INLINE_STYLE_CONTRACT } from "./style-B3YAe2-h.mjs";
-import { F as PathBuilder, I as isVectorPath, M as VirtualList, N as createFps, P as Portal, b as observeGlobalPointerEvent, c as dispatchEvent, h as isDirectEvent, j as writer, k as setTransform2D, t as Dynamic, x as reconcileControlledInputValues, y as mount } from "./renderer-Dban-vxD.mjs";
-import "./animation-frame-BMEKyYv2.mjs";
-import { a as subscribeAll, i as subscribe, n as dispatchHostMessage, o as subscribeJson, r as hostMessages, t as dispatchResizeObservation } from "./resize-observer-CJ5pj_Xb.mjs";
+import { F as PathBuilder, I as isVectorPath, M as VirtualList, N as createFps, P as Portal, b as observeGlobalPointerEvent, c as dispatchEvent, h as isDirectEvent, j as writer, k as setTransform2D, t as Dynamic, x as reconcileControlledInputValues, y as mount } from "./renderer-BNVewAz7.mjs";
+import "./animation-frame-DkhTJfy9.mjs";
+import { a as subscribeAll, i as subscribe, n as dispatchHostMessage, o as subscribeJson, r as hostMessages, t as dispatchResizeObservation } from "./resize-observer-DUViTMSv.mjs";
 import { n as effectOps } from "./effect-abi-BzPW8STE.mjs";
 import "./registry.mjs";
 import { flushPerformance, measureAsyncPerformance, measurePerformance } from "./performance.mjs";
@@ -571,7 +571,7 @@ function decodeAndDispatchHostFrame(input) {
 				json: ""
 			});
 			else if (payloadKind === HOST_NODE_PAYLOAD.Numeric) {
-				if (numericLen > EVENT_DATA_LEN) throw new TypeError("HostEventFrame numeric payload exceeds ABI slots");
+				if (numericLen > 21) throw new TypeError("HostEventFrame numeric payload exceeds ABI slots");
 				requireBytes(8 * numericLen, end);
 				const absoluteOffset = bytes.byteOffset + offset;
 				let numeric;
@@ -1761,47 +1761,6 @@ function createRevisionedHostResource(options) {
 	};
 }
 //#endregion
-//#region src/glue/native-capability.ts
-var CapabilityError = class extends Error {
-	code;
-	constructor(message, code = "capability_unavailable") {
-		super(message);
-		this.name = "CapabilityError";
-		this.code = code;
-	}
-};
-/** Validate and expose one versioned native capability namespace. */
-function bindCapability(capability, options) {
-	if (capability?.__wabouCapabilityVersion !== options.version) throw new CapabilityError(`The native ${options.name} capability version ${options.version} is unavailable`);
-	return capability;
-}
-//#endregion
-//#region src/glue/json-capability.ts
-/** Bind Wabou's versioned JSON capability transport to a typed app wrapper. */
-function bindJsonCapability(capability, options) {
-	return async (method, request) => {
-		if (capability?.__wabouCapabilityVersion !== options.version) throw new CapabilityError(`The native ${options.name} capability version ${options.version} is unavailable`, "capability_unavailable");
-		const functionValue = capability[method];
-		if (typeof functionValue !== "function") throw new CapabilityError(`The native ${options.name}.${method} method is unavailable`, "method_unavailable");
-		const raw = await (request === void 0 ? functionValue.call(capability) : functionValue.call(capability, JSON.stringify(request)));
-		if (typeof raw !== "string") throw new CapabilityError(`The native ${options.name}.${method} method returned a non-string response`, "invalid_response");
-		let envelope;
-		try {
-			envelope = JSON.parse(raw);
-		} catch {
-			throw new CapabilityError(`The native ${options.name}.${method} method returned invalid JSON`, "invalid_response");
-		}
-		if (typeof envelope !== "object" || envelope === null || !("ok" in envelope)) throw new CapabilityError(`The native ${options.name}.${method} method returned an invalid response envelope`, "invalid_response");
-		if (envelope.ok === true) {
-			if (!("value" in envelope)) throw new CapabilityError(`The native ${options.name}.${method} method returned a success envelope without a value`, "invalid_response");
-			return envelope.value;
-		}
-		const error = envelope.error;
-		const code = typeof error?.code === "string" ? error.code : void 0;
-		throw new CapabilityError(typeof error?.message === "string" ? error.message : `${options.name}.${method} failed`, code ?? "handlerFailure");
-	};
-}
-//#endregion
 //#region src/glue/kv.ts
 /** Fluent optimistic transaction committed as one SQLite transaction. */
 var KvAtomicOperation = class {
@@ -1934,10 +1893,7 @@ function createKvSignal(options) {
 * directories. Prefixes are prepended by whole key parts, never string joined.
 */
 function openKv(prefix = []) {
-	const native = bindCapability(useHost().kv, {
-		name: "kv",
-		version: 2
-	});
+	const native = useHost().kv;
 	const namespace = [...prefix];
 	for (const part of namespace) encodePart(part);
 	return {
@@ -2161,6 +2117,6 @@ function reconcileKeyedList(current, patch, keyOf) {
 	return ordered;
 }
 //#endregion
-export { AsyncActionConflictError, CapabilityError, ColorThemeProvider, Dynamic, ForEntity, HostProvider, INLINE_STYLE_CONTRACT, KvAtomicOperation, PathBuilder, PlatformProvider, Portal, RevisionedHostWaitError, STYLE_VALUE, StyleValueKind, VirtualList, appDirs, application, assertInlineStyleValue, auto, bindCapability, bindJsonCapability, bool, classes, clipboard, colorTheme, createAsyncAction, createAsyncQuery, createEventEffect, createFps, createKeyedAsyncAction, createKvSignal, createLatestAsyncResource, createRevisionedHostResource, createWindow, createWindowMatch, currentWindow, currentWindowOptions, defaultHost, dialog, flushPerformance, hostMessages, intl, isDirectEvent, isTypedStyleValue, isVectorPath, measureAsyncPerformance, measurePerformance, mergeClasses, mount, notification, number, observeGlobalPointerEvent, openKv, percent, px, reconcileKeyedList, rgba, rotate2d, scale2d, setTransform2D, shadow, showNativeMenu, subscribeAll as subscribeAllHostMessages, subscribeAppLifecycle, subscribeFileDrop, subscribeGesture, subscribe as subscribeHostMessages, subscribeJson as subscribeJsonHostMessages, subscribeKeyboardModifiers, translate2d, useAppLifecycle, useClipboard, useColorTheme, useDialog, useFileDrop, useGesture, useHost, useKeyboardModifierChanges, useKeyboardModifiers, useNotification, useWindow, utilityConflictProperties, validateEntityKeys };
+export { AsyncActionConflictError, ColorThemeProvider, Dynamic, ForEntity, HostProvider, INLINE_STYLE_CONTRACT, KvAtomicOperation, PathBuilder, PlatformProvider, Portal, RevisionedHostWaitError, STYLE_VALUE, StyleValueKind, VirtualList, appDirs, application, assertInlineStyleValue, auto, bool, classes, clipboard, colorTheme, createAsyncAction, createAsyncQuery, createEventEffect, createFps, createKeyedAsyncAction, createKvSignal, createLatestAsyncResource, createRevisionedHostResource, createWindow, createWindowMatch, currentWindow, currentWindowOptions, defaultHost, dialog, flushPerformance, hostMessages, intl, isDirectEvent, isTypedStyleValue, isVectorPath, measureAsyncPerformance, measurePerformance, mergeClasses, mount, notification, number, observeGlobalPointerEvent, openKv, percent, px, reconcileKeyedList, rgba, rotate2d, scale2d, setTransform2D, shadow, showNativeMenu, subscribeAll as subscribeAllHostMessages, subscribeAppLifecycle, subscribeFileDrop, subscribeGesture, subscribe as subscribeHostMessages, subscribeJson as subscribeJsonHostMessages, subscribeKeyboardModifiers, translate2d, useAppLifecycle, useClipboard, useColorTheme, useDialog, useFileDrop, useGesture, useHost, useKeyboardModifierChanges, useKeyboardModifiers, useNotification, useWindow, utilityConflictProperties, validateEntityKeys };
 
 //# sourceMappingURL=index.mjs.map

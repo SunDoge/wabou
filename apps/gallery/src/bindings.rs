@@ -1,27 +1,30 @@
-//! Shared binding declarations for the gallery.
+//! Rust-owned gallery host functions and their TypeScript contract.
 pub use gallery_api::*;
+use wabou::{JsValue, rquickjs};
 
-#[cfg(test)]
-mod tests {
+#[wabou::js_module(name = "bindingsDemo")]
+#[rquickjs::module(rename_vars = "camelCase")]
+pub mod bindings_demo {
     use super::*;
 
-    #[test]
-    fn registered_method_and_manifest_share_names() {
-        let output = manifest().render();
-        assert!(output.contains(&format!("readonly {}", CAPABILITY.name())));
-        assert!(output.contains(&format!("{}(request: string)", DESCRIBE_PALETTE.name())));
-        assert!(output.contains(
-            "describePalette(request: DescribePaletteRequest): Promise<DescribePaletteResponse>"
-        ));
-    }
-
-    #[test]
-    fn generated_host_bindings_are_current() {
-        manifest()
-            .check(concat!(
-                env!("CARGO_MANIFEST_DIR"),
-                "/ui/generated/host-bindings.ts"
-            ))
-            .expect("run `bun run gen` to refresh Gallery host bindings");
+    /// Generate a small named palette.
+    #[rquickjs::function]
+    #[qjs(rename = "describePalette")]
+    #[wabou::js(
+        args(request = named(DescribePaletteRequest)),
+        returns = named(DescribePaletteResponse)
+    )]
+    pub fn describe_palette(
+        JsValue(request): JsValue<DescribePaletteRequest>,
+    ) -> rquickjs::Result<JsValue<DescribePaletteResponse>> {
+        gallery_functions::describe_palette(request)
+            .map(JsValue)
+            .map_err(|error| {
+                rquickjs::Error::new_into_js_message(
+                    "gallery host function",
+                    "DescribePaletteResponse",
+                    error,
+                )
+            })
     }
 }

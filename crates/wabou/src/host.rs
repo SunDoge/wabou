@@ -13,13 +13,12 @@ use std::{
 use serde::{Deserialize, Serialize};
 use snafu::ResultExt;
 use vello_common::peniko::Color;
-use wabou_bindgen::{CapabilityContract, JsonMethod};
 use wabou_shell_api::WindowBackground;
 
 use crate::{Applier, ImageResourceStore, JsRuntime, JsRuntimeOptions};
 use wabou_shell::{FrameSource, NativeWidgetPlugin, Widget, WidgetFactory, WindowOptions};
 
-type CapabilityInstaller = Arc<dyn Fn(&JsRuntime) -> rquickjs::Result<()>>;
+type HostModuleInstaller = Arc<dyn Fn(&JsRuntime) -> rquickjs::Result<()>>;
 type HostMessageProducer = Arc<dyn Fn(crate::HostMessageContext) + Send + Sync>;
 
 struct HostServicesGuard(Vec<Arc<dyn runtime_api::HostService>>);
@@ -96,7 +95,7 @@ enum ApplicationSource {
 struct RuntimeSourceConfig {
     source: ApplicationSource,
     js_runtime_options: JsRuntimeOptions,
-    capabilities: Vec<CapabilityInstaller>,
+    host_modules: Vec<HostModuleInstaller>,
     host_message_producers: Vec<HostMessageProducer>,
     widget_factories: HashMap<String, WidgetFactory>,
     base_color: Color,
@@ -133,9 +132,9 @@ impl RuntimeSourceConfig {
                 operation: "create JavaScript runtime",
             },
         )?;
-        for capability in &self.capabilities {
-            capability(&js).context(crate::error::JavaScriptSnafu {
-                operation: "mount JavaScript capability",
+        for module in &self.host_modules {
+            module(&js).context(crate::error::JavaScriptSnafu {
+                operation: "mount Rust host module",
             })?;
         }
         let serialized_window_options =
@@ -236,13 +235,6 @@ enum EffectTraceConfig {
     Replay { path: PathBuf },
 }
 
-const IMAGE_RESOURCES: CapabilityContract = CapabilityContract::new("imageResources", 1);
-const CREATE_FILE_IMAGE: JsonMethod<CreateFileImageRequest, ImageResourceDescriptor> =
-    JsonMethod::new("createFile");
-const CREATE_NETWORK_IMAGE: JsonMethod<CreateNetworkImageRequest, ImageResourceDescriptor> =
-    JsonMethod::new("createNetwork");
-const RELEASE_IMAGE: JsonMethod<crate::ImageResourceHandle, bool> = JsonMethod::new("release");
-
 #[derive(Deserialize)]
 struct CreateFileImageRequest {
     path: String,
@@ -261,6 +253,80 @@ struct ImageResourceDescriptor {
     height: u32,
 }
 
+#[rquickjs::module(rename_vars = "camelCase")]
+mod image_resource_host {
+    use super::*;
+
+    #[rquickjs::function]
+    #[qjs(rename = "createFile")]
+    pub async fn create_file(
+        ctx: rquickjs::Ctx<'_>,
+        crate::JsValue(request): crate::JsValue<CreateFileImageRequest>,
+    ) -> rquickjs::Result<crate::JsValue<ImageResourceDescriptor>> {
+        let resources = resources(&ctx)?;
+        let loader = resources.clone();
+        let handle = tokio::task::spawn_blocking(move || loader.create_file(request.path))
+            .await
+            .map_err(|error| host_error("load file image", error.to_string()))?
+            .map_err(|error| host_error("load file image", error))?;
+        descriptor(&resources, handle).map(crate::JsValue)
+    }
+
+    #[rquickjs::function]
+    #[qjs(rename = "createNetwork")]
+    pub async fn create_network(
+        ctx: rquickjs::Ctx<'_>,
+        crate::JsValue(request): crate::JsValue<CreateNetworkImageRequest>,
+    ) -> rquickjs::Result<crate::JsValue<ImageResourceDescriptor>> {
+        let resources = resources(&ctx)?;
+        let handle = resources
+            .create_network(&request.url)
+            .await
+            .map_err(|error| host_error("load network image", error))?;
+        descriptor(&resources, handle).map(crate::JsValue)
+    }
+
+    #[rquickjs::function]
+    pub fn release(
+        ctx: rquickjs::Ctx<'_>,
+        crate::JsValue(handle): crate::JsValue<crate::ImageResourceHandle>,
+    ) -> rquickjs::Result<bool> {
+        Ok(resources(&ctx)?.remove(handle))
+    }
+
+    fn resources(ctx: &rquickjs::Ctx<'_>) -> rquickjs::Result<crate::ImageResourceStore> {
+        ctx.userdata::<crate::HostModuleState<crate::ImageResourceStore>>()
+            .map(|state| state.0.clone())
+            .ok_or_else(|| {
+                rquickjs::Exception::throw_type(ctx, "image resource state is unavailable")
+            })
+    }
+
+    fn descriptor(
+        resources: &crate::ImageResourceStore,
+        handle: crate::ImageResourceHandle,
+    ) -> rquickjs::Result<ImageResourceDescriptor> {
+        let (width, height) = resources
+            .get(handle)
+            .ok_or_else(|| {
+                host_error(
+                    "resolve image resource",
+                    "created image resource did not resolve",
+                )
+            })?
+            .dimensions();
+        Ok(ImageResourceDescriptor {
+            handle,
+            width,
+            height,
+        })
+    }
+
+    fn host_error(operation: &'static str, error: impl std::fmt::Display) -> rquickjs::Error {
+        rquickjs::Error::new_into_js_message(operation, "image resource", error.to_string())
+    }
+}
+
 /// Builder for the independent Winit + Taffy + Vello GPU application path.
 ///
 /// It consumes a JavaScript bundle and projects its binary mutation protocol
@@ -271,7 +337,7 @@ pub struct HostBuilder {
     additional_windows: Vec<WindowOptions>,
     base_color: Color,
     widget_factories: HashMap<String, WidgetFactory>,
-    capabilities: Vec<CapabilityInstaller>,
+    host_modules: Vec<HostModuleInstaller>,
     host_message_producers: Vec<HostMessageProducer>,
     services: Vec<(Arc<dyn runtime_api::HostService>, bool)>,
     app_directory_config: Option<wabou_shell::AppDirectoryConfig>,
@@ -304,7 +370,7 @@ impl HostBuilder {
             additional_windows: Vec::new(),
             base_color: Color::from_rgb8(0x0f, 0x17, 0x2a),
             widget_factories: wabou_shell::widgets::builtin_factories(),
-            capabilities: Vec::new(),
+            host_modules: Vec::new(),
             host_message_producers: Vec::new(),
             services: Vec::new(),
             app_directory_config: None,
@@ -316,53 +382,10 @@ impl HostBuilder {
             image_resources: image_resources.clone(),
             js_runtime_options: JsRuntimeOptions::default(),
         };
-        let mounted = image_resources;
-        builder.capability(IMAGE_RESOURCES, move |capability| {
-            let files = mounted.clone();
-            capability.json_method(CREATE_FILE_IMAGE, move |request: CreateFileImageRequest| {
-                let resources = files.clone();
-                async move {
-                    let loader = resources.clone();
-                    let handle =
-                        tokio::task::spawn_blocking(move || loader.create_file(request.path))
-                            .await
-                            .map_err(|error| error.to_string())??;
-                    let (width, height) = resources
-                        .get(handle)
-                        .ok_or_else(|| "created image resource did not resolve".to_owned())?
-                        .dimensions();
-                    Ok::<_, String>(ImageResourceDescriptor {
-                        handle,
-                        width,
-                        height,
-                    })
-                }
-            })?;
-            let network = mounted.clone();
-            capability.json_method(
-                CREATE_NETWORK_IMAGE,
-                move |request: CreateNetworkImageRequest| {
-                    let resources = network.clone();
-                    async move {
-                        let handle = resources.create_network(&request.url).await?;
-                        let (width, height) = resources
-                            .get(handle)
-                            .ok_or_else(|| "created image resource did not resolve".to_owned())?
-                            .dimensions();
-                        Ok::<_, String>(ImageResourceDescriptor {
-                            handle,
-                            width,
-                            height,
-                        })
-                    }
-                },
-            )?;
-            let release = mounted.clone();
-            capability.json_method(RELEASE_IMAGE, move |handle: crate::ImageResourceHandle| {
-                let resources = release.clone();
-                async move { Ok::<_, String>(resources.remove(handle)) }
-            })
-        })
+        builder.host_module_def_with_state::<js_image_resource_host, _>(
+            "imageResources",
+            crate::HostModuleState(image_resources),
+        )
     }
 
     /// Configure the primary native window.
@@ -425,40 +448,35 @@ impl HostBuilder {
         self
     }
 
-    /// Mount one versioned application capability into every window runtime.
+    /// Mount the exports generated by an `#[rquickjs::module]` definition.
     ///
-    /// Direct structured methods and opt-in JSON methods use the same generated
-    /// capability contracts.
-    pub fn capability<F>(self, contract: CapabilityContract, mount: F) -> Self
+    /// `rquickjs` owns function registration and Rust/JavaScript conversion;
+    /// Wabou only places the resulting namespace under `useHost()`.
+    pub fn host_module_def<D>(mut self, name: impl Into<String>) -> Self
     where
-        F: for<'js> Fn(runtime_api::NativeCapability<'js>) -> rquickjs::Result<()>
-            + rquickjs::markers::ParallelSend
-            + Send
-            + Sync
-            + 'static,
+        D: rquickjs::module::ModuleDef + 'static,
     {
-        self.capability_named(contract.name().to_owned(), contract.version(), mount)
+        let name = name.into();
+        self.host_modules
+            .push(Arc::new(move |js| js.mount_host_module_def::<D>(&name)));
+        self
     }
 
-    /// Install a runtime-configured capability without requiring leaked names.
-    #[doc(hidden)]
-    pub fn capability_named<F>(mut self, name: String, version: u32, mount: F) -> Self
+    /// Mount an `#[rquickjs::module]` with runtime-owned Rust state.
+    ///
+    /// Every window runtime receives a clone of `state`. Module functions can
+    /// accept `rquickjs::Ctx` and read the value through `Ctx::userdata::<S>()`.
+    pub fn host_module_def_with_state<D, S>(mut self, name: impl Into<String>, state: S) -> Self
     where
-        F: for<'js> Fn(runtime_api::NativeCapability<'js>) -> rquickjs::Result<()>
+        D: rquickjs::module::ModuleDef + 'static,
+        S: Clone
             + rquickjs::markers::ParallelSend
-            + Send
-            + Sync
-            + 'static,
+            + 'static
+            + for<'js> rquickjs::JsLifetime<'js, Changed<'static> = S>,
     {
-        let mount = Arc::new(mount);
-        self.capabilities.push(Arc::new(move |js| {
-            let mount = mount.clone();
-            js.mount_capability(&name, move |ctx, object| {
-                object.set("__wabouCapabilityVersion", version)?;
-                mount(runtime_api::NativeCapability::from_runtime_parts(
-                    ctx, object,
-                ))
-            })
+        let name = name.into();
+        self.host_modules.push(Arc::new(move |js| {
+            js.mount_host_module_def_with_state::<D, S>(&name, state.clone())
         }));
         self
     }
@@ -682,12 +700,12 @@ impl HostBuilder {
                 })
             })
             .transpose()?;
-        let mut capabilities = self.capabilities;
+        let mut host_modules = self.host_modules;
         if let Some(controller) = &test_controller {
             let controller = controller.clone();
-            capabilities.push(Arc::new(move |js| {
+            host_modules.push(Arc::new(move |js| {
                 let controller = controller.clone();
-                js.mount_capability("test", move |ctx, object| {
+                js.mount_host_module("test", move |ctx, object| {
                     controller.mount_object(ctx, object)
                 })
             }));
@@ -702,15 +720,11 @@ impl HostBuilder {
                 .storage_namespace("kv")
                 .expect("framework KV namespace is valid")
                 .join("default.sqlite3");
-            capabilities.push(Arc::new(move |js| {
-                let path = path.clone();
-                js.mount_capability("kv", move |ctx, object| {
-                    object.set("__wabouCapabilityVersion", 2_u16)?;
-                    runtime_api::mount_kv_methods(
-                        runtime_api::NativeCapability::from_runtime_parts(ctx, object),
-                        path.clone(),
-                    )
-                })
+            host_modules.push(Arc::new(move |js| {
+                js.mount_host_module_def_with_state::<runtime_api::js_kv_host, _>(
+                    "kv",
+                    runtime_api::HostModuleState(runtime_api::KvModuleState::new(path.clone())),
+                )
             }));
         }
         let headless = test_controller.is_some()
@@ -754,7 +768,7 @@ impl HostBuilder {
         let runtime_sources = RuntimeSourceConfig {
             source,
             js_runtime_options: self.js_runtime_options,
-            capabilities,
+            host_modules,
             host_message_producers: self.host_message_producers,
             widget_factories: self.widget_factories,
             base_color: self.base_color,
@@ -825,7 +839,6 @@ impl HostBuilder {
 mod tests {
     use super::*;
     use std::sync::atomic::{AtomicUsize, Ordering};
-    use wabou_bindgen::HostMethod;
 
     #[derive(Deserialize)]
     struct DoubleRequest {
@@ -835,6 +848,20 @@ mod tests {
     #[derive(Serialize)]
     struct DoubleResponse {
         value: u32,
+    }
+
+    #[rquickjs::module(rename_vars = "camelCase")]
+    mod winit_test_host {
+        use super::*;
+
+        #[rquickjs::function]
+        pub fn double(
+            crate::JsValue(request): crate::JsValue<DoubleRequest>,
+        ) -> rquickjs::Result<crate::JsValue<DoubleResponse>> {
+            Ok(crate::JsValue(DoubleResponse {
+                value: request.value * 2,
+            }))
+        }
     }
 
     #[test]
@@ -858,28 +885,55 @@ mod tests {
     }
 
     #[test]
-    fn typed_capabilities_mount_before_the_winit_bundle_boots() {
-        const CONTRACT: CapabilityContract = CapabilityContract::new("winitTest", 3);
-        const DOUBLE: HostMethod<DoubleRequest, DoubleResponse> = HostMethod::new("double");
-        let builder = HostBuilder::new().capability(CONTRACT, |capability| {
-            capability.sync_method(DOUBLE, |request: DoubleRequest| {
-                Ok::<_, String>(DoubleResponse {
-                    value: request.value * 2,
-                })
-            })
-        });
+    fn typed_host_modules_mount_before_the_winit_bundle_boots() {
+        let builder = HostBuilder::new().host_module_def::<js_winit_test_host>("winitTest");
         let runtime = JsRuntime::new().expect("runtime");
-        for capability in &builder.capabilities {
-            capability(&runtime).expect("mount capability");
+        for module in &builder.host_modules {
+            module(&runtime).expect("mount host module");
         }
         let result = runtime
             .with(|ctx| {
                 ctx.eval::<String, _>(
-                    "JSON.stringify([__wabou_capabilities.winitTest.__wabouCapabilityVersion, __wabou_capabilities.winitTest.double({ value: 21 }).value])",
+                    "JSON.stringify(__wabou_capabilities.winitTest.double({ value: 21 }).value)",
                 )
             })
-            .expect("invoke capability");
-        assert_eq!(result, "[3,42]");
+            .expect("invoke host module");
+        assert_eq!(result, "42");
+    }
+
+    #[test]
+    fn image_resources_use_direct_structured_quickjs_values() {
+        let directory = tempfile::tempdir().expect("temporary directory");
+        let path = directory.path().join("pixel.png");
+        image::RgbaImage::from_pixel(2, 3, image::Rgba([12, 34, 56, 255]))
+            .save(&path)
+            .expect("write image fixture");
+        let builder = HostBuilder::new();
+        let runtime = JsRuntime::new().expect("runtime");
+        for module in &builder.host_modules {
+            module(&runtime).expect("mount host module");
+        }
+        let exports = runtime
+            .with(|ctx| {
+                ctx.eval::<String, _>(
+                    "JSON.stringify(Object.keys(__wabou_capabilities.imageResources).sort())",
+                )
+            })
+            .expect("inspect image resource module");
+        assert_eq!(exports, r#"["createFile","createNetwork","release"]"#);
+        let source = format!(
+            r#"(() => {{
+                return __wabou_capabilities.imageResources
+                    .createFile({{ path: {} }})
+                    .then((image) => [image.width, image.height,
+                        __wabou_capabilities.imageResources.release(image.handle)]);
+            }})()"#,
+            serde_json::to_string(path.to_str().expect("UTF-8 path")).expect("encode path"),
+        );
+        let result = runtime
+            .eval_promise_json(&source, Duration::from_secs(2))
+            .expect("image resource promise settled");
+        assert_eq!(result, "[2,3,true]");
     }
 
     #[test]
@@ -898,15 +952,7 @@ mod tests {
 
     #[test]
     fn runtime_source_factory_boots_dynamic_windows_with_shared_contracts() {
-        const CONTRACT: CapabilityContract = CapabilityContract::new("winitTest", 3);
-        const DOUBLE: HostMethod<DoubleRequest, DoubleResponse> = HostMethod::new("double");
-        let builder = HostBuilder::new().capability(CONTRACT, |capability| {
-            capability.sync_method(DOUBLE, |request: DoubleRequest| {
-                Ok::<_, String>(DoubleResponse {
-                    value: request.value * 2,
-                })
-            })
-        });
+        let builder = HostBuilder::new().host_module_def::<js_winit_test_host>("winitTest");
         let source = RuntimeSourceConfig {
             source: ApplicationSource::Bundle {
                 code: r#"
@@ -919,7 +965,7 @@ mod tests {
                 source_map: None,
             },
             js_runtime_options: builder.js_runtime_options,
-            capabilities: builder.capabilities,
+            host_modules: builder.host_modules,
             host_message_producers: builder.host_message_producers,
             widget_factories: builder.widget_factories,
             base_color: builder.base_color,
@@ -1051,14 +1097,11 @@ mod tests {
         let runtime = JsRuntime::new().expect("runtime");
         let path = directory.path().join("winit-kv.sqlite3");
         runtime
-            .mount_capability("kv", move |ctx, object| {
-                object.set("__wabouCapabilityVersion", 2_u16)?;
-                runtime_api::mount_kv_methods(
-                    runtime_api::NativeCapability::from_runtime_parts(ctx, object),
-                    path.clone(),
-                )
-            })
-            .expect("mount KV capability");
+            .mount_host_module_def_with_state::<runtime_api::js_kv_host, _>(
+                "kv",
+                runtime_api::HostModuleState(runtime_api::KvModuleState::new(path)),
+            )
+            .expect("mount KV module");
         let result = runtime
             .eval_promise_json(
                 r#"(() => {

@@ -600,7 +600,7 @@ impl Applier {
                 );
             }
             if !interaction_blocked
-                && node.paint.scrollbar.visibility != ScrollbarVisibility::Hidden
+                && node.paint.scrollbar_style().visibility != ScrollbarVisibility::Hidden
                 && node.scroll.range.iter().any(|range| *range > 0.5)
             {
                 let hit = ScrollbarHit {

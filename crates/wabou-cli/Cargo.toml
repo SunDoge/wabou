@@ -19,10 +19,12 @@ required-features = ["embedded-renderer"]
 usage-rs.workspace = true
 ctrlc = "3.5"
 fs4 = "0.13.1"
+ignore.workspace = true
 process-wrap = { version = "10.0.1", features = ["std"] }
 cargo-packager = { version = "0.11.8", default-features = false, features = ["rustls-tls"] }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
+syn = { version = "2", features = ["full", "parsing"] }
 tempfile = "3"
 wabou-devtools = { workspace = true }
 wabou = { workspace = true, features = ["devtools"], optional = true }

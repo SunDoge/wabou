@@ -14,7 +14,7 @@ import arrowUpDown from "lucide-static/icons/arrow-up-down.svg?raw";
 import cornerDownLeft from "lucide-static/icons/corner-down-left.svg?raw";
 import search from "lucide-static/icons/search.svg?raw";
 import { createMemo, createSignal, type JSX } from "solid-js";
-import type { LauncherEntry } from "./generated/host-bindings";
+import type { LauncherEntry } from "./generated/rust-bindings";
 import { rankLauncherEntries } from "./ranking";
 
 export interface LauncherSurfaceProps {

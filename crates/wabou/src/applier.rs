@@ -161,7 +161,7 @@ const CLASS_RESOLUTION_CACHE_CAPACITY: usize = 1024;
 
 #[derive(Clone)]
 struct ResolvedClassDeclaration {
-    property: String,
+    property: Atom,
     value: IrValue,
     #[cfg(any(feature = "devtools", test))]
     source: Option<Atom>,

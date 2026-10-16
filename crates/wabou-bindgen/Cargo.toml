@@ -6,6 +6,7 @@ license.workspace = true
 
 [dependencies]
 serde = { workspace = true }
+wabou-bindgen-macros.workspace = true
 specta = { workspace = true, optional = true }
 specta-serde = { workspace = true, optional = true }
 specta-typescript = { workspace = true, optional = true }
@@ -19,4 +20,5 @@ generate = [
 ]
 
 [dev-dependencies]
+rquickjs = { version = "0.14.0", features = ["macro"] }
 serde = { workspace = true, features = ["derive"] }

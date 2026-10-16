@@ -79,11 +79,19 @@ export interface WabouPackageOptions {
   formats?: ("app" | "dmg" | "nsis" | "wix" | "deb" | "appimage" | "pacman")[];
 }
 
+export interface WabouBindingsOptions {
+  /** Generated ambient declaration path, relative to the application root. */
+  output?: string;
+  /** Rust source files or directories scanned for Wabou JS markers. */
+  sources?: string[];
+}
+
 /** Complete application configuration shared by Vite and the Wabou CLI. */
 export interface WabouProjectConfig extends WabouViteOptions {
   window?: WabouWindowOptions;
   ui?: { entry?: string };
   package?: WabouPackageOptions;
+  bindings?: WabouBindingsOptions;
 }
 
 export interface WabouIntlOptions {

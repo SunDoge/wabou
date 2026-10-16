@@ -434,7 +434,7 @@ impl TestController {
     #[doc(hidden)]
     pub fn mount(&self, js: &crate::JsRuntime) -> rquickjs::Result<()> {
         let controller = self.clone();
-        js.mount_capability(CAPABILITY, move |ctx, capability| {
+        js.mount_host_module(CAPABILITY, move |ctx, capability| {
             controller.mount_object(ctx, capability)
         })
     }

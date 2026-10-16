@@ -7,4 +7,4 @@ publish = false
 
 [dependencies]
 serde = { workspace = true, features = ["derive"] }
-wabou-bindgen = { workspace = true, features = ["generate"] }
+wabou-bindgen.workspace = true

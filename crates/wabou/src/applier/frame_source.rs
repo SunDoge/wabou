@@ -954,7 +954,7 @@ impl FrameSource for Applier {
                         .node_store
                         .tree
                         .get_node_context(*node)?
-                        .scrollbar;
+                        .scrollbar_style();
                     if style.visibility != ScrollbarVisibility::Auto {
                         return None;
                     }

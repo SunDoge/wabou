@@ -25,7 +25,6 @@ fn tray_icon() -> TrayImage {
 #[snafu::report]
 fn main() -> Result<(), Whatever> {
     let service = service::LauncherService::discover();
-    let capability = service.clone();
     let tray = SystemTray::new(tray_icon())
         .tooltip("Wabou Launcher")
         .item("launcher.show", "Show Launcher", |context| {
@@ -50,9 +49,10 @@ fn main() -> Result<(), Whatever> {
         .base_color([0, 0, 0, 0])
         .shell_extension(shortcut::LauncherShortcut::new())
         .shell_extension(tray)
-        .capability(service::CAPABILITY, move |mut host| {
-            service::mount(&mut host, capability.clone())
-        })
+        .host_module_def_with_state::<service::js_launcher_host, _>(
+            "launcher",
+            wabou::HostModuleState(service),
+        )
         .run()
         .whatever_context("failed to run Wabou Launcher")
 }

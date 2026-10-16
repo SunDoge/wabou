@@ -1,5 +1,7 @@
 #![cfg(not(target_arch = "wasm32"))]
 mod tests {
+    use std::sync::Arc;
+
     use vello_common::kurbo::{Affine, Rect};
     use vello_common::peniko::{Color, Fill};
     use wabou_renderer::layout::PlacedNode;
@@ -161,7 +163,10 @@ mod tests {
             opacity: 1.0,
             interaction: 0,
         };
-        node.paint.scrollbar.thumb_color = Color::from_rgba8(56, 189, 248, 255);
+        node.paint.scrollbar = Some(Arc::new(wabou_renderer::style::ScrollbarStyle {
+            thumb_color: Color::from_rgba8(56, 189, 248, 255),
+            ..Default::default()
+        }));
         let mut tcx = TextContext::new();
         for scale in [1_u32, 2] {
             let mut scene = Scene::new();

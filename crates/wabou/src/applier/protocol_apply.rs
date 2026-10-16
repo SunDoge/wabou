@@ -271,8 +271,33 @@ impl Applier {
             self.interaction.input.focused_target = None;
         }
         self.interaction.input.listeners.remove(&id);
+        self.interaction.input.focusable_targets.remove(&id);
+        self.interaction
+            .input
+            .focus_order
+            .retain(|candidate| *candidate != id);
+        if self.interaction.input.target_override == Some(id) {
+            self.interaction.input.target_override = None;
+        }
+        for route in self.interaction.input.pointer_routes.values_mut() {
+            if route.hovered_target == Some(id) {
+                route.hovered_target = None;
+            }
+            if route.down_target == Some(id) {
+                route.down_target = None;
+                route.down_position = None;
+                route.dragged = false;
+            }
+        }
+        self.interaction.text_selection.remove_node(id);
         self.interaction.scroll.pending_events.remove(&id);
         self.frame.resize_targets.borrow_mut().remove(&id);
+        self.frame
+            .projections
+            .layout_metrics
+            .borrow_mut()
+            .nodes
+            .remove(&id);
         // Never retain an id after its generational node has been removed.
         if self.interaction.input.hovered_target == Some(id) {
             self.interaction.input.hovered_target = None;
@@ -285,8 +310,32 @@ impl Applier {
         self.document.runtime_transforms.remove(&node);
         self.document.overlay_planes.remove(&node);
         self.interaction.scroll.styles.remove(&node);
+        self.interaction.scroll.placed_rects.remove(&node);
+        self.interaction.scroll.metrics.remove(&node);
+        self.interaction.scroll.activity.remove(&node);
         self.interaction.scroll.offsets.remove(&node);
         self.interaction.scroll.motions.remove(&node);
+        if self
+            .interaction
+            .scroll
+            .hovered
+            .is_some_and(|(owner, _)| owner == node)
+        {
+            self.interaction.scroll.hovered = None;
+        }
+        if self
+            .interaction
+            .scroll
+            .drag
+            .is_some_and(|drag| drag.node == node)
+        {
+            self.interaction.scroll.drag = None;
+        }
+        self.interaction.scroll.hits.retain(|hit| hit.node != node);
+        self.interaction.input.hit_items.retain(|item| match item {
+            HitItem::Content(hit) => hit.solid_id != id,
+            HitItem::Scrollbar(hit) => hit.node != node,
+        });
         self.document.resources.svg.remove(&node);
         self.document.style.diagnostics.remove(&node);
         #[cfg(any(feature = "devtools", test))]
@@ -737,10 +786,11 @@ impl Applier {
                         hover_color: color(colors[2]),
                         active_color: color(colors[3]),
                     };
-                    self.interaction.scroll.styles.insert(n, style);
+                    let style = Arc::new(style);
+                    self.interaction.scroll.styles.insert(n, style.clone());
                     if let Some(paint) = self.document.node_store.tree.get_node_context(n) {
                         let mut paint = paint.clone();
-                        paint.scrollbar = style;
+                        paint.scrollbar = Some(style);
                         let _ = self
                             .document
                             .node_store

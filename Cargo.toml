@@ -2,12 +2,18 @@
 resolver = "3"
 members = ["apps/*", "crates/*"]
 exclude = [
+  "apps/devtools",
+  "apps/manga-ocr",
+  "apps/motrix",
+  "apps/pi-agent",
+  "apps/timestow",
   "experiments/*",
   "templates/basic",
   "vendor/bitwarden-sdk",
 ]
 default-members = [
   "apps/gallery",
+  "apps/launcher",
   "crates/wabou",
   "crates/wabou-bindgen",
   "crates/wabou-cli",
@@ -32,6 +38,7 @@ license = "Apache-2.0"
 wabou-telemetry = { path = "crates/wabou-telemetry" }
 wabou = { path = "crates/wabou", default-features = false }
 wabou-bindgen = { path = "crates/wabou-bindgen", default-features = false }
+wabou-bindgen-macros = { path = "crates/wabou-bindgen-macros" }
 wabou-database = { path = "crates/wabou-database" }
 wabou-devtools = { path = "crates/wabou-devtools", default-features = false }
 wabou-host-api = { path = "crates/wabou-host-api" }

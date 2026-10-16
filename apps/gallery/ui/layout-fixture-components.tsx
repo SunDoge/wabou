@@ -23,8 +23,8 @@ import {
   CardHeader,
   CardTitle,
   Checkbox,
-  Combobox,
   ColorThemeProvider,
+  Combobox,
   ComponentsProvider,
   ContentState,
   createToasts,
@@ -130,7 +130,6 @@ import { ComposerContextFiles } from "../../pi-agent/ui/composer-context";
 import { ComposerDeliveryControl } from "../../pi-agent/ui/composer-delivery";
 import { ComposerImages } from "../../pi-agent/ui/composer-images";
 import { ConversationItem } from "../../pi-agent/ui/conversation";
-import { ExtensionUiChrome } from "../../pi-agent/ui/extension-ui";
 import { ModelControls } from "../../pi-agent/ui/model-controls";
 import { SessionActions } from "../../pi-agent/ui/session-actions";
 import { SessionBehaviorSettings } from "../../pi-agent/ui/session-behavior-settings";
@@ -429,36 +428,6 @@ export function PiComposerDeliveryLayoutFixture() {
   return (
     <View class="w-full h-full p-4 flex items-start bg-surface">
       <ComposerDeliveryControl value="followUp" change={() => {}} />
-    </View>
-  );
-}
-
-export function PiExtensionUiLayoutFixture() {
-  return (
-    <View class="w-full h-full min-w-0 p-3 bg-canvas">
-      <View class="w-full min-w-0 rounded-xl border border-strong bg-input p-2 gap-2">
-        <ExtensionUiChrome
-          placement="aboveEditor"
-          statuses={[
-            {
-              agentId: "agent-1",
-              key: "branch",
-              text: "Working on a long extension-provided status without overflowing the composer",
-            },
-          ]}
-          widgets={[
-            {
-              agentId: "agent-1",
-              key: "tasks",
-              lines: [
-                "Indexing workspace files",
-                "Checking packages/ui/src/components/markdown.tsx",
-              ],
-              placement: "aboveEditor",
-            },
-          ]}
-        />
-      </View>
     </View>
   );
 }

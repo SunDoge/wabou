@@ -1,2 +1,2 @@
-import { c as defineConfig, i as WabouProjectConfigExport, n as WabouPackageOptions, r as WabouProjectConfig, s as WabouWindowOptions } from "./index-BojZN6sB.mjs";
-export { type WabouPackageOptions, type WabouProjectConfig, type WabouProjectConfigExport, type WabouWindowOptions, defineConfig };
+import { a as WabouProjectConfigExport, c as WabouWindowOptions, i as WabouProjectConfig, l as defineConfig, r as WabouPackageOptions, t as WabouBindingsOptions } from "./index-C4cmXMhO.mjs";
+export { type WabouBindingsOptions, type WabouPackageOptions, type WabouProjectConfig, type WabouProjectConfigExport, type WabouWindowOptions, defineConfig };

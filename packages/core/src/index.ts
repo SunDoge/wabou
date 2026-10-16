@@ -137,11 +137,6 @@ export {
   intl,
 } from "./glue/intl";
 export {
-  bindJsonCapability,
-  type JsonCapabilityClient,
-  type JsonCapabilityMethodName,
-} from "./glue/json-capability";
-export {
   type KeyboardModifiers,
   subscribeKeyboardModifiers,
   useKeyboardModifierChanges,
@@ -169,12 +164,6 @@ export {
   type LatestAsyncResourceOptions,
   type LatestAsyncResourceStatus,
 } from "./glue/latest-async-resource";
-export {
-  bindCapability,
-  type CapabilityClientOptions,
-  CapabilityError,
-  type NativeCapability,
-} from "./glue/native-capability";
 export {
   type NativeMenuItem,
   type NativeMenuOptions,

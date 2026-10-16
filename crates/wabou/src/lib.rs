@@ -69,6 +69,8 @@ pub use host_message::{
     HostMessage, HostMessageContext, HostMessageHandle, HostMessagePayload, HostMessageRouter,
 };
 pub use jsrt::{JsRuntime, JsRuntimeOptions};
+pub use runtime_api::HostModuleState;
+pub use runtime_api::JsValue;
 pub use runtime_api::{ImageResource, ImageResourceHandle, ImageResourceStore};
 pub use wabou_shell::widgets::SecretStore;
 pub use wabou_shell::{
@@ -81,17 +83,12 @@ pub use runtime_api::RgbaColor as Color;
 pub use runtime_api::rquickjs;
 pub use runtime_api::{
     AppDirectories, AppDirectoryConfig, HostMessageError, HostService, HostServiceContext,
-    HostServiceHandle, ManagedHostService, NativeCapability, PersistentJsonCache,
-    ResidentResources, ResourceKey, ResourceRegistry, RevisionedHostPublication,
-    RevisionedHostPublisher, RevisionedHostSnapshot, SerialWorker, WindowBackground,
-    WindowInputMode, WindowLevel, WindowResourceKey, initial_window_resource_key,
-    managed_host_service,
+    HostServiceHandle, ManagedHostService, PersistentJsonCache, ResidentResources, ResourceKey,
+    ResourceRegistry, RevisionedHostPublication, RevisionedHostPublisher, RevisionedHostSnapshot,
+    SerialWorker, WindowBackground, WindowInputMode, WindowLevel, WindowResourceKey,
+    initial_window_resource_key, managed_host_service,
 };
-#[cfg(feature = "bindings")]
-pub use wabou_bindgen::{
-    Bindings, Capability, FunctionModule, NativeMethod, Type, WidgetModule, specta,
-};
-pub use wabou_bindgen::{CapabilityContract, HostMethod, JsonMethod};
+pub use wabou_bindgen::{js, js_class, js_module, js_type};
 pub use wabou_database::{
     AtomicCommit as KvAtomicCommit, KvCheck, KvEntry, KvKey, KvKeyPart, KvListOptions, KvMutation,
     KvStore, Versionstamp as KvVersionstamp,

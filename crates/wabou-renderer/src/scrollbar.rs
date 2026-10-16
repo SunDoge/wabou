@@ -66,7 +66,7 @@ pub fn resolve(node: &PlacedNode, axis: ScrollAxis) -> Option<ResolvedScrollbarG
     if main <= 0.0 || cross <= 0.0 {
         return None;
     }
-    let style = node.paint.scrollbar;
+    let style = node.paint.scrollbar_style();
     let thickness = f64::from(style.thickness).clamp(0.0, cross);
     let margin = f64::from(style.margin).clamp(0.0, (cross - thickness).max(0.0));
     let track = match axis {
@@ -172,8 +172,16 @@ pub fn drag_ratio(node: &PlacedNode, axis: ScrollAxis) -> f64 {
 
 #[cfg(test)]
 mod tests {
+    use std::sync::Arc;
+
     use super::*;
-    use crate::style::Paint;
+    use crate::style::{Paint, ScrollbarStyle};
+
+    fn set_style(node: &mut PlacedNode, update: impl FnOnce(&mut ScrollbarStyle)) {
+        let mut style = node.paint.scrollbar_style();
+        update(&mut style);
+        node.paint.scrollbar = Some(Arc::new(style));
+    }
 
     fn node(offset: f32) -> PlacedNode {
         PlacedNode {
@@ -223,9 +231,11 @@ mod tests {
     #[test]
     fn custom_appearance_changes_shared_paint_and_hit_geometry() {
         let mut node = node(450.0);
-        node.paint.scrollbar.thickness = 14.0;
-        node.paint.scrollbar.margin = 3.0;
-        node.paint.scrollbar.min_thumb_length = 40.0;
+        set_style(&mut node, |style| {
+            style.thickness = 14.0;
+            style.margin = 3.0;
+            style.min_thumb_length = 40.0;
+        });
         assert_eq!(
             thumb(&node, ScrollAxis::Vertical),
             Some(Rect::new(83.0, 30.0, 97.0, 70.0))
@@ -242,9 +252,11 @@ mod tests {
     #[test]
     fn extreme_custom_dimensions_are_clamped_to_the_scroll_port() {
         let mut node = node(450.0);
-        node.paint.scrollbar.thickness = 500.0;
-        node.paint.scrollbar.margin = 500.0;
-        node.paint.scrollbar.min_thumb_length = 500.0;
+        set_style(&mut node, |style| {
+            style.thickness = 500.0;
+            style.margin = 500.0;
+            style.min_thumb_length = 500.0;
+        });
         let geometry = resolve(&node, ScrollAxis::Vertical).unwrap();
         assert_eq!(geometry.track, Rect::new(0.0, 0.0, 100.0, 100.0));
         assert_eq!(geometry.thumb, Rect::new(0.0, 0.0, 100.0, 100.0));

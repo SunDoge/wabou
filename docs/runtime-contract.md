@@ -72,7 +72,7 @@ the runtime. They are appropriate only when an operation:
   interning.
 
 They are not an application extension API. Adding a direct intrinsic merely to
-avoid defining a capability is a boundary violation. Framework-owned native
+avoid defining a host module is a boundary violation. Framework-owned native
 effects are implementation details of typed services such as clipboard,
 dialog, notification, and window APIs; their numeric ABI is not a fourth
 application-visible communication mechanism.
@@ -81,38 +81,24 @@ application-visible communication mechanism.
 and operation identifiers. Code generation produces both the Rust constants
 used by `wabou-shell` and the TypeScript constants used by `@wabou/core`.
 
-### Native capabilities
+### Rust host modules
 
-Native capabilities are the direct structured-value control path for
-application-owned Rust APIs. A typed `HostMethod<Request, Response>` is mounted
-through `HostBuilder::native_capability`; Serde converts QuickJS objects
-directly without an intermediate JSON string and asynchronous Rust handlers
-become JavaScript Promises.
+Application-owned Rust APIs use `#[rquickjs::module]` and are mounted with
+`HostBuilder::host_module_def` or `host_module_def_with_state`. Serde-backed
+`JsValue<T>` converts ordinary QuickJS values directly, without a JSON string
+envelope. Async Rust functions become JavaScript Promises.
 
-Use native capabilities for hot request/response calls or stable typed object
-operations where JSON encoding is measurable or unnecessarily duplicates an
-already in-process object representation. Public DTO declarations come from
-Specta, while the flat function names and sync/async behavior remain explicit
-in a `FunctionModule`. Native capability methods are not per-frame rendering
-operations and must not replace batching.
+The Wabou binding markers describe the public DTO and function surface beside
+the Rust implementation. `wabou bindings` emits declarations and checks them
+for drift; `rquickjs` remains responsible for runtime registration. Host calls
+are for commands and coarse request/response work, while per-frame rendering
+continues to use the batched mutation protocol.
 
-### JSON capabilities
-
-JSON capabilities are Wabou's control plane for application-owned, low-rate,
-asynchronous request/response operations. They provide named, versioned,
-generated contracts and Promise completion without exposing QuickJS values to
-application Rust code.
-
-Use a capability for database operations, configuration, account services, or
+Use a host module for database operations, configuration, account services, or
 other business requests. A long-running producer starts or configures through
-a capability and publishes subsequent values through the ordinary host event
-frame. It must not create a new callback channel.
-
-JSON is chosen for contract clarity and diagnostics, not for per-frame data.
-If measurement shows that JSON conversion is a bottleneck for an otherwise
-request/response-shaped operation, move that operation to a native capability.
-If the work is frequent and naturally batchable, define a binary frame record
-instead.
+a module function and publishes subsequent values through the ordinary host
+event frame. It must not create a new callback channel. If the work is frequent
+and naturally batchable, define a binary frame record instead.
 
 ## Resource identity and lifetime
 
@@ -222,10 +208,9 @@ For every new cross-language feature, decide in this order:
 2. Is the operation frequent or batchable? Add it to the frame protocol.
 3. Must JavaScript receive a synchronous result to drive the runtime itself?
    Add a private native intrinsic and document why batching is impossible.
-4. Is it a hot, stable, typed request/response operation? Define or extend a
-   native capability.
-5. Otherwise, define or extend a JSON capability.
-6. If Rust produces later unsolicited values, deliver them through the host
+4. Is it a typed request/response operation? Define or extend an `rquickjs`
+   host module and its generated binding contract.
+5. If Rust produces later unsolicited values, deliver them through the host
    event frame.
 
 Protocol declarations remain single-source and generated across Rust and

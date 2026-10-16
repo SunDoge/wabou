@@ -412,13 +412,7 @@ impl Applier {
                 .get(&node)
                 .copied()
                 .unwrap_or_default(),
-            scrollbar: self
-                .interaction
-                .scroll
-                .styles
-                .get(&node)
-                .copied()
-                .unwrap_or_default(),
+            scrollbar: self.interaction.scroll.styles.get(&node).cloned(),
         };
         if let Some(source) = self.serialize_svg(node, inherited.text_color) {
             let cached_for_node = self
@@ -448,7 +442,7 @@ impl Applier {
                     self.document
                         .resources
                         .decoded_svg
-                        .insert(source.clone(), parsed.clone());
+                        .put(source.clone(), parsed.clone());
                     parsed
                 });
                 match asset {
@@ -669,12 +663,20 @@ impl Applier {
                     .is_some_and(|declared| declared.display_explicit != resolved.display_explicit)
         });
         self.document.ifc_dirty |= projection_changed;
-        self.document
-            .style
-            .diagnostics
-            .insert(node, resolved.diagnostics);
+        if resolved.diagnostics.is_empty() {
+            self.document.style.diagnostics.remove(&node);
+        } else {
+            self.document
+                .style
+                .diagnostics
+                .insert(node, resolved.diagnostics);
+        }
         #[cfg(any(feature = "devtools", test))]
-        self.document.style.cascade.insert(node, resolved.cascade);
+        if resolved.cascade.is_empty() {
+            self.document.style.cascade.remove(&node);
+        } else {
+            self.document.style.cascade.insert(node, resolved.cascade);
+        }
         if let Some(declared) = self.document.node_store.declared.get_mut(&node) {
             declared.paint = resolved.paint.clone();
             declared.display_explicit = resolved.display_explicit;
@@ -746,13 +748,7 @@ impl Applier {
                 .get(&node)
                 .copied()
                 .unwrap_or_default(),
-            scrollbar: self
-                .interaction
-                .scroll
-                .styles
-                .get(&node)
-                .copied()
-                .unwrap_or_default(),
+            scrollbar: self.interaction.scroll.styles.get(&node).cloned(),
         };
         let paint = resolved.paint.resolve(&parent, host);
         let inherited_changed = previous
@@ -808,7 +804,7 @@ impl Applier {
     fn resolve_class_declarations(
         &mut self,
         class_key: Vec<Atom>,
-        atoms: &AtomPool,
+        atoms: &mut AtomPool,
         active_theme_colors: &HashMap<String, u32>,
     ) -> Arc<CachedClassResolution> {
         if let Some(cached) = self.document.style.class_resolution_cache.get(&class_key) {
@@ -839,7 +835,7 @@ impl Applier {
                         0usize,
                         rule.source_order,
                         index,
-                        declaration.property.clone(),
+                        atoms.intern(&declaration.property),
                         declaration.value.clone(),
                         None,
                     ));
@@ -858,7 +854,7 @@ impl Applier {
                             class_position + 1,
                             rule.source_order,
                             index,
-                            declaration.property.clone(),
+                            atoms.intern(&declaration.property),
                             declaration.value.clone(),
                             Some(*class),
                         ));
@@ -938,7 +934,7 @@ impl Applier {
                     class_position + 1,
                     0,
                     index,
-                    declaration.property.clone(),
+                    atoms.intern(&declaration.property),
                     value,
                     Some(*class),
                 ));
@@ -988,9 +984,9 @@ impl Applier {
         };
         let active_theme_colors = self.document.style.active_theme_colors.clone();
         let atoms_handle = self.document.atoms.clone();
-        let atoms = atoms_handle.borrow();
+        let mut atoms = atoms_handle.borrow_mut();
         let cached =
-            self.resolve_class_declarations(class_key, &atoms, active_theme_colors.as_ref());
+            self.resolve_class_declarations(class_key, &mut atoms, active_theme_colors.as_ref());
         let decl = self
             .document
             .node_store
@@ -1018,7 +1014,9 @@ impl Applier {
             }
             diagnostics.extend(cached.diagnostics.iter().cloned());
             for declaration in &cached.declarations {
-                let property = declaration.property.as_str();
+                let Some(property) = atoms.resolve(declaration.property) else {
+                    continue;
+                };
                 let value = &declaration.value;
                 display_explicit |= property == "display";
                 let value = resolve_color_tokens(value, &active_theme_colors);

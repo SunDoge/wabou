@@ -24,5 +24,13 @@
     "apps/**/*.tsx",
     "scripts/**/*.ts"
   ],
-  "exclude": ["node_modules", "**/dist"]
+  "exclude": [
+    "node_modules",
+    "**/dist",
+    "apps/devtools",
+    "apps/manga-ocr",
+    "apps/motrix",
+    "apps/pi-agent",
+    "apps/timestow"
+  ]
 }

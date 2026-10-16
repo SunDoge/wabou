@@ -4,17 +4,15 @@ import {
   ColorThemeProvider,
   ComponentsProvider,
   mount,
+  useHost,
   useWindow,
 } from "@wabou/ui";
 import { createSignal } from "solid-js";
-import {
-  type LauncherEntry,
-  useLauncherClient,
-} from "./generated/host-bindings";
+import type { LauncherEntry } from "./generated/rust-bindings";
 import { LauncherSurface } from "./launcher";
 
 function App() {
-  const api = useLauncherClient();
+  const api = useHost().launcher;
   const window = useWindow();
   const [entries, setEntries] = createSignal<LauncherEntry[]>([]);
   const [loading, setLoading] = createSignal(true);

@@ -4,6 +4,8 @@
 
 mod atom;
 mod protocol;
+mod wire;
 
 pub use atom::{Atom, AtomPool};
 pub use protocol::*;
+pub use wire::*;

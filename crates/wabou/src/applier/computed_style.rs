@@ -18,7 +18,7 @@ use std::collections::HashMap;
 use vello_common::peniko::Color;
 use wabou_shell::FrameSource;
 
-use super::{Applier, InvalidationFlags};
+use super::{Applier, InvalidationFlags, ResolvedClassDeclaration};
 use crate::jsrt::JsRuntime;
 use crate::protocol::NodeKey;
 use crate::protocol::{Frame, Op};
@@ -27,6 +27,17 @@ use crate::style_ir::fixture::{
     color, color_token, declaration, edges, keyword, number, px, rule, sheet,
 };
 use crate::style_ir::{Appearance, ColorTheme, ColorThemes, StyleSheet};
+
+#[test]
+fn cached_style_declarations_keep_interned_property_ids() {
+    if usize::BITS == 64 {
+        assert!(
+            std::mem::size_of::<ResolvedClassDeclaration>() <= 72,
+            "cached declaration grew to {} bytes",
+            std::mem::size_of::<ResolvedClassDeclaration>()
+        );
+    }
+}
 
 fn idle_runtime() -> JsRuntime {
     let js = JsRuntime::new().expect("runtime");
@@ -704,7 +715,7 @@ fn ignored_runtime_class_never_becomes_a_utility_diagnostic() {
             .contains(&lucide)
     );
     let node = applier.document.node_store.solid_to_node[&NodeKey::new(2, 1)];
-    assert!(applier.document.style.diagnostics[&node].is_empty());
+    assert!(!applier.document.style.diagnostics.contains_key(&node));
 }
 
 #[test]

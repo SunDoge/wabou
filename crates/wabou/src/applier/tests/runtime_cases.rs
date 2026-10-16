@@ -38,7 +38,7 @@ fn solid_resources_settle_native_promises_and_return_runtime_to_idle() {
         "/../wabou-runtime/src/gen/resource-test-runtime.js"
     ));
     let js = JsRuntime::new().expect("runtime");
-    js.mount_capability("promiseTest", |ctx, capability| {
+    js.mount_host_module("promiseTest", |ctx, capability| {
         capability.set(
             "resolve",
             rquickjs::Function::new(
@@ -241,10 +241,15 @@ fn application_lifecycle_reaches_js_without_a_render_frame() {
     let js = JsRuntime::new().expect("runtime");
     install_host_frame_test_hook(&js);
     let mut applier = Applier::from_runtime(js, Color::BLACK);
+    applier.document.resources.decoded_svg.put(
+        Arc::from("<svg data-memory-warning-fixture/>"),
+        Err(Arc::from("fixture parse error")),
+    );
     let response = applier.handle_event(UiEvent::AppLifecycle(
         shell_api::AppLifecycleEvent::MemoryWarning,
     ));
     assert!(response.request_redraw);
+    assert!(applier.document.resources.decoded_svg.is_empty());
     let payload = applier
         .runtime
         .js

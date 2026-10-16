@@ -131,6 +131,7 @@ fn draw_scrollbars(scene: &mut Scene, node: &PlacedNode, transform: Affine) {
     if node.scroll.opacity <= 0.0 {
         return;
     }
+    let style = node.paint.scrollbar_style();
     let fade = |color: Color| {
         let rgba = color.to_rgba8();
         Color::from_rgba8(
@@ -145,7 +146,7 @@ fn draw_scrollbars(scene: &mut Scene, node: &PlacedNode, transform: Affine) {
             scene.fill(
                 Fill::NonZero,
                 transform,
-                fade(node.paint.scrollbar.track_color),
+                fade(style.track_color),
                 None,
                 &track,
             );
@@ -153,18 +154,18 @@ fn draw_scrollbars(scene: &mut Scene, node: &PlacedNode, transform: Affine) {
         let Some(rect) = scrollbar_thumb(node, axis) else {
             continue;
         };
-        let radius = if node.paint.scrollbar.radius < 0.0 {
+        let radius = if style.radius < 0.0 {
             match axis {
                 ScrollAxis::Horizontal => rect.height() * 0.5,
                 ScrollAxis::Vertical => rect.width() * 0.5,
             }
         } else {
-            f64::from(node.paint.scrollbar.radius)
+            f64::from(style.radius)
         };
         let color = match node.scroll.interaction {
-            2 => node.paint.scrollbar.active_color,
-            1 => node.paint.scrollbar.hover_color,
-            _ => node.paint.scrollbar.thumb_color,
+            2 => style.active_color,
+            1 => style.hover_color,
+            _ => style.thumb_color,
         };
         scene.fill(
             Fill::NonZero,

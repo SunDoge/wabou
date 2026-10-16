@@ -1,4 +1,4 @@
-import type { LauncherEntry } from "./generated/host-bindings";
+import type { LauncherEntry } from "./generated/rust-bindings";
 
 function score(entry: LauncherEntry, query: string): number | undefined {
   const terms = query.trim().toLocaleLowerCase().split(/\s+/).filter(Boolean);

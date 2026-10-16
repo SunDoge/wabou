@@ -106,82 +106,28 @@ declare module "@wabou/core/registry" {
 ```
 
 Rust remains the source of truth for request, response, and event DTOs.
-Application methods choose one of two typed boundaries: `JsonMethod` for
-low-frequency capability calls that benefit from a stable JSON envelope, or
-`HostMethod` for direct in-process QuickJS calls where encoding JSON text is
-unnecessary. Wabou pins the validated Specta 2 RC and uses `specta-serde`
-only to reflect its explicitly annotated bridge DTOs; it does not maintain
-fake contract-only functions. Request types are exported using their serde
-deserialization shape,
-while response types use their serialization shape. This preserves directional
-attributes such as `skip_serializing_if` instead of silently publishing an
-incorrect symmetric contract. The generator omits the opposite phase and
-Specta's synthetic two-phase wrapper unless that direction is actually used by
-another method. `wabou-bindgen` adds the capability namespace and Wabou wire
-policy, then generates a module-local raw contract, an injectable typed client
-factory, and a `useXClient()` context consumer. It intentionally does not claim
-that the raw JSON methods merged into `Host` are the typed public API. Each method has zero or one
-request value, encoded as JSON (`null` when absent); sync and Promise-like
-native results are normalized at the client boundary.
+Application methods are ordinary functions in an `#[rquickjs::module]`.
+`JsValue<T>` uses strict Serde conversion between Rust DTOs and ordinary
+QuickJS values, so there is no JSON string envelope or parallel client runtime.
+Async Rust functions naturally appear as JavaScript Promises.
 
-Failed capability envelopes contain a stable `{ code, message }` object rather
-than an unclassified string. `invalidRequest` means Rust rejected the JSON DTO
-before invoking application code, `handlerFailure` means the registered Rust
-handler returned an error, and `responseEncodingFailure` means its success
-value could not be serialized. Generated clients add `invalidResponse` for
-malformed JSON or envelopes and expose the classification on
-`NativeCapabilityError.code`; callers may branch on the code while retaining a
-human-readable diagnostic. A native function that throws or rejects before it
-can return an envelope is classified separately as `invocationFailure`, so raw
-bridge exceptions do not leak through the generated client API.
-Likewise, values that cannot be serialized as JSON are rejected locally as
-`requestEncodingFailure` before the native method is invoked.
+Wabou's inert `#[wabou::js_module]`, `#[wabou::js]`, `#[wabou::js_type]`,
+and `#[wabou::js_class]` markers describe the public contract beside the
+registered Rust item. The source scanner emits ambient TypeScript declarations
+without compiling the application. It does not infer a contract from Rust ABI
+types, persistence models, or arbitrary closures.
 
-Each generated namespace also uses one shared `CapabilityContract` for its
-name and ABI version. The Rust host publishes that version on the mounted
-capability object, and generated clients validate it when constructed. Missing
-or stale native implementations fail deterministically with
-`incompatibleHost`, which is especially important when Vite HMR can refresh
-JavaScript but cannot replace changed Rust code. Individual native methods are
-validated when called, so partial test hosts remain easy to construct while a
-stale or incomplete real host still produces the same classified diagnostic.
-
-Specta 2 deliberately exports unconstrained Rust floats as `number | null`,
-matching `serde_json` for NaN and infinity. A DTO may opt into
-`specta_typescript::Number` only when its producer enforces a finite-value
-invariant. Framework metrics and geometry do this explicitly; bindgen does not
-globally weaken user DTO contracts.
-
-Do not infer the public API by parsing arbitrary `rquickjs::Function` closures.
-Their captured state, argument conversion, error policy, and Promise behavior
-are not a stable schema. Do not generate declarations from persistence or SDK
-models either: define explicit bridge DTOs so a database or upstream SDK change
-cannot silently become a JavaScript API change.
-
-Typeshare is appropriate when several foreign languages are a primary
-requirement. A full RPC framework is not required for
-the in-process QuickJS capability boundary, and would couple the renderer to
-routing and transport concerns it does not have.
+Host state is stored as an owned `HostModuleState<T>` in QuickJS runtime
+userdata. Functions request `Ctx` as their first argument and retrieve that
+state when called. They must never capture `Ctx`, `Object`, or another
+QuickJS-lifetime handle inside long-lived Rust closures.
 
 Generated files must be committed and checked for drift in CI. Generation is
 an explicit `write` operation; the corresponding `check` operation generates
 in memory and fails when the committed output differs. Ordinary compilation
 and build scripts must not rewrite the source tree.
 
-Direct native calls use a flat `FunctionModule`. Its `NativeMethod` function
-names, argument lists, sync/async behavior, and return spellings remain
-explicit, while structured request and response DTO declarations come from the
-same Specta and Serde types used by Rust. At runtime the matching
-`HostMethod<Request, Response>` is mounted through `NativeCapability`, which
-converts structured QuickJS values directly instead of serializing JSON text.
-This path is available to applications as well as framework code; Motrix's
-torrent inspection is the reference integration. It removes duplicated object
-shapes without pretending that a Rust function's conversion, scheduling, or
-error policy can be inferred. Generated-file drift checks keep the committed
-adapter declaration reproducible.
-
-Prefer direct native methods for hot calls or stable, strongly typed object
-operations. Keep low-frequency configuration, coarse commands, and APIs that
-need JSON's transport/debugging envelope on `JsonMethod`. Per-frame rendering
-and other batchable operations remain a separate versioned binary opcode ABI;
-neither capability mechanism replaces it.
+Host modules are appropriate for commands, resource operations, and coarse
+request/response work. Per-frame rendering and other batchable operations
+remain a separate versioned binary mutation ABI; host functions do not replace
+it.

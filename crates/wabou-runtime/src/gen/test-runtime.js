@@ -7019,6 +7019,125 @@ ${footer}`;
   }
   installConsoleFooter();
 
+  // packages/core/src/generated/wire-protocol.ts
+  var OP = {
+    CreateElement: 1,
+    CreateText: 2,
+    AppendChild: 4,
+    InsertBefore: 5,
+    RemoveChild: 6,
+    SetText: 8,
+    SetAttribute: 9,
+    RemoveAttribute: 10,
+    SetStyle: 11,
+    RemoveStyle: 12,
+    AddEventListener: 13,
+    RemoveEventListener: 14,
+    SetClassName: 15,
+    DropNode: 17,
+    SetTransform2D: 18,
+    FocusNode: 19,
+    ScrollTo: 20,
+    ScrollBy: 21,
+    SetStyleValue: 22,
+    SetShadows: 23,
+    SetOverlayPlane: 24,
+    SetScrollbarStyle: 25,
+    SetWidgetConfig: 26,
+    RemoveWidgetConfig: 27,
+    SetTextBehavior: 28,
+    SetInteractionPolicy: 29,
+    SetGraphicSource: 30,
+    ClearGraphicSource: 31,
+    SetGraphicData: 32,
+    ClearGraphicData: 33,
+    SetTextMaxLines: 34,
+    SetTextSelection: 35,
+    TextCommand: 36,
+    BlurNode: 37,
+    SetProjectionBoundary: 38,
+    AcknowledgeTextValue: 39
+  };
+  var TEXT_BEHAVIOR = {
+    AggregateDirectText: 1,
+    SingleLine: 2,
+    AggregateStyledText: 4,
+    ClipLines: 8
+  };
+  var INTERACTION_POLICY = {
+    Focusable: 1,
+    BlockSubtree: 2,
+    ContainFocus: 4
+  };
+  var GRAPHIC_SOURCE = {
+    Svg: 1,
+    ResourceRaster: 4
+  };
+  var GRAPHIC_DATA = {
+    VectorPath: 1
+  };
+  var MAX_GRAPHIC_DATA_BYTES = 16777216;
+  var EVENT_CODE = {
+    click: 1,
+    input: 2,
+    submit: 3,
+    keydown: 4,
+    keyup: 5,
+    change: 6,
+    pointerdown: 7,
+    pointermove: 8,
+    pointerup: 9,
+    pointerenter: 10,
+    pointerleave: 11,
+    wheel: 12,
+    focus: 13,
+    blur: 14,
+    imecommit: 15,
+    pointercancel: 16,
+    pointerover: 17,
+    pointerout: 18,
+    contextmenu: 19,
+    dblclick: 20,
+    focusin: 21,
+    focusout: 22,
+    scroll: 23,
+    terminalexit: 24,
+    terminalprogress: 25,
+    terminalnotification: 26,
+    terminaltitlechange: 27,
+    terminalcwdchange: 28,
+    terminalselectionchange: 29,
+    textselectionchange: 30,
+    terminalbell: 31,
+    resourceready: 32,
+    resourceerror: 33,
+    imeenabled: 34,
+    imepreedit: 35,
+    imedeletesurrounding: 36,
+    imedisabled: 37,
+    windowcloserequested: 38,
+    transitionend: 39,
+    secretstatechange: 40
+  };
+  var EVENT_DATA_LEN = 21;
+  var HOST_FRAME = {
+    Magic: 826689623,
+    Version: 3,
+    HeaderLen: 32
+  };
+  var HOST_RECORD_KIND = {
+    NodeEvent: 1,
+    Resize: 2,
+    ApplicationMessage: 3,
+    Window: 4,
+    Widget: 5
+  };
+  var HOST_NODE_PAYLOAD = {
+    None: 0,
+    Numeric: 1,
+    Json: 2
+  };
+
   // packages/core/src/protocol/resource-key.ts
   var U32_MAX = 4294967295;
   var resourceKeyFamily = Symbol("wabou.resource-key-family");
@@ -7183,151 +7302,12 @@ ${footer}`;
       super(nodeKeyFamily);
     }
   }
-
   // packages/core/src/protocol/index.ts
-  var OP = {
-    CreateElement: 1,
-    CreateText: 2,
-    AppendChild: 4,
-    InsertBefore: 5,
-    RemoveChild: 6,
-    SetText: 8,
-    SetAttribute: 9,
-    RemoveAttribute: 10,
-    SetStyle: 11,
-    RemoveStyle: 12,
-    AddEventListener: 13,
-    RemoveEventListener: 14,
-    SetClassName: 15,
-    DropNode: 17,
-    SetTransform2D: 18,
-    FocusNode: 19,
-    ScrollTo: 20,
-    ScrollBy: 21,
-    SetStyleValue: 22,
-    SetShadows: 23,
-    SetOverlayPlane: 24,
-    SetScrollbarStyle: 25,
-    SetWidgetConfig: 26,
-    RemoveWidgetConfig: 27,
-    SetTextBehavior: 28,
-    SetInteractionPolicy: 29,
-    SetGraphicSource: 30,
-    ClearGraphicSource: 31,
-    SetGraphicData: 32,
-    ClearGraphicData: 33,
-    SetTextMaxLines: 34,
-    SetTextSelection: 35,
-    TextCommand: 36,
-    BlurNode: 37,
-    SetProjectionBoundary: 38,
-    AcknowledgeTextValue: 39
-  };
-  var TEXT_BEHAVIOR = {
-    AggregateDirectText: 1,
-    SingleLine: 2,
-    AggregateStyledText: 4,
-    ClipLines: 8
-  };
   var TEXT_BEHAVIOR_MASK = TEXT_BEHAVIOR.AggregateDirectText | TEXT_BEHAVIOR.SingleLine | TEXT_BEHAVIOR.AggregateStyledText | TEXT_BEHAVIOR.ClipLines;
-  var INTERACTION_POLICY = {
-    Focusable: 1,
-    BlockSubtree: 2,
-    ContainFocus: 4
-  };
   var INTERACTION_POLICY_MASK = INTERACTION_POLICY.Focusable | INTERACTION_POLICY.BlockSubtree | INTERACTION_POLICY.ContainFocus;
-  var GRAPHIC_SOURCE = {
-    Svg: 1,
-    ResourceRaster: 4
-  };
-  var GRAPHIC_DATA = { VectorPath: 1 };
-  var MAX_GRAPHIC_DATA_BYTES = 16 * 1024 * 1024;
   function validGraphicSourceKind(kind) {
     return kind === GRAPHIC_SOURCE.Svg || kind === GRAPHIC_SOURCE.ResourceRaster;
   }
-  var EVENT_CODE = {
-    click: 1,
-    input: 2,
-    submit: 3,
-    keydown: 4,
-    keyup: 5,
-    change: 6,
-    pointerdown: 7,
-    pointermove: 8,
-    pointerup: 9,
-    pointerenter: 10,
-    pointerleave: 11,
-    wheel: 12,
-    focus: 13,
-    blur: 14,
-    imecommit: 15,
-    pointercancel: 16,
-    pointerover: 17,
-    pointerout: 18,
-    contextmenu: 19,
-    dblclick: 20,
-    focusin: 21,
-    focusout: 22,
-    scroll: 23,
-    terminalexit: 24,
-    terminalprogress: 25,
-    terminalnotification: 26,
-    terminaltitlechange: 27,
-    terminalcwdchange: 28,
-    terminalselectionchange: 29,
-    textselectionchange: 30,
-    terminalbell: 31,
-    resourceready: 32,
-    resourceerror: 33,
-    imeenabled: 34,
-    imepreedit: 35,
-    imedeletesurrounding: 36,
-    imedisabled: 37,
-    windowcloserequested: 38,
-    transitionend: 39,
-    secretstatechange: 40
-  };
-  var EVENT_DATA_SLOT = {
-    clientX: 0,
-    clientY: 1,
-    offsetX: 2,
-    offsetY: 3,
-    button: 4,
-    buttons: 5,
-    mods: 6,
-    deltaX: 7,
-    deltaY: 8,
-    scrollX: 9,
-    scrollY: 10,
-    phase: 11,
-    pointerIdLo: 12,
-    pointerIdHi: 13,
-    pointerType: 14,
-    primary: 15,
-    pressure: 16,
-    tangentialPressure: 17,
-    tiltX: 18,
-    tiltY: 19,
-    twist: 20
-  };
-  var EVENT_DATA_LEN = Object.keys(EVENT_DATA_SLOT).length;
-  var HOST_FRAME = {
-    Magic: 826689623,
-    Version: 3,
-    HeaderLen: 32
-  };
-  var HOST_RECORD_KIND = {
-    NodeEvent: 1,
-    Resize: 2,
-    ApplicationMessage: 3,
-    Window: 4,
-    Widget: 5
-  };
-  var HOST_NODE_PAYLOAD = {
-    None: 0,
-    Numeric: 1,
-    Json: 2
-  };
   var fallbackAtoms = new Map;
   function fallbackIntern(value) {
     let id = fallbackAtoms.get(value);

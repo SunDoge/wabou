@@ -1,5 +1,21 @@
 use super::*;
 
+#[test]
+fn retained_paint_records_stay_compact() {
+    if usize::BITS == 64 {
+        assert!(
+            std::mem::size_of::<Paint>() <= 400,
+            "Paint grew to {} bytes",
+            std::mem::size_of::<Paint>()
+        );
+        assert!(
+            std::mem::size_of::<HostPaint>() <= 176,
+            "HostPaint grew to {} bytes",
+            std::mem::size_of::<HostPaint>()
+        );
+    }
+}
+
 fn keyword(value: &str) -> IrValue {
     IrValue::Keyword {
         value: value.into(),

@@ -2,12 +2,28 @@
 use super::config::PackageConfig;
 use super::{App, Result};
 use serde::Deserialize;
-use std::{fs, process::Command};
+use std::{fs, path::PathBuf, process::Command};
 
 #[derive(Default, Deserialize)]
 #[serde(default, deny_unknown_fields)]
 struct Ui {
     entry: Option<String>,
+}
+
+#[derive(Clone, Debug, Deserialize)]
+#[serde(default, deny_unknown_fields, rename_all = "camelCase")]
+pub(super) struct Bindings {
+    pub(super) output: PathBuf,
+    pub(super) sources: Vec<PathBuf>,
+}
+
+impl Default for Bindings {
+    fn default() -> Self {
+        Self {
+            output: PathBuf::from("ui/generated/rust-bindings.d.ts"),
+            sources: vec![PathBuf::from("src")],
+        }
+    }
 }
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -23,6 +39,8 @@ pub(super) struct Configuration {
     pub(super) source_map: Option<bool>,
     #[serde(default)]
     pub(super) package: Option<PackageConfig>,
+    #[serde(default)]
+    pub(super) bindings: Bindings,
 }
 pub(super) fn load(app: &App, command: &str, mode: &str) -> Result<Option<Configuration>> {
     let path = app.root.join("wabou.config.ts");
@@ -40,8 +58,8 @@ const authored = exported?.__wabouConfig ?? exported;
 const environment = { command: process.env.WABOU_CONFIG_COMMAND ?? 'serve', mode: process.env.WABOU_MODE ?? 'development', isSsrBuild: false, isPreview: false };
 const config = typeof authored === 'function' ? await authored(environment) : await authored;
 if (!config || typeof config !== 'object' || Array.isArray(config)) throw new Error('wabou.config.ts must export a configuration object');
-const allowed = new Set(['target', 'browser', 'root', 'entry', 'outDir', 'sourceMap', 'globalName', 'vite', 'workspaceSource', 'theme', 'themeContrast', 'ignoreClasses', 'intl', 'window', 'ui', 'package']);
-const selected = { window: config.window, ui: config.ui, entry: config.entry, sourceMap: config.sourceMap, package: config.package };
+const allowed = new Set(['target', 'browser', 'root', 'entry', 'outDir', 'sourceMap', 'globalName', 'vite', 'workspaceSource', 'theme', 'themeContrast', 'ignoreClasses', 'intl', 'window', 'ui', 'package', 'bindings']);
+const selected = { window: config.window, ui: config.ui, entry: config.entry, sourceMap: config.sourceMap, package: config.package, bindings: config.bindings };
 for (const key of Object.keys(config)) {
   if (!allowed.has(key)) selected[key] = config[key];
 }
@@ -78,6 +96,12 @@ pub(super) fn entry(app: &App, command: &str, mode: &str) -> Result<Option<Strin
         return Err(format!("UI entry does not exist: {entry}").into());
     }
     Ok(Some(entry))
+}
+
+pub(super) fn bindings(app: &App) -> Result<Bindings> {
+    Ok(load(app, "bindings", "development")?
+        .map(|config| config.bindings)
+        .unwrap_or_default())
 }
 
 #[cfg(test)]
@@ -120,6 +144,23 @@ export default viteConfig;
         assert_eq!(
             entry(&app, "build", "fixture").unwrap().as_deref(),
             Some("./custom.tsx")
+        );
+    }
+
+    #[test]
+    fn reads_source_binding_paths_from_the_shared_configuration() {
+        let directory = tempfile::tempdir().unwrap();
+        let app = app(directory.path());
+        fs::write(
+            directory.path().join("wabou.config.ts"),
+            "export default { bindings: { output: 'types/native.d.ts', sources: ['src', '../api/src'] } };",
+        )
+        .unwrap();
+        let bindings = bindings(&app).unwrap();
+        assert_eq!(bindings.output, PathBuf::from("types/native.d.ts"));
+        assert_eq!(
+            bindings.sources,
+            [PathBuf::from("src"), PathBuf::from("../api/src")]
         );
     }
     #[test]

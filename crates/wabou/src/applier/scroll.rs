@@ -16,7 +16,7 @@ pub(super) struct ScrollbarDrag {
 
 #[derive(Default)]
 pub(super) struct ScrollState {
-    pub(super) styles: HashMap<NodeId, ScrollbarStyle>,
+    pub(super) styles: HashMap<NodeId, Arc<ScrollbarStyle>>,
     pub(super) placed_rects: HashMap<NodeId, [f32; 4]>,
     pub(super) hits: Vec<ScrollbarHit>,
     pub(super) metrics: HashMap<NodeId, wabou_shell::layout::ScrollMetrics>,
@@ -111,6 +111,7 @@ impl Applier {
         let now = Instant::now();
         let mut expired = Vec::new();
         for node in placed {
+            let style = node.paint.scrollbar_style();
             let held = self
                 .interaction
                 .scroll
@@ -121,7 +122,7 @@ impl Applier {
                     .scroll
                     .hovered
                     .is_some_and(|(owner, _)| owner == node.node_id);
-            node.scroll.opacity = match node.paint.scrollbar.visibility {
+            node.scroll.opacity = match style.visibility {
                 ScrollbarVisibility::Always => {
                     expired.push(node.node_id);
                     1.0
@@ -136,8 +137,8 @@ impl Applier {
                         |started| {
                             scrollbar_auto_opacity(
                                 now.duration_since(*started),
-                                node.paint.scrollbar.hide_delay,
-                                node.paint.scrollbar.fade_duration,
+                                style.hide_delay,
+                                style.fade_duration,
                                 held,
                             )
                         },
@@ -205,7 +206,7 @@ impl Applier {
         const EDGE_HOT_ZONE: f64 = 16.0;
         let point = Point::new(x, y);
         for hit in self.interaction.scroll.hits.iter().rev() {
-            if hit.placed.paint.scrollbar.visibility != ScrollbarVisibility::Auto {
+            if hit.placed.paint.scrollbar_style().visibility != ScrollbarVisibility::Auto {
                 continue;
             }
             let local = hit.transform.inverse() * point;

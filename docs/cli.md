@@ -312,9 +312,9 @@ guide](testing.md) for semantic locators, artifacts and trace replay.
 
 ## Rust-owned TypeScript bindings
 
-An application can expose a conventional Cargo example named
-`wabou-bindgen`. The example builds a `wabou_bindgen::Bindings` manifest and
-writes its generated module beneath `ui/`:
+`wabou bindings` scans application Rust sources for explicit JavaScript
+contracts and writes ambient TypeScript declarations without compiling the
+application:
 
 ```bash
 bun run wabou bindings write apps/gallery
@@ -322,79 +322,150 @@ bun run wabou bindings check apps/gallery
 ```
 
 `write` explicitly updates the committed declaration. `check` never rewrites
-files and fails when a Rust DTO, capability name, or method name has drifted;
-run it in CI.
+files and fails when the declaration has drifted; run it in CI. The default
+source is `src/` and the default output is
+`ui/generated/rust-bindings.d.ts`. Both can be changed in the shared project
+configuration:
 
-The generated module exposes a typed client while retaining the native
-QuickJS ABI underneath. Each capability method accepts zero or one request;
-the bridge JSON-encodes methods that have a request. A `no_request` method is
-also argument-free at the native boundary; it does not rely on a hidden `null`
-sentinel. Group
-multiple fields into a named DTO. Application code does not manually call
-`JSON.stringify` or decode the native result envelope.
-
-For a Rust-owned capability, derive `specta::Type` on its bridge DTOs and define
-one typed method constant. The same constant is consumed by binding generation
-and runtime registration. `JsonMethod::new` requires the request to implement
-`Deserialize` and the response to implement `Serialize`, so a schema that
-cannot cross the actual wire fails where the contract is declared:
-
-```toml
-[dependencies]
-wabou = { version = "...", features = ["bindings"] }
+```ts
+export default defineConfig({
+  bindings: {
+    sources: ["src", "../application-api/src"],
+    output: "ui/generated/rust-bindings.d.ts",
+  },
+})
 ```
 
-Applications that do not generate Rust-owned TypeScript capabilities leave the
-feature disabled and do not compile Specta or the TypeScript exporter.
+The marker macros do not change runtime behavior. `rquickjs` continues to own
+registration while the Wabou attributes state the public JavaScript contract:
 
 ```rust
-use wabou::{Capability, CapabilityContract, JsonMethod, Type, specta};
-
-#[derive(serde::Deserialize, Type)]
-struct RenameRequest {
-    name: String,
+#[wabou::js_class(name = "Database")]
+#[rquickjs::class]
+pub struct Database {
+    // Rust-only state is not part of the declaration.
 }
 
-const RENAME: JsonMethod<RenameRequest, bool> = JsonMethod::new("rename");
-const STATUS: JsonMethod<(), WorkspaceStatus> = JsonMethod::no_request("status");
-const WORKSPACE: CapabilityContract = CapabilityContract::new("workspace", 1);
+#[rquickjs::methods]
+impl Database {
+    #[qjs(constructor)]
+    #[wabou::js(args(path = string))]
+    pub fn new(path: String) -> rquickjs::Result<Self> {
+        // ...
+    }
 
-let capability = Capability::new(WORKSPACE)
-    .method(RENAME)
-    .method(STATUS);
+    #[qjs(get)]
+    #[wabou::js(returns = string)]
+    pub fn path(&self) -> String {
+        // ...
+    }
+
+    #[wabou::js(
+        args(key = handle(Resource), fallback = optional(string)),
+        returns = promise(nullable(string))
+    )]
+    pub fn read(&self) {
+        // ...
+    }
+}
 ```
 
-The `specta` import is intentionally re-exported by the `bindings` feature so
-its derive expansion resolves without a second version declaration in the
-application's `Cargo.toml`. Serde remains a normal direct dependency because
-its derive macros require the downstream crate to link `serde` by name.
-
-This generates DTO declarations, a module-local raw host contract, injectable
-`createXClient(host)` factories, and `useXClient()` context consumers from the
-shared contracts. It does not expose JSON wire methods as public typed host
-methods. Only explicit bridge DTOs should derive `Type`; persistence entities,
-upstream SDK models and renderer internals are not automatically public
-JavaScript contracts.
-
-Register structured async implementations through the matching runtime
-adapter. It owns JSON decoding, native Promise creation and the standard result
-envelope, so application code does not repeat the wire protocol:
+DTO declarations use the same explicit type vocabulary. The Rust fields may
+remain private and may use different implementation types; the marker records
+the JavaScript wire contract rather than attempting to infer it from Rust:
 
 ```rust
-HostBuilder::new().capability(WORKSPACE, |capability| {
-    capability.json_method(RENAME, rename)
-});
+#[wabou::js_type(fields(
+    id = string,
+    rows = array(named(Row)),
+    next = optional(nullable(string))
+))]
+pub struct QueryResult {
+    id: String,
+    rows: Vec<Row>,
+    next: Option<String>,
+}
+
+#[wabou::js_type(values(idle, loading, not_ready = "not-ready"))]
+pub enum Status {
+    Idle,
+    Loading,
+    NotReady,
+}
+
+#[wabou::js_type(name = "RecordId", alias = union(string, number))]
+pub type Id = String;
 ```
 
-Application capabilities always use this structured adapter. Framework-owned
-synchronous QuickJS functions are declared explicitly in the native host API;
-applications do not receive a raw `rquickjs::Object` escape hatch.
+These emit a TypeScript `interface`, string-literal union, and type alias,
+respectively. `name = "..."` overrides the generated declaration name. Object
+field documentation is copied from matching named Rust fields.
+
+The generator understands `string`, `boolean`, `number`, `safe_integer`,
+`bigint`, `unknown`, `void`, `object`, `uint8_array`, `array_buffer`, and
+`undefined`. It also supports `array(T)`, `readonly_array(T)`, `promise(T)`,
+`nullable(T)`, `optional(T)`, `record(T)`, `union(A, B)`, `literal(...)`,
+`named(Type)`, `json(Type)`, and `handle(Name)`. Dynamic Rust values such as
+`rquickjs::Value` must be assigned an explicit JavaScript type; the generator
+does not silently emit `any`.
+
+The source markers are the only binding manifest. `wabou bindings` no longer
+builds a Cargo example or runs a Specta compatibility generator, so binding
+checks remain fast and deterministic. Host functions and classes are authored
+in Rust, registered with `rquickjs`, and described beside that implementation;
+generated TypeScript contains declarations rather than a second runtime
+client layer.
+
+For a named object exposed through `useHost()`, add Wabou's declaration metadata
+to an ordinary `rquickjs` native module. `rquickjs` generates the runtime
+registration and conversions; Wabou only reads the inert attributes when it
+generates declarations:
+
+```rust
+#[wabou::js_module(name = "database")]
+#[rquickjs::module(rename_vars = "camelCase")]
+pub mod database {
+    #[rquickjs::function]
+    #[qjs(rename = "runQuery")]
+    #[wabou::js(
+        args(query = string),
+        returns = promise(array(named(QueryResult)))
+    )]
+    pub async fn run_query(query: String) -> Vec<QueryResult> {
+        service().query(query).await
+    }
+}
+```
+
+This augments `HostCapabilities` in `@wabou/core`; it does not add a version
+field or generate a JavaScript adapter. Mount the generated module definition
+with `HostBuilder::host_module_def::<js_database>("database")`. JavaScript
+names come from `rquickjs` (`#[qjs(rename = ...)]` above); Wabou's method
+marker only describes argument and return types.
+
+Stateful native services use the same module definition. Wrap the service in a
+module-specific type deriving `JsLifetime`, pass it once with
+`host_module_def_with_state`, and retrieve it from the `Ctx` argument inside an
+exported function. This avoids closures retaining JavaScript handles and keeps
+registration under `rquickjs`:
+
+```rust
+HostBuilder::new().host_module_def_with_state::<js_database, _>(
+    "database",
+    wabou::HostModuleState(database),
+);
+```
+
+Each window runtime receives a clone. A runtime accepts one value for each
+`HostModuleState<T>` promises that `T` is ordinary owned Rust state with no
+QuickJS-borrowed handles. A runtime accepts one value for each `T`, so modules
+using the same service type should introduce distinct newtype wrappers.
 
 ### Development boundary
 
 Keep frequently edited presentation code in `ui/` and stable native services in
-the Rust application. Capability registration is ordinary Rust code in
-`src/main.rs`. Long-lived native objects can live in
+the Rust application. Host registration is ordinary Rust code in `src/main.rs`.
+Long-lived native objects can live in
 `ResidentResources`, whose generational handles remain valid across Solid HMR
 and full UI remounts.
 

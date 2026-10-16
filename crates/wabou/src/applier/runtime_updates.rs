@@ -29,6 +29,11 @@ impl Applier {
         &mut self,
         lifecycle: shell_api::AppLifecycleEvent,
     ) -> EventResponse {
+        if matches!(lifecycle, shell_api::AppLifecycleEvent::MemoryWarning) {
+            self.document.resources.decoded_svg.clear();
+            self.document.style.class_resolution_cache.clear();
+            self.document.style.utility_cache.clear();
+        }
         let state = match lifecycle {
             shell_api::AppLifecycleEvent::Resumed => "resumed",
             shell_api::AppLifecycleEvent::Suspended => "suspended",

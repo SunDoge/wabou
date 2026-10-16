@@ -198,6 +198,12 @@ impl TextContext {
     pub fn load_font(&mut self, bytes: Vec<u8>) {
         let blob = parley::fontique::Blob::from(bytes);
         self.font_cx.collection.register_fonts(blob, None);
+        self.clear_caches();
+    }
+
+    /// Release derived text layouts and encoded glyph scenes while retaining
+    /// the discovered and application-provided font collection.
+    pub fn clear_caches(&mut self) {
         self.cache.clear();
         self.intrinsic_width_cache.clear();
         self.ellipsis_cache.clear();

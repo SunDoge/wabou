@@ -9,6 +9,10 @@ export default defineConfig(({ mode }) => ({
     licenseFile: "../../LICENSE",
     formats: ["appimage"],
   },
+  bindings: {
+    sources: ["src"],
+    output: "ui/generated/rust-bindings.d.ts",
+  },
   ignoreClasses: ["lucide", "lucide-*"],
   entry: mode === "layout-test" ? "ui/fixture.tsx" : undefined,
   themeContrast: "error",

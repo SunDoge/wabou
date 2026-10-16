@@ -541,7 +541,7 @@ pub struct HostPaint {
     /// Host-owned stacking plane.
     pub overlay_plane: OverlayPlane,
     /// Host-owned overlay-scrollbar appearance.
-    pub scrollbar: ScrollbarStyle,
+    pub scrollbar: Option<Arc<ScrollbarStyle>>,
 }
 
 /// Fully resolved paint used by layout and rendering.
@@ -568,7 +568,7 @@ pub struct Paint {
     /// Explicit host stacking plane, ordered before sibling `z-index`.
     pub overlay_plane: OverlayPlane,
     /// Host-owned overlay-scrollbar appearance.
-    pub scrollbar: ScrollbarStyle,
+    pub scrollbar: Option<Arc<ScrollbarStyle>>,
     /// Resolved outer shadows.
     pub shadows: Vec<Shadow>,
     /// Per-corner radii in logical pixels.
@@ -639,6 +639,15 @@ pub struct Paint {
     /// Intrinsic content size supplied by a host widget. CSS known dimensions
     /// override either axis during Taffy measurement.
     pub intrinsic_size: Option<[f32; 2]>,
+}
+
+impl Paint {
+    /// Resolve the uncommon per-node scrollbar override without retaining the
+    /// 120-byte default style in every node.
+    #[must_use]
+    pub fn scrollbar_style(&self) -> ScrollbarStyle {
+        self.scrollbar.as_deref().copied().unwrap_or_default()
+    }
 }
 
 /// Cascaded (pre-inherit) style: layout + declared paint.

@@ -4,6 +4,10 @@ import { defaultWabouColorThemes, defineConfig } from "@wabou/vite";
 export default defineConfig(({ mode }) => ({
   entry: mode === "layout-test" ? "ui/layout-fixtures.tsx" : "ui/index.tsx",
   outDir: "../../dist/gallery/resources",
+  bindings: {
+    sources: ["src", "../gallery-api/src"],
+    output: "ui/generated/rust-bindings.d.ts",
+  },
   vite: {
     plugins: [
       paraglideVitePlugin({

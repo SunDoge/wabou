@@ -1481,6 +1481,9 @@ impl ApplicationHandler for App {
     }
 
     fn memory_warning(&mut self, _event_loop: &dyn ActiveEventLoop) {
+        if let Some(shell) = self.state.as_mut() {
+            shell.tcx.clear_caches();
+        }
         self.dispatch_event(UiEvent::AppLifecycle(AppLifecycleEvent::MemoryWarning));
     }
 

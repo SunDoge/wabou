@@ -44,6 +44,22 @@ pub(super) struct TextSelectionState {
     pub(super) next_scroll: Option<Instant>,
 }
 
+impl TextSelectionState {
+    pub(super) fn remove_node(&mut self, id: NodeKey) {
+        self.selectable.remove(&id);
+        self.order.retain(|candidate| *candidate != id);
+        if self
+            .last_click
+            .is_some_and(|(_, target, _, _, _)| target == id)
+        {
+            self.last_click = None;
+        }
+        if self.event_target == Some(id) {
+            self.event_target = None;
+        }
+    }
+}
+
 impl Applier {
     pub(super) fn prepare_text_selection(
         &mut self,

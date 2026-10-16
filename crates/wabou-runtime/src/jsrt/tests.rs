@@ -1,4 +1,29 @@
 use super::*;
+use std::{cell::Cell, rc::Rc};
+
+#[derive(Clone, rquickjs::JsLifetime)]
+struct GeneratedHostState(Rc<Cell<u32>>);
+
+#[rquickjs::module(rename_vars = "camelCase")]
+mod generated_host_module {
+    use super::GeneratedHostState;
+
+    #[rquickjs::function]
+    #[qjs(rename = "addOne")]
+    pub fn add_one(value: u32) -> u32 {
+        value + 1
+    }
+
+    #[rquickjs::function]
+    pub fn increment(ctx: rquickjs::Ctx<'_>) -> rquickjs::Result<u32> {
+        let state = ctx.userdata::<GeneratedHostState>().ok_or_else(|| {
+            rquickjs::Exception::throw_type(&ctx, "generated host state is unavailable")
+        })?;
+        let value = state.0.get() + 1;
+        state.0.set(value);
+        Ok(value)
+    }
+}
 
 #[test]
 fn mounted_stateful_capability_releases_capture_on_runtime_drop() {
@@ -7,7 +32,7 @@ fn mounted_stateful_capability_releases_capture_on_runtime_drop() {
         let state = Arc::new(Mutex::new(0_u32));
         let weak = Arc::downgrade(&state);
         runtime
-            .mount_capability("host", move |ctx, capability| {
+            .mount_host_module("host", move |ctx, capability| {
                 capability.set(
                     "tick",
                     Function::new(ctx, move || -> JsResult<()> {
@@ -426,7 +451,7 @@ fn encoding_streams_run_inside_quickjs() {
 fn mounted_capabilities_are_namespaced_and_reject_duplicates() {
     let runtime = JsRuntime::new().expect("runtime");
     runtime
-        .mount_capability("workspace", |ctx, capability| {
+        .mount_host_module("workspace", |ctx, capability| {
             capability.set(
                 "basename",
                 Function::new(ctx, |path: String| {
@@ -447,9 +472,56 @@ fn mounted_capabilities_are_namespaced_and_reject_duplicates() {
     assert!(!leaked);
     assert!(
         runtime
-            .mount_capability("workspace", |_ctx, _capability| Ok(()))
+            .mount_host_module("workspace", |_ctx, _capability| Ok(()))
             .is_err()
     );
+}
+
+#[test]
+fn mounts_rquickjs_generated_module_exports() {
+    let runtime = JsRuntime::new().expect("runtime");
+    runtime
+        .mount_host_module_def::<js_generated_host_module>("generated")
+        .expect("mount generated module");
+
+    let keys = runtime
+        .with(|ctx| {
+            ctx.eval::<String, _>("JSON.stringify(Object.keys(__wabou_capabilities.generated))")
+        })
+        .expect("inspect generated exports");
+    assert_eq!(keys, r#"["addOne","increment"]"#);
+
+    let value = runtime
+        .with(|ctx| ctx.eval::<u32, _>("__wabou_capabilities.generated.addOne(41)"))
+        .expect("call generated export");
+    assert_eq!(value, 42);
+}
+
+#[test]
+fn mounts_rquickjs_generated_module_with_runtime_state() {
+    let runtime = JsRuntime::new().expect("runtime");
+    let value = Rc::new(Cell::new(9));
+    runtime
+        .mount_host_module_def_with_state::<js_generated_host_module, _>(
+            "statefulGenerated",
+            GeneratedHostState(value.clone()),
+        )
+        .expect("mount generated module with state");
+    assert!(
+        runtime
+            .mount_host_module_def_with_state::<js_generated_host_module, _>(
+                "secondStatefulGenerated",
+                GeneratedHostState(Rc::new(Cell::new(100))),
+            )
+            .is_err(),
+        "one runtime must not silently replace module state of the same type"
+    );
+
+    let result = runtime
+        .with(|ctx| ctx.eval::<u32, _>("__wabou_capabilities.statefulGenerated.increment()"))
+        .expect("call stateful generated export");
+    assert_eq!(result, 10);
+    assert_eq!(value.get(), 10);
 }
 
 #[test]
@@ -458,13 +530,13 @@ fn capability_names_use_the_generated_contract_identifier_rules() {
     for invalid in ["", "1workspace", "work-space", "工作区"] {
         assert!(
             runtime
-                .mount_capability(invalid, |_ctx, _capability| Ok(()))
+                .mount_host_module(invalid, |_ctx, _capability| Ok(()))
                 .is_err(),
             "accepted invalid capability name {invalid:?}"
         );
     }
     runtime
-        .mount_capability("_workspace2", |_ctx, _capability| Ok(()))
+        .mount_host_module("_workspace2", |_ctx, _capability| Ok(()))
         .expect("shared identifier grammar accepts valid names");
 }
 

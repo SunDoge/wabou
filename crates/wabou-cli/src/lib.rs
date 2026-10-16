@@ -36,17 +36,15 @@ mod process;
 mod project;
 mod render;
 mod scaffold;
+mod source_bindings;
 mod ts_config;
 
 use artifact::{
-    BindingsTarget, app_binary, app_bindings_target, app_dev_features, app_framework_feature,
-    app_profiling_feature, artifact_from_metadata_for_target, cargo_metadata,
-    optional_app_bindings_target,
+    app_binary, app_dev_features, app_framework_feature, app_profiling_feature,
+    artifact_from_metadata_for_target, cargo_metadata,
 };
 #[cfg(test)]
-use artifact::{
-    artifact_from_metadata, binary_target, bindings_target, dev_features, framework_feature,
-};
+use artifact::{artifact_from_metadata, binary_target, dev_features, framework_feature};
 use behavior_test::{default_artifact_dir, prepare_artifact_dir, replay_actions};
 use config::{
     BuildProfile, PackageFormat, bundle_path, configured_source_map, load_package_config,
@@ -363,15 +361,11 @@ enum BindingsCommand {
     Write {
         #[usage(value_name = "APP")]
         app: Option<PathBuf>,
-        #[usage(flatten)]
-        cargo_features: CargoFeatures,
     },
     /// Fail when the committed declarations differ from Rust types.
     Check {
         #[usage(value_name = "APP")]
         app: Option<PathBuf>,
-        #[usage(flatten)]
-        cargo_features: CargoFeatures,
     },
 }
 
@@ -823,11 +817,8 @@ fn check(
         ensure(status, &format!("Cargo check {}", manifest.display()))?;
     }
 
-    if app.root.join("Cargo.toml").is_file()
-        && let Some(target) = optional_app_bindings_target(workspace, app)?
-    {
-        println!("[wabou check] generated bindings");
-        run_bindings_target(workspace, app, &target, "check", cargo_features)?;
+    if app.root.join("Cargo.toml").is_file() {
+        let _ = run_source_bindings(app, "check")?;
     }
 
     let behavior_dir = app.root.join("tests");
@@ -1257,39 +1248,59 @@ fn behavior_host_executable(messages: &[u8], binary: &str) -> Result<Option<Path
     Ok(executable)
 }
 
-fn bindings(workspace: &Path, app: &App, mode: BindingsCommand) -> Result<()> {
-    let target = app_bindings_target(workspace, app)?;
-    let (mode, cargo_features) = match mode {
-        BindingsCommand::Write { cargo_features, .. } => ("write", cargo_features),
-        BindingsCommand::Check { cargo_features, .. } => ("check", cargo_features),
+fn bindings(_workspace: &Path, app: &App, mode: BindingsCommand) -> Result<()> {
+    let mode = match mode {
+        BindingsCommand::Write { .. } => "write",
+        BindingsCommand::Check { .. } => "check",
     };
-    run_bindings_target(workspace, app, &target, mode, &cargo_features.values)
+    let generated = run_source_bindings(app, mode)?;
+    if !generated {
+        return Err(format!(
+            "{} has no #[wabou::js_class]/#[wabou::js_type] source contracts",
+            app.root.display()
+        )
+        .into());
+    }
+    Ok(())
 }
 
-fn run_bindings_target(
-    workspace: &Path,
-    app: &App,
-    target: &BindingsTarget,
-    mode: &str,
-    cargo_features: &[String],
-) -> Result<()> {
-    let manifest = manifest(app);
-    let mut cargo = Command::new("cargo");
-    cargo.current_dir(workspace).args([
-        "run",
-        "--quiet",
-        "--manifest-path",
-        &manifest,
-        "--example",
-        &target.name,
-    ]);
-    let mut features = target.required_features.clone();
-    features.extend_from_slice(cargo_features);
-    features.sort();
-    features.dedup();
-    apply_cargo_features(&mut cargo, &features);
-    cargo.args(["--", mode]);
-    ensure(cargo.status()?, "Wabou bindings generator")
+fn run_source_bindings(app: &App, mode: &str) -> Result<bool> {
+    let config = ts_config::bindings(app)?;
+    let Some(generated) = source_bindings::generate(&app.root, &config)? else {
+        return Ok(false);
+    };
+    match mode {
+        "write" => {
+            if let Some(parent) = generated.output.parent() {
+                fs::create_dir_all(parent)?;
+            }
+            fs::write(&generated.output, &generated.contents)?;
+        }
+        "check" => {
+            let actual = fs::read_to_string(&generated.output).map_err(|error| {
+                format!(
+                    "cannot read generated bindings {}: {error}; run `wabou bindings write`",
+                    generated.output.display()
+                )
+            })?;
+            if actual != generated.contents {
+                return Err(format!(
+                    "generated bindings differ from {}; run `wabou bindings write`",
+                    generated.output.display()
+                )
+                .into());
+            }
+        }
+        _ => return Err(format!("unknown bindings mode `{mode}`").into()),
+    }
+    println!(
+        "[wabou] bindings {mode}: {} ({} modules, {} classes, {} types)",
+        generated.output.display(),
+        generated.modules,
+        generated.classes,
+        generated.types
+    );
+    Ok(true)
 }
 
 fn apply_configured_entry(app: &mut App, command: &str, mode: &str) -> Result<()> {
@@ -2275,32 +2286,6 @@ formats: ["deb"],
             zig_release,
             Path::new("/workspace/target/x86_64-unknown-linux-gnu/release")
                 .join(format!("gallery-host{}", env::consts::EXE_SUFFIX))
-        );
-    }
-
-    #[test]
-    fn discovers_bindings_generator_by_source_instead_of_global_target_name() {
-        let metadata = serde_json::json!({
-            "packages": [{
-                "manifest_path": "/workspace/apps/gallery/Cargo.toml",
-                "targets": [
-                    {
-                        "name": "gallery",
-                        "kind": ["bin"],
-                        "src_path": "/workspace/apps/gallery/src/main.rs"
-                    },
-                    {
-                        "name": "gallery-bindgen",
-                        "kind": ["example"],
-                        "src_path": "/workspace/apps/gallery/examples/wabou-bindgen.rs"
-                    }
-                ]
-            }]
-        });
-        assert_eq!(
-            bindings_target(&metadata, Path::new("/workspace/apps/gallery/Cargo.toml"))
-                .and_then(|target| target["name"].as_str()),
-            Some("gallery-bindgen")
         );
     }
 

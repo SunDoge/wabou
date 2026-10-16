@@ -16,6 +16,7 @@ wabou-telemetry.workspace = true
 bitflags.workspace = true
 runtime-api = { package = "wabou-runtime", path = "../wabou-runtime", default-features = false }
 image = { workspace = true, features = ["jpeg", "png", "webp"] }
+lru.workspace = true
 wabou-shell = { workspace = true, features = ["widgets"] }
 parley.workspace = true
 rquickjs = { version = "0.14.0", features = ["full-async", "loader", "rust-alloc"] }
@@ -38,7 +39,6 @@ wabou-tray = { workspace = true, optional = true }
 
 [features]
 default = []
-bindings = ["wabou-bindgen/generate"]
 devtools = ["dep:wabou-devtools", "runtime-api/devtools"]
 headless = ["runtime-api/headless"]
 profiling = []

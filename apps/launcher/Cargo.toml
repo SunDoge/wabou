@@ -4,21 +4,14 @@ version = "0.1.0"
 edition = "2024"
 publish = false
 
-[features]
-bindings = ["wabou/bindings"]
-
 [[bin]]
 name = "wabou-launcher"
 path = "src/main.rs"
 
-[[example]]
-name = "launcher-bindgen"
-path = "examples/wabou-bindgen.rs"
-required-features = ["bindings"]
-
 [dependencies]
 flume.workspace = true
 global-hotkey = "0.8.0"
+rquickjs = { version = "0.14.0", features = ["macro"] }
 serde = { workspace = true, features = ["derive"] }
 snafu.workspace = true
 tracing.workspace = true
