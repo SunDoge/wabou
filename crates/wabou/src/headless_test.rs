@@ -11,6 +11,10 @@ use vello_common::peniko::Color;
 
 use wabou_shell::{FrameSource, WindowOptions};
 
+/// Virtual milliseconds per headless loop iteration, matching the TS fake
+/// clock's frame interval so scenarios observe one consistent cadence.
+const HEADLESS_FRAME_INTERVAL_MS: f64 = 16.0;
+
 #[derive(Clone, Copy)]
 struct HeadlessViewport {
     width: u32,
@@ -149,6 +153,7 @@ impl NativeTestHost for HeadlessNativeHost<'_> {
 pub(super) fn run(
     controller: &TestController,
     sources: &mut [(Box<dyn FrameSource>, WindowOptions)],
+    virtual_clock: Option<&runtime_api::clock::VirtualClock>,
     #[cfg(feature = "devtools")] debug_state: Option<&wabou_devtools::SharedDebugState>,
 ) -> crate::Result<()> {
     let viewport = HeadlessViewport::from_environment()?;
@@ -169,10 +174,16 @@ pub(super) fn run(
     // a healthy application host into a platform-dependent timeout.
     let deadline = Instant::now() + Duration::from_secs(305);
 
+    // One loop iteration is one virtual frame when a virtual clock drives
+    // the run: pending effect deliveries land first, the frame is built on
+    // the delivered state, and time advances last so timer continuations
+    // started during this frame run at the start of the next one. With no
+    // virtual clock the loop keeps polling on wall-clock pacing.
     while !controller.has_report() && Instant::now() < deadline {
         for (index, (source, _)) in sources.iter_mut().enumerate() {
             let window_key = window_keys[index];
             let (width, height) = viewports[index];
+            drain_effects(source.as_mut());
             let base_color = source.base_color();
             source.set_semantics_enabled(true);
             source.set_device_scale(viewport.scale_factor);
@@ -207,7 +218,12 @@ pub(super) fn run(
                 visible: &mut visible[index],
             };
             let _ = controller.poll_native_host(window_key, &mut host);
-            drain_effects(source.as_mut());
+        }
+        if let Some(clock) = virtual_clock {
+            // The TS-side fake clock uses the same 16 ms frame interval; a
+            // scenario observes a 60 Hz virtual cadence regardless of how
+            // long each real iteration took.
+            clock.advance_ms(HEADLESS_FRAME_INTERVAL_MS);
         }
         std::thread::sleep(Duration::from_millis(1));
     }

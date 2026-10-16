@@ -165,6 +165,8 @@ impl JsRuntimeOptions {
 /// own its frame/event lifecycle.
 pub struct JsRuntime {
     clock: Arc<dyn crate::clock::Clock>,
+    /// Virtual time source when the runtime was built for deterministic tests.
+    virtual_clock: Option<crate::clock::VirtualClock>,
     max_stack_size: usize,
     /// Bytes flushed by the most recent `__wabou_flush` call.
     out: Rc<RefCell<Vec<u8>>>,
@@ -223,25 +225,56 @@ impl JsRuntime {
         Self::new_with_clock_and_options(Arc::new(crate::clock::SystemClock::new()), options)
     }
 
-    #[doc(hidden)]
+    /// Create an empty runtime with the system monotonic clock.
     pub fn new_with_clock(clock: Arc<dyn crate::clock::Clock>) -> JsResult<Self> {
         Self::new_with_clock_and_options(clock, JsRuntimeOptions::default())
     }
 
-    fn new_with_clock_and_options(
+    /// Create an empty runtime driven by an explicit clock and resource
+    /// limits. Test hosts pass a [`crate::clock::VirtualClock`] here.
+    pub fn new_with_clock_and_options(
         clock: Arc<dyn crate::clock::Clock>,
         options: JsRuntimeOptions,
     ) -> JsResult<Self> {
+        let virtual_clock = clock
+            .as_ref()
+            .as_any()
+            .and_then(|any| any.downcast_ref::<crate::clock::VirtualClock>())
+            .cloned();
         let rt = AsyncRuntime::new()?;
         futures_lite::future::block_on(async {
             rt.set_max_stack_size(options.stack_size()).await;
         });
-        Self::build_inner(rt, clock, options.stack_size())
+        Self::build_inner(rt, clock, virtual_clock, options.stack_size())
+    }
+
+    /// Create a runtime on a manually advanced virtual clock, returning the
+    /// clock handle the test driver owns.
+    ///
+    /// `performance.now()`, animation-frame timestamps and `__wabou_sleep`
+    /// deadlines all read virtual time; the runtime is otherwise identical.
+    /// Advancing the clock fires pending sleeps, whose continuations run on
+    /// the next [`JsRuntime::poll_async_runtime`] — the test loop controls
+    /// when that happens, so timer firings land on explicit frame boundaries
+    /// and never depend on wall-clock scheduling.
+    pub fn new_virtual(options: JsRuntimeOptions) -> JsResult<(Self, crate::clock::VirtualClock)> {
+        let clock = crate::clock::VirtualClock::new();
+        let runtime = Self::new_with_clock_and_options(Arc::new(clock.clone()), options)?;
+        let wake = runtime.runtime_wake.clone();
+        clock.set_notify(Arc::new(move || wake.notify()));
+        Ok((runtime, clock))
+    }
+
+    /// The virtual clock backing this runtime, when constructed with one.
+    #[doc(hidden)]
+    pub fn virtual_clock(&self) -> Option<&crate::clock::VirtualClock> {
+        self.virtual_clock.as_ref()
     }
 
     fn build_inner(
         rt: AsyncRuntime,
         clock: Arc<dyn crate::clock::Clock>,
+        virtual_clock: Option<crate::clock::VirtualClock>,
         max_stack_size: usize,
     ) -> JsResult<Self> {
         let tokio_rt = tokio::runtime::Builder::new_multi_thread()
@@ -283,6 +316,7 @@ impl JsRuntime {
         let this = Self {
             max_stack_size,
             clock,
+            virtual_clock,
             rt,
             ctx,
             out,
@@ -945,21 +979,31 @@ impl JsRuntime {
     }
 
     fn register_sleep(&self) -> JsResult<()> {
+        let virtual_clock = self.virtual_clock.clone();
         self.with(|ctx| {
             register_function(
                 &ctx.globals(),
                 HostBinding::Sleep,
                 Function::new(
                     ctx.clone(),
-                    rquickjs::prelude::Async(|delay_ms: f64| async move {
-                        let delay_ms = if delay_ms.is_finite() {
-                            delay_ms.max(0.0)
-                        } else {
-                            0.0
-                        };
-                        tokio::time::sleep(std::time::Duration::from_secs_f64(delay_ms / 1000.0))
-                            .await;
-                        Ok::<(), rquickjs::Error>(())
+                    rquickjs::prelude::Async(move |delay_ms: f64| {
+                        let virtual_clock = virtual_clock.clone();
+                        async move {
+                            let delay_ms = if delay_ms.is_finite() {
+                                delay_ms.max(0.0)
+                            } else {
+                                0.0
+                            };
+                            if let Some(clock) = virtual_clock.as_ref() {
+                                clock.sleep_for(delay_ms).await;
+                            } else {
+                                tokio::time::sleep(std::time::Duration::from_secs_f64(
+                                    delay_ms / 1000.0,
+                                ))
+                                .await;
+                            }
+                            Ok::<(), rquickjs::Error>(())
+                        }
                     }),
                 )?,
             )
@@ -991,7 +1035,15 @@ impl JsRuntime {
         let _guard = self._tokio.handle().enter();
         let waker = Waker::from(self.runtime_wake.clone());
         let mut task_context = TaskContext::from_waker(&waker);
-        let deadline = std::time::Instant::now() + std::time::Duration::from_millis(1);
+        // The wall-clock slice keeps one poll from starving the UI thread in
+        // production. Under a virtual clock it would instead make the number
+        // of iterations a burst needs depend on real machine speed, so the
+        // job budget is the only limit there.
+        let deadline = if self.virtual_clock.is_some() {
+            None
+        } else {
+            Some(std::time::Instant::now() + std::time::Duration::from_millis(1))
+        };
         let mut progressed = false;
         for _ in 0..32 {
             let mut next = Box::pin(self.rt.execute_pending_job());
@@ -1005,7 +1057,7 @@ impl JsRuntime {
                     return progressed || self.runtime_wake.pending.load(Ordering::Acquire);
                 }
             }
-            if std::time::Instant::now() >= deadline {
+            if deadline.is_some_and(|deadline| std::time::Instant::now() >= deadline) {
                 // We are already on the UI thread. Calling the event-loop
                 // proxy here can create a self-wake storm that starves macOS
                 // RedrawRequested events. The FrameSource return value and
@@ -1503,6 +1555,7 @@ impl JsRuntime {
         let mut this = Self::build_inner(
             rt,
             Arc::new(crate::clock::SystemClock::new()),
+            None,
             options.stack_size(),
         )?;
         this.with(|ctx| -> JsResult<()> {

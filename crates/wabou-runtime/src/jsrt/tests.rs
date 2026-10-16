@@ -1233,3 +1233,83 @@ fn solid_proxy_props_preserve_nested_native_children() {
     assert_eq!(result["mergedChild"], true);
     assert_eq!(result["omittedChild"], true);
 }
+
+#[test]
+fn virtual_clock_timer_and_frame_timing_is_deterministic_under_real_time_chaos() {
+    const CORE_FIXTURE: &str = include_str!("../gen/test-runtime.js");
+
+    // Drives one virtual frame the way the headless test host does: poll
+    // pending jobs (timer continuations from the previous advance run here),
+    // run the rAF tick on virtual time, then advance one 16 ms frame.
+    fn drive_frame(runtime: &mut JsRuntime, clock: &crate::clock::VirtualClock) {
+        runtime.poll_async_runtime();
+        runtime.tick().expect("tick");
+        clock.advance_ms(16.0);
+    }
+
+    let scenario = r#"
+        globalThis.trace = [];
+        requestAnimationFrame((t) => trace.push("raf:" + t));
+        setTimeout(() => trace.push("t0:" + performance.now()), 0);
+        setTimeout(() => trace.push("t10:" + performance.now()), 10);
+        setTimeout(() => trace.push("t40:" + performance.now()), 40);
+        __wabou_sleep(35).then(() => trace.push("sleep35:" + performance.now()));
+        Promise.resolve().then(() => trace.push("microtask:" + performance.now()));
+        trace.push("sync:" + performance.now());
+    "#;
+
+    let run = |chaotic: bool| -> Vec<String> {
+        let (mut runtime, clock) =
+            JsRuntime::new_virtual(JsRuntimeOptions::default()).expect("runtime");
+        runtime.boot(CORE_FIXTURE).expect("boot fixture");
+        runtime
+            .with(|ctx| ctx.eval::<(), _>(scenario))
+            .expect("schedule scenario");
+        for frame in 0..8 {
+            if chaotic {
+                // Interleave real wall-clock delays of varying length: a slow
+                // machine or busy scheduler must not move the virtual trace.
+                std::thread::sleep(std::time::Duration::from_millis(frame % 3));
+            }
+            drive_frame(&mut runtime, &clock);
+        }
+        runtime
+            .with(|ctx| {
+                ctx.eval::<Vec<String>, _>("globalThis.trace.map((entry) => String(entry)).sort()")
+            })
+            .expect("read trace")
+    };
+
+    assert_eq!(run(false), run(true));
+}
+
+#[test]
+fn virtual_clock_zero_delay_sleeps_wait_for_the_next_advance() {
+    const CORE_FIXTURE: &str = include_str!("../gen/test-runtime.js");
+    let (mut runtime, clock) =
+        JsRuntime::new_virtual(JsRuntimeOptions::default()).expect("runtime");
+    runtime.boot(CORE_FIXTURE).expect("boot fixture");
+    runtime
+        .with(|ctx| {
+            ctx.eval::<(), _>(
+                "globalThis.seen = []; setTimeout(() => seen.push(performance.now()), 0)",
+            )
+        })
+        .expect("schedule timer");
+    runtime.poll_async_runtime();
+    // Registered but unfired: zero-delay timers still land on an advance.
+    runtime.poll_async_runtime();
+    assert!(
+        runtime
+            .with(|ctx| ctx.eval::<Vec<f64>, _>("globalThis.seen"))
+            .expect("read")
+            .is_empty()
+    );
+    clock.advance_ms(16.0);
+    runtime.poll_async_runtime();
+    runtime.poll_async_runtime();
+    let seen = runtime
+        .with(|ctx| ctx.eval::<Vec<f64>, _>("globalThis.seen"))
+        .expect("read fired");
+    assert_eq!(seen, [16.0]);
+}

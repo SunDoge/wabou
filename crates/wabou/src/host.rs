@@ -95,6 +95,8 @@ enum ApplicationSource {
 struct RuntimeSourceConfig {
     source: ApplicationSource,
     js_runtime_options: JsRuntimeOptions,
+    /// Shared deterministic clock for headless test runs.
+    js_clock: Option<runtime_api::clock::VirtualClock>,
     host_modules: Vec<HostModuleInstaller>,
     host_message_producers: Vec<HostMessageProducer>,
     widget_factories: HashMap<String, WidgetFactory>,
@@ -109,6 +111,18 @@ struct RuntimeSourceConfig {
 }
 
 impl RuntimeSourceConfig {
+    fn create_js_runtime(&self) -> rquickjs::Result<JsRuntime> {
+        match &self.js_clock {
+            // All windows share one virtual timeline; the headless loop
+            // advances it once per iteration.
+            Some(clock) => JsRuntime::new_with_clock_and_options(
+                std::sync::Arc::new(clock.clone()),
+                self.js_runtime_options,
+            ),
+            None => JsRuntime::new_with_options(self.js_runtime_options),
+        }
+    }
+
     fn create(
         &self,
         window_key: wabou_shell::WindowResourceKey,
@@ -116,10 +130,13 @@ impl RuntimeSourceConfig {
     ) -> crate::Result<Applier> {
         #[cfg(feature = "vite")]
         let js = match &self.source {
-            ApplicationSource::Bundle { .. } => {
-                JsRuntime::new_with_options(self.js_runtime_options)
-            }
+            ApplicationSource::Bundle { .. } => self.create_js_runtime(),
             ApplicationSource::Vite { url, .. } => {
+                if self.js_clock.is_some() {
+                    tracing::warn!(
+                        "virtual test clocks are unsupported for Vite dev runtimes; using the system clock"
+                    );
+                }
                 JsRuntime::new_vite_with_options(url, self.js_runtime_options)
             }
         }
@@ -127,11 +144,11 @@ impl RuntimeSourceConfig {
             operation: "create JavaScript runtime",
         })?;
         #[cfg(not(feature = "vite"))]
-        let js = JsRuntime::new_with_options(self.js_runtime_options).context(
-            crate::error::JavaScriptSnafu {
+        let js = self
+            .create_js_runtime()
+            .context(crate::error::JavaScriptSnafu {
                 operation: "create JavaScript runtime",
-            },
-        )?;
+            })?;
         for module in &self.host_modules {
             module(&js).context(crate::error::JavaScriptSnafu {
                 operation: "mount Rust host module",
@@ -729,6 +746,22 @@ impl HostBuilder {
         }
         let headless = test_controller.is_some()
             && std::env::var("WABOU_TEST_HEADLESS").is_ok_and(|value| value != "0");
+        // Deterministic headless runs advance time explicitly through the
+        // loop instead of observing wall-clock scheduling.
+        let virtual_clock = if test_controller.is_some()
+            && std::env::var("WABOU_TEST_CLOCK").is_ok_and(|value| value == "virtual")
+        {
+            if headless {
+                Some(runtime_api::clock::VirtualClock::new())
+            } else {
+                tracing::warn!(
+                    "WABOU_TEST_CLOCK=virtual requires WABOU_TEST_HEADLESS; using the system clock"
+                );
+                None
+            }
+        } else {
+            None
+        };
         let service_context = runtime_api::HostServiceContext::for_alternate_host(
             app_directories.clone(),
             test_controller.is_some(),
@@ -768,6 +801,7 @@ impl HostBuilder {
         let runtime_sources = RuntimeSourceConfig {
             source,
             js_runtime_options: self.js_runtime_options,
+            js_clock: virtual_clock.clone(),
             host_modules,
             host_message_producers: self.host_message_producers,
             widget_factories: self.widget_factories,
@@ -808,6 +842,7 @@ impl HostBuilder {
                     .as_ref()
                     .expect("headless test requires a controller"),
                 &mut sources,
+                virtual_clock.as_ref(),
                 #[cfg(feature = "devtools")]
                 debug_state.as_ref(),
             )?;
@@ -965,6 +1000,7 @@ mod tests {
                 source_map: None,
             },
             js_runtime_options: builder.js_runtime_options,
+            js_clock: None,
             host_modules: builder.host_modules,
             host_message_producers: builder.host_message_producers,
             widget_factories: builder.widget_factories,

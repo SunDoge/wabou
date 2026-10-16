@@ -681,6 +681,20 @@ also uses an isolated temporary XDG data directory so
 persisted application state cannot make scenarios order-dependent. Pass
 `--native` for a real platform-window smoke test.
 
+Set `WABOU_TEST_CLOCK=virtual` for a run whose timing is reproducible
+byte-for-byte: `performance.now()`, animation-frame timestamps, and every
+`setTimeout` deadline advance on a manually driven virtual clock instead of
+the wall clock. One host loop iteration is one 16 ms virtual frame — pending
+effect deliveries land at the start of a frame, the frame is built on the
+delivered state, and time advances last, so timer continuations started during
+a frame run at the start of the next one. Two runs of the same scenario
+produce identical `report.json` and `trace.json` artifacts, including under
+injected CPU contention, because no part of the timing path observes real
+time. Known boundary: native motion sampling (`Instant`-based drag and
+transition timing) still reads the system clock, so scenarios that depend on
+the sampling instant of an in-flight native animation should keep using the
+default clock.
+
 The deterministic backend models shell-owned window lifecycle transitions but
 does not initialize native `ShellExtension` resources. Tests that must activate
 an actual tray menu item or another platform callback belong in a separate
