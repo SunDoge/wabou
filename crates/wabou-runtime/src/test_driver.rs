@@ -1237,26 +1237,16 @@ fn click_semantic_target(
     let Some(node) = semantic_target(snapshot, role, label, index, scope) else {
         return false;
     };
-    let point = Point {
-        x: f64::from((node.bounds[0] + node.bounds[2]) * 0.5),
-        y: f64::from((node.bounds[1] + node.bounds[3]) * 0.5),
-    };
-    source.handle_event(UiEvent::Pointer(PointerEvent {
-        phase: PointerPhase::Down,
-        position: point,
-        button: Some(PointerButton::Primary),
-        buttons: 1,
-        modifiers: Modifiers::default(),
-        properties: wabou_shell::PointerProperties::default(),
-    }));
-    source.handle_event(UiEvent::Pointer(PointerEvent {
-        phase: PointerPhase::Up,
-        position: point,
-        button: Some(PointerButton::Primary),
-        buttons: 0,
-        modifiers: Modifiers::default(),
-        properties: wabou_shell::PointerProperties::default(),
-    }));
+    // A role locator identifies a stable semantic node, not a point in the
+    // current animation frame. Synthesizing pointer input at the snapshot's
+    // center races moving overlays: an entering drawer can expose its button
+    // semantically while that center is still outside the viewport. Native
+    // pointer/hit-test scenarios use `InputByRole` with an explicit pointer
+    // gesture; role activation follows the accessibility action contract.
+    let _ = source.handle_semantic_action(wabou_shell::SemanticAction::Click { target: node.id });
+    // Lookup already established that the target is live and actionable. The
+    // action result reports whether an event listener consumed activation;
+    // native focusable controls may validly return false after taking focus.
     true
 }
 
@@ -1435,6 +1425,59 @@ mod tests {
         fn handle_semantic_action(&mut self, _action: wabou_shell::SemanticAction) -> bool {
             false
         }
+    }
+
+    #[test]
+    fn role_click_activates_stable_semantic_identity_without_snapshot_coordinates() {
+        struct RecordingSource {
+            actions: Vec<wabou_shell::SemanticAction>,
+            events: Vec<UiEvent>,
+        }
+
+        impl SemanticTestSource for RecordingSource {
+            fn semantic_snapshot(&self) -> Option<Arc<SemanticSnapshot>> {
+                None
+            }
+
+            fn handle_event(&mut self, event: UiEvent) {
+                self.events.push(event);
+            }
+
+            fn handle_semantic_action(&mut self, action: wabou_shell::SemanticAction) -> bool {
+                self.actions.push(action);
+                false
+            }
+        }
+
+        let mut target = node();
+        target.role = SemanticRole::Button;
+        target.label = Some("Moving target".into());
+        // Its center is outside an ordinary viewport, as can happen while a
+        // bottom drawer is still entering.
+        target.bounds = [20.0, 700.0, 1080.0, 748.0];
+        let snapshot = SemanticSnapshot {
+            root_children: vec![target.id],
+            nodes: vec![target],
+            ..SemanticSnapshot::default()
+        };
+        let mut source = RecordingSource {
+            actions: Vec::new(),
+            events: Vec::new(),
+        };
+
+        assert!(click_semantic_target(
+            &mut source,
+            &snapshot,
+            "button",
+            "Moving target",
+            None,
+            &[],
+        ));
+        assert!(source.events.is_empty());
+        assert!(matches!(
+            source.actions.as_slice(),
+            [wabou_shell::SemanticAction::Click { target: 7 }]
+        ));
     }
 
     fn node() -> wabou_shell::SemanticNode {

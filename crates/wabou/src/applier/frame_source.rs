@@ -599,7 +599,14 @@ impl FrameSource for Applier {
         }
         match action {
             SemanticAction::Click { .. } => {
-                self.dispatch_pointer(target, event::CLICK, None, Modifiers::empty())
+                // Semantic activation has no physical pointer-down event, but
+                // it should retain the observable focus behavior of an
+                // ordinary click. Keep pointer modality so components do not
+                // mistake activation for keyboard focus navigation.
+                self.interaction.use_pointer_modality();
+                let focus_target = self.pointer_focus_target(Some(target));
+                let changed = self.set_focused_target(focus_target);
+                changed | self.dispatch_pointer(target, event::CLICK, None, Modifiers::empty())
             }
             SemanticAction::Focus { .. } => {
                 let changed = self.interaction.input.focused_target != Some(target);

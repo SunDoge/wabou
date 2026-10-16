@@ -1941,6 +1941,15 @@ fn interaction_blocking_isolates_an_entire_subtree() {
             .any(|node| node.id == sk(3))
     );
 
+    // Accessibility/test activation is keyed by semantic identity, but it
+    // still behaves like pointer activation for focus. In particular, menu
+    // components must not interpret it as keyboard focus navigation.
+    applier.interaction.input.focus_visible = true;
+    let _ = applier.handle_semantic_action(SemanticAction::Click { target: sk(3) });
+    assert_eq!(applier.interaction.input.focused_target, Some(nk(3)));
+    assert!(!applier.interaction.input.focus_visible);
+    applier.set_focused_target(None);
+
     set_interaction_blocked(&mut applier, 2, true);
     applier.rebuild_hit_geometry(&placed);
     applier.rebuild_focus_order(&placed);

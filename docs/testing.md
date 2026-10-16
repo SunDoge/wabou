@@ -693,18 +693,12 @@ Two runs of the same scenario produce identical `report.json` and
 `trace.json` artifacts, including under injected CPU contention, because no
 part of the timing path observes real time.
 
-Two known boundaries remain:
+One known boundary remains:
 
 - Native motion sampling (`Instant`-based drag and transition timing) still
   reads the system clock in places; the `Clock::now_instant` unification is
   in progress. Scenarios that depend on the sampling instant of an in-flight
   native animation should keep using the default clock.
-- Overlay suites with exit animations (drawer, sheet) are not yet green
-  under the virtual clock: a click dispatched mid-animation can mix the
-  cached semantic snapshot's bounds with the current frame's hit geometry.
-  The wall clock hides this race behind fast animations; the virtual clock
-  advances one frame per iteration and exposes it. Use the default clock
-  for those suites until the click path re-reads bounds at dispatch time.
 
 The deterministic backend models shell-owned window lifecycle transitions but
 does not initialize native `ShellExtension` resources. Tests that must activate
