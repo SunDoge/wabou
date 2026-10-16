@@ -1,4 +1,4 @@
-import { c as useHost, r as Host } from "./host-hrf6M8gj.mjs";
+import { c as useHost, r as Host } from "./host-CLg3SjjV.mjs";
 //#region src/generated/host-abi.d.ts
 declare global {
   const __wabou_host_modules: Record<string, object>;

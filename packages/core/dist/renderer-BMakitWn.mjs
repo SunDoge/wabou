@@ -698,7 +698,12 @@ function applyProperty(writer, node, name, value, prev) {
 		return;
 	}
 	if (name === "focusOrder" || name === "interactionBlocked" || name === "focusContained") {
-		const state = interactionByNode.get(node);
+		const state = interactionByNode.get(node) ?? {
+			focusOrder: null,
+			blocked: false,
+			contained: false
+		};
+		interactionByNode.set(node, state);
 		if (name === "focusOrder") state.focusOrder = value == null || value === false ? null : Number(value);
 		else if (name === "interactionBlocked") state.blocked = value === true;
 		else state.contained = value === true;
@@ -1224,4 +1229,4 @@ function eventName(code) {
 //#endregion
 export { spread as A, registerRoot as C, runSweep as D, render as E, PathBuilder as F, isVectorPath as I, VirtualList as M, createFps as N, setProp as O, Portal as P, ref as S, removeNode as T, memo as _, createElement as a, observeGlobalPointerEvent as b, dispatchEvent as c, getMountRoot as d, getRequestEvent as f, isServer as g, isDirectEvent as h, createComponent$1 as i, writer as j, setTransform2D as k, disposeMountedApp as l, insertNode as m, acquireOverlayRoot as n, createTextNode as o, insert as p, applyRef as r, delegateEvents as s, Dynamic as t, effect as u, mergeProps as v, releaseOverlayRoot as w, reconcileControlledInputValues as x, mount as y };
 
-//# sourceMappingURL=renderer-pk1nRH6M.mjs.map
+//# sourceMappingURL=renderer-BMakitWn.mjs.map

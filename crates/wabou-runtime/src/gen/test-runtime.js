@@ -10067,7 +10067,12 @@ ${footer}`;
       return;
     }
     if (name === "focusOrder" || name === "interactionBlocked" || name === "focusContained") {
-      const state = interactionByNode.get(node);
+      const state = interactionByNode.get(node) ?? {
+        focusOrder: null,
+        blocked: false,
+        contained: false
+      };
+      interactionByNode.set(node, state);
       if (name === "focusOrder") {
         state.focusOrder = value == null || value === false ? null : Number(value);
       } else if (name === "interactionBlocked") {
@@ -10611,11 +10616,8 @@ ${detail}`);
   var allListeners = new Set;
   var utf8 = new TextDecoder;
   function subscribe(topic, handler) {
-    let set = listeners.get(topic);
-    if (!set) {
-      set = new Set;
-      listeners.set(topic, set);
-    }
+    const set = listeners.get(topic) ?? new Set;
+    listeners.set(topic, set);
     set.add(handler);
     return () => {
       set.delete(handler);
@@ -10702,15 +10704,19 @@ ${detail}`);
     return id;
   }
   if (!hasBrowserDom()) {
-    globalThis.setTimeout = (callback, delay = 0, ...args) => schedule2(callback, Number(delay) || 0, false, args);
-    globalThis.setInterval = (callback, delay = 0, ...args) => schedule2(callback, Number(delay) || 0, true, args);
+    Object.assign(globalThis, {
+      setTimeout: (callback, delay = 0, ...args) => schedule2(callback, Number(delay) || 0, false, args),
+      setInterval: (callback, delay = 0, ...args) => schedule2(callback, Number(delay) || 0, true, args)
+    });
   }
   function clearTimer(id) {
     active2.delete(id);
   }
   if (!hasBrowserDom()) {
-    globalThis.clearTimeout = clearTimer;
-    globalThis.clearInterval = clearTimer;
+    Object.assign(globalThis, {
+      clearTimeout: clearTimer,
+      clearInterval: clearTimer
+    });
   }
 
   // packages/core/src/glue/resize-observer.ts
@@ -10771,12 +10777,12 @@ ${detail}`);
       try {
         callback([entry]);
       } catch (error) {
-        __wabou_log("error", error?.stack ? String(error.stack) : String(error));
+        __wabou_log("error", error instanceof Error && error.stack ? error.stack : String(error));
       }
     }
   }
   if (!hasBrowserDom())
-    globalThis.ResizeObserver = WabouResizeObserver;
+    Object.assign(globalThis, { ResizeObserver: WabouResizeObserver });
 
   // packages/core/src/glue/host-frame.ts
   var RECORD_HEADER_LEN = 8;
@@ -11223,7 +11229,8 @@ ${detail}`);
   // packages/core/src/glue/app-dirs.ts
   var resolved;
   function resolve2() {
-    return resolved ??= dispatchEffect(effectOps.appDirsResolve);
+    resolved ??= dispatchEffect(effectOps.appDirsResolve);
+    return resolved;
   }
   var appDirs = Object.freeze({
     resolve: resolve2,
@@ -14087,7 +14094,7 @@ ${detail}`);
       const pending = new Promise((resolve, reject) => {
         const abort = () => {
           runtime.__wabou_fetch_cancel?.(id);
-          reject(signal.reason);
+          reject(signal?.reason);
         };
         signal?.addEventListener("abort", abort, { once: true });
         runtime.__wabou_fetch(url, initJson, id, bodyBytes).then(resolve, reject).finally(() => signal?.removeEventListener("abort", abort));

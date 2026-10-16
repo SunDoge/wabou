@@ -291,7 +291,7 @@ function installFetchPolyfill() {
 		return new Promise((resolve, reject) => {
 			const abort = () => {
 				runtime.__wabou_fetch_cancel?.(id);
-				reject(signal.reason);
+				reject(signal?.reason);
 			};
 			signal?.addEventListener("abort", abort, { once: true });
 			runtime.__wabou_fetch(url, initJson, id, bodyBytes).then(resolve, reject).finally(() => signal?.removeEventListener("abort", abort));

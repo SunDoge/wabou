@@ -1,5 +1,5 @@
 import { n as defaultHost } from "./host-B5CKGzCs.mjs";
-import "./renderer-pk1nRH6M.mjs";
+import "./renderer-BMakitWn.mjs";
 //#region src/glue/intl.ts
 function encode(options) {
 	return JSON.stringify(options ?? {});
@@ -47,4 +47,4 @@ const intl = Object.freeze({
 //#endregion
 export { intl as t };
 
-//# sourceMappingURL=intl-asBazLgy.mjs.map
+//# sourceMappingURL=intl-BQihzwVz.mjs.map

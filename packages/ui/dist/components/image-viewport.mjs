@@ -351,15 +351,16 @@ function AnnotationLayer(props) {
 					}
 				})
 			}), memo(() => {
-				return memo(() => {
-					return !!draft();
-				})() ? createComponent$1(View, {
-					"aria-hidden": "true",
-					class: "absolute border-2 border-accent bg-transparent pointer-events-none",
-					get style() {
-						return styleFor(draft());
-					}
-				}) : draft();
+				return (() => {
+					const rect = draft();
+					return rect && createComponent$1(View, {
+						"aria-hidden": "true",
+						class: "absolute border-2 border-accent bg-transparent pointer-events-none",
+						get style() {
+							return styleFor(rect);
+						}
+					});
+				})();
 			})];
 		}
 	}));

@@ -19,4 +19,23 @@ if ((await protocolBindings.exited) !== 0) {
   throw new Error("Rust-owned protocol binding generation failed");
 }
 
+const nativeHostBindings = Bun.spawn(
+  [
+    "cargo",
+    "run",
+    "-p",
+    "wabou-host-api",
+    "--features",
+    "bindings",
+    "--example",
+    "native-host-bindings",
+    "--",
+    "write",
+  ],
+  { cwd: `${import.meta.dir}/../..`, stdout: "inherit", stderr: "inherit" },
+);
+if ((await nativeHostBindings.exited) !== 0) {
+  throw new Error("Rust-owned native host binding generation failed");
+}
+
 export {};

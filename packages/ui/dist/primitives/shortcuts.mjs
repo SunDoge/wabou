@@ -35,7 +35,7 @@ function createShortcuts(shortcuts) {
 function compileShortcut(chord, value) {
 	const parts = chord.split("+").map((part) => part.trim()).filter(Boolean);
 	if (parts.length === 0) throw new Error("Shortcut chord cannot be empty");
-	const key = normalizeKey(parts.pop());
+	const key = normalizeKey(parts.pop() ?? "");
 	if (key.length === 0) throw new Error(`Shortcut chord has no key: ${chord}`);
 	let mask = 0;
 	let primary = false;

@@ -1,7 +1,7 @@
 import { h as EVENT_CODE, s as nodeKey } from "./protocol-B9cErdtk.mjs";
 import { t as hasBrowserDom } from "./browser-dom-BrHP4mZQ.mjs";
-import { c as dispatchEvent, j as writer, l as disposeMountedApp } from "./renderer-pk1nRH6M.mjs";
-import { t as tickAnimationFrame } from "./animation-frame-0RPj5b6p.mjs";
+import { c as dispatchEvent, j as writer, l as disposeMountedApp } from "./renderer-BMakitWn.mjs";
+import { t as tickAnimationFrame } from "./animation-frame-DJIjswAv.mjs";
 //#region src/generated/browser-host-bindings.ts
 function createBrowserHostBindings(bridge, invalidate) {
 	return {
@@ -71,6 +71,7 @@ async function startBrowserApp(options) {
 		dirty = true;
 	};
 	const targetAt = (event, code) => {
+		if (!runtime) return "";
 		const rect = canvas.getBoundingClientRect();
 		return runtime.hit_test(event.clientX - rect.left - canvas.clientLeft, event.clientY - rect.top - canvas.clientTop, code);
 	};

@@ -9,11 +9,8 @@ const utf8 = new TextDecoder();
 * Returns an unsubscribe function.
 */
 function subscribe(topic, handler) {
-	let set = listeners.get(topic);
-	if (!set) {
-		set = /* @__PURE__ */ new Set();
-		listeners.set(topic, set);
-	}
+	const set = listeners.get(topic) ?? /* @__PURE__ */ new Set();
+	listeners.set(topic, set);
 	set.add(handler);
 	return () => {
 		set.delete(handler);
@@ -120,11 +117,11 @@ function dispatchResizeObservation(solidId, width, height) {
 	for (const callback of observed.callbacks) try {
 		callback([entry]);
 	} catch (error) {
-		__wabou_log("error", error?.stack ? String(error.stack) : String(error));
+		__wabou_log("error", error instanceof Error && error.stack ? error.stack : String(error));
 	}
 }
-if (!hasBrowserDom()) globalThis.ResizeObserver = WabouResizeObserver;
+if (!hasBrowserDom()) Object.assign(globalThis, { ResizeObserver: WabouResizeObserver });
 //#endregion
 export { subscribeAll as a, subscribe as i, dispatchHostMessage as n, subscribeJson as o, hostMessages as r, dispatchResizeObservation as t };
 
-//# sourceMappingURL=resize-observer-DUViTMSv.mjs.map
+//# sourceMappingURL=resize-observer-BmUNQ8lg.mjs.map

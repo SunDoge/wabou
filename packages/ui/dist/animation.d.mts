@@ -72,12 +72,12 @@ export interface KeyframeAnimationOptions<V extends AnimationValue> extends Anim
   reducedValue?: V;
 }
 export declare function createKeyframeAnimation<V extends AnimationValue>(keyframes: readonly [V, V, ...V[]], options?: KeyframeAnimationOptions<V>): ReactiveAnimation<V>;
-export interface MotionInterpolationOptions<V extends AnimationValue> {
+export interface MotionInterpolationOptions {
   clamp?: boolean;
   ease?: Easing;
 }
-export declare function createInterpolation(source: Accessor<number>, input: readonly number[], output: readonly number[], options?: MotionInterpolationOptions<number>): Accessor<number>;
-export declare function createInterpolation(source: Accessor<number>, input: readonly number[], output: readonly string[], options?: MotionInterpolationOptions<string>): Accessor<string>;
+export declare function createInterpolation(source: Accessor<number>, input: readonly number[], output: readonly number[], options?: MotionInterpolationOptions): Accessor<number>;
+export declare function createInterpolation(source: Accessor<number>, input: readonly number[], output: readonly string[], options?: MotionInterpolationOptions): Accessor<string>;
 export interface TransitionOptions extends Omit<AnimationOptions<number>, "autoplay" | "duration" | "onUpdate" | "onComplete"> {
   /** Duration in seconds. May react to the current transition direction. */
   duration?: MaybeAccessor<number>;

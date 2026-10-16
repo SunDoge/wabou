@@ -4,13 +4,13 @@ import "./host.mjs";
 import { t as installMissingGlobal } from "./abort-controller-rU77nrtL.mjs";
 import { t as hasBrowserDom } from "./browser-dom-BrHP4mZQ.mjs";
 import { _ as utilityConflictProperties, a as bool, c as mergeClasses, d as px, f as rgba, g as translate2d, h as shadow, i as auto, l as number, m as scale2d, n as StyleValueKind, o as classes, p as rotate2d, r as assertInlineStyleValue, s as isTypedStyleValue, t as STYLE_VALUE, u as percent, v as INLINE_STYLE_CONTRACT } from "./style-B3YAe2-h.mjs";
-import { F as PathBuilder, I as isVectorPath, M as VirtualList, N as createFps, P as Portal, b as observeGlobalPointerEvent, c as dispatchEvent, h as isDirectEvent, j as writer, k as setTransform2D, t as Dynamic, x as reconcileControlledInputValues, y as mount } from "./renderer-pk1nRH6M.mjs";
-import "./animation-frame-0RPj5b6p.mjs";
-import { a as subscribeAll, i as subscribe, n as dispatchHostMessage, o as subscribeJson, r as hostMessages, t as dispatchResizeObservation } from "./resize-observer-DUViTMSv.mjs";
+import { F as PathBuilder, I as isVectorPath, M as VirtualList, N as createFps, P as Portal, b as observeGlobalPointerEvent, c as dispatchEvent, h as isDirectEvent, j as writer, k as setTransform2D, t as Dynamic, x as reconcileControlledInputValues, y as mount } from "./renderer-BMakitWn.mjs";
+import "./animation-frame-DJIjswAv.mjs";
+import { a as subscribeAll, i as subscribe, n as dispatchHostMessage, o as subscribeJson, r as hostMessages, t as dispatchResizeObservation } from "./resize-observer-BmUNQ8lg.mjs";
 import { n as effectOps } from "./effect-abi-BzPW8STE.mjs";
-import { t as intl } from "./intl-asBazLgy.mjs";
-import "./registry.mjs";
+import { t as intl } from "./intl-BQihzwVz.mjs";
 import { flushPerformance, measureAsyncPerformance, measurePerformance } from "./performance.mjs";
+import "./registry.mjs";
 import { For, createComponent, createContext, createEffect, createMemo, createSignal, flush, getOwner, latest, onCleanup, refresh, resolve, untrack, useContext } from "solid-js";
 //#region src/polyfills/crypto.ts
 const DIGEST_IDS = {
@@ -108,17 +108,17 @@ function schedule(callback, delay, repeat, args) {
 	run();
 	return id;
 }
-if (!hasBrowserDom()) {
-	globalThis.setTimeout = (callback, delay = 0, ...args) => schedule(callback, Number(delay) || 0, false, args);
-	globalThis.setInterval = (callback, delay = 0, ...args) => schedule(callback, Number(delay) || 0, true, args);
-}
+if (!hasBrowserDom()) Object.assign(globalThis, {
+	setTimeout: (callback, delay = 0, ...args) => schedule(callback, Number(delay) || 0, false, args),
+	setInterval: (callback, delay = 0, ...args) => schedule(callback, Number(delay) || 0, true, args)
+});
 function clearTimer(id) {
 	active.delete(id);
 }
-if (!hasBrowserDom()) {
-	globalThis.clearTimeout = clearTimer;
-	globalThis.clearInterval = clearTimer;
-}
+if (!hasBrowserDom()) Object.assign(globalThis, {
+	clearTimeout: clearTimer,
+	clearInterval: clearTimer
+});
 //#endregion
 //#region src/glue/host-frame.ts
 const RECORD_HEADER_LEN = 8;
@@ -632,7 +632,8 @@ function useClipboard() {
 //#region src/glue/app-dirs.ts
 let resolved;
 function resolve$1() {
-	return resolved ??= dispatchEffect(effectOps.appDirsResolve);
+	resolved ??= dispatchEffect(effectOps.appDirsResolve);
+	return resolved;
 }
 /** Resolve app-private native roots, caching the host result for this runtime. */
 const appDirs = Object.freeze({
@@ -1068,7 +1069,9 @@ const ColorThemeContext = createContext(colorTheme);
 function ColorThemeProvider(props) {
 	let initialized = false;
 	createEffect(() => [props.theme, props.transition], ([theme, transition]) => {
-		const animation = initialized && transition ? colorTheme.animateTo(theme, transition) : (colorTheme.set(theme), void 0);
+		let animation;
+		if (initialized && transition) animation = colorTheme.animateTo(theme, transition);
+		else colorTheme.set(theme);
 		initialized = true;
 		return animation ? () => animation.cancel() : void 0;
 	});

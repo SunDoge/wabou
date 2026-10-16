@@ -304,12 +304,8 @@ function colorChannels(rgba) {
 	];
 }
 function relativeLuminance([red, green, blue]) {
-	const linear = [
-		red,
-		green,
-		blue
-	].map((channel) => channel <= .04045 ? channel / 12.92 : ((channel + .055) / 1.055) ** 2.4);
-	return .2126 * linear[0] + .7152 * linear[1] + .0722 * linear[2];
+	const linearize = (channel) => channel <= .04045 ? channel / 12.92 : ((channel + .055) / 1.055) ** 2.4;
+	return .2126 * linearize(red) + .7152 * linearize(green) + .0722 * linearize(blue);
 }
 function colorContrastRatio(foreground, background) {
 	const [fr, fg, fb, fa] = colorChannels(foreground);
@@ -760,4 +756,4 @@ function wabouNativeIntlPlugin() {
 //#endregion
 export { color as a, wabouPlugins as i, defineWabouConfig as n, defineWabouTheme as o, hasWabouWorkspaceSources as r, defineConfig$1 as t };
 
-//# sourceMappingURL=src-D6Nq1lf1.mjs.map
+//# sourceMappingURL=src-CmR5kfI-.mjs.map

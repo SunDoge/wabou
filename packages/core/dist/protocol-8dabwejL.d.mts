@@ -1,91 +1,3 @@
-//#region src/protocol/resource-key.d.ts
-declare const resourceKeyBrand: unique symbol;
-/** Two-u32 representation shared by SlotMap-backed resource handles. */
-interface ResourceKeyParts {
-  readonly lo: number;
-  readonly hi: number;
-}
-/**
- * Opaque generational resource identity. `Family` prevents image, font,
- * subscription, and other independently owned resources from being mixed.
- */
-interface ResourceKey<Family extends string> extends ResourceKeyParts {
-  readonly [resourceKeyBrand]: Family;
-}
-/** Validate the common two-u32 SlotMap wire representation. */
-declare function validateResourceKeyParts(value: ResourceKeyParts, label?: string): ResourceKeyParts;
-/** Structural check for a key arriving through JSON or another untyped edge. */
-declare function isResourceKeyParts(value: unknown): value is ResourceKeyParts;
-/** Stable diagnostic form; binary paths continue to write two u32 fields. */
-declare function formatResourceKeyParts(value: ResourceKeyParts): string;
-/** Slot-indexed storage that validates both the family and generation. */
-declare class ResourceKeyTable<Family extends string, Value> {
-  #private;
-  constructor(family: ResourceKeyFamily<Family>);
-  set(key: ResourceKey<Family>, value: Value): this;
-  get(key: ResourceKey<Family>): Value | undefined;
-  has(key: ResourceKey<Family>): boolean;
-  delete(key: ResourceKey<Family>): boolean;
-  clear(): void;
-}
-/** Operations bound to one resource family and its private runtime token. */
-interface ResourceKeyFamily<Family extends string> {
-  readonly name: Family;
-  fromParts(lo: number, hi: number): ResourceKey<Family>;
-  fromJSON(value: unknown): ResourceKey<Family>;
-  is(value: unknown): value is ResourceKey<Family>;
-  assert(value: unknown): asserts value is ResourceKey<Family>;
-  equals(left: ResourceKey<Family> | null | undefined, right: ResourceKey<Family> | null | undefined): boolean;
-  format(value: ResourceKeyParts): string;
-  table<Value>(): ResourceKeyTable<Family, Value>;
-}
-/**
- * Define one opaque handle family. The private symbol token also catches
- * accidental cross-family casts at runtime; it is not serialized on the wire.
- */
-declare function createResourceKeyFamily<const Family extends string>(name: Family, options?: {
-  readonly runtimeBrand?: boolean;
-}): ResourceKeyFamily<Family>;
-//#endregion
-//#region src/protocol/node-key.d.ts
-/**
- * Full-width retained-node identity used on both sides of the native bridge.
- * `lo` selects a slot and `hi` identifies that slot's generation.
- */
-type NodeKey = ResourceKey<"node">;
-/** Structural form accepted when a key was deserialized from JSON. */
-type NodeKeyParts = ResourceKeyParts;
-declare const ROOT_NODE_KEY: NodeKey;
-/** Construct a node key received from a trusted binary boundary. */
-declare function nodeKey(lo: number, hi: number): NodeKey;
-declare function isNodeKey(value: unknown): value is NodeKey;
-declare function nodeKeyEquals(left: NodeKey | null | undefined, right: NodeKey | null | undefined): boolean;
-/** Stable diagnostic form; do not use it on the binary hot path. */
-declare function formatNodeKey(key: NodeKeyParts): string;
-/**
- * Splits SlotMap's `KeyData::as_ffi()` representation without converting the
- * full value to an imprecise JavaScript number.
- */
-declare function nodeKeyFromSlotMapFfi(lo: number, hi: number): NodeKey;
-/**
- * Allocates full-width generational node keys. Exhausted generations retire a
- * slot instead of wrapping and making a stale key valid again.
- */
-declare class NodeKeyAllocator {
-  #private;
-  constructor(firstSlot?: number);
-  allocate(): NodeKey;
-  release(key: NodeKey): boolean;
-  isLive(key: NodeKey): boolean;
-}
-/**
- * Slot-indexed storage which always validates the complete generational key.
- * This keeps array lookup speed without allowing stale-key aliasing.
- */
-declare class NodeKeyTable<T> extends ResourceKeyTable<"node", T> {
-  constructor();
-}
-//#endregion
 //#region src/generated/wire-protocol.d.ts
 declare const OP: {
   readonly CreateElement: 1;
@@ -230,6 +142,94 @@ declare const HOST_NODE_PAYLOAD: {
   readonly Json: 2;
 };
 //#endregion
+//#region src/protocol/resource-key.d.ts
+declare const resourceKeyBrand: unique symbol;
+/** Two-u32 representation shared by SlotMap-backed resource handles. */
+interface ResourceKeyParts {
+  readonly lo: number;
+  readonly hi: number;
+}
+/**
+ * Opaque generational resource identity. `Family` prevents image, font,
+ * subscription, and other independently owned resources from being mixed.
+ */
+interface ResourceKey<Family extends string> extends ResourceKeyParts {
+  readonly [resourceKeyBrand]: Family;
+}
+/** Validate the common two-u32 SlotMap wire representation. */
+declare function validateResourceKeyParts(value: ResourceKeyParts, label?: string): ResourceKeyParts;
+/** Structural check for a key arriving through JSON or another untyped edge. */
+declare function isResourceKeyParts(value: unknown): value is ResourceKeyParts;
+/** Stable diagnostic form; binary paths continue to write two u32 fields. */
+declare function formatResourceKeyParts(value: ResourceKeyParts): string;
+/** Slot-indexed storage that validates both the family and generation. */
+declare class ResourceKeyTable<Family extends string, Value> {
+  #private;
+  constructor(family: ResourceKeyFamily<Family>);
+  set(key: ResourceKey<Family>, value: Value): this;
+  get(key: ResourceKey<Family>): Value | undefined;
+  has(key: ResourceKey<Family>): boolean;
+  delete(key: ResourceKey<Family>): boolean;
+  clear(): void;
+}
+/** Operations bound to one resource family and its private runtime token. */
+interface ResourceKeyFamily<Family extends string> {
+  readonly name: Family;
+  fromParts(lo: number, hi: number): ResourceKey<Family>;
+  fromJSON(value: unknown): ResourceKey<Family>;
+  is(value: unknown): value is ResourceKey<Family>;
+  assert(value: unknown): asserts value is ResourceKey<Family>;
+  equals(left: ResourceKey<Family> | null | undefined, right: ResourceKey<Family> | null | undefined): boolean;
+  format(value: ResourceKeyParts): string;
+  table<Value>(): ResourceKeyTable<Family, Value>;
+}
+/**
+ * Define one opaque handle family. The private symbol token also catches
+ * accidental cross-family casts at runtime; it is not serialized on the wire.
+ */
+declare function createResourceKeyFamily<const Family extends string>(name: Family, options?: {
+  readonly runtimeBrand?: boolean;
+}): ResourceKeyFamily<Family>;
+//#endregion
+//#region src/protocol/node-key.d.ts
+/**
+ * Full-width retained-node identity used on both sides of the native bridge.
+ * `lo` selects a slot and `hi` identifies that slot's generation.
+ */
+type NodeKey = ResourceKey<"node">;
+/** Structural form accepted when a key was deserialized from JSON. */
+type NodeKeyParts = ResourceKeyParts;
+declare const ROOT_NODE_KEY: NodeKey;
+/** Construct a node key received from a trusted binary boundary. */
+declare function nodeKey(lo: number, hi: number): NodeKey;
+declare function isNodeKey(value: unknown): value is NodeKey;
+declare function nodeKeyEquals(left: NodeKey | null | undefined, right: NodeKey | null | undefined): boolean;
+/** Stable diagnostic form; do not use it on the binary hot path. */
+declare function formatNodeKey(key: NodeKeyParts): string;
+/**
+ * Splits SlotMap's `KeyData::as_ffi()` representation without converting the
+ * full value to an imprecise JavaScript number.
+ */
+declare function nodeKeyFromSlotMapFfi(lo: number, hi: number): NodeKey;
+/**
+ * Allocates full-width generational node keys. Exhausted generations retire a
+ * slot instead of wrapping and making a stale key valid again.
+ */
+declare class NodeKeyAllocator {
+  #private;
+  constructor(firstSlot?: number);
+  allocate(): NodeKey;
+  release(key: NodeKey): boolean;
+  isLive(key: NodeKey): boolean;
+}
+/**
+ * Slot-indexed storage which always validates the complete generational key.
+ * This keeps array lookup speed without allowing stale-key aliasing.
+ */
+declare class NodeKeyTable<T> extends ResourceKeyTable<"node", T> {
+  constructor();
+}
+//#endregion
 //#region src/protocol/index.d.ts
 /**
  * Per-tick binary frame writer. Emits ops into an internal buffer; `flush()`
@@ -317,5 +317,5 @@ declare class Writer {
   flush(): Uint8Array | null;
 }
 //#endregion
-export { formatResourceKeyParts as A, nodeKeyEquals as C, ResourceKeyParts as D, ResourceKeyFamily as E, validateResourceKeyParts as M, ResourceKeyTable as O, nodeKey as S, ResourceKey as T, NodeKeyAllocator as _, EventDataSlot as a, formatNodeKey as b, GRAPHIC_SOURCE as c, HOST_RECORD_KIND as d, INTERACTION_POLICY as f, NodeKey as g, TEXT_BEHAVIOR as h, EVENT_DATA_SLOT as i, isResourceKeyParts as j, createResourceKeyFamily as k, HOST_FRAME as l, OpCode as m, EVENT_CODE as n, EventType as o, OP as p, EVENT_DATA_LEN as r, GRAPHIC_DATA as s, Writer as t, HOST_NODE_PAYLOAD as u, NodeKeyTable as v, nodeKeyFromSlotMapFfi as w, isNodeKey as x, ROOT_NODE_KEY as y };
-//# sourceMappingURL=protocol-Dp6QxGZP.d.mts.map
+export { OP as A, EventType as C, HOST_NODE_PAYLOAD as D, HOST_FRAME as E, TEXT_BEHAVIOR as M, HOST_RECORD_KIND as O, EventDataSlot as S, GRAPHIC_SOURCE as T, isResourceKeyParts as _, ROOT_NODE_KEY as a, EVENT_DATA_LEN as b, nodeKey as c, ResourceKey as d, ResourceKeyFamily as f, formatResourceKeyParts as g, createResourceKeyFamily as h, NodeKeyTable as i, OpCode as j, INTERACTION_POLICY as k, nodeKeyEquals as l, ResourceKeyTable as m, NodeKey as n, formatNodeKey as o, ResourceKeyParts as p, NodeKeyAllocator as r, isNodeKey as s, Writer as t, nodeKeyFromSlotMapFfi as u, validateResourceKeyParts as v, GRAPHIC_DATA as w, EVENT_DATA_SLOT as x, EVENT_CODE as y };
+//# sourceMappingURL=protocol-8dabwejL.d.mts.map
