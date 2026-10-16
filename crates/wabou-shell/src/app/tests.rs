@@ -1,3 +1,8 @@
+use super::event_translate::{
+    FrameWake, allowed_external_url, frame_wake, namespaced_pointer_id, pointer_source_properties,
+    printable_key_text, resize_direction_at, scheduled_frame_wake, unconsumed_key_text,
+    update_present_retry, window_capabilities,
+};
 use super::*;
 
 #[test]
@@ -33,12 +38,15 @@ fn frame_scheduler_preserves_a_deadline_when_the_source_reports_now_relative_tim
     assert_eq!(scheduled, None);
 }
 use crate::layout::PlacedNode;
+use crate::source::KeyLocation;
 use crate::text::TextContext;
 use std::ptr::NonNull;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::task::Waker;
-use winit::keyboard::NamedKey;
+use winit::event::{MouseButton, PointerSource};
+use winit::keyboard::{Key, NamedKey};
 use winit::raw_window_handle::WaylandWindowHandle;
+use winit::window::{ImeHint, ImePurpose as WinitImePurpose};
 
 #[test]
 fn custom_decoration_edges_map_to_native_resize_directions() {
@@ -68,7 +76,7 @@ fn custom_decoration_edges_map_to_native_resize_directions() {
 
 #[test]
 fn native_pointer_sources_keep_identity_and_pressure() {
-    let first = App::pointer_source_properties(
+    let first = pointer_source_properties(
         None,
         true,
         &PointerSource::Touch {
@@ -76,7 +84,7 @@ fn native_pointer_sources_keep_identity_and_pressure() {
             force: Some(winit::event::Force::Normalized(0.75)),
         },
     );
-    let second = App::pointer_source_properties(
+    let second = pointer_source_properties(
         None,
         false,
         &PointerSource::Touch {
@@ -90,7 +98,7 @@ fn native_pointer_sources_keep_identity_and_pressure() {
     assert!(first.primary);
     assert!(!second.primary);
     assert_ne!(first.id, second.id);
-    assert_ne!(first.id, App::namespaced_pointer_id(0, 1));
+    assert_ne!(first.id, namespaced_pointer_id(0, 1));
 }
 
 struct EventActionSource {
@@ -344,21 +352,18 @@ impl FrameSource for EventActionSource {
 #[test]
 fn named_editing_keys_use_dom_compatible_names() {
     assert_eq!(
-        App::logical_key_name(&Key::Named(NamedKey::Backspace)),
+        logical_key_name(&Key::Named(NamedKey::Backspace)),
         "Backspace"
     );
+    assert_eq!(logical_key_name(&Key::Named(NamedKey::Delete)), "Delete");
+    assert_eq!(logical_key_name(&Key::Named(NamedKey::Enter)), "Enter");
+    assert_eq!(logical_key_name(&Key::Character(" ".into())), " ");
+    assert_eq!(logical_key_name(&Key::Character("a".into())), "a");
+    assert_eq!(printable_key_text("a"), Some("a".into()));
+    assert_eq!(printable_key_text("\u{8}"), None);
+    assert_eq!(printable_key_text("\u{7f}"), None);
     assert_eq!(
-        App::logical_key_name(&Key::Named(NamedKey::Delete)),
-        "Delete"
-    );
-    assert_eq!(App::logical_key_name(&Key::Named(NamedKey::Enter)), "Enter");
-    assert_eq!(App::logical_key_name(&Key::Character(" ".into())), " ");
-    assert_eq!(App::logical_key_name(&Key::Character("a".into())), "a");
-    assert_eq!(App::printable_key_text("a"), Some("a".into()));
-    assert_eq!(App::printable_key_text("\u{8}"), None);
-    assert_eq!(App::printable_key_text("\u{7f}"), None);
-    assert_eq!(
-        App::committed_key_text(
+        committed_key_text(
             Some("q"),
             Some("@"),
             Modifiers::CONTROL | Modifiers::ALT,
@@ -367,11 +372,11 @@ fn named_editing_keys_use_dom_compatible_names() {
         Some("@".into())
     );
     assert_eq!(
-        App::committed_key_text(Some("a"), Some("\u{1}"), Modifiers::CONTROL, false),
+        committed_key_text(Some("a"), Some("\u{1}"), Modifiers::CONTROL, false),
         None
     );
     assert_eq!(
-        App::committed_key_text(Some("a"), Some("a"), Modifiers::default(), true),
+        committed_key_text(Some("a"), Some("a"), Modifiers::default(), true),
         None,
         "physical key text must not race the active IME composition"
     );
@@ -380,11 +385,11 @@ fn named_editing_keys_use_dom_compatible_names() {
 
     let mut response = EventResponse::handled();
     assert_eq!(
-        App::unconsumed_key_text(Some("x".into()), &response),
+        unconsumed_key_text(Some("x".into()), &response),
         Some("x".into())
     );
     response.consume_key_text = true;
-    assert_eq!(App::unconsumed_key_text(Some("x".into()), &response), None);
+    assert_eq!(unconsumed_key_text(Some("x".into()), &response), None);
 }
 
 #[test]
@@ -399,11 +404,11 @@ fn failed_present_gets_one_recovery_frame_without_a_busy_loop() {
 
 #[test]
 fn ime_cursor_rect_is_logical_and_never_empty() {
-    let (position, size) = App::ime_cursor_rect(Some([12.5, 20.0, 12.5, 38.0]));
+    let (position, size) = ime_cursor_rect(Some([12.5, 20.0, 12.5, 38.0]));
     assert_eq!(position, winit::dpi::LogicalPosition::new(12.5, 20.0));
     assert_eq!(size, winit::dpi::LogicalSize::new(1.0, 18.0));
 
-    let (position, size) = App::ime_cursor_rect(None);
+    let (position, size) = ime_cursor_rect(None);
     assert_eq!(position, winit::dpi::LogicalPosition::new(0.0, 0.0));
     assert_eq!(size, winit::dpi::LogicalSize::new(1.0, 1.0));
 }
@@ -425,7 +430,7 @@ fn ime_snapshot_maps_backend_neutral_purpose_and_hints_to_winit() {
         spellcheck: false,
     };
 
-    let (hint, purpose) = App::ime_hint_and_purpose(Some(&state));
+    let (hint, purpose) = ime_hint_and_purpose(Some(&state));
     assert!(hint.contains(ImeHint::MULTILINE));
     assert!(hint.contains(ImeHint::COMPLETION));
     assert!(!hint.contains(ImeHint::SPELLCHECK));
@@ -452,10 +457,10 @@ fn ime_session_restarts_only_when_focus_moves_between_distinct_text_clients() {
     let same = state(7);
     let second = state(8);
 
-    assert!(!App::ime_client_changed(None, Some(&first)));
-    assert!(!App::ime_client_changed(Some(&first), None));
-    assert!(!App::ime_client_changed(Some(&first), Some(&same)));
-    assert!(App::ime_client_changed(Some(&first), Some(&second)));
+    assert!(!ime_client_changed(None, Some(&first)));
+    assert!(!ime_client_changed(Some(&first), None));
+    assert!(!ime_client_changed(Some(&first), Some(&same)));
+    assert!(ime_client_changed(Some(&first), Some(&second)));
 }
 
 #[test]
