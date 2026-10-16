@@ -684,16 +684,27 @@ persisted application state cannot make scenarios order-dependent. Pass
 Set `WABOU_TEST_CLOCK=virtual` for a run whose timing is reproducible
 byte-for-byte: `performance.now()`, animation-frame timestamps, and every
 `setTimeout` deadline advance on a manually driven virtual clock instead of
-the wall clock. One host loop iteration is one 16 ms virtual frame — pending
-effect deliveries land at the start of a frame, the frame is built on the
-delivered state, and time advances last, so timer continuations started during
-a frame run at the start of the next one. Two runs of the same scenario
-produce identical `report.json` and `trace.json` artifacts, including under
-injected CPU contention, because no part of the timing path observes real
-time. Known boundary: native motion sampling (`Instant`-based drag and
-transition timing) still reads the system clock, so scenarios that depend on
-the sampling instant of an in-flight native animation should keep using the
-default clock.
+the wall clock. One host loop iteration is one 16 ms virtual frame: the frame
+is built at virtual time T, scenario dispatches land at T, their reactions
+drain to a fixpoint still at T (matching a browser, where an input event's
+microtasks run before the next animation frame), and time advances last, so
+timer continuations fired by the advance observe T+16 on the next iteration.
+Two runs of the same scenario produce identical `report.json` and
+`trace.json` artifacts, including under injected CPU contention, because no
+part of the timing path observes real time.
+
+Two known boundaries remain:
+
+- Native motion sampling (`Instant`-based drag and transition timing) still
+  reads the system clock in places; the `Clock::now_instant` unification is
+  in progress. Scenarios that depend on the sampling instant of an in-flight
+  native animation should keep using the default clock.
+- Overlay suites with exit animations (drawer, sheet) are not yet green
+  under the virtual clock: a click dispatched mid-animation can mix the
+  cached semantic snapshot's bounds with the current frame's hit geometry.
+  The wall clock hides this race behind fast animations; the virtual clock
+  advances one frame per iteration and exposes it. Use the default clock
+  for those suites until the click path re-reads bounds at dispatch time.
 
 The deterministic backend models shell-owned window lifecycle transitions but
 does not initialize native `ShellExtension` resources. Tests that must activate
