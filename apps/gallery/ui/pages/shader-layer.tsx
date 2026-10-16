@@ -1,7 +1,7 @@
 import { Badge, Button, ShaderLayer, Text, View } from "@wabou/ui";
 import { createSignal } from "solid-js";
-import LIQUID_ORB_SHADER from "../shaders/liquid-orb.wgsl?raw";
 import { createLiquidOrbUniforms } from "../shaders/liquid-orb";
+import LIQUID_ORB_SHADER from "../shaders/liquid-orb.wgsl?raw";
 
 const SIRI_UNIFORMS = createLiquidOrbUniforms("siri");
 const BLUE_DROP_UNIFORMS = createLiquidOrbUniforms("blueDrop");

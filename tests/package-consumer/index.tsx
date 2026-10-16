@@ -1,3 +1,4 @@
+import * as Wabou from "@wabou/ui";
 import {
   BaseRootRoute,
   Button,
@@ -9,7 +10,6 @@ import {
   Portal,
   View,
 } from "@wabou/ui";
-import * as Wabou from "@wabou/ui";
 import { createLocale } from "@wabou/ui/i18n";
 import { Button as PrimitiveButton } from "@wabou/ui/primitives";
 import { defineConfig } from "@wabou/vite";

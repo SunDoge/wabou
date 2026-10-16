@@ -14,9 +14,8 @@ export interface AppDirectories {
 let resolved: Promise<AppDirectories> | undefined;
 
 function resolve(): Promise<AppDirectories> {
-  return (resolved ??= dispatchEffect<AppDirectories>(
-    effectOps.appDirsResolve,
-  ));
+  resolved ??= dispatchEffect<AppDirectories>(effectOps.appDirsResolve);
+  return resolved;
 }
 
 /** Resolve app-private native roots, caching the host result for this runtime. */

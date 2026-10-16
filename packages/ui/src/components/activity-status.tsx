@@ -1,7 +1,7 @@
 import { mergeClasses } from "@wabou/core/style";
 import { type JSX, omit, Show } from "solid-js";
 import { Pulse, Text, View, type ViewProps } from "../primitives";
-import { componentToneClass, type ComponentTone } from "./tone";
+import { type ComponentTone, componentToneClass } from "./tone";
 
 export type ActivityStatusTone = Exclude<ComponentTone, "neutral"> | "muted";
 

@@ -1,5 +1,5 @@
 import * as v from "valibot";
-import { evaluateCell, type CellValues } from "./formula";
+import { type CellValues, evaluateCell } from "./formula";
 
 export const temperatureSchema = v.pipe(
   v.string(),

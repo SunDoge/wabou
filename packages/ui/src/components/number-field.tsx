@@ -1,14 +1,7 @@
 import { type NumberFormatOptions, useHost } from "@wabou/core";
 import minus from "lucide-static/icons/minus.svg?raw";
 import plus from "lucide-static/icons/plus.svg?raw";
-import {
-  createEffect,
-  createMemo,
-  createSignal,
-  type JSX,
-  omit,
-  untrack,
-} from "solid-js";
+import { createEffect, createSignal, type JSX, omit, untrack } from "solid-js";
 import { match } from "ts-pattern";
 import { Icon } from "../primitives";
 import { InputGroup, InputGroupButton, InputGroupInput } from "./forms";

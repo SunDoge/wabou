@@ -1,5 +1,5 @@
-import { createSignal, onCleanup } from "solid-js";
 import { subscribeHostMessages, subscribeJsonHostMessages } from "@wabou/core";
+import { createSignal, onCleanup } from "solid-js";
 
 export interface DevServerDiagnostic {
   message: string;

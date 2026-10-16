@@ -1,4 +1,5 @@
 import type { Handle } from "@wabou/core/renderer";
+import { mergeClasses } from "@wabou/core/style";
 import {
   createComponent,
   createContext,
@@ -15,7 +16,6 @@ import {
   createRovingFocus,
 } from "../primitives/interactions";
 import { Button, type ButtonProps } from "./button";
-import { mergeClasses } from "@wabou/core/style";
 
 export type ToolbarOrientation = "horizontal" | "vertical";
 

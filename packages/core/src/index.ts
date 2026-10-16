@@ -194,6 +194,11 @@ export {
   type WindowState,
 } from "./glue/window-metrics";
 export * from "./keyed-list";
+export {
+  flushPerformance,
+  measureAsyncPerformance,
+  measurePerformance,
+} from "./performance";
 export * from "./registry";
 // Keep application-facing renderer types at the stable root. Reconciler hooks,
 // protocol writers, dispatch functions, and generated opcodes remain available
@@ -264,9 +269,3 @@ export {
 } from "./renderer";
 export * from "./style";
 export * from "./vector-path";
-
-export {
-  measurePerformance,
-  measureAsyncPerformance,
-  flushPerformance,
-} from "./performance";

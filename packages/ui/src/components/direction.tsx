@@ -1,6 +1,6 @@
+import { mergeClasses } from "@wabou/core/style";
 import { createComponent, createContext, type JSX, useContext } from "solid-js";
 import { Text, type TextProps, View, type ViewProps } from "../primitives";
-import { mergeClasses } from "@wabou/core/style";
 
 export type Direction = "ltr" | "rtl";
 

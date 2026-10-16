@@ -15,4 +15,5 @@
 // drift-guard tests lock the registered set against the generated inventory.
 
 import "./generated/host-abi";
+
 export { type Host, useHost } from "./renderer/host";

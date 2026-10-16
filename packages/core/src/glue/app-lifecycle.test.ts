@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
-import { dispatchHostMessage } from "./host-messages";
 import { subscribeAppLifecycle } from "./app-lifecycle";
+import { dispatchHostMessage } from "./host-messages";
 
 test("decodes operating-system lifecycle notifications", () => {
   const states: string[] = [];

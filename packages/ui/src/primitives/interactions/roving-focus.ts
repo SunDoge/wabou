@@ -1,5 +1,5 @@
-import { match, P } from "ts-pattern";
 import { createSignal } from "solid-js";
+import { match, P } from "ts-pattern";
 
 export interface FocusTarget {
   focus(): void;

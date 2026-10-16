@@ -1,10 +1,5 @@
 import { renderComponent } from "@wabou/test/component";
-import {
-  ComponentsProvider,
-  Text,
-  useComponentsTheme,
-  View,
-} from "@wabou/ui";
+import { ComponentsProvider, Text, useComponentsTheme, View } from "@wabou/ui";
 import { expect, test } from "vitest";
 
 function ThemeProbe() {

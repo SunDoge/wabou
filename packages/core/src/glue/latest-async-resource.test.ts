@@ -13,9 +13,7 @@ function deferred<T>() {
 }
 
 test("publishes a synchronous bootstrap load in the initiating flush", () => {
-  let resource!: ReturnType<
-    typeof createLatestAsyncResource<string, string>
-  >;
+  let resource!: ReturnType<typeof createLatestAsyncResource<string, string>>;
   const committed: string[] = [];
   createRoot((dispose) => {
     resource = createLatestAsyncResource({

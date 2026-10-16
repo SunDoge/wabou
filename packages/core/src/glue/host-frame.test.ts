@@ -1,14 +1,13 @@
 import { afterEach, beforeEach, expect, test } from "bun:test";
+import { createRenderEffect, createRoot, createSignal, flush } from "solid-js";
 import {
   EVENT_CODE,
-  EVENT_DATA_LEN,
   EVENT_DATA_SLOT,
   HOST_FRAME,
   HOST_NODE_PAYLOAD,
   HOST_RECORD_KIND,
 } from "../protocol";
 import { createElement, setProp, writer } from "../renderer";
-import { createRenderEffect, createRoot, createSignal, flush } from "solid-js";
 import { decodeAndDispatchHostFrame } from "./host-frame";
 import { subscribeAll } from "./host-messages";
 

@@ -1,5 +1,5 @@
 import { match } from "ts-pattern";
-import { unchanged, type UpdateResult } from "./machine";
+import { type UpdateResult, unchanged } from "./machine";
 import { createControllableState } from "./state";
 
 export type DisclosureEvent =

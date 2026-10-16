@@ -13,7 +13,7 @@ const protocolBindings = Bun.spawn(
     "--",
     "write",
   ],
-  { cwd: import.meta.dir + "/../..", stdout: "inherit", stderr: "inherit" },
+  { cwd: `${import.meta.dir}/../..`, stdout: "inherit", stderr: "inherit" },
 );
 if ((await protocolBindings.exited) !== 0) {
   throw new Error("Rust-owned protocol binding generation failed");

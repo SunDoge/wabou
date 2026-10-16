@@ -3,16 +3,12 @@ import {
   type PickDirectoryOptions,
   useDialog,
 } from "@wabou/core";
-import folder from "lucide-static/icons/folder.svg?raw";
 import { mergeClasses } from "@wabou/core/style";
+import folder from "lucide-static/icons/folder.svg?raw";
 import { type JSX, omit } from "solid-js";
 import { Icon } from "../primitives";
 import { directoryPickerOptions } from "./directory-picker-state";
-import {
-  InputGroup,
-  InputGroupButton,
-  InputGroupInput,
-} from "./forms";
+import { InputGroup, InputGroupButton, InputGroupInput } from "./forms";
 import type { InputProps } from "./input";
 
 export interface DirectoryPickerProps

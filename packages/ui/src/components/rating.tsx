@@ -1,5 +1,5 @@
 import type { Handle } from "@wabou/core/renderer";
-import { scale2d } from "@wabou/core/style";
+import { mergeClasses, scale2d } from "@wabou/core/style";
 import star from "lucide-static/icons/star.svg?raw";
 import { createSignal, For as ForValue, type JSX, onCleanup } from "solid-js";
 import { match, P } from "ts-pattern";
@@ -9,7 +9,6 @@ import {
   createControllableState,
   createRovingFocus,
 } from "../primitives/interactions";
-import { mergeClasses } from "@wabou/core/style";
 import {
   clampRatingValue,
   normalizeRatingMax,

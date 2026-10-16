@@ -1,9 +1,5 @@
 import { expect, test } from "bun:test";
-import {
-  INTERACTION_POLICY,
-  mount,
-  writer,
-} from "@wabou/core/renderer";
+import { INTERACTION_POLICY, mount, writer } from "@wabou/core/renderer";
 import { createRoot, flush } from "solid-js";
 // Exercise the Solid-transformed public artifact.
 import { Tooltip, View } from "../../dist/index.mjs";
@@ -40,8 +36,6 @@ test("Tooltip keeps its non-interactive overlay out of native hit testing", () =
   }
 
   expect(
-    policies.some(
-      (flags) => (flags & INTERACTION_POLICY.BlockSubtree) !== 0,
-    ),
+    policies.some((flags) => (flags & INTERACTION_POLICY.BlockSubtree) !== 0),
   ).toBe(true);
 });

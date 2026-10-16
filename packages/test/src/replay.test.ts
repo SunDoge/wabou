@@ -193,12 +193,7 @@ test("replay preserves the logical window for every action", async () => {
       ["/new-fixtures/downloads/example.torrent"],
     ],
     ["8v1", "resize", 900, 600],
-    [
-      "9v1",
-      "fileDrop",
-      "dropped",
-      ["/new-fixtures/downloads/example.torrent"],
-    ],
+    ["9v1", "fileDrop", "dropped", ["/new-fixtures/downloads/example.torrent"]],
     [
       "2v3",
       ["dialog:Settings"],

@@ -1,7 +1,7 @@
 import { hasBrowserDom } from "../browser-dom";
 import {
-  createBrowserHostBindings,
   type BrowserHostBridge,
+  createBrowserHostBindings,
 } from "../generated/browser-host-bindings";
 import { tickAnimationFrame } from "../glue/animation-frame";
 import { EVENT_CODE, nodeKey } from "../protocol";
@@ -106,8 +106,9 @@ export async function startBrowserApp(
     dirty = true;
   };
   const targetAt = (event: MouseEvent, code: number) => {
+    if (!runtime) return "";
     const rect = canvas.getBoundingClientRect();
-    return runtime!.hit_test(
+    return runtime.hit_test(
       event.clientX - rect.left - canvas.clientLeft,
       event.clientY - rect.top - canvas.clientTop,
       code,

@@ -9,13 +9,13 @@ import {
   mount,
   RouterProvider,
 } from "@wabou/ui";
-import type { JSX } from "solid-js";
-import { AppShell, OverviewPage, PlaceholderPage } from "./app";
 import bot from "lucide-static/icons/bot.svg?raw";
 import database from "lucide-static/icons/database.svg?raw";
 import info from "lucide-static/icons/info.svg?raw";
 import list from "lucide-static/icons/list.svg?raw";
 import settings from "lucide-static/icons/settings.svg?raw";
+import type { JSX } from "solid-js";
+import { AppShell, OverviewPage, PlaceholderPage } from "./app";
 
 function Root(props: { children?: JSX.Element }): JSX.Element {
   return <AppShell>{props.children}</AppShell>;

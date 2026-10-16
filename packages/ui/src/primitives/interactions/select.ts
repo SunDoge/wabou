@@ -1,6 +1,6 @@
 import { createEffect, createSignal } from "solid-js";
 import { match, P } from "ts-pattern";
-import { createCollection, type CollectionItem } from "./collection";
+import { type CollectionItem, createCollection } from "./collection";
 import { createControllableState } from "./state";
 import { createTypeahead } from "./typeahead";
 

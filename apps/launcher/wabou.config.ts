@@ -4,7 +4,8 @@ export default defineConfig(({ mode }) => ({
   package: {
     productName: "Wabou Launcher",
     identifier: "dev.wabou.launcher",
-    description: "A keyboard-first native application launcher built with Wabou.",
+    description:
+      "A keyboard-first native application launcher built with Wabou.",
     authors: ["Wabou contributors"],
     licenseFile: "../../LICENSE",
     formats: ["appimage"],

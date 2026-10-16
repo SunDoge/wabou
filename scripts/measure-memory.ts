@@ -230,10 +230,10 @@ async function main() {
           child.kill("SIGKILL");
         await finished;
       }
-    } else {
+    } else if (pid !== undefined) {
       const deadline = performance.now() + seconds * 1000;
       do {
-        record(pid!, "application");
+        record(pid, "application");
         const remaining = deadline - performance.now();
         if (remaining <= 0) break;
         await Bun.sleep(Math.min(interval * 1000, remaining));

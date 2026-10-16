@@ -68,7 +68,6 @@ import {
   MessageActions,
   MessageContent,
   MessageGroup,
-  MessageScroller,
   Onboarding,
   OnboardingDescription,
   OnboardingFooter,
@@ -119,7 +118,6 @@ import {
   TypographyH3,
   TypographyP,
   View,
-  WorkbenchHeader,
 } from "@wabou/ui";
 import folderIcon from "lucide-static/icons/folder.svg?raw";
 import imageIcon from "lucide-static/icons/image.svg?raw";

@@ -4,7 +4,8 @@ export default defineConfig({
   package: {
     productName: "Wabou Reader",
     identifier: "dev.wabou.reader",
-    description: "A local-first native PDF reading and research workspace built with Wabou.",
+    description:
+      "A local-first native PDF reading and research workspace built with Wabou.",
     authors: ["Wabou contributors"],
     licenseFile: "../../LICENSE",
     formats: ["appimage"],

@@ -106,10 +106,13 @@ function colorChannels(rgba: number): [number, number, number, number] {
 }
 
 function relativeLuminance([red, green, blue]: readonly number[]): number {
-  const linear = [red, green, blue].map((channel) =>
-    channel <= 0.04045 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4,
+  const linearize = (channel: number) =>
+    channel <= 0.04045 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4;
+  return (
+    0.2126 * linearize(red) +
+    0.7152 * linearize(green) +
+    0.0722 * linearize(blue)
   );
-  return 0.2126 * linear[0]! + 0.7152 * linear[1]! + 0.0722 * linear[2]!;
 }
 
 function colorContrastRatio(

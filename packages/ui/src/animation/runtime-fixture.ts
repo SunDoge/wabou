@@ -1,5 +1,5 @@
-import { animate, animateKeyframes, createTransition } from "./index";
 import { createRoot, createSignal } from "solid-js";
+import { animate, animateKeyframes, createTransition } from "./index";
 
 const result = {
   done: false,

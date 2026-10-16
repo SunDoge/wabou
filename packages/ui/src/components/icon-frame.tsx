@@ -1,8 +1,8 @@
-import { Center, Icon, type IconProps, type ViewProps } from "../primitives";
+import { mergeClasses } from "@wabou/core/style";
 import { omit } from "solid-js";
 import { match } from "ts-pattern";
-import { mergeClasses } from "@wabou/core/style";
-import { componentToneClass, type ComponentTone } from "./tone";
+import { Center, Icon, type IconProps, type ViewProps } from "../primitives";
+import { type ComponentTone, componentToneClass } from "./tone";
 
 export type IconFrameSize = "sm" | "default" | "lg" | "xl";
 export type IconFrameVariant = "plain" | "soft" | "solid";

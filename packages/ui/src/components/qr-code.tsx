@@ -1,8 +1,7 @@
-import { rgba, type WabouStyle } from "@wabou/core/style";
+import { mergeClasses, rgba, type WabouStyle } from "@wabou/core/style";
 import { createMemo, type JSX, omit } from "solid-js";
 import { encode, type QrCodeGenerateData } from "uqr";
 import { Path, PathBuilder, View, type ViewProps } from "../primitives";
-import { mergeClasses } from "@wabou/core/style";
 
 export type QrCodeErrorCorrection = "L" | "M" | "Q" | "H";
 

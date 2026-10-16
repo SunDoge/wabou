@@ -1,6 +1,6 @@
 import type { Handle, NativeScrollbarStyle } from "@wabou/core/renderer";
-import { type JSX, omit } from "solid-js";
 import { mergeClasses } from "@wabou/core/style";
+import { type JSX, omit } from "solid-js";
 import { View, type ViewProps, type WabouStyle } from "./view";
 
 export const scrollAreaViewportClass = (className?: string) =>

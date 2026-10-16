@@ -1,10 +1,10 @@
 import { renderComponent } from "@wabou/test/component";
 import { View } from "@wabou/ui";
+import { expect, test } from "vitest";
 import { ShellHeader } from "../../apps/7guis/ui/app";
 import { CellsTask } from "../../apps/7guis/ui/tasks/cells";
 import { CrudTask } from "../../apps/7guis/ui/tasks/crud";
 import { TemperatureTask } from "../../apps/7guis/ui/tasks/temperature";
-import { expect, test } from "vitest";
 
 test("7GUIs shell headers share one separator baseline", () => {
   const screen = renderComponent(() => (

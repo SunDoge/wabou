@@ -174,7 +174,11 @@
       "direction": "host",
       "owner": "runtime",
       "kind": "function",
-      "params": [["locale", "string"], ["value", "number"], ["options", "string"]],
+      "params": [
+        ["locale", "string"],
+        ["value", "number"],
+        ["options", "string"]
+      ],
       "returns": "string"
     },
     {
@@ -182,7 +186,11 @@
       "direction": "host",
       "owner": "runtime",
       "kind": "function",
-      "params": [["locale", "string"], ["input", "string"], ["options", "string"]],
+      "params": [
+        ["locale", "string"],
+        ["input", "string"],
+        ["options", "string"]
+      ],
       "returns": "number"
     },
     {
@@ -190,7 +198,11 @@
       "direction": "host",
       "owner": "runtime",
       "kind": "function",
-      "params": [["locale", "string"], ["value", "number"], ["options", "string"]],
+      "params": [
+        ["locale", "string"],
+        ["value", "number"],
+        ["options", "string"]
+      ],
       "returns": "string"
     },
     {
@@ -198,7 +210,11 @@
       "direction": "host",
       "owner": "runtime",
       "kind": "function",
-      "params": [["locale", "string"], ["epochMillis", "number"], ["options", "string"]],
+      "params": [
+        ["locale", "string"],
+        ["epochMillis", "number"],
+        ["options", "string"]
+      ],
       "returns": "string"
     },
     {
@@ -206,7 +222,12 @@
       "direction": "host",
       "owner": "runtime",
       "kind": "function",
-      "params": [["locale", "string"], ["value", "number"], ["unit", "string"], ["options", "string"]],
+      "params": [
+        ["locale", "string"],
+        ["value", "number"],
+        ["unit", "string"],
+        ["options", "string"]
+      ],
       "returns": "string"
     },
     {
@@ -249,7 +270,12 @@
       "direction": "host",
       "owner": "runtime",
       "kind": "function",
-      "params": [["url", "string"], ["initJson", "string"], ["id?", "number"], ["body?", "Uint8Array"]],
+      "params": [
+        ["url", "string"],
+        ["initJson", "string"],
+        ["id?", "number"],
+        ["body?", "Uint8Array"]
+      ],
       "returns": "Promise<{ status: number; statusText: string; headers: Record<string, string>; body: Uint8Array; url: string; redirected: boolean }>"
     },
     {

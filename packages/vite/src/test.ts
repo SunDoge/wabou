@@ -1,7 +1,7 @@
 import { dirname } from "node:path";
 import { fileURLToPath } from "node:url";
-import { mergeConfig, type UserConfig } from "vite";
 import solid from "@solidjs/vite-plugin";
+import { mergeConfig, type UserConfig } from "vite";
 
 export interface WabouTestConfigOptions {
   /** Additional Vitest/Vite configuration merged over Wabou's defaults. */

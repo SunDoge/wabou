@@ -1,31 +1,31 @@
-import { Button as ButtonPrimitive } from "@wabou/ui/primitives";
 import {
   Center,
+  createMeasuredSize,
   Icon,
   ScrollArea,
   Svg,
   Text,
   TitleBar,
   TitleBarDragRegion,
-  View,
-  createMeasuredSize,
   useWindow,
+  View,
 } from "@wabou/ui";
-import { createSignal, For as ForValue } from "solid-js";
-import cpu from "lucide-static/icons/cpu.svg?raw";
-import memory from "lucide-static/icons/memory-stick.svg?raw";
-import gpu from "lucide-static/icons/box.svg?raw";
-import disk from "lucide-static/icons/hard-drive.svg?raw";
-import network from "lucide-static/icons/globe.svg?raw";
+import { Button as ButtonPrimitive } from "@wabou/ui/primitives";
 import battery from "lucide-static/icons/battery.svg?raw";
+import gpu from "lucide-static/icons/box.svg?raw";
+import cpu from "lucide-static/icons/cpu.svg?raw";
+import network from "lucide-static/icons/globe.svg?raw";
+import disk from "lucide-static/icons/hard-drive.svg?raw";
+import laptop from "lucide-static/icons/laptop.svg?raw";
 import grid from "lucide-static/icons/layout-grid.svg?raw";
 import list from "lucide-static/icons/list.svg?raw";
-import laptop from "lucide-static/icons/laptop.svg?raw";
+import maximizeIcon from "lucide-static/icons/maximize-2.svg?raw";
+import memory from "lucide-static/icons/memory-stick.svg?raw";
+import minusIcon from "lucide-static/icons/minus.svg?raw";
 import pause from "lucide-static/icons/pause.svg?raw";
 import play from "lucide-static/icons/play.svg?raw";
 import closeIcon from "lucide-static/icons/x.svg?raw";
-import minusIcon from "lucide-static/icons/minus.svg?raw";
-import maximizeIcon from "lucide-static/icons/maximize-2.svg?raw";
+import { createSignal, For as ForValue } from "solid-js";
 
 const palette = {
   ink: "#171719",

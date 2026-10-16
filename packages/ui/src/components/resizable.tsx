@@ -1,4 +1,5 @@
 import type { WabouPointerEvent } from "@wabou/core/renderer";
+import { mergeClasses } from "@wabou/core/style";
 import {
   createContext,
   createMemo,
@@ -12,7 +13,6 @@ import {
   type ViewProps,
   type WabouStyle,
 } from "../primitives";
-import { mergeClasses } from "@wabou/core/style";
 import { createControllableState } from "./state";
 
 export type ResizableDirection = "horizontal" | "vertical";

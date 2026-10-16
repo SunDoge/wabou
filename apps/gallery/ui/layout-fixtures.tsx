@@ -1,6 +1,5 @@
 import { defineLayoutFixtures } from "@wabou/test/layout/fixtures";
 import {
-  Button,
   DirectoryPicker,
   Icon,
   ProjectionBoundary,

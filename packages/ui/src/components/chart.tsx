@@ -1,3 +1,4 @@
+import { mergeClasses } from "@wabou/core/style";
 import {
   createComponent,
   createContext,
@@ -6,7 +7,6 @@ import {
   useContext,
 } from "solid-js";
 import { Text, View, type ViewProps } from "../primitives";
-import { mergeClasses } from "@wabou/core/style";
 
 export interface ChartSeriesConfig {
   label: string;

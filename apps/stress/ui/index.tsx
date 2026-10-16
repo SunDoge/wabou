@@ -17,7 +17,7 @@ import {
   useHost,
   View,
 } from "@wabou/ui";
-import { animate, type AnimationControls } from "@wabou/ui/animation";
+import { type AnimationControls, animate } from "@wabou/ui/animation";
 import { Button } from "@wabou/ui/primitives";
 import { createEffect, createSignal, For as ForValue, Show } from "solid-js";
 

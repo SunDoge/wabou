@@ -1,7 +1,7 @@
 import type { Handle } from "@wabou/core/renderer";
+import { mergeClasses } from "@wabou/core/style";
 import { type JSX, omit } from "solid-js";
 import { Text, type TextProps } from "../primitives";
-import { mergeClasses } from "@wabou/core/style";
 import { componentsDisabledInteractiveClass } from "./theme";
 
 export interface LabelProps extends Omit<TextProps, "class" | "role"> {

@@ -555,9 +555,7 @@ export function MessageScrollerNavigator(
 ): JSX.Element {
   const context = requireMessageScroller();
   const currentAnchor = () =>
-    context.followingEnd()
-      ? props.items.at(-1)?.id
-      : context.activeAnchor();
+    context.followingEnd() ? props.items.at(-1)?.id : context.activeAnchor();
   const reveal = (id: string) => {
     context.scrollToAnchor(id, { margin: 24, align: "start" });
   };

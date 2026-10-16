@@ -387,7 +387,10 @@ class Controls<V extends AnimationValue> implements AnimationControls {
     this.#frame = undefined;
     this.#finish();
   }
+  // `AnimationControls` is an awaitable handle for its native animation.
+  // biome-ignore lint/suspicious/noThenProperty: Promise interop is intentional.
   then<TResult1 = void, TResult2 = never>(
+    // biome-ignore lint/suspicious/noConfusingVoidType: resolves with undefined.
     onfulfilled?: ((value: void) => TResult1 | PromiseLike<TResult1>) | null,
     onrejected?: ((reason: unknown) => TResult2 | PromiseLike<TResult2>) | null,
   ): PromiseLike<TResult1 | TResult2> {
@@ -499,7 +502,7 @@ export function createKeyframeAnimation<V extends AnimationValue>(
   return { value, controls };
 }
 
-export interface MotionInterpolationOptions<V extends AnimationValue> {
+export interface MotionInterpolationOptions {
   clamp?: boolean;
   ease?: Easing;
 }
@@ -507,19 +510,19 @@ export function createInterpolation(
   source: Accessor<number>,
   input: readonly number[],
   output: readonly number[],
-  options?: MotionInterpolationOptions<number>,
+  options?: MotionInterpolationOptions,
 ): Accessor<number>;
 export function createInterpolation(
   source: Accessor<number>,
   input: readonly number[],
   output: readonly string[],
-  options?: MotionInterpolationOptions<string>,
+  options?: MotionInterpolationOptions,
 ): Accessor<string>;
 export function createInterpolation<V extends AnimationValue>(
   source: Accessor<number>,
   input: readonly number[],
   output: readonly V[],
-  options: MotionInterpolationOptions<V> = {},
+  options: MotionInterpolationOptions = {},
 ): Accessor<V> {
   if (input.length === 0 || input.length !== output.length)
     throw new RangeError(

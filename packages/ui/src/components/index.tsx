@@ -45,7 +45,6 @@ export * from "./forms";
 export * from "./group-box";
 export * from "./hover-card";
 export * from "./icon-frame";
-export * from "./tone";
 export * from "./image-list";
 export * from "./image-viewport";
 export * from "./inline-edit";
@@ -127,6 +126,7 @@ export {
 export * from "./timeline";
 export * from "./title-bar";
 export * from "./toast";
+export * from "./tone";
 export * from "./tool";
 export * from "./toolbar";
 export * from "./tooltip";

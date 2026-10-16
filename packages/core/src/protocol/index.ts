@@ -1,7 +1,7 @@
 // Wabou binary bridge encoder. Numeric wire definitions are generated from
 // crates/wabou-protocol/src/wire.rs; do not redeclare them in TypeScript.
 
-import type { NodeKey } from "./node-key";
+import type { OpCode } from "../generated/wire-protocol";
 import {
   EVENT_CODE,
   EVENT_DATA_LEN,
@@ -16,27 +16,13 @@ import {
   OP,
   TEXT_BEHAVIOR,
 } from "../generated/wire-protocol";
-import type { OpCode } from "../generated/wire-protocol";
+import type { NodeKey } from "./node-key";
 
-export {
-  EVENT_CODE,
-  EVENT_DATA_LEN,
-  EVENT_DATA_SLOT,
-  GRAPHIC_DATA,
-  GRAPHIC_SOURCE,
-  HOST_FRAME,
-  HOST_NODE_PAYLOAD,
-  HOST_RECORD_KIND,
-  INTERACTION_POLICY,
-  OP,
-  TEXT_BEHAVIOR,
-};
 export type {
   EventDataSlot,
   EventType,
   OpCode,
 } from "../generated/wire-protocol";
-
 export {
   formatNodeKey,
   isNodeKey,
@@ -58,6 +44,19 @@ export {
   ResourceKeyTable,
   validateResourceKeyParts,
 } from "./resource-key";
+export {
+  EVENT_CODE,
+  EVENT_DATA_LEN,
+  EVENT_DATA_SLOT,
+  GRAPHIC_DATA,
+  GRAPHIC_SOURCE,
+  HOST_FRAME,
+  HOST_NODE_PAYLOAD,
+  HOST_RECORD_KIND,
+  INTERACTION_POLICY,
+  OP,
+  TEXT_BEHAVIOR,
+};
 
 const TEXT_BEHAVIOR_MASK =
   TEXT_BEHAVIOR.AggregateDirectText |

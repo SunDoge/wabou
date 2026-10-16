@@ -216,11 +216,7 @@ export function OverviewPage(props: {
                 <Metric
                   icon={activity}
                   label="JS tick"
-                  value={
-                    frameStats()
-                      ? `${frameStats()!.js_tick_ms.toFixed(2)} ms`
-                      : "--"
-                  }
+                  value={`${frameStats()?.js_tick_ms.toFixed(2) ?? "--"} ms`}
                 />
                 <Metric
                   icon={boxes}

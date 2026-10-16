@@ -1,7 +1,7 @@
 import { mergeClasses } from "@wabou/core/style";
 import { type JSX, omit } from "solid-js";
 import { Text, type TextProps, View, type ViewProps } from "../primitives";
-import { componentToneClass, type ComponentTone } from "./tone";
+import { type ComponentTone, componentToneClass } from "./tone";
 
 export interface StatusBarProps extends Omit<ViewProps, "class"> {
   class?: string;

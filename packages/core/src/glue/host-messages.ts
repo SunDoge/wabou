@@ -25,15 +25,12 @@ export function subscribe(
   topic: string,
   handler: HostMessageHandler,
 ): () => void {
-  let set = listeners.get(topic);
-  if (!set) {
-    set = new Set();
-    listeners.set(topic, set);
-  }
+  const set = listeners.get(topic) ?? new Set<HostMessageHandler>();
+  listeners.set(topic, set);
   set.add(handler);
   return () => {
-    set!.delete(handler);
-    if (set!.size === 0) listeners.delete(topic);
+    set.delete(handler);
+    if (set.size === 0) listeners.delete(topic);
   };
 }
 

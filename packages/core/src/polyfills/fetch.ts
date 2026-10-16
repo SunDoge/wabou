@@ -313,7 +313,7 @@ export function installFetchPolyfill(): void {
     const pending = new Promise<FetchResponseData>((resolve, reject) => {
       const abort = () => {
         runtime.__wabou_fetch_cancel?.(id);
-        reject(signal!.reason);
+        reject(signal?.reason);
       };
       signal?.addEventListener("abort", abort, { once: true });
       runtime

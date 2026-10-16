@@ -202,7 +202,7 @@ class NativeURL {
     return this.href;
   }
   static canParse(input: string, base?: string) {
-    return this.parse(input, base) !== null;
+    return NativeURL.parse(input, base) !== null;
   }
   static parse(input: string, base?: string) {
     try {

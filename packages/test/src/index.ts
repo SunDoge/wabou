@@ -22,15 +22,15 @@ import {
 import {
   type PollOptions,
   pollUntil,
-  retryUntilHandled,
   type ResolvedPollOptions,
   resolvePollOptions,
+  retryUntilHandled,
 } from "./poll";
 import { replayActions } from "./replay";
 import {
   replayTimeout,
-  suiteTimeout,
   SuiteTimeoutError,
+  suiteTimeout,
   TestTimeoutError,
   testTimeout,
   withSuiteTimeout,

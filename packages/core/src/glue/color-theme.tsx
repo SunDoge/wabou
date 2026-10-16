@@ -3,7 +3,6 @@ import {
   createContext,
   createEffect,
   createSignal,
-  onCleanup,
   type JSX,
   useContext,
 } from "solid-js";
@@ -249,10 +248,12 @@ export function ColorThemeProvider(props: {
   createEffect(
     () => [props.theme, props.transition] as const,
     ([theme, transition]) => {
-      const animation =
-        initialized && transition
-          ? colorTheme.animateTo(theme, transition)
-          : (colorTheme.set(theme), undefined);
+      let animation: ColorThemeAnimation | undefined;
+      if (initialized && transition) {
+        animation = colorTheme.animateTo(theme, transition);
+      } else {
+        colorTheme.set(theme);
+      }
       initialized = true;
       return animation ? () => animation.cancel() : undefined;
     },

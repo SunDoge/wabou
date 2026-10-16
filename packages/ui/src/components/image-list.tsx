@@ -5,8 +5,8 @@ import { match, P } from "ts-pattern";
 import {
   Image,
   type ImageResourceErrorEvent,
-  type ImageResourceReadyEvent,
   type ImageResourceHandle,
+  type ImageResourceReadyEvent,
   Button as PrimitiveButton,
   Text,
   View,

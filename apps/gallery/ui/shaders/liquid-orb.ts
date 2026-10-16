@@ -249,7 +249,9 @@ export function createLiquidOrbUniforms(
     values[index + 3] = scalars[key];
   });
   [...COLOR_KEYS.map((key) => colors[key]), ...PALETTE_STOPS].forEach(
-    (color, index) => values.set(rgba(color), COLOR_OFFSET + index * 4),
+    (color, index) => {
+      values.set(rgba(color), COLOR_OFFSET + index * 4);
+    },
   );
   return Array.from(values);
 }

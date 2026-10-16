@@ -95,7 +95,7 @@ function compileShortcut(
     .map((part) => part.trim())
     .filter(Boolean);
   if (parts.length === 0) throw new Error("Shortcut chord cannot be empty");
-  const key = normalizeKey(parts.pop()!);
+  const key = normalizeKey(parts.pop() ?? "");
   if (key.length === 0) throw new Error(`Shortcut chord has no key: ${chord}`);
 
   let mask = 0;

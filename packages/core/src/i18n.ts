@@ -8,9 +8,9 @@ import {
 } from "./glue/intl";
 
 export {
-  intl,
   type CalendarDateFields,
   type DateFormatOptions,
+  intl,
   type NumberFormatOptions,
   type PluralOptions,
   type RelativeTimeOptions,

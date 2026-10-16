@@ -1,4 +1,5 @@
 import { expect, test } from "bun:test";
+import { createComponent, createRoot } from "solid-js";
 // This test intentionally exercises the publishable artifacts. Explicit paths
 // keep the workspace-wide `wabou-source` test condition from changing what is
 // under test.
@@ -6,7 +7,6 @@ import { expect, test } from "bun:test";
 // source condition it shares this exact writer instance.
 import { writer } from "../../../core/src/renderer.ts";
 import { Button } from "../../dist/primitives.mjs";
-import { createComponent, createRoot } from "solid-js";
 
 test("published Button forwards native focus and accessibility state", () => {
   const attributes: Array<[string, string]> = [];

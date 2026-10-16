@@ -1,10 +1,10 @@
 import { describe, expect, test } from "bun:test";
 import { createRoot, createSignal, flush } from "solid-js";
 import {
-  createLoop,
-  createNativeLoopAnimation,
   createInterpolation,
   createKeyframeAnimation,
+  createLoop,
+  createNativeLoopAnimation,
   createPulse,
   createRotation,
   createSweep,

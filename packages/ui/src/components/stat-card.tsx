@@ -1,7 +1,7 @@
+import { mergeClasses } from "@wabou/core/style";
 import type { JSX } from "solid-js";
 import { Text, View, type ViewProps } from "../primitives";
 import { Card, CardContent } from "./card";
-import { mergeClasses } from "@wabou/core/style";
 
 export interface StatCardProps extends Omit<ViewProps, "children"> {
   label: string;
