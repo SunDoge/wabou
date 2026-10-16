@@ -122,10 +122,8 @@ impl BrowserRuntime {
             .remove(wabou_motion::ValueMotionId::from_raw(id))
     }
     /// Install compiler-produced Style IR; shared class cascade handles utilities.
-    pub fn set_stylesheet(&mut self, json: &str) -> Result<(), JsValue> {
-        let sheet: wabou_style::stylesheet::StyleSheet = serde_json::from_str(json).map_err(err)?;
-        sheet.validate().map_err(err)?;
-        self.stylesheet = sheet;
+    pub fn set_stylesheet(&mut self, bytes: &[u8]) -> Result<(), JsValue> {
+        self.stylesheet = wabou_style::stylesheet::binary::decode(bytes).map_err(err)?;
         Ok(())
     }
     /// Register a TTF/OTF font. Browser CSS fonts are not visible to Parley.

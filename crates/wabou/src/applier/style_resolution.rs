@@ -1,7 +1,8 @@
 use super::*;
 
 pub(super) struct StyleState {
-    pub(super) sheet: Option<StyleSheet>,
+    pub(super) sheet: Option<CompiledStyleSheet>,
+    pub(super) color_themes: Option<style_ir::ColorThemes>,
     pub(super) active_color_theme: Option<String>,
     pub(super) active_theme_colors: Arc<HashMap<String, u32>>,
     pub(super) theme: wabou_style::Theme,
@@ -23,6 +24,7 @@ impl Default for StyleState {
     fn default() -> Self {
         Self {
             sheet: None,
+            color_themes: None,
             active_color_theme: None,
             active_theme_colors: Arc::new(HashMap::new()),
             theme: wabou_style::Theme::default(),
@@ -835,7 +837,7 @@ impl Applier {
                         0usize,
                         rule.source_order,
                         index,
-                        atoms.intern(&declaration.property),
+                        declaration.property,
                         declaration.value.clone(),
                         None,
                     ));
@@ -854,9 +856,9 @@ impl Applier {
                             class_position + 1,
                             rule.source_order,
                             index,
-                            atoms.intern(&declaration.property),
+                            declaration.property,
                             declaration.value.clone(),
-                            Some(*class),
+                            rule.class_name,
                         ));
                     }
                 }
@@ -865,9 +867,12 @@ impl Applier {
         for (class_position, class) in class_key.iter().enumerate() {
             if self.document.style.rule_index.contains_key(class)
                 || self.document.style.sheet.as_ref().is_some_and(|sheet| {
-                    atoms
-                        .resolve(*class)
-                        .is_some_and(|name| sheet.ignores_class(name))
+                    atoms.resolve(*class).is_some_and(|name| {
+                        sheet
+                            .ignored_class_patterns
+                            .iter()
+                            .any(|pattern| style_ir::class_pattern_matches(pattern, name))
+                    })
                 })
             {
                 continue;

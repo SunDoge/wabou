@@ -4,7 +4,7 @@ interface BrowserHostBridge {
   motion_create(descriptor: string): number;
   motion_sample(id: number, elapsed: number, output: Float64Array): boolean;
   motion_drop(id: number): boolean;
-  set_stylesheet(json: string): void;
+  set_stylesheet(bytes: Uint8Array): void;
 }
 //#endregion
 //#region src/browser/host.d.ts

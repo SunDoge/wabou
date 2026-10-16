@@ -63,7 +63,7 @@
       "kind": "function",
       "browserMethod": "set_stylesheet",
       "browserInvalidates": true,
-      "params": [["json", "string"]],
+      "params": [["bytes", "Uint8Array"]],
       "returns": "void"
     },
     {

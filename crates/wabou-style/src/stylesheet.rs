@@ -5,6 +5,8 @@
 use crate::{IrColor, IrLength, IrValue};
 use serde::Deserialize;
 
+pub mod binary;
+
 pub const VERSION: u16 = 6;
 
 #[derive(Clone, Debug, Deserialize)]
@@ -125,11 +127,13 @@ impl StyleSheet {
     pub fn ignores_class(&self, candidate: &str) -> bool {
         self.ignored_class_patterns
             .iter()
-            .any(|pattern| glob_matches(pattern, candidate))
+            .any(|pattern| class_pattern_matches(pattern, candidate))
     }
 }
 
-fn glob_matches(pattern: &str, candidate: &str) -> bool {
+/// Match a compiler-configured ignored-class glob against one candidate.
+#[must_use]
+pub fn class_pattern_matches(pattern: &str, candidate: &str) -> bool {
     let pattern = pattern.as_bytes();
     let candidate = candidate.as_bytes();
     let (mut p, mut c, mut star, mut retry) = (0, 0, None, 0);
@@ -438,10 +442,10 @@ mod tests {
 
     #[test]
     fn class_patterns_support_exact_and_glob_matches() {
-        assert!(glob_matches("lucide", "lucide"));
-        assert!(glob_matches("lucide-*", "lucide-sun"));
-        assert!(glob_matches("icon-*-filled", "icon-home-filled"));
-        assert!(!glob_matches("lucide-*", "text-lucide-sun"));
+        assert!(class_pattern_matches("lucide", "lucide"));
+        assert!(class_pattern_matches("lucide-*", "lucide-sun"));
+        assert!(class_pattern_matches("icon-*-filled", "icon-home-filled"));
+        assert!(!class_pattern_matches("lucide-*", "text-lucide-sun"));
     }
 
     #[test]

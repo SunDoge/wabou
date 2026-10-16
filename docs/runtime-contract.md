@@ -41,6 +41,13 @@ engine boundary once per batch. A high-frequency property update must not
 become one FFI call per property. JavaScript encodes the updates first and a
 private native intrinsic submits the complete frame.
 
+The generated stylesheet uses a separate, versioned binary Style IR because it
+is replaced only at startup or HMR boundaries. Its string table deduplicates
+class names, property names, keywords and theme tokens on the wire. The native
+applier validates the complete payload, interns selectors and properties into
+the runtime atom pool, and only then atomically replaces the active cascade.
+It does not retain the generated base64 module or a parsed JavaScript object.
+
 Binary formats use explicit little-endian fields, fixed-width integers,
 declared limits, and whole-frame validation. Unknown versions fail atomically;
 record formats that permit skipping include their encoded length.

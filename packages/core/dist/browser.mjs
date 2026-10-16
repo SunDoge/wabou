@@ -9,8 +9,8 @@ function createBrowserHostBindings(bridge, invalidate) {
 		__wabou_motion_create: (descriptor) => bridge.motion_create(descriptor),
 		__wabou_motion_sample: (id, elapsed, output) => bridge.motion_sample(id, elapsed, output),
 		__wabou_motion_drop: (id) => bridge.motion_drop(id),
-		__wabou_set_stylesheet: (json) => {
-			const result = bridge.set_stylesheet(json);
+		__wabou_set_stylesheet: (bytes) => {
+			const result = bridge.set_stylesheet(bytes);
 			invalidate();
 			return result;
 		}

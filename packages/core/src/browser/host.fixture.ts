@@ -52,7 +52,7 @@ class Runtime {
     this.atoms.push(value);
     return this.atoms.length;
   }
-  set_stylesheet() {}
+  set_stylesheet(_bytes: Uint8Array) {}
   load_font() {}
   apply() {}
   tick_motion() {

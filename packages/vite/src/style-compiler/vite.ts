@@ -12,15 +12,12 @@ import type {
   WabouColorThemeOptions,
   WabouThemeColor,
 } from "../theme-contract.ts";
+import { styleSheetModuleSource } from "./binary";
 import {
   assertSupportedWabouCandidates,
   compileWabouUtilities,
 } from "./browser";
-import {
-  STYLE_IR_VERSION,
-  type StyleRule,
-  type WabouStyleSheet,
-} from "./ir.ts";
+import { STYLE_IR_VERSION, type WabouStyleSheet } from "./ir.ts";
 
 const DEFAULT_IGNORED_CLASS_PATTERNS = ["lucide", "lucide-*"];
 
@@ -276,6 +273,7 @@ export {
   assertSupportedWabouCandidates,
   compileWabouUtilities,
 } from "./browser";
+
 /**
  * Validate authored class expressions, then let UnoCSS inspect the complete
  * module. Complete utilities often live in static variant maps outside JSX;
@@ -599,13 +597,7 @@ export function wabouStylePlugin(options: WabouStylePluginOptions): Plugin {
     },
     load(id) {
       if (id !== resolved) return null;
-      const json = JSON.stringify(JSON.stringify(stylesheet));
-      return [
-        `const __s=${json};`,
-        `globalThis.__wabou_set_stylesheet?.(__s);`,
-        `if(import.meta.hot)import.meta.hot.accept();`,
-        `export default JSON.parse(__s);`,
-      ].join("\n");
+      return `${styleSheetModuleSource(stylesheet)}\nif(import.meta.hot)import.meta.hot.accept();`;
     },
     async handleHotUpdate({ file, server, modules }) {
       if (!accepts(file)) return;

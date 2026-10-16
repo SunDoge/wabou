@@ -24,24 +24,36 @@ impl Applier {
                 for diagnostic in &sheet.diagnostics {
                     tracing::warn!(target: "stylesheet", %diagnostic);
                 }
-                let (rule_index, universal_rules) = {
+                let (compiled_rules, rule_index, universal_rules) = {
                     let mut atoms = self.document.atoms.borrow_mut();
                     let mut rule_index: HashMap<Atom, Vec<usize>> = HashMap::new();
                     let mut universal_rules = Vec::new();
+                    let mut compiled_rules = Vec::with_capacity(sheet.rules.len());
                     for (index, rule) in sheet.rules.iter().enumerate() {
-                        for declaration in &rule.declarations {
-                            atoms.intern(&declaration.property);
-                        }
-                        if rule.class_name == "*" {
+                        let class_name = if rule.class_name == "*" {
                             universal_rules.push(index);
+                            None
                         } else {
-                            rule_index
-                                .entry(atoms.intern(&rule.class_name))
-                                .or_default()
-                                .push(index);
-                        }
+                            let class_name = atoms.intern(&rule.class_name);
+                            rule_index.entry(class_name).or_default().push(index);
+                            Some(class_name)
+                        };
+                        compiled_rules.push(CompiledStyleRule {
+                            class_name,
+                            declarations: rule
+                                .declarations
+                                .iter()
+                                .map(|declaration| CompiledStyleDeclaration {
+                                    property: atoms.intern(&declaration.property),
+                                    value: declaration.value.clone(),
+                                    important: declaration.important,
+                                })
+                                .collect(),
+                            specificity: rule.specificity,
+                            source_order: rule.source_order,
+                        });
                     }
-                    (rule_index, universal_rules)
+                    (compiled_rules, rule_index, universal_rules)
                 };
                 self.document.style.theme = sheet.theme.clone();
                 if let Some(themes) = &sheet.color_themes {
@@ -67,7 +79,11 @@ impl Applier {
                     self.document.style.active_color_theme = None;
                     self.document.style.active_theme_colors = Arc::new(HashMap::new());
                 }
-                self.document.style.sheet = Some(sheet);
+                self.document.style.color_themes = sheet.color_themes;
+                self.document.style.sheet = Some(CompiledStyleSheet {
+                    rules: compiled_rules,
+                    ignored_class_patterns: sheet.ignored_class_patterns,
+                });
                 self.document.style.rule_index = rule_index;
                 self.document.style.universal_rules = universal_rules;
                 self.document.style.utility_cache.clear();
@@ -96,9 +112,8 @@ impl Applier {
         let selected = self
             .document
             .style
-            .sheet
+            .color_themes
             .as_ref()
-            .and_then(|sheet| sheet.color_themes.as_ref())
             .and_then(|themes| themes.themes.get(&name));
         if let Some(theme) = selected {
             if self.document.style.active_color_theme.as_deref() != Some(name.as_str()) {
@@ -124,9 +139,8 @@ impl Applier {
         let tokens = self
             .document
             .style
-            .sheet
+            .color_themes
             .as_ref()
-            .and_then(|sheet| sheet.color_themes.as_ref())
             .and_then(|themes| themes.themes.get(&themes.default))
             .map(|theme| {
                 let mut tokens = theme.colors.keys().cloned().collect::<Vec<_>>();

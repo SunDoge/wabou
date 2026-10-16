@@ -86,7 +86,7 @@ use crate::reload::ReloadMsg;
 #[cfg(test)]
 use crate::reload::{HmrDrainResult, plan_hmr_batch};
 use crate::runtime_session::RuntimeSession;
-use crate::style_ir::{self, StyleSheet, StylesheetUpdate};
+use crate::style_ir::{self, StylesheetUpdate};
 #[cfg(test)]
 use input_router::EventMask;
 use input_router::{HitClip, HitItem, HitNode, InputRouter, hit_contains};
@@ -171,6 +171,25 @@ struct ResolvedClassDeclaration {
 struct CachedClassResolution {
     declarations: Vec<ResolvedClassDeclaration>,
     diagnostics: Vec<String>,
+}
+
+struct CompiledStyleDeclaration {
+    property: Atom,
+    value: IrValue,
+    important: bool,
+}
+
+struct CompiledStyleRule {
+    /// `None` is the universal `*` selector.
+    class_name: Option<Atom>,
+    declarations: Vec<CompiledStyleDeclaration>,
+    specificity: u16,
+    source_order: u32,
+}
+
+struct CompiledStyleSheet {
+    rules: Vec<CompiledStyleRule>,
+    ignored_class_patterns: Vec<String>,
 }
 
 fn key_event_payload(key: &shell_api::KeyEvent) -> String {

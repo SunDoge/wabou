@@ -200,8 +200,8 @@ pub struct JsRuntime {
     /// True once the app's initial render has been evaluated.
     booted: bool,
     source_map: Rc<RefCell<Option<crate::source_map::StackSourceMap>>>,
-    /// Stylesheet pushed through `__wabou_set_stylesheet` (JSON parsed by host
-    /// into the atomic-CSS dict). Drained by the Applier in build_frame.
+    /// Stylesheet pushed through `__wabou_set_stylesheet` as compact binary
+    /// Style IR. Drained by the Applier in build_frame.
     pending_css: Rc<RefCell<Option<StylesheetUpdate>>>,
     /// Latest explicit window color-theme request from JavaScript.
     pending_color_theme: Rc<RefCell<Option<String>>>,
@@ -576,16 +576,17 @@ impl JsRuntime {
         register_function(
             globals,
             HostBinding::SetStylesheet,
-            rquickjs::Function::new(ctx.clone(), move |source: String| -> JsResult<()> {
-                match serde_json::from_str::<StylesheetUpdate>(&source) {
-                    Ok(update) => {
-                        let StylesheetUpdate::Ir(sheet) = &update;
+            rquickjs::Function::new(ctx.clone(), move |source: TypedArray<u8>| -> JsResult<()> {
+                // SAFETY: decoding and all copies complete before control returns to JS.
+                let bytes = unsafe { source.as_bytes() }.ok_or(rquickjs::Error::Unknown)?;
+                match crate::style_ir::binary::decode(bytes) {
+                    Ok(sheet) => {
                         *available_themes.borrow_mut() = sheet.color_themes.clone();
-                        *pending_css.borrow_mut() = Some(update);
+                        *pending_css.borrow_mut() = Some(StylesheetUpdate::Ir(sheet));
                         Ok(())
                     }
                     Err(error) => {
-                        tracing::error!(target: "stylesheet", "setStylesheet parse failed: {error}");
+                        tracing::error!(target: "stylesheet", "setStylesheet decode failed: {error}");
                         Err(rquickjs::Error::Unknown)
                     }
                 }

@@ -253,11 +253,19 @@ impl Applier {
             .flatten()
             .filter_map(|index| self.document.style.sheet.as_ref()?.rules.get(*index))
             .map(|rule| {
-                if rule.class_name == "*" {
-                    "*".to_owned()
-                } else {
-                    format!(".{}", rule.class_name)
-                }
+                rule.class_name.map_or_else(
+                    || "*".to_owned(),
+                    |class_name| {
+                        format!(
+                            ".{}",
+                            self.document
+                                .atoms
+                                .borrow()
+                                .resolve(class_name)
+                                .unwrap_or("<unknown>")
+                        )
+                    },
+                )
             })
             .collect()
     }

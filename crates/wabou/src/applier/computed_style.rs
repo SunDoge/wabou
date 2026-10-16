@@ -57,26 +57,18 @@ fn queue_stylesheet(applier: &Applier, rules: Vec<crate::style_ir::StyleRule>) {
 
 #[test]
 fn stylesheet_pushed_during_javascript_tick_applies_in_the_same_frame() {
-    let style = serde_json::json!({
-        "version": crate::style_ir::VERSION,
-        "rules": [{
-            "className": "hmr-color",
-            "declarations": [{
-                "property": "color",
-                "value": { "type": "color", "value": { "kind": "literal", "rgba": 0x3366ccff_u32 } }
-            }],
-            "specificity": 10,
-            "sourceOrder": 0
-        }]
-    });
-    let encoded = serde_json::to_string(&style.to_string()).unwrap();
+    let encoded = include_bytes!("../../../../fixtures/style-ir/hmr-color.bin")
+        .iter()
+        .map(u8::to_string)
+        .collect::<Vec<_>>()
+        .join(",");
     let js = JsRuntime::new().expect("runtime");
     js.with(|ctx| {
         ctx.eval::<(), _>(format!(
             r#"
             let first = true;
             globalThis.__wabou_tick = () => {{
-              if (first) {{ first = false; __wabou_set_stylesheet({encoded}); }}
+              if (first) {{ first = false; __wabou_set_stylesheet(new Uint8Array([{encoded}])); }}
               return true;
             }};
             globalThis.__wabou_has_raf = () => false;
