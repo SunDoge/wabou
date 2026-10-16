@@ -14,6 +14,12 @@ const fakeBuiltinHost: BuiltinHost = {
     locale: () => "en-US",
     timeZone: () => "UTC",
     today: () => ({ year: 2026, month: 8, day: 17 }),
+    firstWeekday: () => 0,
+    formatNumber: () => "number",
+    parseNumber: () => 1,
+    pluralCategory: () => "one",
+    formatDate: () => "date",
+    formatRelativeTime: () => "relative",
   },
   layout: {
     snapshot: () => ({

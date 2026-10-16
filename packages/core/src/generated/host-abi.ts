@@ -34,6 +34,33 @@ declare global {
   function __wabou_system_locale(): string;
   function __wabou_system_time_zone(): string;
   function __wabou_system_calendar_date(): string;
+  function __wabou_first_weekday(locale: string): number;
+  function __wabou_format_number(
+    locale: string,
+    value: number,
+    options: string,
+  ): string;
+  function __wabou_parse_number(
+    locale: string,
+    input: string,
+    options: string,
+  ): number;
+  function __wabou_plural_category(
+    locale: string,
+    value: number,
+    options: string,
+  ): string;
+  function __wabou_format_date(
+    locale: string,
+    epochMillis: number,
+    options: string,
+  ): string;
+  function __wabou_format_relative_time(
+    locale: string,
+    value: number,
+    unit: string,
+    options: string,
+  ): string;
   function __wabou_flush(buf: Uint8Array): void;
   function __wabou_log(
     level: "debug" | "info" | "warn" | "error" | "log",
@@ -45,11 +72,14 @@ declare global {
     url: string,
     initJson: string,
     id?: number,
+    body?: Uint8Array,
   ): Promise<{
     status: number;
     statusText: string;
     headers: Record<string, string>;
     body: Uint8Array;
+    url: string;
+    redirected: boolean;
   }>;
   function __wabou_crypto_random(output: Uint8Array): void;
   function __wabou_crypto_digest(

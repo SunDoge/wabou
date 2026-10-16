@@ -784,6 +784,66 @@ fn fetch_wakes_host_and_resolves_on_js_thread() {
 }
 
 #[test]
+fn fetch_sends_binary_request_body_without_json_encoding() {
+    use std::io::{Read, Write};
+    use std::net::TcpListener;
+
+    let listener = TcpListener::bind("127.0.0.1:0").expect("bind test server");
+    let address = listener.local_addr().expect("server address");
+    let server = std::thread::spawn(move || {
+        let (mut stream, _) = listener.accept().expect("accept request");
+        stream
+            .set_read_timeout(Some(std::time::Duration::from_secs(3)))
+            .expect("set read timeout");
+        let mut request = Vec::new();
+        let header_end = loop {
+            let mut chunk = [0u8; 1024];
+            let count = stream.read(&mut chunk).expect("read request");
+            assert!(count > 0, "connection closed before request body");
+            request.extend_from_slice(&chunk[..count]);
+            if let Some(index) = request.windows(4).position(|window| window == b"\r\n\r\n") {
+                break index + 4;
+            }
+        };
+        while request.len() < header_end + 4 {
+            let mut chunk = [0u8; 4];
+            let count = stream.read(&mut chunk).expect("read request body");
+            assert!(count > 0, "connection closed before request body");
+            request.extend_from_slice(&chunk[..count]);
+        }
+        let headers = String::from_utf8_lossy(&request[..header_end]);
+        assert!(headers.starts_with("PUT /upload HTTP/1.1"));
+        assert!(headers.to_ascii_lowercase().contains("content-length: 4"));
+        assert_eq!(&request[header_end..header_end + 4], &[0, 255, 128, 1]);
+        stream
+            .write_all(b"HTTP/1.1 204 No Content\r\nconnection: close\r\n\r\n")
+            .expect("write response");
+    });
+
+    let runtime = JsRuntime::new().expect("runtime");
+    runtime
+        .with(|ctx| {
+            ctx.eval::<(), _>(format!(
+                "globalThis.uploaded = false; __wabou_fetch('http://{address}/upload', '{{\"method\":\"PUT\"}}', 0, new Uint8Array([0,255,128,1])).then(() => uploaded = true);"
+            ))
+        })
+        .expect("start upload");
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
+    loop {
+        runtime.poll_async_runtime();
+        if runtime
+            .with(|ctx| ctx.eval::<bool, _>("uploaded"))
+            .expect("inspect upload result")
+        {
+            break;
+        }
+        assert!(std::time::Instant::now() < deadline, "upload timed out");
+        std::thread::yield_now();
+    }
+    server.join().expect("join server");
+}
+
+#[test]
 fn host_ffi_surface_matches_contract() {
     // Lock the globals installed by a bare JsRuntime. Applier adds the
     // window, clipboard, and renderer-specific half of the host bridge;
@@ -825,6 +885,32 @@ fn host_ffi_surface_matches_contract() {
         })
         .expect("check for stale FFI names");
     assert!(stale.is_empty(), "stale FFI names still defined: {stale:?}");
+}
+
+#[test]
+fn native_intl_host_functions_execute_inside_quickjs() {
+    let runtime = JsRuntime::new().expect("runtime");
+    let output = runtime
+        .with(|ctx| {
+            ctx.eval::<String, _>(
+                r#"JSON.stringify({
+                    number: __wabou_format_number("de-DE", 1234.5, "{}"),
+                    parsed: __wabou_parse_number("de-DE", "1.234,5", "{}"),
+                    plural: __wabou_plural_category("en", 1, "{}"),
+                    date: __wabou_format_date("en", 0, '{"dateStyle":"medium","timeZone":"UTC"}'),
+                    firstWeekday: __wabou_first_weekday("de-DE"),
+                    relative: __wabou_format_relative_time("en", -1, "day", '{"numeric":"auto"}')
+                })"#,
+            )
+        })
+        .expect("native formatters");
+    let output: serde_json::Value = serde_json::from_str(&output).expect("formatter result JSON");
+    assert_eq!(output["number"], "1.234,5");
+    assert_eq!(output["parsed"], 1234.5);
+    assert_eq!(output["plural"], "one");
+    assert_eq!(output["firstWeekday"], 1);
+    assert_eq!(output["relative"], "yesterday");
+    assert!(output["date"].as_str().unwrap().contains("1970"));
 }
 
 #[test]
@@ -1120,6 +1206,18 @@ fn buffered_response_memory_contract_runs_inside_quickjs() {
         result,
         r#"{"cloned":[65,66],"buffer":[90,66],"decoded":"€","input":[99,226,130,172,88],"nullBody":true}"#
     );
+}
+
+#[test]
+fn quickjs_memory_snapshot_reports_live_runtime_allocations() {
+    let runtime = JsRuntime::new().unwrap();
+    runtime
+        .with(|ctx| ctx.eval::<(), _>("globalThis.memoryProbe = new Uint8Array(4096)"))
+        .unwrap();
+    let memory = runtime.memory_usage_snapshot();
+    assert!(memory.malloc_bytes >= memory.used_bytes);
+    assert!(memory.used_bytes > 0);
+    assert!(memory.object_count > 0);
 }
 
 #[test]

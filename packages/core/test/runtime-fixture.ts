@@ -6,6 +6,7 @@ import {
   notification,
   useWindow,
 } from "@wabou/core";
+import "@wabou/core/web";
 import { createRoot, flush, merge, omit } from "solid-js";
 import {
   createElement,

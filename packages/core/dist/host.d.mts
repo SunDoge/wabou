@@ -1,4 +1,4 @@
-import { c as useHost, r as Host } from "./host-BnR8qAqs.mjs";
+import { c as useHost, r as Host } from "./host-hrf6M8gj.mjs";
 //#region src/generated/host-abi.d.ts
 declare global {
   const __wabou_host_modules: Record<string, object>;
@@ -19,15 +19,23 @@ declare global {
   function __wabou_system_locale(): string;
   function __wabou_system_time_zone(): string;
   function __wabou_system_calendar_date(): string;
+  function __wabou_first_weekday(locale: string): number;
+  function __wabou_format_number(locale: string, value: number, options: string): string;
+  function __wabou_parse_number(locale: string, input: string, options: string): number;
+  function __wabou_plural_category(locale: string, value: number, options: string): string;
+  function __wabou_format_date(locale: string, epochMillis: number, options: string): string;
+  function __wabou_format_relative_time(locale: string, value: number, unit: string, options: string): string;
   function __wabou_flush(buf: Uint8Array): void;
   function __wabou_log(level: "debug" | "info" | "warn" | "error" | "log", message: string): void;
   function __wabou_utf8_encode(value: string): Uint8Array;
   function __wabou_utf8_decode(bytes: Uint8Array): string;
-  function __wabou_fetch(url: string, initJson: string, id?: number): Promise<{
+  function __wabou_fetch(url: string, initJson: string, id?: number, body?: Uint8Array): Promise<{
     status: number;
     statusText: string;
     headers: Record<string, string>;
     body: Uint8Array;
+    url: string;
+    redirected: boolean;
   }>;
   function __wabou_crypto_random(output: Uint8Array): void;
   function __wabou_crypto_digest(algorithm: number, input: Uint8Array): Promise<Uint8Array>;

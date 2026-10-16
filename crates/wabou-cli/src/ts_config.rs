@@ -58,7 +58,7 @@ const authored = exported?.__wabouConfig ?? exported;
 const environment = { command: process.env.WABOU_CONFIG_COMMAND ?? 'serve', mode: process.env.WABOU_MODE ?? 'development', isSsrBuild: false, isPreview: false };
 const config = typeof authored === 'function' ? await authored(environment) : await authored;
 if (!config || typeof config !== 'object' || Array.isArray(config)) throw new Error('wabou.config.ts must export a configuration object');
-const allowed = new Set(['target', 'browser', 'root', 'entry', 'outDir', 'sourceMap', 'globalName', 'vite', 'workspaceSource', 'theme', 'themeContrast', 'ignoreClasses', 'intl', 'window', 'ui', 'package', 'bindings']);
+const allowed = new Set(['target', 'browser', 'root', 'entry', 'outDir', 'sourceMap', 'globalName', 'vite', 'workspaceSource', 'theme', 'themeContrast', 'ignoreClasses', 'window', 'ui', 'package', 'bindings']);
 const selected = { window: config.window, ui: config.ui, entry: config.entry, sourceMap: config.sourceMap, package: config.package, bindings: config.bindings };
 for (const key of Object.keys(config)) {
   if (!allowed.has(key)) selected[key] = config[key];

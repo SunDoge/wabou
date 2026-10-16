@@ -56,6 +56,15 @@ the retained tree is valid and JavaScript throws no exception. The first
 published snapshot may have `frameStats: null`; query again after interacting
 with the application.
 
+The same response includes `processMemory` and `quickJsMemory`. Process memory
+is sampled when the command runs. Linux reports RSS, lifetime peak RSS, and PSS;
+macOS and Windows report the current and peak resident working set.
+QuickJS reports allocator bytes plus live atoms, strings, objects, properties,
+functions, bytecode, arrays, and binary backing stores from the latest native
+projection. This separation makes driver/renderer growth distinguishable from
+guest-heap growth. QuickJS collection is limited to DevTools builds and does
+not run on every production frame.
+
 `validate` checks the latest retained snapshot before pixel diagnosis. It
 reports stable issue codes for duplicate or dangling node identities, parent
 cycles, invalid border/content/clip geometry, non-finite transforms, stale

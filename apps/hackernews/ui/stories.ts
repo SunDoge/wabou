@@ -1,4 +1,5 @@
 // Hacker News story state.
+import "@wabou/ui/web";
 import { createSignal } from "solid-js";
 import { fixtureStories } from "./fixtures";
 

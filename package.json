@@ -29,6 +29,7 @@
     "size:report": "bun run scripts/report-artifact-sizes.ts",
     "perf:report": "bun run scripts/report-performance.ts",
     "perf:memory": "bun run scripts/measure-memory.ts",
+    "perf:js": "bun run scripts/report-js-bundle.ts",
     "text:compare": "bun run scripts/text-quality-compare.ts",
     "release:prepare": "bun run scripts/prepare-release.ts",
     "gen:i18n": "turbo run generate --filter=@wabou/gallery",

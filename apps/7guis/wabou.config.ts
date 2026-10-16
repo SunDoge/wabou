@@ -11,10 +11,6 @@ export default defineConfig({
     formats: ["appimage"],
   },
   outDir: "../../dist/7guis/resources",
-  intl: {
-    locales: ["en"],
-    timeZones: "golden",
-  },
   theme: defineWabouTheme({
     default: "dark",
     themes: {

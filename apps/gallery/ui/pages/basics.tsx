@@ -780,7 +780,6 @@ function NumberFieldPage() {
             formatOptions={{
               style: "currency",
               currency: "EUR",
-              currencyDisplay: "symbol",
             }}
             onValueChange={setPrice}
           />

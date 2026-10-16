@@ -499,6 +499,8 @@ impl Applier {
                         viewport_h: stats.viewport_h,
                     })
                 }),
+                process_memory: None,
+                quick_js_memory: Some(self.runtime.js.memory_usage_snapshot()),
                 focused_node: self.interaction.input.focused_target,
                 hovered_node: self.interaction.input.hovered_target,
                 overlay: Default::default(),

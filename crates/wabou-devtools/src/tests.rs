@@ -6,6 +6,28 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use wabou_host_api::NodeKey;
 
 #[test]
+fn status_adds_live_process_memory_without_mutating_the_snapshot() {
+    let mut state = DebugState::default();
+    state.snapshot.status.process_memory = None;
+    let result = state
+        .execute(&request(1, "status", empty_params()).command)
+        .expect("status");
+    #[cfg(target_os = "linux")]
+    {
+        assert!(result["processMemory"]["rssBytes"].as_u64().unwrap() > 0);
+        assert!(result["processMemory"]["pssBytes"].as_u64().unwrap() > 0);
+    }
+    assert!(state.snapshot.status.process_memory.is_none());
+}
+
+#[test]
+fn linux_memory_fields_require_kib_units_and_use_bytes() {
+    assert_eq!(kib_field("VmRSS:\t123 kB\n", "VmRSS:"), Some(125_952));
+    assert_eq!(kib_field("VmRSS:\t123 MB\n", "VmRSS:"), None);
+    assert_eq!(kib_field("VmHWM:\t1 kB\n", "VmRSS:"), None);
+}
+
+#[test]
 fn query_and_inspect_are_bounded_and_semantic() {
     let mut state = DebugState::default();
     state.publish(DebugSnapshot {

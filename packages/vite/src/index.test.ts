@@ -54,7 +54,7 @@ describe("@wabou/vite", () => {
   test("composes the required Wabou plugins in stable order", () => {
     const names = wabouPlugins("/app").map((plugin: Plugin) => plugin.name);
     const required = [
-      "wabou-intl-data",
+      "wabou-native-intl",
       "wabou-style-compiler",
       "solid:boundary-modules",
       "solid",
@@ -64,7 +64,9 @@ describe("@wabou/vite", () => {
     ];
     const positions = required.map((name) => names.indexOf(name));
     expect(positions.every((position) => position >= 0)).toBe(true);
-    expect(positions).toEqual([...positions].sort((left, right) => left - right));
+    expect(positions).toEqual(
+      [...positions].sort((left, right) => left - right),
+    );
   });
 
   test("ships the semantic color contract required by official UI components", () => {
@@ -287,19 +289,13 @@ describe("@wabou/vite", () => {
   });
 });
 
-test("Intl can be disabled or limited without pulling date/time-zone data", () => {
-  const disabled = wabouPlugins("/app", undefined, undefined, false)[0];
-  const loadDisabled = disabled.load as (id: string) => string;
-  expect(loadDisabled("\0virtual:wabou-intl-data")).toBe("export {};");
-  const number = wabouPlugins("/app", undefined, undefined, {
-    locales: ["en"],
-    apis: ["number"],
-  })[0];
-  const source = (number.load as (id: string) => string)(
-    "\0virtual:wabou-intl-data",
+test("Paraglide registries use Wabou native formatters", () => {
+  const plugin = wabouPlugins("/app")[0];
+  const transform = plugin.transform as (code: string, id: string) => string;
+  const source = transform(
+    "function getIntlFormatter() {}\nexport function plural() {}",
+    "/app/ui/paraglide/registry.js",
   );
-  expect(source).toContain("numberformat");
-  expect(source).toContain("pluralrules");
-  expect(source).not.toContain("datetimeformat");
-  expect(source).not.toContain("__wabou_system_time_zone");
+  expect(source).toContain("@wabou/core/i18n");
+  expect(source).not.toContain("Intl.");
 });

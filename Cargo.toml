@@ -61,6 +61,16 @@ gix = { version = "0.87.1", default-features = false, features = ["sha1", "statu
 gosh-dl = { version = "0.6.3", default-features = false, features = ["http", "storage", "torrent"] }
 ignore = "0.4.33"
 image = { version = "0.25", default-features = false }
+icu_calendar = { version = "2.3", default-features = false, features = ["serde"] }
+icu_datetime = { version = "2.3", default-features = false, features = ["serde"] }
+icu_decimal = { version = "2.3", default-features = false, features = ["ryu", "serde"] }
+icu_experimental = { version = "=0.6.0", default-features = false, features = ["ryu", "serde"] }
+icu_locale = { version = "2.3", default-features = false, features = ["serde"] }
+icu_locale_core = "2.3"
+icu_plurals = { version = "2.3", default-features = false, features = ["serde"] }
+icu_provider = { version = "2.3", features = ["sync"] }
+icu_provider_adapters = "2.3"
+icu_provider_blob = "2.3"
 jiff = "0.2.38"
 lru = "0.18.5"
 naga = { version = "30", features = ["wgsl-in"] }
@@ -97,6 +107,7 @@ wgpu = "30"
 wgpu-context = { package = "wgpu_context", version = "0.10.0" }
 which = "6.0.3"
 winit = "=0.31.0-beta.2"
+writeable = "0.6"
 zeroize = "1.9.1"
 
 [profile.dev]

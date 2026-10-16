@@ -427,6 +427,21 @@ export function createTestHost<C extends object = Record<string, never>>(
         locale: () => "en-US",
         timeZone: () => "UTC",
         today: () => ({ year: 1970, month: 1, day: 1 }),
+        firstWeekday: (locale) => (locale.endsWith("US") ? 0 : 1),
+        formatNumber: (locale, value, options) =>
+          new Intl.NumberFormat(locale, JSON.parse(options)).format(value),
+        parseNumber: (_locale, input) => Number(input.replace(",", ".")),
+        pluralCategory: (locale, value, options) =>
+          new Intl.PluralRules(locale, JSON.parse(options)).select(value),
+        formatDate: (locale, epochMillis, options) =>
+          new Intl.DateTimeFormat(locale, JSON.parse(options)).format(
+            epochMillis,
+          ),
+        formatRelativeTime: (locale, value, unit, options) =>
+          new Intl.RelativeTimeFormat(locale, JSON.parse(options)).format(
+            value,
+            unit as Intl.RelativeTimeFormatUnit,
+          ),
         ...builtins.intl,
       },
       layout: {

@@ -80,35 +80,6 @@ const LAYOUT_SNAPSHOT_HEADER_LEN: usize = 8;
 const LAYOUT_SNAPSHOT_NODE_LEN: usize = 14;
 const LAYOUT_SNAPSHOT_VERSION: f64 = 1.0;
 
-#[derive(serde::Deserialize, Default)]
-struct FetchInit {
-    method: Option<String>,
-    headers: Option<HashMap<String, String>>,
-    body: Option<String>,
-}
-
-struct FetchResponse {
-    status: u16,
-    status_text: String,
-    headers: HashMap<String, String>,
-    body: Vec<u8>,
-}
-
-impl<'js> rquickjs::IntoJs<'js> for FetchResponse {
-    fn into_js(self, ctx: &Ctx<'js>) -> JsResult<rquickjs::Value<'js>> {
-        let value = Object::new(ctx.clone())?;
-        value.set("status", self.status)?;
-        value.set("statusText", self.status_text)?;
-        let headers = Object::new(ctx.clone())?;
-        for (name, value) in self.headers {
-            headers.set(name, value)?;
-        }
-        value.set("headers", headers)?;
-        value.set("body", crate::host_ffi::OwnedJsBytes(self.body))?;
-        Ok(value.into_value())
-    }
-}
-
 struct RuntimeWake {
     callback: Mutex<Option<WakeCallback>>,
     pending: AtomicBool,
@@ -563,6 +534,69 @@ impl JsRuntime {
                     .expect("calendar date serialization is infallible")
             })?,
         )?;
+        register_function(
+            globals,
+            HostBinding::FirstWeekday,
+            rquickjs::Function::new(ctx.clone(), |ctx: Ctx<'_>, locale: String| {
+                crate::intl::first_weekday(&locale)
+                    .map_err(|error| rquickjs::Exception::throw_range(&ctx, &error))
+            })?,
+        )?;
+        register_function(
+            globals,
+            HostBinding::FormatNumber,
+            rquickjs::Function::new(
+                ctx.clone(),
+                |ctx: Ctx<'_>, locale: String, value: f64, options: String| {
+                    crate::intl::format_number(&locale, value, &options)
+                        .map_err(|error| rquickjs::Exception::throw_range(&ctx, &error))
+                },
+            )?,
+        )?;
+        register_function(
+            globals,
+            HostBinding::ParseNumber,
+            rquickjs::Function::new(
+                ctx.clone(),
+                |ctx: Ctx<'_>, locale: String, input: String, options: String| {
+                    crate::intl::parse_number(&locale, &input, &options)
+                        .map_err(|error| rquickjs::Exception::throw_range(&ctx, &error))
+                },
+            )?,
+        )?;
+        register_function(
+            globals,
+            HostBinding::PluralCategory,
+            rquickjs::Function::new(
+                ctx.clone(),
+                |ctx: Ctx<'_>, locale: String, value: f64, options: String| {
+                    crate::intl::plural_category(&locale, value, &options)
+                        .map_err(|error| rquickjs::Exception::throw_range(&ctx, &error))
+                },
+            )?,
+        )?;
+        register_function(
+            globals,
+            HostBinding::FormatDate,
+            rquickjs::Function::new(
+                ctx.clone(),
+                |ctx: Ctx<'_>, locale: String, value: f64, options: String| {
+                    crate::intl::format_date(&locale, value, &options)
+                        .map_err(|error| rquickjs::Exception::throw_range(&ctx, &error))
+                },
+            )?,
+        )?;
+        register_function(
+            globals,
+            HostBinding::FormatRelativeTime,
+            rquickjs::Function::new(
+                ctx.clone(),
+                |ctx: Ctx<'_>, locale: String, value: f64, unit: String, options: String| {
+                    crate::intl::format_relative_time(&locale, value, &unit, &options)
+                        .map_err(|error| rquickjs::Exception::throw_range(&ctx, &error))
+                },
+            )?,
+        )?;
         Ok(())
     }
 
@@ -868,34 +902,22 @@ impl JsRuntime {
     /// owns the Rust Future -> JavaScript Promise conversion; the shell only
     /// supplies a waker that reconnects its scheduler to the native event loop.
     fn register_fetch(&self) -> JsResult<()> {
-        let client = reqwest::Client::builder()
-            .no_proxy()
-            .build()
-            .map_err(|_| rquickjs::Error::Unknown)?;
-        let cancellations = Arc::new(Mutex::new(HashMap::<
-            u32,
-            tokio_util::sync::CancellationToken,
-        >::new()));
+        let service = crate::web_fetch::FetchService::new()?;
         self.with(|ctx| {
-            let active = cancellations.clone();
+            let fetch = service.clone();
             register_function(
                 &ctx.globals(),
                 HostBinding::FetchStart,
                 Function::new(ctx.clone(), move |id: u32| {
-                    active
-                        .lock()
-                        .unwrap()
-                        .insert(id, tokio_util::sync::CancellationToken::new());
+                    fetch.start(id);
                 })?,
             )?;
-            let active = cancellations.clone();
+            let fetch = service.clone();
             register_function(
                 &ctx.globals(),
                 HostBinding::FetchCancel,
                 Function::new(ctx.clone(), move |id: u32| {
-                    if let Some(token) = active.lock().unwrap().get(&id) {
-                        token.cancel();
-                    }
+                    fetch.cancel(id);
                 })?,
             )?;
             register_function(
@@ -904,26 +926,17 @@ impl JsRuntime {
                 Function::new(
                     ctx.clone(),
                     rquickjs::prelude::Async(
-                        move |url: String, init_json: String, id: rquickjs::function::Opt<u32>| {
-                            let client = client.clone();
-                            let active = cancellations.clone();
-                            let token =
-                                id.0.and_then(|id| active.lock().unwrap().get(&id).cloned());
-                            async move {
-                                let result = if let Some(token) = token {
-                                    tokio::select! {
-                                        biased;
-                                        _ = token.cancelled() => Err(rquickjs::Error::Unknown),
-                                        result = fetch_request(client, url, init_json) => result,
-                                    }
-                                } else {
-                                    fetch_request(client, url, init_json).await
-                                };
-                                if let Some(id) = id.0 {
-                                    active.lock().unwrap().remove(&id);
-                                }
-                                result
-                            }
+                        move |url: String,
+                              init_json: String,
+                              id: rquickjs::function::Opt<u32>,
+                              body: rquickjs::function::Opt<TypedArray<u8>>| {
+                            // SAFETY: copy the JS view before constructing the future. No JS
+                            // handle crosses the await boundary.
+                            let body = body
+                                .0
+                                .and_then(|body| unsafe { body.as_bytes() }.map(<[u8]>::to_vec));
+                            let service = service.clone();
+                            async move { service.request(url, init_json, id.0, body).await }
                         },
                     ),
                 )?,
@@ -1048,6 +1061,36 @@ impl JsRuntime {
     #[doc(hidden)]
     pub fn frame_stats_handle(&self) -> Rc<RefCell<Option<FrameStats>>> {
         self.frame_stats.clone()
+    }
+
+    #[cfg(any(feature = "devtools", test))]
+    #[doc(hidden)]
+    pub fn memory_usage_snapshot(&self) -> wabou_devtools::DebugQuickJsMemory {
+        fn nonnegative(value: i64) -> u64 {
+            u64::try_from(value).unwrap_or_default()
+        }
+
+        let _guard = self._tokio.handle().enter();
+        let usage = self._local.block_on(&self._tokio, self.rt.memory_usage());
+        wabou_devtools::DebugQuickJsMemory {
+            malloc_bytes: nonnegative(usage.malloc_size),
+            used_bytes: nonnegative(usage.memory_used_size),
+            allocation_count: nonnegative(usage.malloc_count),
+            atom_count: nonnegative(usage.atom_count),
+            atom_bytes: nonnegative(usage.atom_size),
+            string_count: nonnegative(usage.str_count),
+            string_bytes: nonnegative(usage.str_size),
+            object_count: nonnegative(usage.obj_count),
+            object_bytes: nonnegative(usage.obj_size),
+            property_count: nonnegative(usage.prop_count),
+            property_bytes: nonnegative(usage.prop_size),
+            function_count: nonnegative(usage.js_func_count),
+            function_bytes: nonnegative(usage.js_func_size),
+            bytecode_bytes: nonnegative(usage.js_func_code_size),
+            array_count: nonnegative(usage.array_count),
+            binary_object_count: nonnegative(usage.binary_object_count),
+            binary_object_bytes: nonnegative(usage.binary_object_size),
+        }
     }
 
     #[doc(hidden)]
@@ -1556,47 +1599,6 @@ fn hmr_diagnostic(error: rquickjs::CaughtError<'_>) -> String {
             .unwrap_or_else(|| "JavaScript threw a non-string value".into()),
         rquickjs::CaughtError::Error(error) => error.to_string(),
     }
-}
-
-async fn fetch_request(
-    client: reqwest::Client,
-    url: String,
-    init_json: String,
-) -> JsResult<FetchResponse> {
-    let init: FetchInit = serde_json::from_str(&init_json).unwrap_or_default();
-    let method = init
-        .method
-        .as_deref()
-        .unwrap_or("GET")
-        .parse::<reqwest::Method>()
-        .map_err(|_| rquickjs::Error::Unknown)?;
-    let mut request = client.request(method, &url);
-    if let Some(headers) = init.headers {
-        for (name, value) in headers {
-            request = request.header(name, value);
-        }
-    }
-    if let Some(body) = init.body {
-        request = request.body(body);
-    }
-    let response = request.send().await.map_err(|_| rquickjs::Error::Unknown)?;
-    let status = response.status();
-    let headers = response
-        .headers()
-        .iter()
-        .map(|(name, value)| (name.to_string(), value.to_str().unwrap_or("").to_owned()))
-        .collect::<HashMap<_, _>>();
-    let body = response
-        .bytes()
-        .await
-        .map_err(|_| rquickjs::Error::Unknown)?
-        .to_vec();
-    Ok(FetchResponse {
-        status: status.as_u16(),
-        status_text: status.canonical_reason().unwrap_or("").to_owned(),
-        headers,
-        body,
-    })
 }
 
 fn digest_bytes(algorithm: u8, bytes: &[u8]) -> JsResult<Vec<u8>> {

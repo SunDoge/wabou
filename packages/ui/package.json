@@ -11,6 +11,14 @@
   "files": [
     "dist"
   ],
+  "sideEffects": [
+    "./src/index.ts",
+    "./dist/index.mjs",
+    "./src/animation/index.ts",
+    "./dist/animation.mjs",
+    "./src/web.ts",
+    "./dist/web.mjs"
+  ],
   "exports": {
     ".": {
       "wabou-source": "./src/index.ts",
@@ -46,6 +54,11 @@
       "wabou-source": "./src/performance.ts",
       "types": "./dist/performance.d.mts",
       "import": "./dist/performance.mjs"
+    },
+    "./web": {
+      "wabou-source": "./src/web.ts",
+      "types": "./dist/web.d.mts",
+      "import": "./dist/web.mjs"
     }
   },
   "scripts": {
@@ -54,7 +67,6 @@
   "dependencies": {
     "@codemirror/state": "^6.7.6",
     "@internationalized/date": "^3.12.4",
-    "@internationalized/number": "^3.6.9",
     "@lezer/common": "^1.5.3",
     "@lezer/highlight": "^1.2.5",
     "@lezer/json": "^1.0.3",

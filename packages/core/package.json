@@ -62,6 +62,11 @@
       "types": "./dist/i18n.d.mts",
       "import": "./dist/i18n.mjs"
     },
+    "./web": {
+      "wabou-source": "./src/web.ts",
+      "types": "./dist/web.d.mts",
+      "import": "./dist/web.mjs"
+    },
     "./jsx-runtime": {
       "wabou-source": "./src/jsx.ts",
       "types": "./dist/jsx-runtime.d.mts",

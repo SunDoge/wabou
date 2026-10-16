@@ -19,10 +19,6 @@ export default defineConfig(({ mode }) => ({
       }),
     ],
   },
-  intl: {
-    locales: ["en", "zh", "de"],
-    timeZones: "golden",
-  },
   theme: {
     default: "light",
     themes: {

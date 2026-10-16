@@ -1,7 +1,7 @@
 import { h as EVENT_CODE, s as nodeKey } from "./protocol-B9cErdtk.mjs";
 import { t as hasBrowserDom } from "./browser-dom-BrHP4mZQ.mjs";
-import { c as dispatchEvent, j as writer, l as disposeMountedApp } from "./renderer-BZp4nUlS.mjs";
-import { t as tickAnimationFrame } from "./animation-frame-BgKEm5Et.mjs";
+import { c as dispatchEvent, j as writer, l as disposeMountedApp } from "./renderer-pk1nRH6M.mjs";
+import { t as tickAnimationFrame } from "./animation-frame-0RPj5b6p.mjs";
 //#region src/generated/browser-host-bindings.ts
 function createBrowserHostBindings(bridge, invalidate) {
 	return {

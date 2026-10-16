@@ -467,24 +467,8 @@ Long-lived native objects can live in
 `ResidentResources`, whose generational handles remain valid across Solid HMR
 and full UI remounts.
 
-### Optional Intl data
+### Native localization
 
-The Vite configuration includes English and Chinese Intl data by default. Apps
-that do not use Intl or widgets requiring it can omit that data:
-
-```ts
-export default defineConfig({ intl: false });
-```
-
-Apps needing only number formatting can avoid date and time-zone data:
-
-```ts
-export default defineConfig({
-  intl: { locales: ["en"], apis: ["number"] },
-});
-```
-
-`apis` accepts `number`, `date`, and `plural`; required FormatJS dependencies are
-included automatically. This is configured in `wabou.config.ts`. Disabling Intl
-is explicit: date/number widgets and libraries
-using Intl still require the relevant APIs.
+Number, date, plural, relative-time, and calendar-week operations use Wabou's
+small native host functions and Jiff time zones. They require no Vite configuration or locale
+polyfill bundle. Generated Paraglide registries are adapted automatically.

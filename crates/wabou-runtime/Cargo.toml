@@ -17,6 +17,16 @@ flume = { workspace = true }
 futures-lite = "2"
 getrandom = { workspace = true }
 image = { workspace = true, features = ["jpeg", "png", "webp"] }
+icu_calendar.workspace = true
+icu_datetime.workspace = true
+icu_decimal.workspace = true
+icu_experimental.workspace = true
+icu_locale.workspace = true
+icu_locale_core.workspace = true
+icu_plurals.workspace = true
+icu_provider.workspace = true
+icu_provider_adapters.workspace = true
+icu_provider_blob.workspace = true
 jiff = { workspace = true }
 open = { workspace = true }
 reqwest = {
@@ -50,6 +60,7 @@ wabou-motion = { workspace = true }
 wabou-protocol = { workspace = true }
 wabou-shell-api.workspace = true
 wabou-style = { workspace = true }
+writeable.workspace = true
 
 tungstenite = {
   version = "0.28",

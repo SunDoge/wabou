@@ -48,8 +48,9 @@ Async handlers and custom async measurements export async tracks, not CPU thread
 slices. Their duration includes waiting; it is not CPU usage. CPU present means
 submission/present call duration, not GPU completion or input-to-photon latency.
 Correlation IDs aid inspection; automatic end-to-end input-to-display flow IDs,
-GPU timestamps, task/resource inventories, and memory sampling are not included
-in this first version.
+GPU timestamps and task/resource inventories are not included in this first
+version. `wabou inspect status` separately exposes live process and QuickJS
+memory counters; they are point samples rather than timeline events.
 
 ## Application measurements
 

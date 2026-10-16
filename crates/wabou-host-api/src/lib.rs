@@ -402,6 +402,54 @@ mod contract {
     pub const SYSTEM_TIME_ZONE: NativeMethod = NativeMethod::sync("systemTimeZone", &[], "string");
     pub const SYSTEM_CALENDAR_DATE: NativeMethod =
         NativeMethod::sync("systemCalendarDate", &[], "CalendarDateInfo");
+    pub const FIRST_WEEKDAY: NativeMethod =
+        NativeMethod::sync("firstWeekday", &[("locale", "string")], "number");
+    pub const FORMAT_NUMBER: NativeMethod = NativeMethod::sync(
+        "formatNumber",
+        &[
+            ("locale", "string"),
+            ("value", "number"),
+            ("options", "string"),
+        ],
+        "string",
+    );
+    pub const PARSE_NUMBER: NativeMethod = NativeMethod::sync(
+        "parseNumber",
+        &[
+            ("locale", "string"),
+            ("input", "string"),
+            ("options", "string"),
+        ],
+        "number",
+    );
+    pub const PLURAL_CATEGORY: NativeMethod = NativeMethod::sync(
+        "pluralCategory",
+        &[
+            ("locale", "string"),
+            ("value", "number"),
+            ("options", "string"),
+        ],
+        "string",
+    );
+    pub const FORMAT_DATE: NativeMethod = NativeMethod::sync(
+        "formatDate",
+        &[
+            ("locale", "string"),
+            ("epochMillis", "number"),
+            ("options", "string"),
+        ],
+        "string",
+    );
+    pub const FORMAT_RELATIVE_TIME: NativeMethod = NativeMethod::sync(
+        "formatRelativeTime",
+        &[
+            ("locale", "string"),
+            ("value", "number"),
+            ("unit", "string"),
+            ("options", "string"),
+        ],
+        "string",
+    );
 }
 
 #[cfg(feature = "bindings")]
@@ -421,6 +469,12 @@ pub fn bindings() -> FunctionModule {
         .method(contract::SYSTEM_LOCALE)
         .method(contract::SYSTEM_TIME_ZONE)
         .method(contract::SYSTEM_CALENDAR_DATE)
+        .method(contract::FIRST_WEEKDAY)
+        .method(contract::FORMAT_NUMBER)
+        .method(contract::PARSE_NUMBER)
+        .method(contract::PLURAL_CATEGORY)
+        .method(contract::FORMAT_DATE)
+        .method(contract::FORMAT_RELATIVE_TIME)
 }
 
 #[cfg(all(test, feature = "bindings"))]
@@ -440,6 +494,13 @@ mod tests {
         assert!(output.contains("systemLocale(): string"));
         assert!(output.contains("systemTimeZone(): string"));
         assert!(output.contains("systemCalendarDate(): CalendarDateInfo"));
+        assert!(
+            output.contains("formatNumber(locale: string, value: number, options: string): string")
+        );
+        assert!(
+            output
+                .contains("pluralCategory(locale: string, value: number, options: string): string")
+        );
         assert!(!output.contains("Promise<"));
     }
 

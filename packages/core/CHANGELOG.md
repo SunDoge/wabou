@@ -32,6 +32,8 @@
 - Add standard Headers and Response globals for host-backed fetch, and an
   Router Core adapter for typed search, async loaders, caching, preloading,
   guards, and native memory navigation.
+- Move fetch and WHATWG Streams behind the explicit `@wabou/core/web` entry so
+  UI-only applications do not bundle the stream polyfill.
 - Compile published JavaScript packages to ESM and declaration files with tsdown instead of requiring consumers to load TypeScript source.
 - Add replayable native behavior assertions for semantic state, bounds, numeric
   ranges with explicit floating-point tolerance, match counts, multiple windows,

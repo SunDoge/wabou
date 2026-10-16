@@ -23,17 +23,24 @@ test("installs interoperable Headers and Response globals", async () => {
   try {
     Reflect.deleteProperty(runtime, "Headers");
     Reflect.deleteProperty(runtime, "Response");
-    runtime.__wabou_fetch = async (_url: string, init: string) => {
+    runtime.__wabou_fetch = async (
+      _url: string,
+      init: string,
+      _id?: number,
+      body?: Uint8Array,
+    ) => {
       expect(JSON.parse(init)).toEqual({
         method: "POST",
         headers: { accept: "application/json" },
-        body: "request",
       });
+      expect(body).toEqual(new TextEncoder().encode("request"));
       return {
         status: 201,
         statusText: "Created",
         headers: { "Content-Type": "application/json" },
         body: new TextEncoder().encode('{"ok":true}'),
+        url: "https://example.test/final",
+        redirected: true,
       };
     };
 
@@ -58,6 +65,8 @@ test("installs interoperable Headers and Response globals", async () => {
     expect(response).toBeInstanceOf(Response);
     expect(response.status).toBe(201);
     expect(response.ok).toBe(true);
+    expect(response.url).toBe("https://example.test/final");
+    expect(response.redirected).toBe(true);
     expect(response.headers.get("content-type")).toBe("application/json");
     const arrayBufferClone = response.clone();
     const bytesClone = response.clone();
@@ -90,6 +99,43 @@ test("installs interoperable Headers and Response globals", async () => {
     runtime.Headers = previous.Headers;
     runtime.Response = previous.Response;
     if (previous.hostFetch) runtime.__wabou_fetch = previous.hostFetch;
+    else Reflect.deleteProperty(runtime, "__wabou_fetch");
+  }
+});
+
+test("fetch transfers binary request bodies without JSON or base64", async () => {
+  const runtime = globalThis as typeof globalThis & {
+    __wabou_fetch?: (...args: any[]) => Promise<any>;
+  };
+  const previous = { fetch: runtime.fetch, host: runtime.__wabou_fetch };
+  const requestBody = new Uint8Array([0, 255, 128, 1]);
+  try {
+    runtime.__wabou_fetch = async (
+      _url: string,
+      init: string,
+      _id?: number,
+      body?: Uint8Array,
+    ) => {
+      expect(JSON.parse(init)).toEqual({ method: "PUT" });
+      expect(body).toBe(requestBody);
+      return {
+        status: 204,
+        statusText: "No Content",
+        headers: {},
+        body: new Uint8Array(),
+        url: "https://example.test/upload",
+        redirected: false,
+      };
+    };
+    installFetchPolyfill();
+    const response = await fetch("https://example.test/upload", {
+      method: "PUT",
+      body: requestBody,
+    } as RequestInit);
+    expect(response.status).toBe(204);
+  } finally {
+    runtime.fetch = previous.fetch;
+    if (previous.host) runtime.__wabou_fetch = previous.host;
     else Reflect.deleteProperty(runtime, "__wabou_fetch");
   }
 });

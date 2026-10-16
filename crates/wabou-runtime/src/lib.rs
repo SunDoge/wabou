@@ -113,3 +113,5 @@ pub mod intl;
 mod web_url;
 
 mod web_encoding;
+
+mod web_fetch;
