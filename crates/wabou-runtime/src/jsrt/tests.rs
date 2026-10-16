@@ -1313,3 +1313,131 @@ fn virtual_clock_zero_delay_sleeps_wait_for_the_next_advance() {
         .expect("read fired");
     assert_eq!(seen, [16.0]);
 }
+
+/// Minimal reproduction of the headless virtual-clock loop: a Solid-style
+/// signal write inside a synchronous host dispatch, whose reaction is
+/// scheduled by Solid's `schedule()` → `queueMicrotask(flush)` path, with an
+/// rAF animation started from that effect. This is the drawer-exit shape.
+#[test]
+fn virtual_clock_runs_reactions_scheduled_from_host_dispatch() {
+    const CORE_FIXTURE: &str = include_str!("../gen/test-runtime.js");
+    let (mut runtime, clock) =
+        JsRuntime::new_virtual(JsRuntimeOptions::default()).expect("runtime");
+    runtime.boot(CORE_FIXTURE).expect("boot fixture");
+
+    // Install a signal + effect + rAF animation mirroring the drawer close:
+    // host dispatch (click) flips the signal; the queued microtask effect
+    // starts an rAF animation; frames drive it to completion.
+    runtime
+        .with(|ctx| {
+            ctx.eval::<(), _>(
+                r#"
+                globalThis.done = false;
+                let open = true;
+                const listeners = [];
+                globalThis.setOpen = (next) => {
+                    open = next;
+                    // Solid's schedule(): queueMicrotask(flush)
+                    queueMicrotask(() => {
+                        if (!open) {
+                            // createTransition effect: start exit animation
+                            let start;
+                            const duration = 220;
+                            const tickFn = (t) => {
+                                start ??= t;
+                                if (t - start >= duration) {
+                                    globalThis.done = true;
+                                    return;
+                                }
+                                requestAnimationFrame(tickFn);
+                            };
+                            requestAnimationFrame(tickFn);
+                        }
+                    });
+                };
+                globalThis.isOpen = () => open;
+                "#,
+            )
+        })
+        .expect("install signal");
+
+    runtime.poll_async_runtime();
+    runtime.tick().expect("initial tick");
+
+    // Host dispatch: the click handler writes the signal synchronously.
+    runtime
+        .with(|ctx| ctx.eval::<(), _>("globalThis.setOpen(false)"))
+        .expect("click closes the drawer");
+
+    // Headless loop shape: poll jobs, tick frames, advance virtual time.
+    for frame in 0..30 {
+        runtime.poll_async_runtime();
+        runtime.tick().expect("tick");
+        clock.advance_ms(16.0);
+        let done = runtime
+            .with(|ctx| ctx.eval::<bool, _>("globalThis.done"))
+            .expect("probe");
+        if done {
+            return;
+        }
+    }
+    panic!("exit animation never completed under the virtual-clock headless loop shape");
+}
+
+/// Real Solid scheduler (createEffect via schedule() → queueMicrotask(flush))
+/// under the virtual-clock headless loop shape. Isolates the drawer-exit bug
+/// from the hand-rolled queueMicrotask of the previous test.
+#[test]
+fn virtual_clock_runs_solid_effects_from_host_dispatch() {
+    const CORE_FIXTURE: &str = include_str!("../gen/test-runtime.js");
+    let (mut runtime, clock) =
+        JsRuntime::new_virtual(JsRuntimeOptions::default()).expect("runtime");
+    runtime.boot(CORE_FIXTURE).expect("boot fixture");
+
+    runtime
+        .with(|ctx| {
+            ctx.eval::<(), _>(
+                r#"
+                const { createSignal, createEffect } = globalThis.__wabou_test_solid;
+                globalThis.done = false;
+                const [open, setOpen] = createSignal(true);
+                globalThis.close = () => setOpen(false);
+                createEffect(open, (isOpen) => {
+                    if (!isOpen) {
+                        let start;
+                        const duration = 220;
+                        const tickFn = (t) => {
+                            start ??= t;
+                            if (t - start >= duration) {
+                                globalThis.done = true;
+                                return;
+                            }
+                            requestAnimationFrame(tickFn);
+                        };
+                        requestAnimationFrame(tickFn);
+                    }
+                });
+                "#,
+            )
+        })
+        .expect("install solid effect");
+    runtime.poll_async_runtime();
+    runtime.tick().expect("initial tick");
+
+    runtime
+        .with(|ctx| ctx.eval::<(), _>("globalThis.close()"))
+        .expect("host dispatch closes");
+
+    for frame in 0..30 {
+        runtime.poll_async_runtime();
+        runtime.tick().expect("tick");
+        clock.advance_ms(16.0);
+        if runtime
+            .with(|ctx| ctx.eval::<bool, _>("globalThis.done"))
+            .expect("probe")
+        {
+            return;
+        }
+    }
+    panic!("Solid effect + rAF animation never completed under the virtual clock");
+}

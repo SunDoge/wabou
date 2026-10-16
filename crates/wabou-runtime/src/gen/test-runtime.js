@@ -4020,6 +4020,22 @@ ${footer}`;
   function createMemo(compute, options) {
     return accessor(computed(compute, options));
   }
+  function createEffect(compute, effectFn, options) {
+    if (effectFn === undefined) {
+      const message = "[MISSING_EFFECT_FN] createEffect requires both a compute function and an effect function. " + "Use `createEffect(() => signal(), value => doWork(value))`. " + "If you want a derived value, use `createMemo`. " + "If you want a one-shot side effect, just call the function directly.";
+      emitDiagnostic({
+        code: "MISSING_EFFECT_FN",
+        kind: "lifecycle",
+        severity: "error",
+        message
+      });
+      throw new Error(message);
+    }
+    effect(compute, effectFn.effect || effectFn, effectFn.error, {
+      user: true,
+      ...options
+    });
+  }
   function createRenderEffect(compute, effectFn, options) {
     effect(compute, effectFn, undefined, options);
   }
@@ -6980,6 +6996,7 @@ ${footer}`;
   var _createMemo;
   var _createSignal;
   var _createRenderEffect;
+  var _createEffect;
   var latchedOnce = new WeakSet;
   var LIVE_SOURCE = Symbol.for("solid.LiveSource");
   var LIVE_RESUME_FROM = Symbol.for("solid.LiveResumeFrom");
@@ -6995,6 +7012,7 @@ ${footer}`;
   };
   var createRoot2 = (...args) => (_createRoot || createRoot)(...args);
   var createRenderEffect2 = (...args) => (_createRenderEffect || createRenderEffect)(...args);
+  var createEffect2 = (...args) => (_createEffect || createEffect)(...args);
   var _fragments = new Map;
   var _truncated = new Set;
   var _revealSubs = new Set;
@@ -14114,6 +14132,7 @@ ${detail}`);
   installFetchPolyfill();
   // packages/core/test/runtime-fixture.ts
   Object.assign(globalThis, {
+    __wabou_test_solid: { createEffect: createEffect2, createSignal: createSignal2 },
     __wabou_test_host_api: {
       clipboard,
       dialog,
