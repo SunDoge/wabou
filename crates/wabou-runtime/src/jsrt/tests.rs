@@ -76,6 +76,11 @@ impl crate::clock::Clock for TestClock {
     fn now_ms(&self) -> f64 {
         self.0.load(Ordering::Relaxed) as f64
     }
+
+    fn now_instant(&self) -> std::time::Instant {
+        // Only now_ms accuracy matters to these tests.
+        std::time::Instant::now()
+    }
 }
 
 #[test]
@@ -1370,7 +1375,7 @@ fn virtual_clock_runs_reactions_scheduled_from_host_dispatch() {
         .expect("click closes the drawer");
 
     // Headless loop shape: poll jobs, tick frames, advance virtual time.
-    for frame in 0..30 {
+    for _frame in 0..30 {
         runtime.poll_async_runtime();
         runtime.tick().expect("tick");
         clock.advance_ms(16.0);
@@ -1428,7 +1433,7 @@ fn virtual_clock_runs_solid_effects_from_host_dispatch() {
         .with(|ctx| ctx.eval::<(), _>("globalThis.close()"))
         .expect("host dispatch closes");
 
-    for frame in 0..30 {
+    for _frame in 0..30 {
         runtime.poll_async_runtime();
         runtime.tick().expect("tick");
         clock.advance_ms(16.0);

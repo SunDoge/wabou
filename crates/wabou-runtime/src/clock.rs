@@ -14,6 +14,13 @@ use std::task::{Context, Poll, Waker};
 
 pub trait Clock: Send + Sync {
     fn now_ms(&self) -> f64;
+    /// Monotonic instant on the same timeline as [`Clock::now_ms`].
+    ///
+    /// Native time state (`Instant` deadlines, elapsed-since timestamps)
+    /// reads this instead of `Instant::now()` so a [`VirtualClock`] host
+    /// stays deterministic; a [`SystemClock`] returns the wall instant
+    /// directly. `Instant` arithmetic in consumers is unchanged.
+    fn now_instant(&self) -> std::time::Instant;
     /// Downcast hook: lets a runtime adopt a [`VirtualClock`] handed to it as
     /// `Arc<dyn Clock>`. Returns `None` for every other implementation.
     fn as_any(&self) -> Option<&dyn std::any::Any> {
@@ -43,6 +50,10 @@ impl Clock for SystemClock {
     fn now_ms(&self) -> f64 {
         self.start.elapsed().as_secs_f64() * 1000.0
     }
+
+    fn now_instant(&self) -> std::time::Instant {
+        std::time::Instant::now()
+    }
 }
 
 /// Host notification fired after timers expire during an advance.
@@ -70,6 +81,10 @@ pub struct VirtualClock {
     state: Arc<Mutex<VirtualClockState>>,
     /// Host notification fired after timers expire during an advance.
     notify: Arc<Mutex<Option<NotifyCallback>>>,
+    /// Real instant virtual zero maps to, so [`Clock::now_instant`] can
+    /// derive a genuine `Instant`. Captured once in `new()`; every clone
+    /// shares it.
+    epoch: std::time::Instant,
 }
 
 impl Default for VirtualClock {
@@ -89,6 +104,7 @@ impl VirtualClock {
                 fired: HashSet::new(),
             })),
             notify: Arc::new(Mutex::new(None)),
+            epoch: std::time::Instant::now(),
         }
     }
 
@@ -173,6 +189,23 @@ impl VirtualClock {
 impl Clock for VirtualClock {
     fn now_ms(&self) -> f64 {
         VirtualClock::now_ms(self)
+    }
+
+    fn now_instant(&self) -> std::time::Instant {
+        let ms = VirtualClock::now_ms(self);
+        // Clamp at the epoch when virtual time exceeds what `Instant` can
+        // represent (years of virtual milliseconds): the clock freezes
+        // rather than panicking, and monotonicity is preserved. Integer
+        // arithmetic throughout — `Duration::from_secs_f64` panics on
+        // values past `Duration`'s internal nanosecond range, well below
+        // its seconds range.
+        let whole_ms = if ms.is_finite() && ms > 0.0 {
+            ms as u64
+        } else {
+            0
+        };
+        let elapsed = std::time::Duration::from_millis(whole_ms);
+        self.epoch.checked_add(elapsed).unwrap_or(self.epoch)
     }
 
     fn as_any(&self) -> Option<&dyn std::any::Any> {
@@ -283,6 +316,35 @@ mod tests {
         assert!(kept.as_mut().poll(&mut context).is_pending());
         assert!(clock.advance_ms(10.0));
         assert!(kept.as_mut().poll(&mut context).is_ready());
+    }
+
+    #[test]
+    fn now_instant_is_monotone_and_tracks_virtual_elapsed() {
+        let clock = VirtualClock::new();
+        let epoch = clock.now_instant();
+        assert_eq!(epoch, clock.now_instant());
+        clock.advance_ms(50.0);
+        let later = clock.now_instant();
+        assert!(later > epoch);
+        assert_eq!(
+            later.duration_since(epoch).as_millis(),
+            std::time::Duration::from_millis(50).as_millis()
+        );
+        clock.advance_ms(0.0);
+        assert_eq!(
+            clock.now_instant(),
+            later,
+            "zero advance must not move time"
+        );
+    }
+
+    #[test]
+    fn now_instant_clamps_instead_of_panicking() {
+        let clock = VirtualClock::new();
+        // Far beyond Instant's representable range; checked_add saturates.
+        clock.advance_ms(f64::MAX / 1e6);
+        let clamped = clock.now_instant();
+        assert!(clamped >= clock.epoch);
     }
 
     #[test]

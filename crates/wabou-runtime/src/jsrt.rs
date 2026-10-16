@@ -198,7 +198,6 @@ pub struct JsRuntime {
     /// Scalar animation curves retained outside the replaceable JS bundle.
     value_motions: Rc<RefCell<wabou_motion::ValueMotionStore>>,
     host_frame_sequence: u64,
-    host_frame_epoch: std::time::Instant,
     #[cfg(any(feature = "devtools", test))]
     debug_state: Rc<RefCell<Option<wabou_devtools::SharedDebugState>>>,
     resize_targets: ResizeTargets,
@@ -271,6 +270,17 @@ impl JsRuntime {
         self.virtual_clock.as_ref()
     }
 
+    /// The runtime's monotonic clock.
+    ///
+    /// All semantic time — `performance.now`, animation-frame timestamps,
+    /// `__wabou_sleep` deadlines — reads this. Native time state outside the
+    /// runtime should read [`Clock::now_instant`] through this handle
+    /// instead of `Instant::now()`, keeping every timeline coherent under
+    /// a virtual clock.
+    pub fn clock(&self) -> std::sync::Arc<dyn crate::clock::Clock> {
+        self.clock.clone()
+    }
+
     fn build_inner(
         rt: AsyncRuntime,
         clock: Arc<dyn crate::clock::Clock>,
@@ -332,7 +342,6 @@ impl JsRuntime {
             atoms: Rc::new(RefCell::new(AtomPool::default())),
             value_motions: Rc::new(RefCell::new(wabou_motion::ValueMotionStore::default())),
             host_frame_sequence: 0,
-            host_frame_epoch: std::time::Instant::now(),
             #[cfg(any(feature = "devtools", test))]
             debug_state: Rc::new(RefCell::new(None)),
             resize_targets,
@@ -1470,7 +1479,10 @@ impl JsRuntime {
         measurement.attribute("hostFrameSequence", self.host_frame_sequence);
         let bytes = encode_host_frame(
             self.host_frame_sequence,
-            self.host_frame_epoch.elapsed(),
+            // Frame timestamps ride the runtime clock so virtual-mode wire
+            // bytes stay deterministic (the JS decoder never reads this
+            // field today; DevTools frame captures do).
+            std::time::Duration::from_secs_f64(self.clock.now_ms() / 1000.0),
             events,
         )
         .map_err(|_| rquickjs::Error::Unknown)?;
