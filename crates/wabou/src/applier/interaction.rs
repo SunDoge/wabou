@@ -96,7 +96,7 @@ impl Applier {
             self.interaction
                 .scroll
                 .activity
-                .insert(node, Instant::now());
+                .insert(node, self.runtime.clock.now_instant());
             changed = true;
         }
         Self::response(changed)
@@ -141,7 +141,7 @@ impl Applier {
             self.interaction
                 .scroll
                 .activity
-                .insert(drag.node, Instant::now());
+                .insert(drag.node, self.runtime.clock.now_instant());
             return Self::response(true);
         }
         let pointer_id = pointer.properties.id;
@@ -207,7 +207,7 @@ impl Applier {
             let (dispatched, _) = self.dispatch_cancellable_numeric(target, event::CLICK, data);
             changed |= dispatched;
 
-            let now = Instant::now();
+            let now = self.runtime.clock.now_instant();
             let is_double_click = self.interaction.input.last_primary_click.is_some_and(
                 |(time, last_target, last_x, last_y)| {
                     last_target == target
@@ -272,7 +272,7 @@ impl Applier {
             self.interaction
                 .scroll
                 .activity
-                .insert(drag.node, Instant::now());
+                .insert(drag.node, self.runtime.clock.now_instant());
             Self::response(true)
         } else {
             Self::response(self.cancel_pointer_gesture(pointer))
@@ -299,7 +299,7 @@ impl Applier {
             self.interaction
                 .scroll
                 .activity
-                .insert(node, Instant::now());
+                .insert(node, self.runtime.clock.now_instant());
             if target.part != ScrollbarPart::Thumb {
                 let index = usize::from(target.axis == ScrollAxis::Vertical);
                 let viewport = match target.axis {
@@ -402,13 +402,13 @@ impl Applier {
             self.interaction
                 .scroll
                 .activity
-                .insert(node, Instant::now());
+                .insert(node, self.runtime.clock.now_instant());
         }
         if scrollbar_hover_changed && let Some((node, _)) = previous_hover {
             self.interaction
                 .scroll
                 .activity
-                .insert(node, Instant::now());
+                .insert(node, self.runtime.clock.now_instant());
         }
         if pointer.properties.primary && self.interaction.scroll.drag.is_some() {
             let changed = self.drag_scrollbar(x, y);

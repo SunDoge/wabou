@@ -379,7 +379,10 @@ impl Applier {
             declared.attrs.insert(name, Arc::from(value));
         }
         if matches!(attribute_name.as_deref(), Some("__wabou_native_motion"))
-            && let Err(error) = self.document.motion.set_json(node, value)
+            && let Err(error) =
+                self.document
+                    .motion
+                    .set_json(node, value, self.runtime.clock.now_instant())
         {
             tracing::warn!(?id, %error, "ignored invalid native motion");
         }

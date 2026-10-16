@@ -209,7 +209,7 @@ impl Applier {
         };
         let local_x = x as f32 - text.origin[0];
         let local_y = y as f32 - text.origin[1];
-        let now = Instant::now();
+        let now = self.runtime.clock.now_instant();
         let clicks = self.interaction.text_selection.last_click.map_or(
             1,
             |(time, last_target, last_x, last_y, count)| {

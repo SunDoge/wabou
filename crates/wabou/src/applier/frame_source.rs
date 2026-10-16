@@ -169,6 +169,8 @@ impl Applier {
         self.drain_host_messages();
         self.dispatch_scroll_changes();
 
+        // Mechanical: JS-tick duration feeds the perf EMA only; wall clock
+        // is correct here even under a virtual clock.
         let started = std::time::Instant::now();
         let result = {
             #[cfg(feature = "profiling")]
@@ -943,7 +945,7 @@ impl FrameSource for Applier {
     }
 
     fn animation_deadline(&self) -> Option<Instant> {
-        let now = Instant::now();
+        let now = self.runtime.clock.now_instant();
         let scrollbar_deadline =
             self.interaction
                 .scroll

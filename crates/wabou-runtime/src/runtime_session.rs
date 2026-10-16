@@ -25,6 +25,12 @@ use wabou_shell_api::{FrameStats, HostAction, WakeCallback, WindowResourceKey};
 pub struct RuntimeSession {
     /// QuickJS runtime owned by this window.
     pub js: JsRuntime,
+    /// The runtime's monotonic clock.
+    ///
+    /// Semantic time reads (motion advancement, interaction timestamps,
+    /// scroll inertia) go through this instead of `Instant::now()` so every
+    /// timeline in the window stays coherent under a virtual clock.
+    pub clock: std::sync::Arc<dyn crate::clock::Clock>,
     /// Shared protocol atom table.
     pub atoms: Rc<RefCell<AtomPool>>,
     /// Whether JavaScript requested another animation frame.
@@ -62,6 +68,7 @@ pub struct RuntimeSession {
 impl RuntimeSession {
     /// Compose all backend-neutral state for one native window.
     pub fn new(js: JsRuntime, window_key: WindowResourceKey) -> Self {
+        let clock = js.clock();
         let atoms = js.atom_pool_handle();
         let pending_css = js.pending_css_handle();
         let pending_color_theme = js.pending_color_theme_handle();
@@ -74,6 +81,7 @@ impl RuntimeSession {
             host_message_channel(DEFAULT_HOST_MESSAGE_CAPACITY);
         Self {
             js,
+            clock,
             atoms,
             has_raf: true,
             protocol_revision: 0,

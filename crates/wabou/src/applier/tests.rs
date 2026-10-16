@@ -1,5 +1,6 @@
 use super::*;
 use crate::effect_bridge::decode_effect_payload;
+use runtime_api::clock::Clock as _;
 
 fn set_text_behavior(applier: &mut Applier, id: u32) {
     let id = nk(id);
@@ -2113,4 +2114,75 @@ fn nk(lo: u32) -> NodeKey {
 
 fn sk(lo: u32) -> u64 {
     nk(lo).into()
+}
+
+/// Native motion under a virtual clock completes after an exact number of
+/// 16 ms frames — the applier-level lock-in for the unified-clock work.
+#[test]
+fn native_motion_completes_on_virtual_frame_boundaries() {
+    let (js, clock) =
+        JsRuntime::new_virtual(crate::JsRuntimeOptions::default()).expect("virtual runtime");
+    install_host_frame_test_hook(&js);
+    js.with(|ctx| {
+        ctx.eval::<(), _>(
+            "globalThis.__wabou_tick = () => false; globalThis.__wabou_has_raf = () => false;",
+        )
+    })
+    .expect("disable rAF drain");
+    let mut applier = Applier::from_runtime(js, Color::BLACK);
+    let root = applier.document.node_store.root;
+
+    // A 200 ms transition at 16 ms per frame completes on frame 13
+    // (12.5 → 13 whole frames); earlier frames must not dispatch.
+    applier
+        .document
+        .motion
+        .set_json(
+            root,
+            r#"{
+            "kind": "transition",
+            "generation": 3,
+            "duration": 0.2,
+            "easing": "linear",
+            "fromTransform": [1, 0, 0, 1, 0, 0],
+            "toTransform": [1, 0, 0, 1, 0, 8]
+        }"#,
+            clock.now_instant(),
+        )
+        .unwrap();
+
+    // dispatch_json only delivers when a JS listener exists in the chain.
+    applier.apply_op(&Op::AddEventListener {
+        id: NodeKey::new(1, 1),
+        event_type: 39,
+    });
+
+    let mut tcx = TextContext::new();
+    let dispatched = |applier: &Applier| -> bool {
+        applier
+            .runtime
+            .js
+            .with(|ctx| {
+                ctx.eval::<bool, _>("globalThis.dispatched.some(([id, code]) => code === 39)")
+            })
+            .unwrap()
+    };
+
+    // Each loop pass builds a frame at the current virtual instant and then
+    // advances 16 ms, so the instant observed by build N is (N-1)*16 ms.
+    // 200 ms of elapsed motion time is therefore first reached at build 14
+    // (13*16 = 208 ms); builds 1..13 must not dispatch.
+    for frame in 1..=13 {
+        FrameSource::build_frame(&mut applier, &mut tcx, 100, 100);
+        clock.advance_ms(16.0);
+        assert!(
+            !dispatched(&applier),
+            "transitionend must not dispatch before completion (build {frame})"
+        );
+    }
+    FrameSource::build_frame(&mut applier, &mut tcx, 100, 100);
+    assert!(
+        dispatched(&applier),
+        "transitionend must dispatch after 200 ms of virtual time"
+    );
 }

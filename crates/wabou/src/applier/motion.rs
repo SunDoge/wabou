@@ -8,9 +8,14 @@ pub(super) struct NativeMotionState {
 }
 
 impl NativeMotionState {
-    pub(super) fn set_json(&mut self, node: NodeId, json: &str) -> Result<(), String> {
+    pub(super) fn set_json(
+        &mut self,
+        node: NodeId,
+        json: &str,
+        now: Instant,
+    ) -> Result<(), String> {
         self.timeline.set_json(node, json)?;
-        self.restart_clock();
+        self.last_tick = Some(now);
         Ok(())
     }
 
@@ -43,15 +48,14 @@ impl NativeMotionState {
     pub(super) fn is_active(&self) -> bool {
         self.timeline.is_active()
     }
-
-    fn restart_clock(&mut self) {
-        self.last_tick = Some(Instant::now());
-    }
 }
 
 impl Applier {
     pub(super) fn tick_native_motions(&mut self) {
-        let completed = self.document.motion.advance(Instant::now());
+        let completed = self
+            .document
+            .motion
+            .advance(self.runtime.clock.now_instant());
         let samples = self.document.motion.samples();
         let transforms_active = samples.iter().any(|(_, sample)| sample.transform.is_some());
         for (node, sample) in samples {
@@ -109,6 +113,7 @@ mod tests {
     fn native_clock_drives_shared_transition_and_completion() {
         let mut state = NativeMotionState::default();
         let node = node();
+        let start = Instant::now();
         state
             .set_json(
                 node,
@@ -122,9 +127,9 @@ mod tests {
                     "fromOpacity": 0,
                     "toOpacity": 1
                 }"#,
+                start,
             )
             .unwrap();
-        let start = Instant::now();
         state.last_tick = Some(start);
         assert!(state.advance(start + Duration::from_millis(50)).is_empty());
         assert_eq!(

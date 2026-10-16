@@ -108,7 +108,7 @@ impl Applier {
     }
 
     pub(super) fn update_scrollbar_visuals(&mut self, placed: &mut [PlacedNode]) {
-        let now = Instant::now();
+        let now = self.runtime.clock.now_instant();
         let mut expired = Vec::new();
         for node in placed {
             let style = node.paint.scrollbar_style();
@@ -276,7 +276,7 @@ impl Applier {
         self.interaction
             .scroll
             .activity
-            .insert(drag.node, Instant::now());
+            .insert(drag.node, self.runtime.clock.now_instant());
         if changed {
             self.queue_scroll_event(drag.node);
         }
@@ -341,7 +341,7 @@ impl Applier {
                             .or_insert(WheelScrollMotion {
                                 target: next,
                                 velocity: [0.0; 2],
-                                last_tick: Instant::now(),
+                                last_tick: self.runtime.clock.now_instant(),
                             });
                     } else {
                         self.interaction.scroll.motions.remove(&node);
@@ -358,7 +358,7 @@ impl Applier {
             };
             node = parent;
         }
-        let now = Instant::now();
+        let now = self.runtime.clock.now_instant();
         for node in &changed_nodes {
             self.interaction.scroll.activity.insert(*node, now);
             if !smooth {
@@ -420,7 +420,7 @@ impl Applier {
     }
 
     pub(super) fn tick_scroll_motions(&mut self) -> bool {
-        self.tick_scroll_motions_at(Instant::now())
+        self.tick_scroll_motions_at(self.runtime.clock.now_instant())
     }
 
     pub(super) fn scroll_node(&mut self, target: NodeKey, x: f32, y: f32, relative: bool) -> bool {
@@ -459,7 +459,7 @@ impl Applier {
             self.interaction
                 .scroll
                 .activity
-                .insert(node, Instant::now());
+                .insert(node, self.runtime.clock.now_instant());
             self.queue_scroll_event(node);
         }
         self.frame.projections.semantics_dirty |= changed;
@@ -627,7 +627,7 @@ impl Applier {
         let Some(deadline) = self.interaction.text_selection.next_scroll else {
             return false;
         };
-        if Instant::now() < deadline {
+        if self.runtime.clock.now_instant() < deadline {
             return false;
         }
         let Some((target, dx, dy)) = self.text_selection_scroll_delta() else {
@@ -636,7 +636,7 @@ impl Applier {
         };
         let changed = self.scroll_nearest(target, dx, dy, false);
         self.interaction.text_selection.next_scroll =
-            changed.then(|| Instant::now() + Duration::from_millis(50));
+            changed.then(|| self.runtime.clock.now_instant() + Duration::from_millis(50));
         changed
     }
 }
