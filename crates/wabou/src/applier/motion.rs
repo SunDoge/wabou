@@ -60,10 +60,19 @@ impl Applier {
                 paint.motion_opacity = sample.opacity;
             }
         }
-        if transforms_active && self.document.motion.is_active() {
+        // Mark geometry dirty whenever a transform was written this frame,
+        // including the completion frame: the final resting position must
+        // reach hit geometry, or a completed animation leaves clicks aimed
+        // at the pre-completion bounds. Semantic bounds ride the same
+        // transform, so the semantic snapshot is re-projected too — the two
+        // projections must never disagree about an animated node's position.
+        // (A following frame with no motion samples skips this whole block,
+        // so steady state stays clean.)
+        if transforms_active {
             self.document
                 .invalidation
                 .insert(InvalidationFlags::GEOMETRY);
+            self.frame.projections.semantics_dirty = true;
         }
         for (node, generation) in completed {
             let Some(target) = self.document.node_store.solid_id_for_node(node) else {

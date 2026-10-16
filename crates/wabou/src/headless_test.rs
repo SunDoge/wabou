@@ -175,9 +175,11 @@ pub(super) fn run(
     let deadline = Instant::now() + Duration::from_secs(305);
 
     // One loop iteration is one virtual frame when a virtual clock drives
-    // the run: pending effect deliveries land first, the frame is built on
-    // the delivered state, and time advances last so timer continuations
-    // started during this frame run at the start of the next one. With no
+    // the run: the frame is built at virtual time T, scenario dispatches
+    // land at T, their reactions are drained to a fixpoint still at T —
+    // matching a browser, where an input event's microtasks run before the
+    // next animation frame — and time advances last, so timer continuations
+    // fired by the advance observe T+16 on the next iteration. With no
     // virtual clock the loop keeps polling on wall-clock pacing.
     while !controller.has_report() && Instant::now() < deadline {
         for (index, (source, _)) in sources.iter_mut().enumerate() {
@@ -218,6 +220,17 @@ pub(super) fn run(
                 visible: &mut visible[index],
             };
             let _ = controller.poll_native_host(window_key, &mut host);
+            // Reactions to dispatched events (Solid microtasks, promise
+            // chains) execute at the event's own frame timestamp. Cascading
+            // reactions queue more jobs, so drain to a fixpoint — bounded so
+            // an infinite animation loop cannot wedge the host.
+            if virtual_clock.is_some() {
+                for _ in 0..8 {
+                    if !source.poll_async() {
+                        break;
+                    }
+                }
+            }
         }
         if let Some(clock) = virtual_clock {
             // The TS-side fake clock uses the same 16 ms frame interval; a
