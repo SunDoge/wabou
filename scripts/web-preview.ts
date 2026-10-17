@@ -39,5 +39,5 @@ await run([
   "vite",
   ...(command === "build" ? ["build"] : []),
   "--config",
-  "examples/web-preview/vite.config.ts",
+  "examples/web-preview/wabou.config.ts",
 ]);

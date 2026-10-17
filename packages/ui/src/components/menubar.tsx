@@ -13,8 +13,8 @@ import {
   type DropdownMenuItem,
   type DropdownMenuKeyEvent,
 } from "./dropdown-menu";
-import { Toolbar, ToolbarButton } from "./toolbar";
 import type { PopupMotionProps } from "./popover";
+import { Toolbar, ToolbarButton } from "./toolbar";
 
 interface MenubarEntry {
   value: string;

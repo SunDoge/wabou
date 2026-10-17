@@ -1,0 +1,22 @@
+{
+  "version": 6,
+  "theme": { "spacing": {}, "colors": {} },
+  "diagnostics": [],
+  "ignoredClassPatterns": [],
+  "rules": [
+    {
+      "className": "hmr-color",
+      "declarations": [
+        {
+          "property": "color",
+          "value": {
+            "type": "color",
+            "value": { "kind": "literal", "rgba": 862375167 }
+          }
+        }
+      ],
+      "specificity": 10,
+      "sourceOrder": 0
+    }
+  ]
+}

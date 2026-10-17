@@ -4,7 +4,7 @@ use std::path::PathBuf;
 
 use vello_common::{kurbo::Affine, peniko::Color};
 use wabou_pdf::{PageRenderOptions, PdfDocument};
-use wabou_shell_vello::{PaintContext, PaintScene, Scene, TextContext, renderer};
+use wabou_shell::{PaintContext, PaintScene, Scene, TextContext, renderer};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let input = std::env::args_os()

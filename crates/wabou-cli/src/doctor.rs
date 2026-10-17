@@ -6,7 +6,7 @@ use std::env;
 
 use super::{
     Result, ensure_javascript_dependencies, ensure_workspace_package_exports, find_workspace,
-    project::load_frontend_app,
+    project::load_app,
 };
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -170,7 +170,7 @@ pub(super) fn run(cwd: &Path, app_path: Option<&Path>) -> Result<()> {
         })
         .unwrap_or_else(|| cwd.to_path_buf());
     match find_workspace(&project_start) {
-        Ok(workspace) => match load_frontend_app(&workspace, cwd, app_path) {
+        Ok(workspace) => match load_app(&workspace, cwd, app_path) {
             Ok(app) => {
                 checks.push(Check::new(
                     Status::Pass,

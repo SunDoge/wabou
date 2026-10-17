@@ -1,5 +1,5 @@
-import type { WabouStyle } from "../style";
 import type { Element as SolidElement } from "solid-js";
+import type { WabouStyle } from "../style";
 import type {
   Handle,
   WabouBuiltinIntrinsicElements,

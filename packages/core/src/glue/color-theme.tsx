@@ -3,7 +3,6 @@ import {
   createContext,
   createEffect,
   createSignal,
-  onCleanup,
   type JSX,
   useContext,
 } from "solid-js";
@@ -59,7 +58,7 @@ function paletteFor(name: string): ColorPalette {
     palette = output;
   } catch {
     throw new Error(
-      `Unknown Wabou color theme \`${name}\`; declare it in the \`theme.themes\` section of vite.config.ts`,
+      `Unknown Wabou color theme \`${name}\`; declare it in the \`theme.themes\` section of wabou.config.ts`,
     );
   }
   if (!(palette instanceof Uint32Array))
@@ -249,10 +248,12 @@ export function ColorThemeProvider(props: {
   createEffect(
     () => [props.theme, props.transition] as const,
     ([theme, transition]) => {
-      const animation =
-        initialized && transition
-          ? colorTheme.animateTo(theme, transition)
-          : (colorTheme.set(theme), undefined);
+      let animation: ColorThemeAnimation | undefined;
+      if (initialized && transition) {
+        animation = colorTheme.animateTo(theme, transition);
+      } else {
+        colorTheme.set(theme);
+      }
       initialized = true;
       return animation ? () => animation.cancel() : undefined;
     },

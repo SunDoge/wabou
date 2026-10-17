@@ -1,5 +1,5 @@
-import type { JSX } from "solid-js";
 import { mergeClasses } from "@wabou/core/style";
+import type { JSX } from "solid-js";
 import { View, type ViewProps } from "./view";
 
 export interface LayoutProps extends ViewProps {

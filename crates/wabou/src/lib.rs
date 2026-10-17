@@ -1,80 +1,101 @@
-//! Public Rust application API for Wabou.
-//!
-//! Applications should depend on this crate rather than Wabou's internal
-//! implementation crates. The facade deliberately preserves one stable import
-//! path while the renderer, QuickJS host, widgets, and platform crates evolve.
-//!
-//! ```no_run
-//! use wabou::{HostBuilder, WindowOptions};
-//!
-//! # fn run() -> wabou::Result<()> {
-//! HostBuilder::new()
-//!     .window(WindowOptions::new().title("My Wabou app"))
-//!     .run()
-//! # }
-//! ```
+//! Public Rust application API for Wabou's Winit + Taffy + Vello runtime.
 
-#[cfg(feature = "vello-hybrid")]
-pub use wabou_backend_vello_hybrid::VelloHybridHostBuilder as HostBuilder;
-#[cfg(feature = "vello-hybrid")]
-pub use wabou_backend_vello_hybrid::{
-    Error, ImageResource, ImageResourceHandle, ImageResourceStore, NativeWidgetPlugin, Result,
-    VelloHybridEffectRequest, VelloHybridExtensionContext, VelloHybridHostBuilder,
-    VelloHybridPaintContext, VelloHybridPoint, VelloHybridPointerButton, VelloHybridPointerPhase,
-    VelloHybridRasterImage, VelloHybridSecretStore, VelloHybridShellExtension,
-    VelloHybridTextContext, VelloHybridWakeCallback, VelloHybridWidgetChanges,
-    Widget as VelloHybridWidget,
+#![allow(missing_docs)]
+
+mod atom;
+mod behavior_test;
+mod bundle {
+    pub use runtime_api::{load_bundle as load, load_source_map, resource_directory};
+}
+mod config;
+mod effect_bridge {
+    #[cfg(test)]
+    pub use runtime_api::decode_effect_payload;
+}
+#[allow(dead_code)] // Fixture-only trace mode is retained for the Winit behavior harness.
+mod effect_trace {
+    pub use runtime_api::EffectTrace;
+}
+mod error;
+mod headless_test;
+mod host;
+#[cfg(test)]
+use runtime_api::host_abi;
+mod host_frame {
+    pub use runtime_api::{
+        HostEvent, HostFrameError, HostNodeEvent, NodeEventPayload, NumericEventData,
+        ResizeObservation,
+    };
+}
+mod host_message {
+    pub use runtime_api::{
+        HostMessage, HostMessageContext, HostMessageHandle, HostMessagePayload, HostMessageRouter,
+    };
+}
+mod inline_context;
+mod jsrt {
+    pub use runtime_api::{
+        HostFrameDisposition, JsRuntime, JsRuntimeOptions, LayoutMetric, LayoutMetricsSnapshot,
+        LayoutRect, ResizeTargets,
+    };
+}
+mod protocol;
+mod reload {
+    #[cfg(any(feature = "vite", test))]
+    pub use runtime_api::ReloadMsg;
+    #[cfg(feature = "vite")]
+    pub use runtime_api::is_vite_side_effect_update;
+    #[cfg(test)]
+    pub use runtime_api::plan_hmr_batch;
+    pub use runtime_api::{HmrBatch, HmrDrainResult, ReloadHandle};
+}
+/// Generational resources shared by every Wabou backend.
+pub mod resource {
+    pub use runtime_api::{ResourceKey, ResourceRegistry};
+}
+mod runtime_session {
+    pub use runtime_api::RuntimeSession;
+}
+
+use wabou_style::stylesheet as style_ir;
+
+pub use config::AppConfig;
+pub use error::{Error, Result};
+pub use host::HostBuilder;
+pub use host_frame::{
+    HostEvent, HostFrameError, HostNodeEvent, NodeEventPayload, NumericEventData, ResizeObservation,
 };
-#[cfg(feature = "bindings")]
-pub use wabou_bindgen::{
-    Bindings, Capability, FunctionModule, NativeMethod, Type, WidgetModule, specta,
+pub use host_message::{
+    HostMessage, HostMessageContext, HostMessageHandle, HostMessagePayload, HostMessageRouter,
 };
-pub use wabou_bindgen::{CapabilityContract, HostMethod, JsonMethod};
+pub use jsrt::{JsRuntime, JsRuntimeOptions};
+pub use runtime_api::HostModuleState;
+pub use runtime_api::JsValue;
+pub use runtime_api::{ImageResource, ImageResourceHandle, ImageResourceStore};
+pub use wabou_shell::widgets::SecretStore;
+pub use wabou_shell::{
+    EffectRequest, ExtensionContext, NativeWidgetPlugin, PaintContext, Point, PointerButton,
+    PointerPhase, ShellExtension, TextContext, WakeCallback, Widget, WidgetChanges, WidgetFactory,
+    WidgetRasterImage, WindowOptions,
+};
+
+pub use runtime_api::RgbaColor as Color;
+pub use runtime_api::rquickjs;
+pub use runtime_api::{
+    AppDirectories, AppDirectoryConfig, HostMessageError, HostService, HostServiceContext,
+    HostServiceHandle, ManagedHostService, PersistentJsonCache, ResidentResources, ResourceKey,
+    ResourceRegistry, RevisionedHostPublication, RevisionedHostPublisher, RevisionedHostSnapshot,
+    SerialWorker, WindowBackground, WindowInputMode, WindowLevel, WindowResourceKey,
+    initial_window_resource_key, managed_host_service,
+};
+pub use wabou_bindgen::{js, js_class, js_module, js_type};
 pub use wabou_database::{
     AtomicCommit as KvAtomicCommit, KvCheck, KvEntry, KvKey, KvKeyPart, KvListOptions, KvMutation,
     KvStore, Versionstamp as KvVersionstamp,
 };
-pub use wabou_runtime::RgbaColor as Color;
-pub use wabou_runtime::rquickjs;
-pub use wabou_runtime::{
-    AppDirectories, AppDirectoryConfig, HostMessage, HostMessageContext, HostMessageError,
-    HostMessageHandle, HostMessagePayload, HostMessageRouter, HostService, HostServiceContext,
-    HostServiceHandle, ManagedHostService, NativeCapability, PersistentJsonCache,
-    ResidentResources, ResourceKey, ResourceRegistry, RevisionedHostPublication,
-    RevisionedHostPublisher, RevisionedHostSnapshot, SerialWorker, WindowBackground,
-    WindowInputMode, WindowLevel, WindowOptions, WindowResourceKey, initial_window_resource_key,
-    managed_host_service,
-};
 #[cfg(feature = "tray")]
 pub use wabou_tray::{SystemTray, TrayContext, TrayImage};
 
-#[cfg(test)]
-mod tests {
-    use super::*;
+mod applier;
 
-    #[test]
-    fn facade_exposes_default_application_entry_points() {
-        let _builder = HostBuilder::new();
-        #[cfg(feature = "vello-hybrid")]
-        let _hybrid_backend = VelloHybridHostBuilder::new();
-        let _window = WindowOptions::new().title("Facade test");
-        let _transparent = Color::TRANSPARENT;
-        let _: JsonMethod<(), bool> = JsonMethod::no_request("ready");
-    }
-
-    #[cfg(feature = "bindings")]
-    #[test]
-    fn bindings_feature_exposes_generation_entry_points() {
-        #[allow(dead_code)]
-        #[derive(Type)]
-        struct Payload {
-            ready: bool,
-        }
-
-        let _ =
-            Bindings::new().capability(Capability::new(CapabilityContract::new("workspace", 1)));
-        let _widgets = WidgetModule::new();
-        let mut types = specta::Types::default();
-        let _ = Payload::definition(&mut types);
-    }
-}
+pub use applier::{Applier, ComputedNodeSnapshot};

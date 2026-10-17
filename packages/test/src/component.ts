@@ -171,7 +171,7 @@ export interface ComponentLocator extends ComponentQueries {
   readonly focusContained: boolean;
   /** Native stacking plane authored for this node. */
   readonly overlayPlane: ComponentOverlayPlane;
-  /** Whether this node owns an explicit retained GPUI projection boundary. */
+  /** Whether this node owns an explicit retained projection boundary. */
   readonly projectionBoundary: boolean;
   attribute(name: string): string | null;
   pointerDown(position?: ComponentPointerPosition): void;
@@ -386,7 +386,7 @@ function missingHostMethod(path: string): never {
 
 /** Create a typed, deterministic Host with automatic call recording. */
 export function createTestHost<C extends object = Record<string, never>>(
-  capabilities?: C,
+  modules?: C,
   builtins: TestBuiltinHost = {},
 ): TestHostFixture<Host & C> {
   const calls: TestHostCall[] = [];
@@ -427,6 +427,21 @@ export function createTestHost<C extends object = Record<string, never>>(
         locale: () => "en-US",
         timeZone: () => "UTC",
         today: () => ({ year: 1970, month: 1, day: 1 }),
+        firstWeekday: (locale) => (locale.endsWith("US") ? 0 : 1),
+        formatNumber: (locale, value, options) =>
+          new Intl.NumberFormat(locale, JSON.parse(options)).format(value),
+        parseNumber: (_locale, input) => Number(input.replace(",", ".")),
+        pluralCategory: (locale, value, options) =>
+          new Intl.PluralRules(locale, JSON.parse(options)).select(value),
+        formatDate: (locale, epochMillis, options) =>
+          new Intl.DateTimeFormat(locale, JSON.parse(options)).format(
+            epochMillis,
+          ),
+        formatRelativeTime: (locale, value, unit, options) =>
+          new Intl.RelativeTimeFormat(locale, JSON.parse(options)).format(
+            value,
+            unit as Intl.RelativeTimeFormatUnit,
+          ),
         ...builtins.intl,
       },
       layout: {
@@ -434,7 +449,7 @@ export function createTestHost<C extends object = Record<string, never>>(
         ...builtins.layout,
       },
     } satisfies BuiltinHost,
-    capabilities ?? ({} as C),
+    modules ?? ({} as C),
   );
   const cache = new WeakMap<object, object>();
   const wrap = (value: object, path: string): object => {

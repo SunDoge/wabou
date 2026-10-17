@@ -19,7 +19,7 @@
         return cached;
     }
     target = mod != null ? __create(__getProtoOf(mod)) : {};
-    const to = isNodeMode || !mod || !mod.__esModule ? __defProp(target, "default", { value: mod, enumerable: true }) : target;
+    const to = isNodeMode || !mod || !mod.__esModule || !__hasOwnProp.call(mod, "default") ? __defProp(target, "default", { value: mod, enumerable: true }) : target;
     if (mod && typeof mod === "object" || typeof mod === "function") {
       for (let key of __getOwnPropNames(mod))
         if (!__hasOwnProp.call(to, key))
@@ -1364,9 +1364,9 @@ ${footer}`;
       } else {
         commitPendingNodes();
         for (let i = 0;i < heldTrims.length; i++) {
-          const t2 = heldTrims[i];
-          if (t2._x?._error == null && !t2._modified)
-            trimStaleDeps(t2);
+          const t = heldTrims[i];
+          if (t._x?._error == null && !t._modified)
+            trimStaleDeps(t);
         }
       }
       if (heldTrims.length)
@@ -1378,12 +1378,12 @@ ${footer}`;
         stagedReaders.length = 0;
       this._queues = [[], []];
       for (let k = transactions.length - 1;k >= 0; k--) {
-        const u2 = transactions[k];
-        if (blocked(u2))
+        const u = transactions[k];
+        if (blocked(u))
           continue;
         transactions.splice(k, 1);
-        GlobalQueue._endLanes?.(u2);
-        land(u2);
+        GlobalQueue._endLanes?.(u);
+        land(u);
         k = transactions.length;
       }
       GlobalQueue._storeCommit?.();
@@ -2075,7 +2075,7 @@ ${footer}`;
         releaseIfSettledUnobserved(node);
   }
   function settleErroredDependents(el, error) {
-    let scheduled2 = false;
+    let scheduled = false;
     const visited = new Set;
     const visit = (node) => {
       if (visited.has(node))
@@ -2083,12 +2083,12 @@ ${footer}`;
       visited.add(node);
       if (node._x?._error === error) {
         enqueueSub(node);
-        scheduled2 = true;
+        scheduled = true;
       }
       forEachDependent(node, visit);
     };
     forEachDependent(el, visit);
-    if (scheduled2)
+    if (scheduled)
       schedule();
   }
   function settlePendingSource(el, source = el) {
@@ -2106,7 +2106,7 @@ ${footer}`;
       }
     }
     removePendingSource(el, source);
-    let scheduled2 = false;
+    let scheduled = false;
     let released;
     const visited = new Set;
     const settle = (node) => {
@@ -2127,7 +2127,7 @@ ${footer}`;
           joinFuture(txOf(node));
         if (node._x?._blocked) {
           enqueueSub(node);
-          scheduled2 = true;
+          scheduled = true;
         }
         if (node._x !== null)
           node._x._blocked = false;
@@ -2140,7 +2140,7 @@ ${footer}`;
     if (released)
       for (const node of released)
         releaseIfSettledUnobserved(node);
-    if (scheduled2)
+    if (scheduled)
       schedule();
   }
   function isThenable(value) {
@@ -2454,9 +2454,9 @@ ${footer}`;
   }
   function propagateStatus(el, status, error, downstreamBlockStatus) {
     const pendingSource = status === STATUS_PENDING && error instanceof NotReadyError ? error.source : undefined;
-    forEachDependent(el, (sub, link2) => {
+    forEachDependent(el, (sub, link) => {
       sub._time = clock;
-      if (sub._config & (CONFIG_REDERIVE | CONFIG_VERDICT) || status === STATUS_PENDING && link2._gen !== sub._depGen) {
+      if (sub._config & (CONFIG_REDERIVE | CONFIG_VERDICT) || status === STATUS_PENDING && link._gen !== sub._depGen) {
         enqueueSub(sub);
         schedule();
         return;
@@ -3089,13 +3089,13 @@ ${footer}`;
     let c = context;
     if (c?._root)
       c = c._parentComputed;
-    const computed2 = el;
+    const computed = el;
     const owner = el;
-    if (typeof computed2._fn === "function")
+    if (typeof computed._fn === "function")
       prepareComputed(el);
     if (verdict !== null)
       return verdict(el, c);
-    if (!computed2._fn && el._x?._snapshotValue === undefined && !snapshotCaptureActive && (!unflushedStaged || el._pendingValue === NOT_PENDING) && !(el._config & CONFIG_OVERRIDE) && !strictRead) {
+    if (!computed._fn && el._x?._snapshotValue === undefined && !snapshotCaptureActive && (!unflushedStaged || el._pendingValue === NOT_PENDING) && !(el._config & CONFIG_OVERRIDE) && !strictRead) {
       if (c) {
         if (tracking)
           link(el, c);
@@ -3192,7 +3192,7 @@ ${footer}`;
     if (committed)
       return el._value;
     const value = serve(el, c);
-    if (!c && typeof computed2._fn === "function" && el._config & CONFIG_AUTO_DISPOSE && !(owner._statusFlags & STATUS_PENDING) && !el._subs) {
+    if (!c && typeof computed._fn === "function" && el._config & CONFIG_AUTO_DISPOSE && !(owner._statusFlags & STATUS_PENDING) && !el._subs) {
       dormantNodes.add(el);
       schedule();
     }
@@ -3826,30 +3826,30 @@ ${footer}`;
       probeFound = true;
   };
   var ACTION_CALLED_IN_OWNED_SCOPE_MESSAGE = "[ACTION_CALLED_IN_OWNED_SCOPE] Calling an action inside an owned scope (component, computation) is not allowed. " + "Call it from an event handler or another imperative scope.";
-  function getContext(context2, owner = getOwner()) {
+  function getContext(context, owner = getOwner()) {
     if (!owner) {
       throw new NoOwnerError;
     }
-    let value = owner._context[context2.id];
+    let value = owner._context[context.id];
     if (value === undefined)
-      value = context2.defaultValue;
+      value = context.defaultValue;
     if (value === undefined) {
       throw new ContextNotFoundError;
     }
     return value;
   }
-  function setContext(context2, value, owner = getOwner()) {
+  function setContext(context, value, owner = getOwner()) {
     if (!owner) {
       throw new NoOwnerError;
     }
     owner._context = {
       ...owner._context,
-      [context2.id]: value === undefined ? context2.defaultValue : value
+      [context.id]: value === undefined ? context.defaultValue : value
     };
   }
-  function effect(compute, effect2, error, options) {
+  function effect(compute, effect, error, options) {
     const isUser = !!options?.user;
-    const node = createEffectNode(compute, effect2, error, isUser ? EFFECT_USER : EFFECT_RENDER, options);
+    const node = createEffectNode(compute, effect, error, isUser ? EFFECT_USER : EFFECT_RENDER, options);
     recompute(node, true);
     !options?.defer && node._pendingValue === NOT_PENDING && !node._x?._transaction?._lane && (node._type === EFFECT_USER || options?.schedule ? globalQueue.enqueue(node._type, runEffect.bind(null, node)) : runEffect(node, node._type));
     if (!node._parent) {
@@ -3907,9 +3907,9 @@ ${footer}`;
       node._modified = false;
       try {
         node._errorFn ? node._errorFn(err, () => {
-          const prevCleanup2 = node._cleanup;
+          const prevCleanup = node._cleanup;
           node._cleanup = undefined;
-          prevCleanup2?.();
+          prevCleanup?.();
         }) : console.error(err);
       } catch (error) {
         if (!globalQueue.notify(node, STATUS_ERROR, STATUS_ERROR)) {
@@ -3989,15 +3989,15 @@ ${footer}`;
     const hook = hookFor(owner);
     if (hook === undefined)
       return;
-    const context2 = {};
+    const context = {};
     const boundary = labels(owner);
     const path = labels(thrower) ?? boundary;
     if (path !== undefined)
-      context2.ownerPath = path;
+      context.ownerPath = path;
     if (boundary !== undefined)
-      context2.boundaryPath = boundary;
+      context.boundaryPath = boundary;
     try {
-      hook(error, context2);
+      hook(error, context);
     } catch (hookError) {
       console.error(hookError);
     }
@@ -4009,9 +4009,9 @@ ${footer}`;
   }
   function createSignal(first, second) {
     if (typeof first === "function") {
-      const node2 = computed(first, second);
-      node2._config &= ~CONFIG_AUTO_DISPOSE;
-      return [accessor(node2), setMemo.bind(null, node2)];
+      const node = computed(first, second);
+      node._config &= ~CONFIG_AUTO_DISPOSE;
+      return [accessor(node), setMemo.bind(null, node)];
     }
     const node = signal(first, second);
     registerGraph(node, getOwner());
@@ -4019,6 +4019,22 @@ ${footer}`;
   }
   function createMemo(compute, options) {
     return accessor(computed(compute, options));
+  }
+  function createEffect(compute, effectFn, options) {
+    if (effectFn === undefined) {
+      const message = "[MISSING_EFFECT_FN] createEffect requires both a compute function and an effect function. " + "Use `createEffect(() => signal(), value => doWork(value))`. " + "If you want a derived value, use `createMemo`. " + "If you want a one-shot side effect, just call the function directly.";
+      emitDiagnostic({
+        code: "MISSING_EFFECT_FN",
+        kind: "lifecycle",
+        severity: "error",
+        message
+      });
+      throw new Error(message);
+    }
+    effect(compute, effectFn.effect || effectFn, effectFn.error, {
+      user: true,
+      ...options
+    });
   }
   function createRenderEffect(compute, effectFn, options) {
     effect(compute, effectFn, undefined, options);
@@ -4087,12 +4103,12 @@ ${footer}`;
   }
   var writeOverride = false;
   var optHooks = null;
-  function installOptHooks(hooks2) {
-    optHooks = hooks2;
+  function installOptHooks(hooks) {
+    optHooks = hooks;
   }
   var affectsHooks = null;
-  function installAffectsHooks(hooks2) {
-    affectsHooks = hooks2;
+  function installAffectsHooks(hooks) {
+    affectsHooks = hooks;
   }
   var $DEEP = Symbol("STORE_DEEP");
   function TargetShape() {
@@ -4353,9 +4369,9 @@ ${footer}`;
   function cloneRaw(source, t) {
     t.sc || scanAccessorsOnce(t);
     if (t.sc === 2) {
-      const clone2 = { ...source };
-      clone2[$OWNER] = t;
-      return clone2;
+      const clone = { ...source };
+      clone[$OWNER] = t;
+      return clone;
     }
     const descs = Object.getOwnPropertyDescriptors(source);
     for (const key of Reflect.ownKeys(descs)) {
@@ -4536,15 +4552,15 @@ ${footer}`;
   }
   function drainFolds() {
     if (foldList.length !== 0) {
-      const list2 = foldList;
+      const list = foldList;
       const olds = foldOlds;
       foldList = foldSpare;
       foldOlds = foldOldsSpare;
-      foldSpare = list2;
+      foldSpare = list;
       foldOldsSpare = olds;
       foldIndex = null;
-      for (let i = 0;i < list2.length; i++) {
-        const t = list2[i];
+      for (let i = 0;i < list.length; i++) {
+        const t = list[i];
         if (t.pb === null)
           continue;
         const k = t.k;
@@ -4554,7 +4570,7 @@ ${footer}`;
         } else
           foldTarget(t, olds[i]);
       }
-      list2.length = 0;
+      list.length = 0;
       olds.length = 0;
     }
     if (deferredReleases.size !== 0) {
@@ -4915,9 +4931,9 @@ ${footer}`;
           if ((leaf._config & (CONFIG_HELD | CONFIG_OVERRIDE)) === CONFIG_HELD)
             joinPassTx(txOf(leaf));
         } else {
-          const k2 = target.k;
-          if (k2 !== null && (k2._config & (CONFIG_HELD | CONFIG_OVERRIDE)) === CONFIG_HELD && (key === undefined || heldKeyChanged(target, key)))
-            joinPassTx(txOf(k2));
+          const k = target.k;
+          if (k !== null && (k._config & (CONFIG_HELD | CONFIG_OVERRIDE)) === CONFIG_HELD && (key === undefined || heldKeyChanged(target, key)))
+            joinPassTx(txOf(k));
         }
       }
       return pb;
@@ -5150,10 +5166,10 @@ ${footer}`;
         if (acc) {
           if (!inDraft(target) && getObserver() !== null)
             read(node0 ?? getNode(target, key, accProbe));
-          const v2 = Reflect.get(src, key, receiver);
+          const v = Reflect.get(src, key, receiver);
           if (target.s)
-            return serveShallow(target, key, v2);
-          return isWrappable(v2) ? draftServe(target, wrap(v2, target, key)) : v2;
+            return serveShallow(target, key, v);
+          return isWrappable(v) ? draftServe(target, wrap(v, target, key)) : v;
         }
       }
       const viewOvl = target.ovl && src === target.pb;
@@ -5394,11 +5410,11 @@ ${footer}`;
   function storeMarks(t, key) {
     if (key === undefined) {
       const carrier = getNode(t, $AFFECTS);
-      let entry2 = scopes.get(carrier);
-      if (entry2 === undefined)
-        scopes.set(carrier, entry2 = { scope: new Set, inherited: [] });
+      let entry = scopes.get(carrier);
+      if (entry === undefined)
+        scopes.set(carrier, entry = { scope: new Set, inherited: [] });
       const found = [carrier];
-      walk(t.px, entry2, found, t.fam, new Set);
+      walk(t.px, entry, found, t.fam, new Set);
       return found;
     }
     const node = t.n?.[key] ?? getNode(t, key);
@@ -6539,9 +6555,9 @@ ${footer}`;
         i === lastIndex && lastIndex--;
         continue;
       }
-      const sourceKeys2 = Object.getOwnPropertyNames(source);
-      for (let j = sourceKeys2.length - 1;j >= 0; j--) {
-        const key = sourceKeys2[j];
+      const sourceKeys = Object.getOwnPropertyNames(source);
+      for (let j = sourceKeys.length - 1;j >= 0; j--) {
+        const key = sourceKeys[j];
         if (key === "__proto__" || key === "constructor")
           continue;
         if (!defined[key]) {
@@ -6591,7 +6607,7 @@ ${footer}`;
     }
     const result = {};
     const propNames = Object.getOwnPropertyNames(props);
-    const isHiddenKey = typeof hidden === "function" ? hidden : hidden.length > 4 && propNames.length > hidden.length ? ((blocked2) => (key) => blocked2.has(key))(new Set(hidden)) : (key) => hidden.includes(key);
+    const isHiddenKey = typeof hidden === "function" ? hidden : hidden.length > 4 && propNames.length > hidden.length ? ((blocked) => (key) => blocked.has(key))(new Set(hidden)) : (key) => hidden.includes(key);
     for (const propName of propNames) {
       if (!isHiddenKey(propName)) {
         const desc = Object.getOwnPropertyDescriptor(props, propName);
@@ -6663,9 +6679,9 @@ ${footer}`;
     if (ambient.length === 0)
       return;
     if (parked !== null) {
-      const list2 = parked._marks ??= [];
+      const list = parked._marks ??= [];
       for (let i = 0;i < ambient.length; i++)
-        list2.push(ambient[i]);
+        list.push(ambient[i]);
       ambient.length = 0;
       return;
     }
@@ -6751,9 +6767,9 @@ ${footer}`;
     if (b._type === STATUS_ERROR) {
       error ??= node._x?._error;
       node = error?.source ?? node;
-      const caught2 = unwrapStatusError(error);
-      setSignal(b._error, caught2);
-      reportClientError(caught2, b._owner, node);
+      const caught = unwrapStatusError(error);
+      setSignal(b._error, caught);
+      reportClientError(caught, b._owner, node);
     }
     b._readers.add(node);
     collecting.add(b);
@@ -6924,8 +6940,8 @@ ${footer}`;
     provider.defaultValue = defaultValue;
     return provider;
   }
-  function useContext(context2) {
-    return getContext(context2);
+  function useContext(context) {
+    return getContext(context);
   }
   function children(fn) {
     const c = createMemo(fn, {
@@ -6980,6 +6996,7 @@ ${footer}`;
   var _createMemo;
   var _createSignal;
   var _createRenderEffect;
+  var _createEffect;
   var latchedOnce = new WeakSet;
   var LIVE_SOURCE = Symbol.for("solid.LiveSource");
   var LIVE_RESUME_FROM = Symbol.for("solid.LiveResumeFrom");
@@ -6995,6 +7012,7 @@ ${footer}`;
   };
   var createRoot2 = (...args) => (_createRoot || createRoot)(...args);
   var createRenderEffect2 = (...args) => (_createRenderEffect || createRenderEffect)(...args);
+  var createEffect2 = (...args) => (_createEffect || createEffect)(...args);
   var _fragments = new Map;
   var _truncated = new Set;
   var _revealSubs = new Set;
@@ -7018,6 +7036,125 @@ ${footer}`;
       console.warn("You appear to have multiple instances of Solid. This can lead to unexpected behavior.");
   }
   installConsoleFooter();
+
+  // packages/core/src/generated/wire-protocol.ts
+  var OP = {
+    CreateElement: 1,
+    CreateText: 2,
+    AppendChild: 4,
+    InsertBefore: 5,
+    RemoveChild: 6,
+    SetText: 8,
+    SetAttribute: 9,
+    RemoveAttribute: 10,
+    SetStyle: 11,
+    RemoveStyle: 12,
+    AddEventListener: 13,
+    RemoveEventListener: 14,
+    SetClassName: 15,
+    DropNode: 17,
+    SetTransform2D: 18,
+    FocusNode: 19,
+    ScrollTo: 20,
+    ScrollBy: 21,
+    SetStyleValue: 22,
+    SetShadows: 23,
+    SetOverlayPlane: 24,
+    SetScrollbarStyle: 25,
+    SetWidgetConfig: 26,
+    RemoveWidgetConfig: 27,
+    SetTextBehavior: 28,
+    SetInteractionPolicy: 29,
+    SetGraphicSource: 30,
+    ClearGraphicSource: 31,
+    SetGraphicData: 32,
+    ClearGraphicData: 33,
+    SetTextMaxLines: 34,
+    SetTextSelection: 35,
+    TextCommand: 36,
+    BlurNode: 37,
+    SetProjectionBoundary: 38,
+    AcknowledgeTextValue: 39
+  };
+  var TEXT_BEHAVIOR = {
+    AggregateDirectText: 1,
+    SingleLine: 2,
+    AggregateStyledText: 4,
+    ClipLines: 8
+  };
+  var INTERACTION_POLICY = {
+    Focusable: 1,
+    BlockSubtree: 2,
+    ContainFocus: 4
+  };
+  var GRAPHIC_SOURCE = {
+    Svg: 1,
+    ResourceRaster: 4
+  };
+  var GRAPHIC_DATA = {
+    VectorPath: 1
+  };
+  var MAX_GRAPHIC_DATA_BYTES = 16777216;
+  var EVENT_CODE = {
+    click: 1,
+    input: 2,
+    submit: 3,
+    keydown: 4,
+    keyup: 5,
+    change: 6,
+    pointerdown: 7,
+    pointermove: 8,
+    pointerup: 9,
+    pointerenter: 10,
+    pointerleave: 11,
+    wheel: 12,
+    focus: 13,
+    blur: 14,
+    imecommit: 15,
+    pointercancel: 16,
+    pointerover: 17,
+    pointerout: 18,
+    contextmenu: 19,
+    dblclick: 20,
+    focusin: 21,
+    focusout: 22,
+    scroll: 23,
+    terminalexit: 24,
+    terminalprogress: 25,
+    terminalnotification: 26,
+    terminaltitlechange: 27,
+    terminalcwdchange: 28,
+    terminalselectionchange: 29,
+    textselectionchange: 30,
+    terminalbell: 31,
+    resourceready: 32,
+    resourceerror: 33,
+    imeenabled: 34,
+    imepreedit: 35,
+    imedeletesurrounding: 36,
+    imedisabled: 37,
+    windowcloserequested: 38,
+    transitionend: 39,
+    secretstatechange: 40
+  };
+  var EVENT_DATA_LEN = 21;
+  var HOST_FRAME = {
+    Magic: 826689623,
+    Version: 3,
+    HeaderLen: 32
+  };
+  var HOST_RECORD_KIND = {
+    NodeEvent: 1,
+    Resize: 2,
+    ApplicationMessage: 3,
+    Window: 4,
+    Widget: 5
+  };
+  var HOST_NODE_PAYLOAD = {
+    None: 0,
+    Numeric: 1,
+    Json: 2
+  };
 
   // packages/core/src/protocol/resource-key.ts
   var U32_MAX = 4294967295;
@@ -7183,151 +7320,12 @@ ${footer}`;
       super(nodeKeyFamily);
     }
   }
-
   // packages/core/src/protocol/index.ts
-  var OP = {
-    CreateElement: 1,
-    CreateText: 2,
-    AppendChild: 4,
-    InsertBefore: 5,
-    RemoveChild: 6,
-    SetText: 8,
-    SetAttribute: 9,
-    RemoveAttribute: 10,
-    SetStyle: 11,
-    RemoveStyle: 12,
-    AddEventListener: 13,
-    RemoveEventListener: 14,
-    SetClassName: 15,
-    DropNode: 17,
-    SetTransform2D: 18,
-    FocusNode: 19,
-    ScrollTo: 20,
-    ScrollBy: 21,
-    SetStyleValue: 22,
-    SetShadows: 23,
-    SetOverlayPlane: 24,
-    SetScrollbarStyle: 25,
-    SetWidgetConfig: 26,
-    RemoveWidgetConfig: 27,
-    SetTextBehavior: 28,
-    SetInteractionPolicy: 29,
-    SetGraphicSource: 30,
-    ClearGraphicSource: 31,
-    SetGraphicData: 32,
-    ClearGraphicData: 33,
-    SetTextMaxLines: 34,
-    SetTextSelection: 35,
-    TextCommand: 36,
-    BlurNode: 37,
-    SetProjectionBoundary: 38,
-    AcknowledgeTextValue: 39
-  };
-  var TEXT_BEHAVIOR = {
-    AggregateDirectText: 1,
-    SingleLine: 2,
-    AggregateStyledText: 4,
-    ClipLines: 8
-  };
   var TEXT_BEHAVIOR_MASK = TEXT_BEHAVIOR.AggregateDirectText | TEXT_BEHAVIOR.SingleLine | TEXT_BEHAVIOR.AggregateStyledText | TEXT_BEHAVIOR.ClipLines;
-  var INTERACTION_POLICY = {
-    Focusable: 1,
-    BlockSubtree: 2,
-    ContainFocus: 4
-  };
   var INTERACTION_POLICY_MASK = INTERACTION_POLICY.Focusable | INTERACTION_POLICY.BlockSubtree | INTERACTION_POLICY.ContainFocus;
-  var GRAPHIC_SOURCE = {
-    Svg: 1,
-    ResourceRaster: 4
-  };
-  var GRAPHIC_DATA = { VectorPath: 1 };
-  var MAX_GRAPHIC_DATA_BYTES = 16 * 1024 * 1024;
   function validGraphicSourceKind(kind) {
     return kind === GRAPHIC_SOURCE.Svg || kind === GRAPHIC_SOURCE.ResourceRaster;
   }
-  var EVENT_CODE = {
-    click: 1,
-    input: 2,
-    submit: 3,
-    keydown: 4,
-    keyup: 5,
-    change: 6,
-    pointerdown: 7,
-    pointermove: 8,
-    pointerup: 9,
-    pointerenter: 10,
-    pointerleave: 11,
-    wheel: 12,
-    focus: 13,
-    blur: 14,
-    imecommit: 15,
-    pointercancel: 16,
-    pointerover: 17,
-    pointerout: 18,
-    contextmenu: 19,
-    dblclick: 20,
-    focusin: 21,
-    focusout: 22,
-    scroll: 23,
-    terminalexit: 24,
-    terminalprogress: 25,
-    terminalnotification: 26,
-    terminaltitlechange: 27,
-    terminalcwdchange: 28,
-    terminalselectionchange: 29,
-    textselectionchange: 30,
-    terminalbell: 31,
-    resourceready: 32,
-    resourceerror: 33,
-    imeenabled: 34,
-    imepreedit: 35,
-    imedeletesurrounding: 36,
-    imedisabled: 37,
-    windowcloserequested: 38,
-    transitionend: 39,
-    secretstatechange: 40
-  };
-  var EVENT_DATA_SLOT = {
-    clientX: 0,
-    clientY: 1,
-    offsetX: 2,
-    offsetY: 3,
-    button: 4,
-    buttons: 5,
-    mods: 6,
-    deltaX: 7,
-    deltaY: 8,
-    scrollX: 9,
-    scrollY: 10,
-    phase: 11,
-    pointerIdLo: 12,
-    pointerIdHi: 13,
-    pointerType: 14,
-    primary: 15,
-    pressure: 16,
-    tangentialPressure: 17,
-    tiltX: 18,
-    tiltY: 19,
-    twist: 20
-  };
-  var EVENT_DATA_LEN = Object.keys(EVENT_DATA_SLOT).length;
-  var HOST_FRAME = {
-    Magic: 826689623,
-    Version: 3,
-    HeaderLen: 32
-  };
-  var HOST_RECORD_KIND = {
-    NodeEvent: 1,
-    Resize: 2,
-    ApplicationMessage: 3,
-    Window: 4,
-    Widget: 5
-  };
-  var HOST_NODE_PAYLOAD = {
-    None: 0,
-    Numeric: 1,
-    Json: 2
-  };
   var fallbackAtoms = new Map;
   function fallbackIntern(value) {
     let id = fallbackAtoms.get(value);
@@ -7797,7 +7795,22 @@ ${footer}`;
     layoutSnapshot: readLayoutSnapshot,
     systemLocale: () => __wabou_system_locale(),
     systemTimeZone: () => __wabou_system_time_zone(),
-    systemCalendarDate: () => JSON.parse(__wabou_system_calendar_date())
+    systemCalendarDate: () => JSON.parse(__wabou_system_calendar_date()),
+    firstWeekday: (locale) => typeof __wabou_first_weekday === "function" ? __wabou_first_weekday(locale) : new Intl.Locale(locale).getWeekInfo().firstDay % 7,
+    formatNumber: (locale, value, options) => typeof __wabou_format_number === "function" ? __wabou_format_number(locale, value, options) : new Intl.NumberFormat(locale, JSON.parse(options)).format(value),
+    parseNumber: (locale, input, options) => {
+      if (typeof __wabou_parse_number === "function")
+        return __wabou_parse_number(locale, input, options);
+      const formatter = new Intl.NumberFormat(locale, JSON.parse(options));
+      const parts = formatter.formatToParts(12345.6);
+      const group = parts.find((part) => part.type === "group")?.value ?? ",";
+      const decimal = parts.find((part) => part.type === "decimal")?.value ?? ".";
+      const normalized = input.replaceAll(group, "").replace(decimal, ".").replace(/[^0-9+.-]/g, "");
+      return Number(normalized);
+    },
+    pluralCategory: (locale, value, options) => typeof __wabou_plural_category === "function" ? __wabou_plural_category(locale, value, options) : new Intl.PluralRules(locale, JSON.parse(options)).select(value),
+    formatDate: (locale, epochMillis, options) => typeof __wabou_format_date === "function" ? __wabou_format_date(locale, epochMillis, options) : new Intl.DateTimeFormat(locale, JSON.parse(options)).format(epochMillis),
+    formatRelativeTime: (locale, value, unit, options) => typeof __wabou_format_relative_time === "function" ? __wabou_format_relative_time(locale, value, unit, options) : new Intl.RelativeTimeFormat(locale, JSON.parse(options)).format(value, unit)
   };
   var builtinHost = {
     system: { openUrl: nativeHost.openUrl },
@@ -7810,22 +7823,28 @@ ${footer}`;
     intl: {
       locale: nativeHost.systemLocale,
       timeZone: nativeHost.systemTimeZone,
-      today: nativeHost.systemCalendarDate
+      today: nativeHost.systemCalendarDate,
+      firstWeekday: nativeHost.firstWeekday,
+      formatNumber: nativeHost.formatNumber,
+      parseNumber: nativeHost.parseNumber,
+      pluralCategory: nativeHost.pluralCategory,
+      formatDate: nativeHost.formatDate,
+      formatRelativeTime: nativeHost.formatRelativeTime
     },
     layout: {
       snapshot: (targets) => nativeHost.layoutSnapshot(targets.map((target) => isNodeKey(target) ? target : target.id)),
       measure: (target) => {
-        const snapshot2 = builtinHost.layout.snapshot([target]);
-        return snapshot2.nodes[0]?.rect ?? null;
+        const snapshot = builtinHost.layout.snapshot([target]);
+        return snapshot.nodes[0]?.rect ?? null;
       },
       clippingRect: (target) => {
-        const snapshot2 = builtinHost.layout.snapshot([target]);
-        return snapshot2.nodes[0]?.clip ?? null;
+        const snapshot = builtinHost.layout.snapshot([target]);
+        return snapshot.nodes[0]?.clip ?? null;
       },
       viewport: () => builtinHost.layout.snapshot([]).viewport
     }
   };
-  var defaultHost = Object.assign(builtinHost, typeof __wabou_capabilities === "undefined" ? {} : __wabou_capabilities);
+  var defaultHost = Object.assign(builtinHost, typeof __wabou_host_modules === "undefined" ? {} : __wabou_host_modules);
   var HostContext = createContext(defaultHost);
   // packages/core/src/polyfills/globals.ts
   function installMissingGlobal(name, value) {
@@ -7875,17 +7894,17 @@ ${footer}`;
   }
   import_event_target_shim.defineEventAttribute(AbortSignal.prototype, "abort");
   function createAbortSignal() {
-    const signal2 = Object.create(AbortSignal.prototype);
-    import_event_target_shim.EventTarget.call(signal2);
-    abortedFlags.set(signal2, false);
-    return signal2;
+    const signal = Object.create(AbortSignal.prototype);
+    import_event_target_shim.EventTarget.call(signal);
+    abortedFlags.set(signal, false);
+    return signal;
   }
-  function abortSignal(signal2) {
-    if (abortedFlags.get(signal2) !== false) {
+  function abortSignal(signal) {
+    if (abortedFlags.get(signal) !== false) {
       return;
     }
-    abortedFlags.set(signal2, true);
-    signal2.dispatchEvent({ type: "abort" });
+    abortedFlags.set(signal, true);
+    signal.dispatchEvent({ type: "abort" });
   }
   var abortedFlags = new WeakMap;
   Object.defineProperties(AbortSignal.prototype, {
@@ -7911,11 +7930,11 @@ ${footer}`;
   }
   var signals = new WeakMap;
   function getSignal(controller) {
-    const signal2 = signals.get(controller);
-    if (signal2 == null) {
+    const signal = signals.get(controller);
+    if (signal == null) {
       throw new TypeError(`Expected 'this' to be an 'AbortController' object, but got ${controller === null ? "null" : typeof controller}`);
     }
-    return signal2;
+    return signal;
   }
   Object.defineProperties(AbortController2.prototype, {
     signal: { enumerable: true },
@@ -7968,26 +7987,26 @@ ${footer}`;
     setTimeout(() => c.abort(new DOMException("The operation timed out", "TimeoutError")), milliseconds);
     return c.signal;
   };
-  Signal.any = (signals2) => {
+  Signal.any = (signals) => {
     const c = new Controller;
     const cleanups = [];
-    for (const signal2 of signals2) {
-      if (signal2.aborted) {
-        c.abort(signal2.reason);
+    for (const signal of signals) {
+      if (signal.aborted) {
+        c.abort(signal.reason);
         break;
       }
-      const abort = () => c.abort(signal2.reason);
-      signal2.addEventListener("abort", abort, { once: true });
-      cleanups.push(() => signal2.removeEventListener("abort", abort));
+      const abort = () => c.abort(signal.reason);
+      signal.addEventListener("abort", abort, { once: true });
+      cleanups.push(() => signal.removeEventListener("abort", abort));
     }
-    const cleanup2 = () => {
+    const cleanup = () => {
       for (const remove of cleanups)
         remove();
     };
     if (c.signal.aborted)
-      cleanup2();
+      cleanup();
     else
-      c.signal.addEventListener("abort", cleanup2, { once: true });
+      c.signal.addEventListener("abort", cleanup, { once: true });
     return c.signal;
   };
   function installAbortControllerPolyfill() {
@@ -8050,2606 +8069,6 @@ ${footer}`;
     installMissingGlobal("crypto", new WabouCrypto);
   }
   installCryptoPolyfill();
-
-  // node_modules/.bun/web-streams-polyfill@4.3.0/node_modules/web-streams-polyfill/dist/ponyfill.mjs
-  function e() {}
-  function t(e2) {
-    return typeof e2 == "object" && e2 !== null || typeof e2 == "function";
-  }
-  var r = e;
-  function o(e2, t2) {
-    try {
-      Object.defineProperty(e2, "name", { value: t2, configurable: true });
-    } catch (e3) {}
-  }
-  var n = Promise;
-  var i = Promise.resolve.bind(n);
-  var a = Promise.prototype.then;
-  var s = Promise.reject.bind(n);
-  var l = i;
-  function u(e2) {
-    return new n(e2);
-  }
-  function c(e2) {
-    return u((t2) => t2(e2));
-  }
-  function d(e2) {
-    return s(e2);
-  }
-  function f(e2, t2, r2) {
-    return a.call(e2, t2, r2);
-  }
-  function h(e2, t2, o2) {
-    f(f(e2, t2, o2), undefined, r);
-  }
-  function b(e2, t2) {
-    h(e2, t2);
-  }
-  function _(e2, t2) {
-    h(e2, undefined, t2);
-  }
-  function m(e2, t2, r2) {
-    return f(e2, t2, r2);
-  }
-  function p(e2) {
-    f(e2, undefined, r);
-  }
-  var y = (e2) => {
-    if (typeof queueMicrotask == "function")
-      y = queueMicrotask;
-    else {
-      const e3 = c(undefined);
-      y = (t2) => f(e3, t2);
-    }
-    return y(e2);
-  };
-  function S(e2, t2, r2) {
-    if (typeof e2 != "function")
-      throw new TypeError("Argument is not a function");
-    return Function.prototype.apply.call(e2, t2, r2);
-  }
-  function g(e2, t2, r2) {
-    try {
-      return c(S(e2, t2, r2));
-    } catch (e3) {
-      return d(e3);
-    }
-  }
-
-  class v {
-    constructor() {
-      this._cursor = 0, this._size = 0, this._front = { _elements: [], _next: undefined }, this._back = this._front, this._cursor = 0, this._size = 0;
-    }
-    get length() {
-      return this._size;
-    }
-    push(e2) {
-      const t2 = this._back;
-      let r2 = t2;
-      t2._elements.length === 16383 && (r2 = { _elements: [], _next: undefined }), t2._elements.push(e2), r2 !== t2 && (this._back = r2, t2._next = r2), ++this._size;
-    }
-    shift() {
-      const e2 = this._front;
-      let t2 = e2;
-      const r2 = this._cursor;
-      let o2 = r2 + 1;
-      const n2 = e2._elements, i2 = n2[r2];
-      return o2 === 16384 && (t2 = e2._next, o2 = 0), --this._size, this._cursor = o2, e2 !== t2 && (this._front = t2), n2[r2] = undefined, i2;
-    }
-    forEach(e2) {
-      let t2 = this._cursor, r2 = this._front, o2 = r2._elements;
-      for (;!(t2 === o2.length && r2._next === undefined || t2 === o2.length && (r2 = r2._next, o2 = r2._elements, t2 = 0, o2.length === 0)); )
-        e2(o2[t2]), ++t2;
-    }
-    peek() {
-      const e2 = this._front, t2 = this._cursor;
-      return e2._elements[t2];
-    }
-  }
-  var w = Symbol("[[AbortSteps]]");
-  var R = Symbol("[[ErrorSteps]]");
-  var T = Symbol("[[CancelSteps]]");
-  var P = Symbol("[[PullSteps]]");
-  var C = Symbol("[[CanPullSyncSteps]]");
-  var q = Symbol("[[ReleaseSteps]]");
-  function E(e2, t2) {
-    e2._ownerReadableStream = t2, t2._reader = e2, t2._state === "readable" ? j(e2) : t2._state === "closed" ? function(e3) {
-      j(e3), z(e3);
-    }(e2) : k(e2, t2._storedError);
-  }
-  function W(e2, t2) {
-    return Mr(e2._ownerReadableStream, t2);
-  }
-  function O(e2) {
-    const t2 = e2._ownerReadableStream;
-    t2._state === "readable" ? A(e2, new TypeError("Reader was released and can no longer be used to monitor the stream's closedness")) : function(e3, t3) {
-      k(e3, t3);
-    }(e2, new TypeError("Reader was released and can no longer be used to monitor the stream's closedness")), t2._readableStreamController[q](), t2._reader = undefined, e2._ownerReadableStream = undefined;
-  }
-  function B(e2) {
-    return new TypeError("Cannot " + e2 + " a stream using a released reader");
-  }
-  function j(e2) {
-    e2._closedPromise = u((t2, r2) => {
-      e2._closedPromise_resolve = t2, e2._closedPromise_reject = r2;
-    });
-  }
-  function k(e2, t2) {
-    j(e2), A(e2, t2);
-  }
-  function A(e2, t2) {
-    e2._closedPromise_reject !== undefined && (p(e2._closedPromise), e2._closedPromise_reject(t2), e2._closedPromise_resolve = undefined, e2._closedPromise_reject = undefined);
-  }
-  function z(e2) {
-    e2._closedPromise_resolve !== undefined && (e2._closedPromise_resolve(undefined), e2._closedPromise_resolve = undefined, e2._closedPromise_reject = undefined);
-  }
-  var D = Number.isFinite || function(e2) {
-    return typeof e2 == "number" && isFinite(e2);
-  };
-  var F = Math.trunc || function(e2) {
-    return e2 < 0 ? Math.ceil(e2) : Math.floor(e2);
-  };
-  function L(e2, t2) {
-    if (e2 !== undefined && (typeof (r2 = e2) != "object" && typeof r2 != "function"))
-      throw new TypeError(`${t2} is not an object.`);
-    var r2;
-  }
-  function I(e2, t2) {
-    if (typeof e2 != "function")
-      throw new TypeError(`${t2} is not a function.`);
-  }
-  function $(e2, t2) {
-    if (!function(e3) {
-      return typeof e3 == "object" && e3 !== null || typeof e3 == "function";
-    }(e2))
-      throw new TypeError(`${t2} is not an object.`);
-  }
-  function M(e2, t2, r2) {
-    if (e2 === undefined)
-      throw new TypeError(`Parameter ${t2} is required in '${r2}'.`);
-  }
-  function Y(e2, t2, r2) {
-    if (e2 === undefined)
-      throw new TypeError(`${t2} is required in '${r2}'.`);
-  }
-  function x(e2) {
-    return Number(e2);
-  }
-  function Q(e2) {
-    return e2 === 0 ? 0 : e2;
-  }
-  function N(e2, t2) {
-    const r2 = Number.MAX_SAFE_INTEGER;
-    let o2 = Number(e2);
-    if (o2 = Q(o2), !D(o2))
-      throw new TypeError(`${t2} is not a finite number`);
-    if (o2 = function(e3) {
-      return Q(F(e3));
-    }(o2), o2 < 0 || o2 > r2)
-      throw new TypeError(`${t2} is outside the accepted range of 0 to ${r2}, inclusive`);
-    return D(o2) && o2 !== 0 ? o2 : 0;
-  }
-  function H(e2, t2) {
-    if (!Ir(e2))
-      throw new TypeError(`${t2} is not a ReadableStream.`);
-  }
-  function V(e2) {
-    return new ReadableStreamDefaultReader(e2);
-  }
-  function U(e2, t2) {
-    e2._reader._readRequests.push(t2);
-  }
-  function G(e2, t2, r2) {
-    const o2 = e2._reader._readRequests.shift();
-    r2 ? o2._closeSteps() : o2._chunkSteps(t2);
-  }
-  function X(e2) {
-    return e2._reader._readRequests.length;
-  }
-  function J(e2) {
-    const t2 = e2._reader;
-    return t2 !== undefined && !!ee(t2);
-  }
-
-  class ReadableStreamDefaultReader {
-    constructor(e2) {
-      if (M(e2, 1, "ReadableStreamDefaultReader"), H(e2, "First parameter"), $r(e2))
-        throw new TypeError("This stream has already been locked for exclusive reading by another reader");
-      E(this, e2), this._readRequests = new v;
-    }
-    get closed() {
-      return ee(this) ? this._closedPromise : d(ne("closed"));
-    }
-    cancel(e2 = undefined) {
-      return ee(this) ? this._ownerReadableStream === undefined ? d(B("cancel")) : W(this, e2) : d(ne("cancel"));
-    }
-    read() {
-      if (!ee(this))
-        return d(ne("read"));
-      if (this._ownerReadableStream === undefined)
-        return d(B("read from"));
-      const e2 = re(this) ? new Z : new K;
-      return te(this, e2), e2._promise;
-    }
-    releaseLock() {
-      if (!ee(this))
-        throw ne("releaseLock");
-      this._ownerReadableStream !== undefined && function(e2) {
-        O(e2);
-        const t2 = new TypeError("Reader was released");
-        oe(e2, t2);
-      }(this);
-    }
-  }
-  Object.defineProperties(ReadableStreamDefaultReader.prototype, { cancel: { enumerable: true }, read: { enumerable: true }, releaseLock: { enumerable: true }, closed: { enumerable: true } }), o(ReadableStreamDefaultReader.prototype.cancel, "cancel"), o(ReadableStreamDefaultReader.prototype.read, "read"), o(ReadableStreamDefaultReader.prototype.releaseLock, "releaseLock"), typeof Symbol.toStringTag == "symbol" && Object.defineProperty(ReadableStreamDefaultReader.prototype, Symbol.toStringTag, { value: "ReadableStreamDefaultReader", configurable: true });
-
-  class K {
-    constructor() {
-      this._promise = u((e2, t2) => {
-        this._resolvePromise = e2, this._rejectPromise = t2;
-      });
-    }
-    _chunkSteps(e2) {
-      this._resolvePromise({ value: e2, done: false });
-    }
-    _closeSteps() {
-      this._resolvePromise({ value: undefined, done: true });
-    }
-    _errorSteps(e2) {
-      this._rejectPromise(e2);
-    }
-  }
-
-  class Z {
-    constructor() {
-      this._promise = undefined;
-    }
-    _chunkSteps(e2) {
-      this._promise = l({ value: e2, done: false });
-    }
-    _closeSteps() {
-      this._promise = l({ value: undefined, done: true });
-    }
-    _errorSteps(e2) {
-      this._promise = d(e2);
-    }
-  }
-  function ee(e2) {
-    return !!t(e2) && (!!Object.prototype.hasOwnProperty.call(e2, "_readRequests") && e2 instanceof ReadableStreamDefaultReader);
-  }
-  function te(e2, t2) {
-    const r2 = e2._ownerReadableStream;
-    r2._disturbed = true, r2._state === "closed" ? t2._closeSteps() : r2._state === "errored" ? t2._errorSteps(r2._storedError) : r2._readableStreamController[P](t2);
-  }
-  function re(e2) {
-    const t2 = e2._ownerReadableStream;
-    return t2._state === "closed" || (t2._state === "errored" || t2._readableStreamController[C]());
-  }
-  function oe(e2, t2) {
-    const r2 = e2._readRequests;
-    e2._readRequests = new v, r2.forEach((e3) => {
-      e3._errorSteps(t2);
-    });
-  }
-  function ne(e2) {
-    return new TypeError(`ReadableStreamDefaultReader.prototype.${e2} can only be used on a ReadableStreamDefaultReader`);
-  }
-  var ie;
-  var ae;
-  var se;
-  function le(e2) {
-    return e2.slice();
-  }
-  function ue(e2, t2, r2, o2, n2) {
-    new Uint8Array(e2).set(new Uint8Array(r2, o2, n2), t2);
-  }
-  var ce = (e2) => (ce = typeof e2.transfer == "function" ? (e3) => e3.transfer() : typeof structuredClone == "function" ? (e3) => structuredClone(e3, { transfer: [e3] }) : (e3) => e3, ce(e2));
-  var de = (e2) => (de = typeof e2.detached == "boolean" ? (e3) => e3.detached : (e3) => e3.byteLength === 0, de(e2));
-  function fe(e2, t2, r2) {
-    if (e2.slice)
-      return e2.slice(t2, r2);
-    const o2 = r2 - t2, n2 = new ArrayBuffer(o2);
-    return ue(n2, 0, e2, t2, o2), n2;
-  }
-  function he(e2, t2) {
-    const r2 = e2[t2];
-    if (r2 != null) {
-      if (typeof r2 != "function")
-        throw new TypeError(`${String(t2)} is not a function`);
-      return r2;
-    }
-  }
-  function be(e2) {
-    try {
-      const { done: t2, value: r2 } = e2;
-      return f(l(r2), (e3) => ({ done: t2, value: e3 }));
-    } catch (e3) {
-      return d(e3);
-    }
-  }
-  var _e = (se = (ie = Symbol.asyncIterator) !== null && ie !== undefined ? ie : (ae = Symbol.for) === null || ae === undefined ? undefined : ae.call(Symbol, "Symbol.asyncIterator")) !== null && se !== undefined ? se : "@@asyncIterator";
-  function me(e2, r2 = "sync", o2) {
-    if (o2 === undefined)
-      if (r2 === "async") {
-        if ((o2 = he(e2, _e)) === undefined) {
-          return function(e3) {
-            const r3 = { next() {
-              let t2;
-              try {
-                t2 = pe(e3);
-              } catch (e4) {
-                return d(e4);
-              }
-              return be(t2);
-            }, return(r4) {
-              let o3;
-              try {
-                const t2 = he(e3.iterator, "return");
-                if (t2 === undefined)
-                  return c({ done: true, value: r4 });
-                o3 = S(t2, e3.iterator, [r4]);
-              } catch (e4) {
-                return d(e4);
-              }
-              return t(o3) ? be(o3) : d(new TypeError("The iterator.return() method must return an object"));
-            } };
-            return { iterator: r3, nextMethod: r3.next, done: false };
-          }(me(e2, "sync", he(e2, Symbol.iterator)));
-        }
-      } else
-        o2 = he(e2, Symbol.iterator);
-    if (o2 === undefined)
-      throw new TypeError("The object is not iterable");
-    const n2 = S(o2, e2, []);
-    if (!t(n2))
-      throw new TypeError("The iterator method must return an object");
-    return { iterator: n2, nextMethod: n2.next, done: false };
-  }
-  function pe(e2) {
-    const r2 = S(e2.nextMethod, e2.iterator, []);
-    if (!t(r2))
-      throw new TypeError("The iterator.next() method must return an object");
-    return r2;
-  }
-
-  class ye {
-    constructor(e2, t2) {
-      this._ongoingPromise = undefined, this._isFinished = false, this._reader = e2, this._preventCancel = t2;
-    }
-    next() {
-      const e2 = () => this._nextSteps();
-      return this._ongoingPromise = this._ongoingPromise ? m(this._ongoingPromise, e2, e2) : e2(), this._ongoingPromise;
-    }
-    return(e2) {
-      const t2 = () => this._returnSteps(e2);
-      return this._ongoingPromise = this._ongoingPromise ? m(this._ongoingPromise, t2, t2) : t2(), this._ongoingPromise;
-    }
-    _nextSteps() {
-      if (this._isFinished)
-        return Promise.resolve({ value: undefined, done: true });
-      const e2 = this._reader, t2 = new Se(this);
-      return te(e2, t2), t2._promise;
-    }
-    _returnSteps(e2) {
-      if (this._isFinished)
-        return Promise.resolve({ value: e2, done: true });
-      this._isFinished = true;
-      const t2 = this._reader;
-      if (!this._preventCancel) {
-        const r2 = W(t2, e2);
-        return O(t2), m(r2, () => ({ value: e2, done: true }));
-      }
-      return O(t2), c({ value: e2, done: true });
-    }
-  }
-
-  class Se {
-    constructor(e2) {
-      this._iterator = e2, this._promise = u((e3, t2) => {
-        this._resolvePromise = e3, this._rejectPromise = t2;
-      });
-    }
-    _chunkSteps(e2) {
-      this._iterator._ongoingPromise = undefined, y(() => this._resolvePromise({ value: e2, done: false }));
-    }
-    _closeSteps() {
-      const e2 = this._iterator;
-      e2._ongoingPromise = undefined, e2._isFinished = true, O(e2._reader), this._resolvePromise({ value: undefined, done: true });
-    }
-    _errorSteps(e2) {
-      const t2 = this._iterator;
-      t2._ongoingPromise = undefined, t2._isFinished = true, O(t2._reader), this._rejectPromise(e2);
-    }
-  }
-  var ge = { next() {
-    return ve(this) ? this._asyncIteratorImpl.next() : d(we("next"));
-  }, return(e2) {
-    return ve(this) ? this._asyncIteratorImpl.return(e2) : d(we("return"));
-  }, [_e]() {
-    return this;
-  } };
-  function ve(e2) {
-    if (!t(e2))
-      return false;
-    if (!Object.prototype.hasOwnProperty.call(e2, "_asyncIteratorImpl"))
-      return false;
-    try {
-      return e2._asyncIteratorImpl instanceof ye;
-    } catch (e3) {
-      return false;
-    }
-  }
-  function we(e2) {
-    return new TypeError(`ReadableStreamAsyncIterator.${e2} can only be used on a ReadableSteamAsyncIterator`);
-  }
-  Object.defineProperty(ge, _e, { enumerable: false });
-  var Re = Number.isNaN || function(e2) {
-    return e2 != e2;
-  };
-  function Te(e2) {
-    const t2 = fe(e2.buffer, e2.byteOffset, e2.byteOffset + e2.byteLength);
-    return new Uint8Array(t2);
-  }
-  function Pe(e2) {
-    const t2 = e2._queue.shift();
-    return e2._queueTotalSize -= t2.size, e2._queueTotalSize < 0 && (e2._queueTotalSize = 0), t2.value;
-  }
-  function Ce(e2, t2, r2) {
-    if (typeof (o2 = r2) != "number" || Re(o2) || o2 < 0 || r2 === 1 / 0)
-      throw new RangeError("Size must be a finite, non-NaN, non-negative number.");
-    var o2;
-    e2._queue.push({ value: t2, size: r2 }), e2._queueTotalSize += r2;
-  }
-  function qe(e2) {
-    e2._queue = new v, e2._queueTotalSize = 0;
-  }
-  function Ee(e2) {
-    return e2 === DataView;
-  }
-  function We(e2) {
-    return Ee(e2) ? 1 : e2.BYTES_PER_ELEMENT;
-  }
-
-  class ReadableStreamBYOBRequest {
-    constructor() {
-      throw new TypeError("Illegal constructor");
-    }
-    get view() {
-      if (!Be(this))
-        throw ot("view");
-      return this._view;
-    }
-    respond(e2) {
-      if (!Be(this))
-        throw ot("respond");
-      if (M(e2, 1, "respond"), e2 = N(e2, "First parameter"), this._associatedReadableByteStreamController === undefined)
-        throw new TypeError("This BYOB request has been invalidated");
-      if (de(this._view.buffer))
-        throw new TypeError("The BYOB request's buffer has been detached and so cannot be used as a response");
-      et(this._associatedReadableByteStreamController, e2);
-    }
-    respondWithNewView(e2) {
-      if (!Be(this))
-        throw ot("respondWithNewView");
-      if (M(e2, 1, "respondWithNewView"), !ArrayBuffer.isView(e2))
-        throw new TypeError("You can only respond with array buffer views");
-      if (this._associatedReadableByteStreamController === undefined)
-        throw new TypeError("This BYOB request has been invalidated");
-      if (de(e2.buffer))
-        throw new TypeError("The given view's buffer has been detached and so cannot be used as a response");
-      tt(this._associatedReadableByteStreamController, e2);
-    }
-  }
-  Object.defineProperties(ReadableStreamBYOBRequest.prototype, { respond: { enumerable: true }, respondWithNewView: { enumerable: true }, view: { enumerable: true } }), o(ReadableStreamBYOBRequest.prototype.respond, "respond"), o(ReadableStreamBYOBRequest.prototype.respondWithNewView, "respondWithNewView"), typeof Symbol.toStringTag == "symbol" && Object.defineProperty(ReadableStreamBYOBRequest.prototype, Symbol.toStringTag, { value: "ReadableStreamBYOBRequest", configurable: true });
-
-  class ReadableByteStreamController {
-    constructor() {
-      throw new TypeError("Illegal constructor");
-    }
-    get byobRequest() {
-      if (!Oe(this))
-        throw nt("byobRequest");
-      return Ke(this);
-    }
-    get desiredSize() {
-      if (!Oe(this))
-        throw nt("desiredSize");
-      return Ze(this);
-    }
-    close() {
-      if (!Oe(this))
-        throw nt("close");
-      if (this._closeRequested)
-        throw new TypeError("The stream has already been closed; do not close it again!");
-      const e2 = this._controlledReadableByteStream._state;
-      if (e2 !== "readable")
-        throw new TypeError(`The stream (in ${e2} state) is not in the readable state and cannot be closed`);
-      Ue(this);
-    }
-    enqueue(e2) {
-      if (!Oe(this))
-        throw nt("enqueue");
-      if (M(e2, 1, "enqueue"), !ArrayBuffer.isView(e2))
-        throw new TypeError("chunk must be an array buffer view");
-      if (e2.byteLength === 0)
-        throw new TypeError("chunk must have non-zero byteLength");
-      if (e2.buffer.byteLength === 0)
-        throw new TypeError("chunk's buffer must have non-zero byteLength");
-      if (this._closeRequested)
-        throw new TypeError("stream is closed or draining");
-      const t2 = this._controlledReadableByteStream._state;
-      if (t2 !== "readable")
-        throw new TypeError(`The stream (in ${t2} state) is not in the readable state and cannot be enqueued to`);
-      Ge(this, e2);
-    }
-    error(e2 = undefined) {
-      if (!Oe(this))
-        throw nt("error");
-      Xe(this, e2);
-    }
-    [T](e2) {
-      ke(this), qe(this);
-      const t2 = this._cancelAlgorithm(e2);
-      return Ve(this), t2;
-    }
-    [P](e2) {
-      const t2 = this._controlledReadableByteStream;
-      if (this._queueTotalSize > 0)
-        return void Je(this, e2);
-      const r2 = this._autoAllocateChunkSize;
-      if (r2 !== undefined) {
-        let t3;
-        try {
-          t3 = new ArrayBuffer(r2);
-        } catch (t4) {
-          return void e2._errorSteps(t4);
-        }
-        const o2 = { buffer: t3, bufferByteLength: r2, byteOffset: 0, byteLength: r2, bytesFilled: 0, minimumFill: 1, elementSize: 1, viewConstructor: Uint8Array, readerType: "default" };
-        this._pendingPullIntos.push(o2);
-      }
-      U(t2, e2), je(this);
-    }
-    [C]() {
-      return this._queueTotalSize > 0;
-    }
-    [q]() {
-      if (this._pendingPullIntos.length > 0) {
-        const e2 = this._pendingPullIntos.peek();
-        e2.readerType = "none", this._pendingPullIntos = new v, this._pendingPullIntos.push(e2);
-      }
-    }
-  }
-  function Oe(e2) {
-    return !!t(e2) && (!!Object.prototype.hasOwnProperty.call(e2, "_controlledReadableByteStream") && e2 instanceof ReadableByteStreamController);
-  }
-  function Be(e2) {
-    return !!t(e2) && (!!Object.prototype.hasOwnProperty.call(e2, "_associatedReadableByteStreamController") && e2 instanceof ReadableStreamBYOBRequest);
-  }
-  function je(e2) {
-    const t2 = function(e3) {
-      const t3 = e3._controlledReadableByteStream;
-      if (t3._state !== "readable")
-        return false;
-      if (e3._closeRequested)
-        return false;
-      if (!e3._started)
-        return false;
-      if (J(t3) && X(t3) > 0)
-        return true;
-      if (ut(t3) && lt(t3) > 0)
-        return true;
-      const r2 = Ze(e3);
-      if (r2 > 0)
-        return true;
-      return false;
-    }(e2);
-    if (!t2)
-      return;
-    if (e2._pulling)
-      return void (e2._pullAgain = true);
-    e2._pulling = true;
-    h(e2._pullAlgorithm(), () => (e2._pulling = false, e2._pullAgain && (e2._pullAgain = false, je(e2)), null), (t3) => (Xe(e2, t3), null));
-  }
-  function ke(e2) {
-    xe(e2), e2._pendingPullIntos = new v;
-  }
-  function Ae(e2, t2) {
-    let r2 = false;
-    e2._state === "closed" && (r2 = true);
-    const o2 = De(t2);
-    t2.readerType === "default" ? G(e2, o2, r2) : function(e3, t3, r3) {
-      const o3 = e3._reader, n2 = o3._readIntoRequests.shift();
-      r3 ? n2._closeSteps(t3) : n2._chunkSteps(t3);
-    }(e2, o2, r2);
-  }
-  function ze(e2, t2) {
-    for (let r2 = 0;r2 < t2.length; ++r2)
-      Ae(e2, t2[r2]);
-  }
-  function De(e2) {
-    const { bytesFilled: t2, elementSize: r2 } = e2;
-    return new e2.viewConstructor(e2.buffer, e2.byteOffset, t2 / r2);
-  }
-  function Fe(e2, t2, r2, o2) {
-    e2._queue.push({ buffer: t2, byteOffset: r2, byteLength: o2 }), e2._queueTotalSize += o2;
-  }
-  function Le(e2, t2, r2, o2) {
-    let n2;
-    try {
-      n2 = fe(t2, r2, r2 + o2);
-    } catch (t3) {
-      throw Xe(e2, t3), t3;
-    }
-    Fe(e2, n2, 0, o2);
-  }
-  function Ie(e2, t2) {
-    t2.bytesFilled > 0 && Le(e2, t2.buffer, t2.byteOffset, t2.bytesFilled), He(e2);
-  }
-  function $e(e2, t2) {
-    const r2 = Math.min(e2._queueTotalSize, t2.byteLength - t2.bytesFilled), o2 = t2.bytesFilled + r2;
-    let n2 = r2, i2 = false;
-    const a2 = o2 - o2 % t2.elementSize;
-    a2 >= t2.minimumFill && (n2 = a2 - t2.bytesFilled, i2 = true);
-    const s2 = e2._queue;
-    for (;n2 > 0; ) {
-      const r3 = s2.peek(), o3 = Math.min(n2, r3.byteLength), i3 = t2.byteOffset + t2.bytesFilled;
-      ue(t2.buffer, i3, r3.buffer, r3.byteOffset, o3), r3.byteLength === o3 ? s2.shift() : (r3.byteOffset += o3, r3.byteLength -= o3), e2._queueTotalSize -= o3, Me(e2, o3, t2), n2 -= o3;
-    }
-    return i2;
-  }
-  function Me(e2, t2, r2) {
-    r2.bytesFilled += t2;
-  }
-  function Ye(e2) {
-    e2._queueTotalSize === 0 && e2._closeRequested ? (Ve(e2), Yr(e2._controlledReadableByteStream)) : je(e2);
-  }
-  function xe(e2) {
-    e2._byobRequest !== null && (e2._byobRequest._associatedReadableByteStreamController = undefined, e2._byobRequest._view = null, e2._byobRequest = null);
-  }
-  function Qe(e2) {
-    const t2 = [];
-    for (;e2._pendingPullIntos.length > 0 && e2._queueTotalSize !== 0; ) {
-      const r2 = e2._pendingPullIntos.peek();
-      $e(e2, r2) && (He(e2), t2.push(r2));
-    }
-    return t2;
-  }
-  function Ne(e2, t2) {
-    const r2 = e2._pendingPullIntos.peek();
-    xe(e2);
-    e2._controlledReadableByteStream._state === "closed" ? function(e3, t3) {
-      t3.readerType === "none" && He(e3);
-      const r3 = e3._controlledReadableByteStream;
-      if (ut(r3)) {
-        const t4 = [];
-        for (;t4.length < lt(r3); )
-          t4.push(He(e3));
-        ze(r3, t4);
-      }
-    }(e2, r2) : function(e3, t3, r3) {
-      if (Me(0, t3, r3), r3.readerType === "none") {
-        Ie(e3, r3);
-        const t4 = Qe(e3);
-        return void ze(e3._controlledReadableByteStream, t4);
-      }
-      if (r3.bytesFilled < r3.minimumFill)
-        return;
-      He(e3);
-      const o2 = r3.bytesFilled % r3.elementSize;
-      if (o2 > 0) {
-        const t4 = r3.byteOffset + r3.bytesFilled;
-        Le(e3, r3.buffer, t4 - o2, o2);
-      }
-      r3.bytesFilled -= o2;
-      const n2 = Qe(e3);
-      Ae(e3._controlledReadableByteStream, r3), ze(e3._controlledReadableByteStream, n2);
-    }(e2, t2, r2), je(e2);
-  }
-  function He(e2) {
-    return e2._pendingPullIntos.shift();
-  }
-  function Ve(e2) {
-    e2._pullAlgorithm = undefined, e2._cancelAlgorithm = undefined;
-  }
-  function Ue(e2) {
-    const t2 = e2._controlledReadableByteStream;
-    if (!e2._closeRequested && t2._state === "readable")
-      if (e2._queueTotalSize > 0)
-        e2._closeRequested = true;
-      else {
-        if (e2._pendingPullIntos.length > 0) {
-          const t3 = e2._pendingPullIntos.peek();
-          if (t3.bytesFilled % t3.elementSize !== 0) {
-            const t4 = new TypeError("Insufficient bytes to fill elements in the given buffer");
-            throw Xe(e2, t4), t4;
-          }
-        }
-        Ve(e2), Yr(t2);
-      }
-  }
-  function Ge(e2, t2) {
-    const r2 = e2._controlledReadableByteStream;
-    if (e2._closeRequested || r2._state !== "readable")
-      return;
-    const { buffer: o2, byteOffset: n2, byteLength: i2 } = t2;
-    if (de(o2))
-      throw new TypeError("chunk's buffer is detached and so cannot be enqueued");
-    const a2 = ce(o2);
-    if (e2._pendingPullIntos.length > 0) {
-      const t3 = e2._pendingPullIntos.peek();
-      if (de(t3.buffer))
-        throw new TypeError("The BYOB request's buffer has been detached and so cannot be filled with an enqueued chunk");
-      xe(e2), t3.buffer = ce(t3.buffer), t3.readerType === "none" && Ie(e2, t3);
-    }
-    if (J(r2))
-      if (function(e3) {
-        const t3 = e3._controlledReadableByteStream._reader;
-        for (;t3._readRequests.length > 0; ) {
-          if (e3._queueTotalSize === 0)
-            return;
-          Je(e3, t3._readRequests.shift());
-        }
-      }(e2), X(r2) === 0)
-        Fe(e2, a2, n2, i2);
-      else {
-        e2._pendingPullIntos.length > 0 && He(e2);
-        G(r2, new Uint8Array(a2, n2, i2), false);
-      }
-    else if (ut(r2)) {
-      Fe(e2, a2, n2, i2);
-      ze(r2, Qe(e2));
-    } else
-      Fe(e2, a2, n2, i2);
-    je(e2);
-  }
-  function Xe(e2, t2) {
-    const r2 = e2._controlledReadableByteStream;
-    r2._state === "readable" && (ke(e2), qe(e2), Ve(e2), xr(r2, t2));
-  }
-  function Je(e2, t2) {
-    const r2 = e2._queue.shift();
-    e2._queueTotalSize -= r2.byteLength, Ye(e2);
-    const o2 = new Uint8Array(r2.buffer, r2.byteOffset, r2.byteLength);
-    t2._chunkSteps(o2);
-  }
-  function Ke(e2) {
-    if (e2._byobRequest === null && e2._pendingPullIntos.length > 0) {
-      const t2 = e2._pendingPullIntos.peek(), r2 = new Uint8Array(t2.buffer, t2.byteOffset + t2.bytesFilled, t2.byteLength - t2.bytesFilled), o2 = Object.create(ReadableStreamBYOBRequest.prototype);
-      (function(e3, t3, r3) {
-        e3._associatedReadableByteStreamController = t3, e3._view = r3;
-      })(o2, e2, r2), e2._byobRequest = o2;
-    }
-    return e2._byobRequest;
-  }
-  function Ze(e2) {
-    const t2 = e2._controlledReadableByteStream._state;
-    return t2 === "errored" ? null : t2 === "closed" ? 0 : e2._strategyHWM - e2._queueTotalSize;
-  }
-  function et(e2, t2) {
-    const r2 = e2._pendingPullIntos.peek();
-    if (e2._controlledReadableByteStream._state === "closed") {
-      if (t2 !== 0)
-        throw new TypeError("bytesWritten must be 0 when calling respond() on a closed stream");
-    } else {
-      if (t2 === 0)
-        throw new TypeError("bytesWritten must be greater than 0 when calling respond() on a readable stream");
-      if (r2.bytesFilled + t2 > r2.byteLength)
-        throw new RangeError("bytesWritten out of range");
-    }
-    r2.buffer = ce(r2.buffer), Ne(e2, t2);
-  }
-  function tt(e2, t2) {
-    const r2 = e2._pendingPullIntos.peek();
-    if (e2._controlledReadableByteStream._state === "closed") {
-      if (t2.byteLength !== 0)
-        throw new TypeError("The view's length must be 0 when calling respondWithNewView() on a closed stream");
-    } else if (t2.byteLength === 0)
-      throw new TypeError("The view's length must be greater than 0 when calling respondWithNewView() on a readable stream");
-    if (r2.byteOffset + r2.bytesFilled !== t2.byteOffset)
-      throw new RangeError("The region specified by view does not match byobRequest");
-    if (r2.bufferByteLength !== t2.buffer.byteLength)
-      throw new RangeError("The buffer of view has different capacity than byobRequest");
-    if (r2.bytesFilled + t2.byteLength > r2.byteLength)
-      throw new RangeError("The region specified by view is larger than byobRequest");
-    const o2 = t2.byteLength;
-    r2.buffer = ce(t2.buffer), Ne(e2, o2);
-  }
-  function rt(e2, t2, r2, o2, n2, i2, a2) {
-    t2._controlledReadableByteStream = e2, t2._pullAgain = false, t2._pulling = false, t2._byobRequest = null, t2._queue = t2._queueTotalSize = undefined, qe(t2), t2._closeRequested = false, t2._started = false, t2._strategyHWM = i2, t2._pullAlgorithm = o2, t2._cancelAlgorithm = n2, t2._autoAllocateChunkSize = a2, t2._pendingPullIntos = new v, e2._readableStreamController = t2;
-    h(c(r2()), () => (t2._started = true, je(t2), null), (e3) => (Xe(t2, e3), null));
-  }
-  function ot(e2) {
-    return new TypeError(`ReadableStreamBYOBRequest.prototype.${e2} can only be used on a ReadableStreamBYOBRequest`);
-  }
-  function nt(e2) {
-    return new TypeError(`ReadableByteStreamController.prototype.${e2} can only be used on a ReadableByteStreamController`);
-  }
-  function it(e2, t2) {
-    if ((e2 = `${e2}`) !== "byob")
-      throw new TypeError(`${t2} '${e2}' is not a valid enumeration value for ReadableStreamReaderMode`);
-    return e2;
-  }
-  function at(e2) {
-    return new ReadableStreamBYOBReader(e2);
-  }
-  function st(e2, t2) {
-    e2._reader._readIntoRequests.push(t2);
-  }
-  function lt(e2) {
-    return e2._reader._readIntoRequests.length;
-  }
-  function ut(e2) {
-    const t2 = e2._reader;
-    return t2 !== undefined && !!ft(t2);
-  }
-  Object.defineProperties(ReadableByteStreamController.prototype, { close: { enumerable: true }, enqueue: { enumerable: true }, error: { enumerable: true }, byobRequest: { enumerable: true }, desiredSize: { enumerable: true } }), o(ReadableByteStreamController.prototype.close, "close"), o(ReadableByteStreamController.prototype.enqueue, "enqueue"), o(ReadableByteStreamController.prototype.error, "error"), typeof Symbol.toStringTag == "symbol" && Object.defineProperty(ReadableByteStreamController.prototype, Symbol.toStringTag, { value: "ReadableByteStreamController", configurable: true });
-
-  class ReadableStreamBYOBReader {
-    constructor(e2) {
-      if (M(e2, 1, "ReadableStreamBYOBReader"), H(e2, "First parameter"), $r(e2))
-        throw new TypeError("This stream has already been locked for exclusive reading by another reader");
-      if (!Oe(e2._readableStreamController))
-        throw new TypeError("Cannot construct a ReadableStreamBYOBReader for a stream not constructed with a byte source");
-      E(this, e2), this._readIntoRequests = new v;
-    }
-    get closed() {
-      return ft(this) ? this._closedPromise : d(_t("closed"));
-    }
-    cancel(e2 = undefined) {
-      return ft(this) ? this._ownerReadableStream === undefined ? d(B("cancel")) : W(this, e2) : d(_t("cancel"));
-    }
-    read(e2, t2 = {}) {
-      if (!ft(this))
-        return d(_t("read"));
-      if (!ArrayBuffer.isView(e2))
-        return d(new TypeError("view must be an array buffer view"));
-      if (e2.byteLength === 0)
-        return d(new TypeError("view must have non-zero byteLength"));
-      if (e2.buffer.byteLength === 0)
-        return d(new TypeError("view's buffer must have non-zero byteLength"));
-      if (de(e2.buffer))
-        return d(new TypeError("view's buffer has been detached"));
-      let r2;
-      try {
-        r2 = function(e3, t3) {
-          var r3;
-          return L(e3, t3), { min: N((r3 = e3 == null ? undefined : e3.min) !== null && r3 !== undefined ? r3 : 1, `${t3} has member 'min' that`) };
-        }(t2, "options");
-      } catch (e3) {
-        return d(e3);
-      }
-      const o2 = r2.min;
-      if (o2 === 0)
-        return d(new TypeError("options.min must be greater than 0"));
-      if (function(e3) {
-        return Ee(e3.constructor);
-      }(e2)) {
-        if (o2 > e2.byteLength)
-          return d(new RangeError("options.min must be less than or equal to view's byteLength"));
-      } else if (o2 > e2.length)
-        return d(new RangeError("options.min must be less than or equal to view's length"));
-      if (this._ownerReadableStream === undefined)
-        return d(B("read from"));
-      const n2 = function(e3, t3, r3) {
-        const o3 = e3._ownerReadableStream;
-        return o3._state === "errored" || function(e4, t4, r4) {
-          const o4 = e4._controlledReadableByteStream, n3 = We(t4.constructor), { byteLength: i2 } = t4, a2 = r4 * n3;
-          return !(e4._pendingPullIntos.length > 0) && (o4._state === "closed" || e4._queueTotalSize >= a2);
-        }(o3._readableStreamController, t3, r3);
-      }(this, e2, o2) ? new dt : new ct;
-      return ht(this, e2, o2, n2), n2._promise;
-    }
-    releaseLock() {
-      if (!ft(this))
-        throw _t("releaseLock");
-      this._ownerReadableStream !== undefined && function(e2) {
-        O(e2);
-        const t2 = new TypeError("Reader was released");
-        bt(e2, t2);
-      }(this);
-    }
-  }
-  Object.defineProperties(ReadableStreamBYOBReader.prototype, { cancel: { enumerable: true }, read: { enumerable: true }, releaseLock: { enumerable: true }, closed: { enumerable: true } }), o(ReadableStreamBYOBReader.prototype.cancel, "cancel"), o(ReadableStreamBYOBReader.prototype.read, "read"), o(ReadableStreamBYOBReader.prototype.releaseLock, "releaseLock"), typeof Symbol.toStringTag == "symbol" && Object.defineProperty(ReadableStreamBYOBReader.prototype, Symbol.toStringTag, { value: "ReadableStreamBYOBReader", configurable: true });
-
-  class ct {
-    constructor() {
-      this._promise = u((e2, t2) => {
-        this._resolvePromise = e2, this._rejectPromise = t2;
-      });
-    }
-    _chunkSteps(e2) {
-      this._resolvePromise({ value: e2, done: false });
-    }
-    _closeSteps(e2) {
-      this._resolvePromise({ value: e2, done: true });
-    }
-    _errorSteps(e2) {
-      this._rejectPromise(e2);
-    }
-  }
-
-  class dt {
-    constructor() {
-      this._promise = undefined;
-    }
-    _chunkSteps(e2) {
-      this._promise = l({ value: e2, done: false });
-    }
-    _closeSteps(e2) {
-      this._promise = l({ value: e2, done: true });
-    }
-    _errorSteps(e2) {
-      this._promise = d(e2);
-    }
-  }
-  function ft(e2) {
-    return !!t(e2) && (!!Object.prototype.hasOwnProperty.call(e2, "_readIntoRequests") && e2 instanceof ReadableStreamBYOBReader);
-  }
-  function ht(e2, t2, r2, o2) {
-    const n2 = e2._ownerReadableStream;
-    n2._disturbed = true, n2._state === "errored" ? o2._errorSteps(n2._storedError) : function(e3, t3, r3, o3) {
-      const n3 = e3._controlledReadableByteStream, i2 = t3.constructor, a2 = We(i2), { byteOffset: s2, byteLength: l2 } = t3, u2 = r3 * a2;
-      let c2;
-      try {
-        c2 = ce(t3.buffer);
-      } catch (e4) {
-        return void o3._errorSteps(e4);
-      }
-      const d2 = { buffer: c2, bufferByteLength: c2.byteLength, byteOffset: s2, byteLength: l2, bytesFilled: 0, minimumFill: u2, elementSize: a2, viewConstructor: i2, readerType: "byob" };
-      if (e3._pendingPullIntos.length > 0)
-        return e3._pendingPullIntos.push(d2), void st(n3, o3);
-      if (n3._state === "closed") {
-        const e4 = new i2(d2.buffer, d2.byteOffset, 0);
-        return void o3._closeSteps(e4);
-      }
-      if (e3._queueTotalSize > 0) {
-        if ($e(e3, d2)) {
-          const t4 = De(d2);
-          return Ye(e3), void o3._chunkSteps(t4);
-        }
-        if (e3._closeRequested) {
-          const t4 = new TypeError("Insufficient bytes to fill elements in the given buffer");
-          return Xe(e3, t4), void o3._errorSteps(t4);
-        }
-      }
-      e3._pendingPullIntos.push(d2), st(n3, o3), je(e3);
-    }(n2._readableStreamController, t2, r2, o2);
-  }
-  function bt(e2, t2) {
-    const r2 = e2._readIntoRequests;
-    e2._readIntoRequests = new v, r2.forEach((e3) => {
-      e3._errorSteps(t2);
-    });
-  }
-  function _t(e2) {
-    return new TypeError(`ReadableStreamBYOBReader.prototype.${e2} can only be used on a ReadableStreamBYOBReader`);
-  }
-  function mt(e2, t2) {
-    const { highWaterMark: r2 } = e2;
-    if (r2 === undefined)
-      return t2;
-    if (Re(r2) || r2 < 0)
-      throw new RangeError("Invalid highWaterMark");
-    return r2;
-  }
-  function pt(e2) {
-    const { size: t2 } = e2;
-    return t2 || (() => 1);
-  }
-  function yt(e2, t2) {
-    L(e2, t2);
-    const r2 = e2 == null ? undefined : e2.highWaterMark, o2 = e2 == null ? undefined : e2.size;
-    return { highWaterMark: r2 === undefined ? undefined : x(r2), size: o2 === undefined ? undefined : St(o2, `${t2} has member 'size' that`) };
-  }
-  function St(e2, t2) {
-    return I(e2, t2), (t3) => x(e2(t3));
-  }
-  function gt(e2, t2, r2) {
-    return I(e2, r2), (r3) => g(e2, t2, [r3]);
-  }
-  function vt(e2, t2, r2) {
-    return I(e2, r2), () => g(e2, t2, []);
-  }
-  function wt(e2, t2, r2) {
-    return I(e2, r2), (r3) => S(e2, t2, [r3]);
-  }
-  function Rt(e2, t2, r2) {
-    return I(e2, r2), (r3, o2) => g(e2, t2, [r3, o2]);
-  }
-  function Tt(e2, t2) {
-    if (!qt(e2))
-      throw new TypeError(`${t2} is not a WritableStream.`);
-  }
-
-  class WritableStream {
-    constructor(e2 = {}, t2 = {}) {
-      e2 === undefined ? e2 = null : $(e2, "First parameter");
-      const r2 = yt(t2, "Second parameter"), o2 = function(e3, t3) {
-        L(e3, t3);
-        const r3 = e3 == null ? undefined : e3.abort, o3 = e3 == null ? undefined : e3.close, n3 = e3 == null ? undefined : e3.start, i2 = e3 == null ? undefined : e3.type, a2 = e3 == null ? undefined : e3.write;
-        return { abort: r3 === undefined ? undefined : gt(r3, e3, `${t3} has member 'abort' that`), close: o3 === undefined ? undefined : vt(o3, e3, `${t3} has member 'close' that`), start: n3 === undefined ? undefined : wt(n3, e3, `${t3} has member 'start' that`), write: a2 === undefined ? undefined : Rt(a2, e3, `${t3} has member 'write' that`), type: i2 };
-      }(e2, "First parameter");
-      Ct(this);
-      if (o2.type !== undefined)
-        throw new RangeError("Invalid type is specified");
-      const n2 = pt(r2);
-      (function(e3, t3, r3, o3) {
-        const n3 = Object.create(WritableStreamDefaultController.prototype);
-        let i2, a2, s2, l2;
-        i2 = t3.start !== undefined ? () => t3.start(n3) : () => {};
-        a2 = t3.write !== undefined ? (e4) => t3.write(e4, n3) : () => c(undefined);
-        s2 = t3.close !== undefined ? () => t3.close() : () => c(undefined);
-        l2 = t3.abort !== undefined ? (e4) => t3.abort(e4) : () => c(undefined);
-        Nt(e3, n3, i2, a2, s2, l2, r3, o3);
-      })(this, o2, mt(r2, 1), n2);
-    }
-    get locked() {
-      if (!qt(this))
-        throw Kt("locked");
-      return Et(this);
-    }
-    abort(e2 = undefined) {
-      return qt(this) ? Et(this) ? d(new TypeError("Cannot abort a stream that already has a writer")) : Wt(this, e2) : d(Kt("abort"));
-    }
-    close() {
-      return qt(this) ? Et(this) ? d(new TypeError("Cannot close a stream that already has a writer")) : At(this) ? d(new TypeError("Cannot close an already-closing stream")) : Ot(this) : d(Kt("close"));
-    }
-    getWriter() {
-      if (!qt(this))
-        throw Kt("getWriter");
-      return Pt(this);
-    }
-  }
-  function Pt(e2) {
-    return new WritableStreamDefaultWriter(e2);
-  }
-  function Ct(e2) {
-    e2._state = "writable", e2._storedError = undefined, e2._writer = undefined, e2._writableStreamController = undefined, e2._writeRequests = new v, e2._inFlightWriteRequest = undefined, e2._closeRequest = undefined, e2._inFlightCloseRequest = undefined, e2._pendingAbortRequest = undefined, e2._backpressure = false;
-  }
-  function qt(e2) {
-    return !!t(e2) && (!!Object.prototype.hasOwnProperty.call(e2, "_writableStreamController") && e2 instanceof WritableStream);
-  }
-  function Et(e2) {
-    return e2._writer !== undefined;
-  }
-  function Wt(e2, t2) {
-    var r2;
-    if (e2._state === "closed" || e2._state === "errored")
-      return c(undefined);
-    e2._writableStreamController._abortReason = t2, (r2 = e2._writableStreamController._abortController) === null || r2 === undefined || r2.abort(t2);
-    const o2 = e2._state;
-    if (o2 === "closed" || o2 === "errored")
-      return c(undefined);
-    if (e2._pendingAbortRequest !== undefined)
-      return e2._pendingAbortRequest._promise;
-    let n2 = false;
-    o2 === "erroring" && (n2 = true, t2 = undefined);
-    const i2 = u((r3, o3) => {
-      e2._pendingAbortRequest = { _promise: undefined, _resolve: r3, _reject: o3, _reason: t2, _wasAlreadyErroring: n2 };
-    });
-    return e2._pendingAbortRequest._promise = i2, n2 || jt(e2, t2), i2;
-  }
-  function Ot(e2) {
-    const t2 = e2._state;
-    if (t2 === "closed" || t2 === "errored")
-      return d(new TypeError(`The stream (in ${t2} state) is not in the writable state and cannot be closed`));
-    const r2 = u((t3, r3) => {
-      const o3 = { _resolve: t3, _reject: r3 };
-      e2._closeRequest = o3;
-    }), o2 = e2._writer;
-    var n2;
-    return o2 !== undefined && e2._backpressure && t2 === "writable" && cr(o2), Ce(n2 = e2._writableStreamController, xt, 0), Ut(n2), r2;
-  }
-  function Bt(e2, t2) {
-    e2._state !== "writable" ? kt(e2) : jt(e2, t2);
-  }
-  function jt(e2, t2) {
-    const r2 = e2._writableStreamController;
-    e2._state = "erroring", e2._storedError = t2;
-    const o2 = e2._writer;
-    o2 !== undefined && $t(o2, t2), !function(e3) {
-      if (e3._inFlightWriteRequest === undefined && e3._inFlightCloseRequest === undefined)
-        return false;
-      return true;
-    }(e2) && r2._started && kt(e2);
-  }
-  function kt(e2) {
-    e2._state = "errored", e2._writableStreamController[R]();
-    const t2 = e2._storedError;
-    if (e2._writeRequests.forEach((e3) => {
-      e3._reject(t2);
-    }), e2._writeRequests = new v, e2._pendingAbortRequest === undefined)
-      return void zt(e2);
-    const r2 = e2._pendingAbortRequest;
-    if (e2._pendingAbortRequest = undefined, r2._wasAlreadyErroring)
-      return r2._reject(t2), void zt(e2);
-    h(e2._writableStreamController[w](r2._reason), () => (r2._resolve(), zt(e2), null), (t3) => (r2._reject(t3), zt(e2), null));
-  }
-  function At(e2) {
-    return e2._closeRequest !== undefined || e2._inFlightCloseRequest !== undefined;
-  }
-  function zt(e2) {
-    e2._closeRequest !== undefined && (e2._closeRequest._reject(e2._storedError), e2._closeRequest = undefined);
-    const t2 = e2._writer;
-    t2 !== undefined && nr(t2, e2._storedError);
-  }
-  function Dt(e2, t2) {
-    const r2 = e2._writer;
-    r2 !== undefined && t2 !== e2._backpressure && (t2 ? function(e3) {
-      ar(e3);
-    }(r2) : cr(r2)), e2._backpressure = t2;
-  }
-  Object.defineProperties(WritableStream.prototype, { abort: { enumerable: true }, close: { enumerable: true }, getWriter: { enumerable: true }, locked: { enumerable: true } }), o(WritableStream.prototype.abort, "abort"), o(WritableStream.prototype.close, "close"), o(WritableStream.prototype.getWriter, "getWriter"), typeof Symbol.toStringTag == "symbol" && Object.defineProperty(WritableStream.prototype, Symbol.toStringTag, { value: "WritableStream", configurable: true });
-
-  class WritableStreamDefaultWriter {
-    constructor(e2) {
-      if (M(e2, 1, "WritableStreamDefaultWriter"), Tt(e2, "First parameter"), Et(e2))
-        throw new TypeError("This stream has already been locked for exclusive writing by another writer");
-      this._ownerWritableStream = e2, e2._writer = this;
-      const t2 = e2._state;
-      if (t2 === "writable")
-        !At(e2) && e2._backpressure ? ar(this) : lr(this), rr(this);
-      else if (t2 === "erroring")
-        sr(this, e2._storedError), rr(this);
-      else if (t2 === "closed")
-        lr(this), rr(r2 = this), ir(r2);
-      else {
-        const t3 = e2._storedError;
-        sr(this, t3), or(this, t3);
-      }
-      var r2;
-    }
-    get closed() {
-      return Ft(this) ? this._closedPromise : d(er("closed"));
-    }
-    get desiredSize() {
-      if (!Ft(this))
-        throw er("desiredSize");
-      if (this._ownerWritableStream === undefined)
-        throw tr("desiredSize");
-      return function(e2) {
-        const t2 = e2._ownerWritableStream, r2 = t2._state;
-        if (r2 === "errored" || r2 === "erroring")
-          return null;
-        if (r2 === "closed")
-          return 0;
-        return Vt(t2._writableStreamController);
-      }(this);
-    }
-    get ready() {
-      return Ft(this) ? this._readyPromise : d(er("ready"));
-    }
-    abort(e2 = undefined) {
-      return Ft(this) ? this._ownerWritableStream === undefined ? d(tr("abort")) : function(e3, t2) {
-        return Wt(e3._ownerWritableStream, t2);
-      }(this, e2) : d(er("abort"));
-    }
-    close() {
-      if (!Ft(this))
-        return d(er("close"));
-      const e2 = this._ownerWritableStream;
-      return e2 === undefined ? d(tr("close")) : At(e2) ? d(new TypeError("Cannot close an already-closing stream")) : Lt(this);
-    }
-    releaseLock() {
-      if (!Ft(this))
-        throw er("releaseLock");
-      this._ownerWritableStream !== undefined && Mt(this);
-    }
-    write(e2 = undefined) {
-      return Ft(this) ? this._ownerWritableStream === undefined ? d(tr("write to")) : Yt(this, e2) : d(er("write"));
-    }
-  }
-  function Ft(e2) {
-    return !!t(e2) && (!!Object.prototype.hasOwnProperty.call(e2, "_ownerWritableStream") && e2 instanceof WritableStreamDefaultWriter);
-  }
-  function Lt(e2) {
-    return Ot(e2._ownerWritableStream);
-  }
-  function It(e2, t2) {
-    e2._closedPromiseState === "pending" ? nr(e2, t2) : function(e3, t3) {
-      or(e3, t3);
-    }(e2, t2);
-  }
-  function $t(e2, t2) {
-    e2._readyPromiseState === "pending" ? ur(e2, t2) : function(e3, t3) {
-      sr(e3, t3);
-    }(e2, t2);
-  }
-  function Mt(e2) {
-    const t2 = e2._ownerWritableStream, r2 = new TypeError("Writer was released and can no longer be used to monitor the stream's closedness");
-    $t(e2, r2), It(e2, r2), t2._writer = undefined, e2._ownerWritableStream = undefined;
-  }
-  function Yt(e2, t2) {
-    const r2 = e2._ownerWritableStream, o2 = r2._writableStreamController, n2 = function(e3, t3) {
-      if (e3._strategySizeAlgorithm === undefined)
-        return 1;
-      try {
-        return e3._strategySizeAlgorithm(t3);
-      } catch (t4) {
-        return Gt(e3, t4), 1;
-      }
-    }(o2, t2);
-    if (r2 !== e2._ownerWritableStream)
-      return d(tr("write to"));
-    const i2 = r2._state;
-    if (i2 === "errored")
-      return d(r2._storedError);
-    if (At(r2) || i2 === "closed")
-      return d(new TypeError("The stream is closing or closed and cannot be written to"));
-    if (i2 === "erroring")
-      return d(r2._storedError);
-    const a2 = function(e3) {
-      return u((t3, r3) => {
-        const o3 = { _resolve: t3, _reject: r3 };
-        e3._writeRequests.push(o3);
-      });
-    }(r2);
-    return function(e3, t3, r3) {
-      try {
-        Ce(e3, t3, r3);
-      } catch (t4) {
-        return void Gt(e3, t4);
-      }
-      const o3 = e3._controlledWritableStream;
-      if (!At(o3) && o3._state === "writable") {
-        Dt(o3, Xt(e3));
-      }
-      Ut(e3);
-    }(o2, t2, n2), a2;
-  }
-  Object.defineProperties(WritableStreamDefaultWriter.prototype, { abort: { enumerable: true }, close: { enumerable: true }, releaseLock: { enumerable: true }, write: { enumerable: true }, closed: { enumerable: true }, desiredSize: { enumerable: true }, ready: { enumerable: true } }), o(WritableStreamDefaultWriter.prototype.abort, "abort"), o(WritableStreamDefaultWriter.prototype.close, "close"), o(WritableStreamDefaultWriter.prototype.releaseLock, "releaseLock"), o(WritableStreamDefaultWriter.prototype.write, "write"), typeof Symbol.toStringTag == "symbol" && Object.defineProperty(WritableStreamDefaultWriter.prototype, Symbol.toStringTag, { value: "WritableStreamDefaultWriter", configurable: true });
-  var xt = {};
-
-  class WritableStreamDefaultController {
-    constructor() {
-      throw new TypeError("Illegal constructor");
-    }
-    get abortReason() {
-      if (!Qt(this))
-        throw Zt("abortReason");
-      return this._abortReason;
-    }
-    get signal() {
-      if (!Qt(this))
-        throw Zt("signal");
-      if (this._abortController === undefined)
-        throw new TypeError("WritableStreamDefaultController.prototype.signal is not supported");
-      return this._abortController.signal;
-    }
-    error(e2 = undefined) {
-      if (!Qt(this))
-        throw Zt("error");
-      this._controlledWritableStream._state === "writable" && Jt(this, e2);
-    }
-    [w](e2) {
-      const t2 = this._abortAlgorithm(e2);
-      return Ht(this), t2;
-    }
-    [R]() {
-      qe(this);
-    }
-  }
-  function Qt(e2) {
-    return !!t(e2) && (!!Object.prototype.hasOwnProperty.call(e2, "_controlledWritableStream") && e2 instanceof WritableStreamDefaultController);
-  }
-  function Nt(e2, t2, r2, o2, n2, i2, a2, s2) {
-    t2._controlledWritableStream = e2, e2._writableStreamController = t2, t2._queue = undefined, t2._queueTotalSize = undefined, qe(t2), t2._abortReason = undefined, t2._abortController = function() {
-      if (typeof AbortController == "function")
-        return new AbortController;
-    }(), t2._started = false, t2._strategySizeAlgorithm = s2, t2._strategyHWM = a2, t2._writeAlgorithm = o2, t2._closeAlgorithm = n2, t2._abortAlgorithm = i2;
-    const l2 = Xt(t2);
-    Dt(e2, l2);
-    h(c(r2()), () => (t2._started = true, Ut(t2), null), (r3) => (t2._started = true, Bt(e2, r3), null));
-  }
-  function Ht(e2) {
-    e2._writeAlgorithm = undefined, e2._closeAlgorithm = undefined, e2._abortAlgorithm = undefined, e2._strategySizeAlgorithm = undefined;
-  }
-  function Vt(e2) {
-    return e2._strategyHWM - e2._queueTotalSize;
-  }
-  function Ut(e2) {
-    const t2 = e2._controlledWritableStream;
-    if (!e2._started)
-      return;
-    if (t2._inFlightWriteRequest !== undefined)
-      return;
-    if (t2._state === "erroring")
-      return void kt(t2);
-    if (e2._queue.length === 0)
-      return;
-    const r2 = e2._queue.peek().value;
-    r2 === xt ? function(e3) {
-      const t3 = e3._controlledWritableStream;
-      (function(e4) {
-        e4._inFlightCloseRequest = e4._closeRequest, e4._closeRequest = undefined;
-      })(t3), Pe(e3);
-      const r3 = e3._closeAlgorithm();
-      Ht(e3), h(r3, () => (function(e4) {
-        e4._inFlightCloseRequest._resolve(undefined), e4._inFlightCloseRequest = undefined, e4._state === "erroring" && (e4._storedError = undefined, e4._pendingAbortRequest !== undefined && (e4._pendingAbortRequest._resolve(), e4._pendingAbortRequest = undefined)), e4._state = "closed";
-        const t4 = e4._writer;
-        t4 !== undefined && ir(t4);
-      }(t3), null), (e4) => (function(e5, t4) {
-        e5._inFlightCloseRequest._reject(t4), e5._inFlightCloseRequest = undefined, e5._pendingAbortRequest !== undefined && (e5._pendingAbortRequest._reject(t4), e5._pendingAbortRequest = undefined), Bt(e5, t4);
-      }(t3, e4), null));
-    }(e2) : function(e3, t3) {
-      const r3 = e3._controlledWritableStream;
-      (function(e4) {
-        e4._inFlightWriteRequest = e4._writeRequests.shift();
-      })(r3);
-      const o2 = e3._writeAlgorithm(t3);
-      h(o2, () => {
-        (function(e4) {
-          e4._inFlightWriteRequest._resolve(undefined), e4._inFlightWriteRequest = undefined;
-        })(r3);
-        const t4 = r3._state;
-        if (Pe(e3), !At(r3) && t4 === "writable") {
-          const t5 = Xt(e3);
-          Dt(r3, t5);
-        }
-        return Ut(e3), null;
-      }, (t4) => (r3._state === "writable" && Ht(e3), function(e4, t5) {
-        e4._inFlightWriteRequest._reject(t5), e4._inFlightWriteRequest = undefined, Bt(e4, t5);
-      }(r3, t4), null));
-    }(e2, r2);
-  }
-  function Gt(e2, t2) {
-    e2._controlledWritableStream._state === "writable" && Jt(e2, t2);
-  }
-  function Xt(e2) {
-    return Vt(e2) <= 0;
-  }
-  function Jt(e2, t2) {
-    const r2 = e2._controlledWritableStream;
-    Ht(e2), jt(r2, t2);
-  }
-  function Kt(e2) {
-    return new TypeError(`WritableStream.prototype.${e2} can only be used on a WritableStream`);
-  }
-  function Zt(e2) {
-    return new TypeError(`WritableStreamDefaultController.prototype.${e2} can only be used on a WritableStreamDefaultController`);
-  }
-  function er(e2) {
-    return new TypeError(`WritableStreamDefaultWriter.prototype.${e2} can only be used on a WritableStreamDefaultWriter`);
-  }
-  function tr(e2) {
-    return new TypeError("Cannot " + e2 + " a stream using a released writer");
-  }
-  function rr(e2) {
-    e2._closedPromise = u((t2, r2) => {
-      e2._closedPromise_resolve = t2, e2._closedPromise_reject = r2, e2._closedPromiseState = "pending";
-    });
-  }
-  function or(e2, t2) {
-    rr(e2), nr(e2, t2);
-  }
-  function nr(e2, t2) {
-    e2._closedPromise_reject !== undefined && (p(e2._closedPromise), e2._closedPromise_reject(t2), e2._closedPromise_resolve = undefined, e2._closedPromise_reject = undefined, e2._closedPromiseState = "rejected");
-  }
-  function ir(e2) {
-    e2._closedPromise_resolve !== undefined && (e2._closedPromise_resolve(undefined), e2._closedPromise_resolve = undefined, e2._closedPromise_reject = undefined, e2._closedPromiseState = "resolved");
-  }
-  function ar(e2) {
-    e2._readyPromise = u((t2, r2) => {
-      e2._readyPromise_resolve = t2, e2._readyPromise_reject = r2;
-    }), e2._readyPromiseState = "pending";
-  }
-  function sr(e2, t2) {
-    ar(e2), ur(e2, t2);
-  }
-  function lr(e2) {
-    ar(e2), cr(e2);
-  }
-  function ur(e2, t2) {
-    e2._readyPromise_reject !== undefined && (p(e2._readyPromise), e2._readyPromise_reject(t2), e2._readyPromise_resolve = undefined, e2._readyPromise_reject = undefined, e2._readyPromiseState = "rejected");
-  }
-  function cr(e2) {
-    e2._readyPromise_resolve !== undefined && (e2._readyPromise_resolve(undefined), e2._readyPromise_resolve = undefined, e2._readyPromise_reject = undefined, e2._readyPromiseState = "fulfilled");
-  }
-  Object.defineProperties(WritableStreamDefaultController.prototype, { abortReason: { enumerable: true }, signal: { enumerable: true }, error: { enumerable: true } }), typeof Symbol.toStringTag == "symbol" && Object.defineProperty(WritableStreamDefaultController.prototype, Symbol.toStringTag, { value: "WritableStreamDefaultController", configurable: true });
-  var dr = typeof globalThis != "undefined" ? globalThis : typeof self != "undefined" ? self : typeof global != "undefined" ? global : undefined;
-  var fr = function() {
-    const e2 = dr == null ? undefined : dr.DOMException;
-    return function(e3) {
-      if (typeof e3 != "function" && typeof e3 != "object")
-        return false;
-      if (e3.name !== "DOMException")
-        return false;
-      try {
-        return new e3, true;
-      } catch (e4) {
-        return false;
-      }
-    }(e2) ? e2 : undefined;
-  }() || function() {
-    const e2 = function(e3, t2) {
-      this.message = e3 || "", this.name = t2 || "Error", Error.captureStackTrace && Error.captureStackTrace(this, this.constructor);
-    };
-    return o(e2, "DOMException"), e2.prototype = Object.create(Error.prototype), Object.defineProperty(e2.prototype, "constructor", { value: e2, writable: true, configurable: true }), e2;
-  }();
-  function hr(e2, t2, r2, o2, n2, i2) {
-    const a2 = V(e2), s2 = Pt(t2);
-    e2._disturbed = true;
-    const l2 = new br(s2), _2 = new mr(l2);
-    return u((m2, y2) => {
-      let S2;
-      if (i2 !== undefined) {
-        if (S2 = () => {
-          const r3 = i2.reason !== undefined ? i2.reason : new fr("Aborted", "AbortError"), a3 = [];
-          o2 || a3.push(() => t2._state === "writable" ? Wt(t2, r3) : c(undefined)), n2 || a3.push(() => e2._state === "readable" ? Mr(e2, r3) : c(undefined)), T2(() => Promise.all(a3.map((e3) => e3())), true, r3);
-        }, i2.aborted)
-          return void S2();
-        i2.addEventListener("abort", S2);
-      }
-      function g2() {
-        for (;!l2._shuttingDown && !t2._backpressure && t2._state === "writable" && !At(t2) && e2._state === "readable" && re(a2); )
-          te(a2, _2);
-        if (l2._shuttingDown)
-          return c(true);
-        if (t2._backpressure)
-          return f(s2._readyPromise, g2);
-        const r3 = new _r(l2);
-        return te(a2, r3), r3._promise;
-      }
-      var v2, w2, R2;
-      if (pr(e2, a2._closedPromise, (e3) => (o2 ? P2(true, e3) : T2(() => Wt(t2, e3), true, e3), null)), pr(t2, s2._closedPromise, (t3) => (n2 ? P2(true, t3) : T2(() => Mr(e2, t3), true, t3), null)), v2 = e2, w2 = a2._closedPromise, R2 = () => (r2 ? P2() : T2(() => function(e3) {
-        const t3 = e3._ownerWritableStream, r3 = t3._state;
-        return At(t3) || r3 === "closed" ? c(undefined) : r3 === "errored" ? d(t3._storedError) : Lt(e3);
-      }(s2)), null), v2._state === "closed" ? R2() : b(w2, R2), At(t2) || t2._state === "closed") {
-        const t3 = new TypeError("the destination writable stream closed before all data could be piped to it");
-        n2 ? P2(true, t3) : T2(() => Mr(e2, t3), true, t3);
-      }
-      function T2(e3, r3, o3) {
-        function n3() {
-          return h(e3(), () => C2(r3, o3), (e4) => C2(true, e4)), null;
-        }
-        l2._shuttingDown || (l2._shuttingDown = true, t2._state !== "writable" || At(t2) ? n3() : b(l2._waitForWritesToFinish(), n3));
-      }
-      function P2(e3, r3) {
-        l2._shuttingDown || (l2._shuttingDown = true, t2._state !== "writable" || At(t2) ? C2(e3, r3) : b(l2._waitForWritesToFinish(), () => C2(e3, r3)));
-      }
-      function C2(e3, t3) {
-        return Mt(s2), O(a2), i2 !== undefined && i2.removeEventListener("abort", S2), e3 ? y2(t3) : m2(undefined), null;
-      }
-      p(u((e3, t3) => {
-        (function r3(o3) {
-          o3 ? e3() : f(g2(), r3, t3);
-        })(false);
-      }));
-    });
-  }
-
-  class br {
-    constructor(e2) {
-      this._writer = e2, this._shuttingDown = false, this._currentWrite = c(undefined);
-    }
-    _waitForWritesToFinish() {
-      const e2 = this._currentWrite;
-      return f(this._currentWrite, () => e2 !== this._currentWrite ? this._waitForWritesToFinish() : undefined);
-    }
-  }
-
-  class _r {
-    constructor(e2) {
-      this._state = e2, this._promise = u((e3, t2) => {
-        this._resolvePromise = e3, this._rejectPromise = t2;
-      });
-    }
-    _chunkSteps(t2) {
-      this._state._currentWrite = f(Yt(this._state._writer, t2), undefined, e), this._resolvePromise(false);
-    }
-    _closeSteps() {
-      this._resolvePromise(true);
-    }
-    _errorSteps(e2) {
-      this._rejectPromise(e2);
-    }
-  }
-
-  class mr {
-    constructor(e2) {
-      this._state = e2;
-    }
-    _chunkSteps(t2) {
-      this._state._currentWrite = f(Yt(this._state._writer, t2), undefined, e);
-    }
-    _closeSteps() {}
-    _errorSteps(e2) {}
-  }
-  function pr(e2, t2, r2) {
-    e2._state === "errored" ? r2(e2._storedError) : _(t2, r2);
-  }
-
-  class ReadableStreamDefaultController {
-    constructor() {
-      throw new TypeError("Illegal constructor");
-    }
-    get desiredSize() {
-      if (!yr(this))
-        throw Er("desiredSize");
-      return Pr(this);
-    }
-    close() {
-      if (!yr(this))
-        throw Er("close");
-      if (!Cr(this))
-        throw new TypeError("The stream is not in a state that permits close");
-      wr(this);
-    }
-    enqueue(e2 = undefined) {
-      if (!yr(this))
-        throw Er("enqueue");
-      if (!Cr(this))
-        throw new TypeError("The stream is not in a state that permits enqueue");
-      return Rr(this, e2);
-    }
-    error(e2 = undefined) {
-      if (!yr(this))
-        throw Er("error");
-      Tr(this, e2);
-    }
-    [T](e2) {
-      qe(this);
-      const t2 = this._cancelAlgorithm(e2);
-      return vr(this), t2;
-    }
-    [P](e2) {
-      const t2 = this._controlledReadableStream;
-      if (this._queue.length > 0) {
-        const r2 = Pe(this);
-        this._closeRequested && this._queue.length === 0 ? (vr(this), Yr(t2)) : Sr(this), e2._chunkSteps(r2);
-      } else
-        U(t2, e2), Sr(this);
-    }
-    [C]() {
-      return this._queue.length > 0;
-    }
-    [q]() {}
-  }
-  function yr(e2) {
-    return !!t(e2) && (!!Object.prototype.hasOwnProperty.call(e2, "_controlledReadableStream") && e2 instanceof ReadableStreamDefaultController);
-  }
-  function Sr(e2) {
-    if (!gr(e2))
-      return;
-    if (e2._pulling)
-      return void (e2._pullAgain = true);
-    e2._pulling = true;
-    h(e2._pullAlgorithm(), () => (e2._pulling = false, e2._pullAgain && (e2._pullAgain = false, Sr(e2)), null), (t2) => (Tr(e2, t2), null));
-  }
-  function gr(e2) {
-    const t2 = e2._controlledReadableStream;
-    if (!Cr(e2))
-      return false;
-    if (!e2._started)
-      return false;
-    if ($r(t2) && X(t2) > 0)
-      return true;
-    return Pr(e2) > 0;
-  }
-  function vr(e2) {
-    e2._pullAlgorithm = undefined, e2._cancelAlgorithm = undefined, e2._strategySizeAlgorithm = undefined;
-  }
-  function wr(e2) {
-    if (!Cr(e2))
-      return;
-    const t2 = e2._controlledReadableStream;
-    e2._closeRequested = true, e2._queue.length === 0 && (vr(e2), Yr(t2));
-  }
-  function Rr(e2, t2) {
-    if (!Cr(e2))
-      return;
-    const r2 = e2._controlledReadableStream;
-    if ($r(r2) && X(r2) > 0)
-      G(r2, t2, false);
-    else {
-      let r3;
-      try {
-        r3 = e2._strategySizeAlgorithm(t2);
-      } catch (t3) {
-        throw Tr(e2, t3), t3;
-      }
-      try {
-        Ce(e2, t2, r3);
-      } catch (t3) {
-        throw Tr(e2, t3), t3;
-      }
-    }
-    Sr(e2);
-  }
-  function Tr(e2, t2) {
-    const r2 = e2._controlledReadableStream;
-    r2._state === "readable" && (qe(e2), vr(e2), xr(r2, t2));
-  }
-  function Pr(e2) {
-    const t2 = e2._controlledReadableStream._state;
-    return t2 === "errored" ? null : t2 === "closed" ? 0 : e2._strategyHWM - e2._queueTotalSize;
-  }
-  function Cr(e2) {
-    const t2 = e2._controlledReadableStream._state;
-    return !e2._closeRequested && t2 === "readable";
-  }
-  function qr(e2, t2, r2, o2, n2, i2, a2) {
-    t2._controlledReadableStream = e2, t2._queue = undefined, t2._queueTotalSize = undefined, qe(t2), t2._started = false, t2._closeRequested = false, t2._pullAgain = false, t2._pulling = false, t2._strategySizeAlgorithm = a2, t2._strategyHWM = i2, t2._pullAlgorithm = o2, t2._cancelAlgorithm = n2, e2._readableStreamController = t2;
-    h(c(r2()), () => (t2._started = true, Sr(t2), null), (e3) => (Tr(t2, e3), null));
-  }
-  function Er(e2) {
-    return new TypeError(`ReadableStreamDefaultController.prototype.${e2} can only be used on a ReadableStreamDefaultController`);
-  }
-  function Wr(e2, t2) {
-    return Oe(e2._readableStreamController) ? function(e3) {
-      let t3, r2, o2, n2, i2, a2 = V(e3), s2 = false, l2 = false, d2 = false, f2 = false, h2 = false;
-      const b2 = u((e4) => {
-        i2 = e4;
-      });
-      function m2(e4) {
-        _(e4._closedPromise, (t4) => (e4 !== a2 || (Xe(o2._readableStreamController, t4), Xe(n2._readableStreamController, t4), f2 && h2 || i2(undefined)), null));
-      }
-      function p2() {
-        ft(a2) && (O(a2), a2 = V(e3), m2(a2));
-        te(a2, { _chunkSteps: (t4) => {
-          y(() => {
-            l2 = false, d2 = false;
-            const r3 = t4;
-            let a3 = t4;
-            if (!f2 && !h2)
-              try {
-                a3 = Te(t4);
-              } catch (t5) {
-                return Xe(o2._readableStreamController, t5), Xe(n2._readableStreamController, t5), void i2(Mr(e3, t5));
-              }
-            f2 || Ge(o2._readableStreamController, r3), h2 || Ge(n2._readableStreamController, a3), s2 = false, l2 ? g2() : d2 && v2();
-          });
-        }, _closeSteps: () => {
-          s2 = false, f2 || Ue(o2._readableStreamController), h2 || Ue(n2._readableStreamController), o2._readableStreamController._pendingPullIntos.length > 0 && et(o2._readableStreamController, 0), n2._readableStreamController._pendingPullIntos.length > 0 && et(n2._readableStreamController, 0), f2 && h2 || i2(undefined);
-        }, _errorSteps: () => {
-          s2 = false;
-        } });
-      }
-      function S2(t4, r3) {
-        ee(a2) && (O(a2), a2 = at(e3), m2(a2));
-        const u2 = r3 ? n2 : o2, c2 = r3 ? o2 : n2;
-        ht(a2, t4, 1, { _chunkSteps: (t5) => {
-          y(() => {
-            l2 = false, d2 = false;
-            const o3 = r3 ? h2 : f2;
-            if (r3 ? f2 : h2)
-              o3 || tt(u2._readableStreamController, t5);
-            else {
-              let r4;
-              try {
-                r4 = Te(t5);
-              } catch (t6) {
-                return Xe(u2._readableStreamController, t6), Xe(c2._readableStreamController, t6), void i2(Mr(e3, t6));
-              }
-              o3 || tt(u2._readableStreamController, t5), Ge(c2._readableStreamController, r4);
-            }
-            s2 = false, l2 ? g2() : d2 && v2();
-          });
-        }, _closeSteps: (e4) => {
-          s2 = false;
-          const t5 = r3 ? h2 : f2, o3 = r3 ? f2 : h2;
-          t5 || Ue(u2._readableStreamController), o3 || Ue(c2._readableStreamController), e4 !== undefined && (t5 || tt(u2._readableStreamController, e4), !o3 && c2._readableStreamController._pendingPullIntos.length > 0 && et(c2._readableStreamController, 0)), t5 && o3 || i2(undefined);
-        }, _errorSteps: () => {
-          s2 = false;
-        } });
-      }
-      function g2() {
-        if (s2)
-          return l2 = true, c(undefined);
-        s2 = true;
-        const e4 = Ke(o2._readableStreamController);
-        return e4 === null ? p2() : S2(e4._view, false), c(undefined);
-      }
-      function v2() {
-        if (s2)
-          return d2 = true, c(undefined);
-        s2 = true;
-        const e4 = Ke(n2._readableStreamController);
-        return e4 === null ? p2() : S2(e4._view, true), c(undefined);
-      }
-      function w2(o3) {
-        if (f2 = true, t3 = o3, h2) {
-          const o4 = le([t3, r2]), n3 = Mr(e3, o4);
-          i2(n3);
-        }
-        return b2;
-      }
-      function R2(o3) {
-        if (h2 = true, r2 = o3, f2) {
-          const o4 = le([t3, r2]), n3 = Mr(e3, o4);
-          i2(n3);
-        }
-        return b2;
-      }
-      function T2() {}
-      return o2 = Fr(T2, g2, w2), n2 = Fr(T2, v2, R2), m2(a2), [o2, n2];
-    }(e2) : function(e3) {
-      const t3 = V(e3);
-      let r2, o2, n2, i2, a2, s2 = false, l2 = false, d2 = false, f2 = false;
-      const h2 = u((e4) => {
-        a2 = e4;
-      });
-      function b2() {
-        if (s2)
-          return l2 = true, c(undefined);
-        s2 = true;
-        return te(t3, { _chunkSteps: (e4) => {
-          y(() => {
-            l2 = false;
-            const t4 = e4, r3 = e4;
-            d2 || Rr(n2._readableStreamController, t4), f2 || Rr(i2._readableStreamController, r3), s2 = false, l2 && b2();
-          });
-        }, _closeSteps: () => {
-          s2 = false, d2 || wr(n2._readableStreamController), f2 || wr(i2._readableStreamController), d2 && f2 || a2(undefined);
-        }, _errorSteps: () => {
-          s2 = false;
-        } }), c(undefined);
-      }
-      function m2(t4) {
-        if (d2 = true, r2 = t4, f2) {
-          const t5 = le([r2, o2]), n3 = Mr(e3, t5);
-          a2(n3);
-        }
-        return h2;
-      }
-      function p2(t4) {
-        if (f2 = true, o2 = t4, d2) {
-          const t5 = le([r2, o2]), n3 = Mr(e3, t5);
-          a2(n3);
-        }
-        return h2;
-      }
-      function S2() {}
-      return n2 = Dr(S2, b2, m2), i2 = Dr(S2, b2, p2), _(t3._closedPromise, (e4) => (Tr(n2._readableStreamController, e4), Tr(i2._readableStreamController, e4), d2 && f2 || a2(undefined), null)), [n2, i2];
-    }(e2);
-  }
-  function Or(r2) {
-    return t(o2 = r2) && o2.getReader !== undefined ? function(r3) {
-      let o3;
-      function n2() {
-        let e2;
-        try {
-          e2 = r3.read();
-        } catch (e3) {
-          return d(e3);
-        }
-        return m(e2, (e3) => {
-          if (!t(e3))
-            throw new TypeError("The promise returned by the reader.read() method must fulfill with an object");
-          if (e3.done)
-            wr(o3._readableStreamController);
-          else {
-            const t2 = e3.value;
-            Rr(o3._readableStreamController, t2);
-          }
-        });
-      }
-      function i2(e2) {
-        try {
-          return c(r3.cancel(e2));
-        } catch (e3) {
-          return d(e3);
-        }
-      }
-      return o3 = Dr(e, n2, i2, 0), o3;
-    }(r2.getReader()) : function(r3) {
-      let o3;
-      const n2 = me(r3, "async");
-      function i2() {
-        let e2;
-        try {
-          e2 = pe(n2);
-        } catch (e3) {
-          return d(e3);
-        }
-        return m(c(e2), (e3) => {
-          if (!t(e3))
-            throw new TypeError("The promise returned by the iterator.next() method must fulfill with an object");
-          if (e3.done)
-            wr(o3._readableStreamController);
-          else {
-            const t2 = e3.value;
-            Rr(o3._readableStreamController, t2);
-          }
-        });
-      }
-      function a2(e2) {
-        const r4 = n2.iterator;
-        let o4;
-        try {
-          o4 = he(r4, "return");
-        } catch (e3) {
-          return d(e3);
-        }
-        if (o4 === undefined)
-          return c(undefined);
-        return m(g(o4, r4, [e2]), (e3) => {
-          if (!t(e3))
-            throw new TypeError("The promise returned by the iterator.return() method must fulfill with an object");
-        });
-      }
-      return o3 = Dr(e, i2, a2, 0), o3;
-    }(r2);
-    var o2;
-  }
-  function Br(e2, t2, r2) {
-    return I(e2, r2), (r3) => g(e2, t2, [r3]);
-  }
-  function jr(e2, t2, r2) {
-    return I(e2, r2), (r3) => g(e2, t2, [r3]);
-  }
-  function kr(e2, t2, r2) {
-    return I(e2, r2), (r3) => S(e2, t2, [r3]);
-  }
-  function Ar(e2, t2) {
-    if ((e2 = `${e2}`) !== "bytes")
-      throw new TypeError(`${t2} '${e2}' is not a valid enumeration value for ReadableStreamType`);
-    return e2;
-  }
-  function zr(e2, t2) {
-    L(e2, t2);
-    const r2 = e2 == null ? undefined : e2.preventAbort, o2 = e2 == null ? undefined : e2.preventCancel, n2 = e2 == null ? undefined : e2.preventClose, i2 = e2 == null ? undefined : e2.signal;
-    return i2 !== undefined && function(e3, t3) {
-      if (!function(e4) {
-        if (typeof e4 != "object" || e4 === null)
-          return false;
-        try {
-          return typeof e4.aborted == "boolean";
-        } catch (e5) {
-          return false;
-        }
-      }(e3))
-        throw new TypeError(`${t3} is not an AbortSignal.`);
-    }(i2, `${t2} has member 'signal' that`), { preventAbort: Boolean(r2), preventCancel: Boolean(o2), preventClose: Boolean(n2), signal: i2 };
-  }
-  Object.defineProperties(ReadableStreamDefaultController.prototype, { close: { enumerable: true }, enqueue: { enumerable: true }, error: { enumerable: true }, desiredSize: { enumerable: true } }), o(ReadableStreamDefaultController.prototype.close, "close"), o(ReadableStreamDefaultController.prototype.enqueue, "enqueue"), o(ReadableStreamDefaultController.prototype.error, "error"), typeof Symbol.toStringTag == "symbol" && Object.defineProperty(ReadableStreamDefaultController.prototype, Symbol.toStringTag, { value: "ReadableStreamDefaultController", configurable: true });
-
-  class ReadableStream2 {
-    constructor(e2 = {}, t2 = {}) {
-      e2 === undefined ? e2 = null : $(e2, "First parameter");
-      const r2 = yt(t2, "Second parameter"), o2 = function(e3, t3) {
-        L(e3, t3);
-        const r3 = e3, o3 = r3 == null ? undefined : r3.autoAllocateChunkSize, n2 = r3 == null ? undefined : r3.cancel, i2 = r3 == null ? undefined : r3.pull, a2 = r3 == null ? undefined : r3.start, s2 = r3 == null ? undefined : r3.type;
-        return { autoAllocateChunkSize: o3 === undefined ? undefined : N(o3, `${t3} has member 'autoAllocateChunkSize' that`), cancel: n2 === undefined ? undefined : Br(n2, r3, `${t3} has member 'cancel' that`), pull: i2 === undefined ? undefined : jr(i2, r3, `${t3} has member 'pull' that`), start: a2 === undefined ? undefined : kr(a2, r3, `${t3} has member 'start' that`), type: s2 === undefined ? undefined : Ar(s2, `${t3} has member 'type' that`) };
-      }(e2, "First parameter");
-      if (Lr(this), o2.type === "bytes") {
-        if (r2.size !== undefined)
-          throw new RangeError("The strategy for a byte stream cannot have a size function");
-        (function(e3, t3, r3) {
-          const o3 = Object.create(ReadableByteStreamController.prototype);
-          let n2, i2, a2;
-          n2 = t3.start !== undefined ? () => t3.start(o3) : () => {}, i2 = t3.pull !== undefined ? () => t3.pull(o3) : () => c(undefined), a2 = t3.cancel !== undefined ? (e4) => t3.cancel(e4) : () => c(undefined);
-          const s2 = t3.autoAllocateChunkSize;
-          if (s2 === 0)
-            throw new TypeError("autoAllocateChunkSize must be greater than 0");
-          rt(e3, o3, n2, i2, a2, r3, s2);
-        })(this, o2, mt(r2, 0));
-      } else {
-        const e3 = pt(r2);
-        (function(e4, t3, r3, o3) {
-          const n2 = Object.create(ReadableStreamDefaultController.prototype);
-          let i2, a2, s2;
-          i2 = t3.start !== undefined ? () => t3.start(n2) : () => {}, a2 = t3.pull !== undefined ? () => t3.pull(n2) : () => c(undefined), s2 = t3.cancel !== undefined ? (e5) => t3.cancel(e5) : () => c(undefined), qr(e4, n2, i2, a2, s2, r3, o3);
-        })(this, o2, mt(r2, 1), e3);
-      }
-    }
-    get locked() {
-      if (!Ir(this))
-        throw Qr("locked");
-      return $r(this);
-    }
-    cancel(e2 = undefined) {
-      return Ir(this) ? $r(this) ? d(new TypeError("Cannot cancel a stream that already has a reader")) : Mr(this, e2) : d(Qr("cancel"));
-    }
-    getReader(e2 = undefined) {
-      if (!Ir(this))
-        throw Qr("getReader");
-      return function(e3, t2) {
-        L(e3, t2);
-        const r2 = e3 == null ? undefined : e3.mode;
-        return { mode: r2 === undefined ? undefined : it(r2, `${t2} has member 'mode' that`) };
-      }(e2, "First parameter").mode === undefined ? V(this) : at(this);
-    }
-    pipeThrough(e2, t2 = {}) {
-      if (!Ir(this))
-        throw Qr("pipeThrough");
-      M(e2, 1, "pipeThrough");
-      const r2 = function(e3, t3) {
-        L(e3, t3);
-        const r3 = e3 == null ? undefined : e3.readable;
-        Y(r3, "readable", "ReadableWritablePair"), H(r3, `${t3} has member 'readable' that`);
-        const o3 = e3 == null ? undefined : e3.writable;
-        return Y(o3, "writable", "ReadableWritablePair"), Tt(o3, `${t3} has member 'writable' that`), { readable: r3, writable: o3 };
-      }(e2, "First parameter"), o2 = zr(t2, "Second parameter");
-      if ($r(this))
-        throw new TypeError("ReadableStream.prototype.pipeThrough cannot be used on a locked ReadableStream");
-      if (Et(r2.writable))
-        throw new TypeError("ReadableStream.prototype.pipeThrough cannot be used on a locked WritableStream");
-      return p(hr(this, r2.writable, o2.preventClose, o2.preventAbort, o2.preventCancel, o2.signal)), r2.readable;
-    }
-    pipeTo(e2, t2 = {}) {
-      if (!Ir(this))
-        return d(Qr("pipeTo"));
-      if (e2 === undefined)
-        return d("Parameter 1 is required in 'pipeTo'.");
-      if (!qt(e2))
-        return d(new TypeError("ReadableStream.prototype.pipeTo's first argument must be a WritableStream"));
-      let r2;
-      try {
-        r2 = zr(t2, "Second parameter");
-      } catch (e3) {
-        return d(e3);
-      }
-      return $r(this) ? d(new TypeError("ReadableStream.prototype.pipeTo cannot be used on a locked ReadableStream")) : Et(e2) ? d(new TypeError("ReadableStream.prototype.pipeTo cannot be used on a locked WritableStream")) : hr(this, e2, r2.preventClose, r2.preventAbort, r2.preventCancel, r2.signal);
-    }
-    tee() {
-      if (!Ir(this))
-        throw Qr("tee");
-      return le(Wr(this));
-    }
-    values(e2 = undefined) {
-      if (!Ir(this))
-        throw Qr("values");
-      return function(e3, t2) {
-        const r2 = V(e3), o2 = new ye(r2, t2), n2 = Object.create(ge);
-        return n2._asyncIteratorImpl = o2, n2;
-      }(this, function(e3, t2) {
-        L(e3, t2);
-        const r2 = e3 == null ? undefined : e3.preventCancel;
-        return { preventCancel: Boolean(r2) };
-      }(e2, "First parameter").preventCancel);
-    }
-    [_e](e2) {
-      return this.values(e2);
-    }
-    static from(e2) {
-      return Or(e2);
-    }
-  }
-  function Dr(e2, t2, r2, o2 = 1, n2 = () => 1) {
-    const i2 = Object.create(ReadableStream2.prototype);
-    Lr(i2);
-    return qr(i2, Object.create(ReadableStreamDefaultController.prototype), e2, t2, r2, o2, n2), i2;
-  }
-  function Fr(e2, t2, r2) {
-    const o2 = Object.create(ReadableStream2.prototype);
-    Lr(o2);
-    return rt(o2, Object.create(ReadableByteStreamController.prototype), e2, t2, r2, 0, undefined), o2;
-  }
-  function Lr(e2) {
-    e2._state = "readable", e2._reader = undefined, e2._storedError = undefined, e2._disturbed = false;
-  }
-  function Ir(e2) {
-    return !!t(e2) && (!!Object.prototype.hasOwnProperty.call(e2, "_readableStreamController") && e2 instanceof ReadableStream2);
-  }
-  function $r(e2) {
-    return e2._reader !== undefined;
-  }
-  function Mr(t2, r2) {
-    if (t2._disturbed = true, t2._state === "closed")
-      return c(undefined);
-    if (t2._state === "errored")
-      return d(t2._storedError);
-    Yr(t2);
-    const o2 = t2._reader;
-    if (o2 !== undefined && ft(o2)) {
-      const e2 = o2._readIntoRequests;
-      o2._readIntoRequests = new v, e2.forEach((e3) => {
-        e3._closeSteps(undefined);
-      });
-    }
-    return m(t2._readableStreamController[T](r2), e);
-  }
-  function Yr(e2) {
-    e2._state = "closed";
-    const t2 = e2._reader;
-    if (t2 !== undefined && (z(t2), ee(t2))) {
-      const e3 = t2._readRequests;
-      t2._readRequests = new v, e3.forEach((e4) => {
-        e4._closeSteps();
-      });
-    }
-  }
-  function xr(e2, t2) {
-    e2._state = "errored", e2._storedError = t2;
-    const r2 = e2._reader;
-    r2 !== undefined && (A(r2, t2), ee(r2) ? oe(r2, t2) : bt(r2, t2));
-  }
-  function Qr(e2) {
-    return new TypeError(`ReadableStream.prototype.${e2} can only be used on a ReadableStream`);
-  }
-  function Nr(e2, t2) {
-    L(e2, t2);
-    const r2 = e2 == null ? undefined : e2.highWaterMark;
-    return Y(r2, "highWaterMark", "QueuingStrategyInit"), { highWaterMark: x(r2) };
-  }
-  Object.defineProperties(ReadableStream2, { from: { enumerable: true } }), Object.defineProperties(ReadableStream2.prototype, { cancel: { enumerable: true }, getReader: { enumerable: true }, pipeThrough: { enumerable: true }, pipeTo: { enumerable: true }, tee: { enumerable: true }, values: { enumerable: true }, locked: { enumerable: true } }), o(ReadableStream2.from, "from"), o(ReadableStream2.prototype.cancel, "cancel"), o(ReadableStream2.prototype.getReader, "getReader"), o(ReadableStream2.prototype.pipeThrough, "pipeThrough"), o(ReadableStream2.prototype.pipeTo, "pipeTo"), o(ReadableStream2.prototype.tee, "tee"), o(ReadableStream2.prototype.values, "values"), typeof Symbol.toStringTag == "symbol" && Object.defineProperty(ReadableStream2.prototype, Symbol.toStringTag, { value: "ReadableStream", configurable: true }), Object.defineProperty(ReadableStream2.prototype, _e, { value: ReadableStream2.prototype.values, writable: true, configurable: true });
-  var Hr = (e2) => e2.byteLength;
-  o(Hr, "size");
-
-  class ByteLengthQueuingStrategy {
-    constructor(e2) {
-      M(e2, 1, "ByteLengthQueuingStrategy"), e2 = Nr(e2, "First parameter"), this._byteLengthQueuingStrategyHighWaterMark = e2.highWaterMark;
-    }
-    get highWaterMark() {
-      if (!Ur(this))
-        throw Vr("highWaterMark");
-      return this._byteLengthQueuingStrategyHighWaterMark;
-    }
-    get size() {
-      if (!Ur(this))
-        throw Vr("size");
-      return Hr;
-    }
-  }
-  function Vr(e2) {
-    return new TypeError(`ByteLengthQueuingStrategy.prototype.${e2} can only be used on a ByteLengthQueuingStrategy`);
-  }
-  function Ur(e2) {
-    return !!t(e2) && (!!Object.prototype.hasOwnProperty.call(e2, "_byteLengthQueuingStrategyHighWaterMark") && e2 instanceof ByteLengthQueuingStrategy);
-  }
-  Object.defineProperties(ByteLengthQueuingStrategy.prototype, { highWaterMark: { enumerable: true }, size: { enumerable: true } }), typeof Symbol.toStringTag == "symbol" && Object.defineProperty(ByteLengthQueuingStrategy.prototype, Symbol.toStringTag, { value: "ByteLengthQueuingStrategy", configurable: true });
-  var Gr = () => 1;
-  o(Gr, "size");
-
-  class CountQueuingStrategy {
-    constructor(e2) {
-      M(e2, 1, "CountQueuingStrategy"), e2 = Nr(e2, "First parameter"), this._countQueuingStrategyHighWaterMark = e2.highWaterMark;
-    }
-    get highWaterMark() {
-      if (!Jr(this))
-        throw Xr("highWaterMark");
-      return this._countQueuingStrategyHighWaterMark;
-    }
-    get size() {
-      if (!Jr(this))
-        throw Xr("size");
-      return Gr;
-    }
-  }
-  function Xr(e2) {
-    return new TypeError(`CountQueuingStrategy.prototype.${e2} can only be used on a CountQueuingStrategy`);
-  }
-  function Jr(e2) {
-    return !!t(e2) && (!!Object.prototype.hasOwnProperty.call(e2, "_countQueuingStrategyHighWaterMark") && e2 instanceof CountQueuingStrategy);
-  }
-  function Kr(e2, t2, r2) {
-    return I(e2, r2), (r3) => g(e2, t2, [r3]);
-  }
-  function Zr(e2, t2, r2) {
-    return I(e2, r2), (r3) => S(e2, t2, [r3]);
-  }
-  function eo(e2, t2, r2) {
-    return I(e2, r2), (r3, o2) => g(e2, t2, [r3, o2]);
-  }
-  function to(e2, t2, r2) {
-    return I(e2, r2), (r3) => g(e2, t2, [r3]);
-  }
-  Object.defineProperties(CountQueuingStrategy.prototype, { highWaterMark: { enumerable: true }, size: { enumerable: true } }), typeof Symbol.toStringTag == "symbol" && Object.defineProperty(CountQueuingStrategy.prototype, Symbol.toStringTag, { value: "CountQueuingStrategy", configurable: true });
-
-  class TransformStream2 {
-    constructor(e2 = {}, t2 = {}, r2 = {}) {
-      e2 === undefined && (e2 = null);
-      const o2 = yt(t2, "Second parameter"), n2 = yt(r2, "Third parameter"), i2 = function(e3, t3) {
-        L(e3, t3);
-        const r3 = e3 == null ? undefined : e3.cancel, o3 = e3 == null ? undefined : e3.flush, n3 = e3 == null ? undefined : e3.readableType, i3 = e3 == null ? undefined : e3.start, a3 = e3 == null ? undefined : e3.transform, s3 = e3 == null ? undefined : e3.writableType;
-        return { cancel: r3 === undefined ? undefined : to(r3, e3, `${t3} has member 'cancel' that`), flush: o3 === undefined ? undefined : Kr(o3, e3, `${t3} has member 'flush' that`), readableType: n3, start: i3 === undefined ? undefined : Zr(i3, e3, `${t3} has member 'start' that`), transform: a3 === undefined ? undefined : eo(a3, e3, `${t3} has member 'transform' that`), writableType: s3 };
-      }(e2, "First parameter");
-      if (i2.readableType !== undefined)
-        throw new RangeError("Invalid readableType specified");
-      if (i2.writableType !== undefined)
-        throw new RangeError("Invalid writableType specified");
-      const a2 = mt(n2, 0), s2 = pt(n2), l2 = mt(o2, 1), f2 = pt(o2);
-      let b2;
-      (function(e3, t3, r3, o3, n3, i3) {
-        function a3() {
-          return t3;
-        }
-        function s3(t4) {
-          return function(e4, t5) {
-            const r4 = e4._transformStreamController;
-            if (e4._backpressure) {
-              return m(e4._backpressureChangePromise, () => {
-                const o4 = e4._writable;
-                if (o4._state === "erroring")
-                  throw o4._storedError;
-                return co(r4, t5);
-              });
-            }
-            return co(r4, t5);
-          }(e3, t4);
-        }
-        function l3(t4) {
-          return function(e4, t5) {
-            const r4 = e4._transformStreamController;
-            if (r4._finishPromise !== undefined)
-              return r4._finishPromise;
-            const o4 = e4._readable;
-            r4._finishPromise = u((e5, t6) => {
-              r4._finishPromise_resolve = e5, r4._finishPromise_reject = t6;
-            });
-            const n4 = r4._cancelAlgorithm(t5);
-            return lo(r4), h(n4, () => (o4._state === "errored" ? bo(r4, o4._storedError) : (Tr(o4._readableStreamController, t5), ho(r4)), null), (e5) => (Tr(o4._readableStreamController, e5), bo(r4, e5), null)), r4._finishPromise;
-          }(e3, t4);
-        }
-        function c2() {
-          return function(e4) {
-            const t4 = e4._transformStreamController;
-            if (t4._finishPromise !== undefined)
-              return t4._finishPromise;
-            const r4 = e4._readable;
-            t4._finishPromise = u((e5, r5) => {
-              t4._finishPromise_resolve = e5, t4._finishPromise_reject = r5;
-            });
-            const o4 = t4._flushAlgorithm();
-            return lo(t4), h(o4, () => (r4._state === "errored" ? bo(t4, r4._storedError) : (wr(r4._readableStreamController), ho(t4)), null), (e5) => (Tr(r4._readableStreamController, e5), bo(t4, e5), null)), t4._finishPromise;
-          }(e3);
-        }
-        function d2() {
-          return function(e4) {
-            return ao(e4, false), e4._backpressureChangePromise;
-          }(e3);
-        }
-        function f3(t4) {
-          return function(e4, t5) {
-            const r4 = e4._transformStreamController;
-            if (r4._finishPromise !== undefined)
-              return r4._finishPromise;
-            const o4 = e4._writable;
-            r4._finishPromise = u((e5, t6) => {
-              r4._finishPromise_resolve = e5, r4._finishPromise_reject = t6;
-            });
-            const n4 = r4._cancelAlgorithm(t5);
-            return lo(r4), h(n4, () => (o4._state === "errored" ? bo(r4, o4._storedError) : (Gt(o4._writableStreamController, t5), io(e4), ho(r4)), null), (t6) => (Gt(o4._writableStreamController, t6), io(e4), bo(r4, t6), null)), r4._finishPromise;
-          }(e3, t4);
-        }
-        e3._writable = function(e4, t4, r4, o4, n4 = 1, i4 = () => 1) {
-          const a4 = Object.create(WritableStream.prototype);
-          return Ct(a4), Nt(a4, Object.create(WritableStreamDefaultController.prototype), e4, t4, r4, o4, n4, i4), a4;
-        }(a3, s3, c2, l3, r3, o3), e3._readable = Dr(a3, d2, f3, n3, i3), e3._backpressure = undefined, e3._backpressureChangePromise = undefined, e3._backpressureChangePromise_resolve = undefined, ao(e3, true), e3._transformStreamController = undefined;
-      })(this, u((e3) => {
-        b2 = e3;
-      }), l2, f2, a2, s2), function(e3, t3) {
-        const r3 = Object.create(TransformStreamDefaultController.prototype);
-        let o3, n3, i3;
-        o3 = t3.transform !== undefined ? (e4) => t3.transform(e4, r3) : (e4) => {
-          try {
-            return uo(r3, e4), c(undefined);
-          } catch (e5) {
-            return d(e5);
-          }
-        };
-        n3 = t3.flush !== undefined ? () => t3.flush(r3) : () => c(undefined);
-        i3 = t3.cancel !== undefined ? (e4) => t3.cancel(e4) : () => c(undefined);
-        (function(e4, t4, r4, o4, n4) {
-          t4._controlledTransformStream = e4, e4._transformStreamController = t4, t4._transformAlgorithm = r4, t4._flushAlgorithm = o4, t4._cancelAlgorithm = n4, t4._finishPromise = undefined, t4._finishPromise_resolve = undefined, t4._finishPromise_reject = undefined;
-        })(e3, r3, o3, n3, i3);
-      }(this, i2), i2.start !== undefined ? b2(i2.start(this._transformStreamController)) : b2(undefined);
-    }
-    get readable() {
-      if (!ro(this))
-        throw _o("readable");
-      return this._readable;
-    }
-    get writable() {
-      if (!ro(this))
-        throw _o("writable");
-      return this._writable;
-    }
-  }
-  function ro(e2) {
-    return !!t(e2) && (!!Object.prototype.hasOwnProperty.call(e2, "_transformStreamController") && e2 instanceof TransformStream2);
-  }
-  function oo(e2, t2) {
-    Tr(e2._readable._readableStreamController, t2), no(e2, t2);
-  }
-  function no(e2, t2) {
-    lo(e2._transformStreamController), Gt(e2._writable._writableStreamController, t2), io(e2);
-  }
-  function io(e2) {
-    e2._backpressure && ao(e2, false);
-  }
-  function ao(e2, t2) {
-    e2._backpressureChangePromise !== undefined && e2._backpressureChangePromise_resolve(), e2._backpressureChangePromise = u((t3) => {
-      e2._backpressureChangePromise_resolve = t3;
-    }), e2._backpressure = t2;
-  }
-  Object.defineProperties(TransformStream2.prototype, { readable: { enumerable: true }, writable: { enumerable: true } }), typeof Symbol.toStringTag == "symbol" && Object.defineProperty(TransformStream2.prototype, Symbol.toStringTag, { value: "TransformStream", configurable: true });
-
-  class TransformStreamDefaultController {
-    constructor() {
-      throw new TypeError("Illegal constructor");
-    }
-    get desiredSize() {
-      if (!so(this))
-        throw fo("desiredSize");
-      return Pr(this._controlledTransformStream._readable._readableStreamController);
-    }
-    enqueue(e2 = undefined) {
-      if (!so(this))
-        throw fo("enqueue");
-      uo(this, e2);
-    }
-    error(e2 = undefined) {
-      if (!so(this))
-        throw fo("error");
-      var t2;
-      t2 = e2, oo(this._controlledTransformStream, t2);
-    }
-    terminate() {
-      if (!so(this))
-        throw fo("terminate");
-      (function(e2) {
-        const t2 = e2._controlledTransformStream;
-        wr(t2._readable._readableStreamController);
-        const r2 = new TypeError("TransformStream terminated");
-        no(t2, r2);
-      })(this);
-    }
-  }
-  function so(e2) {
-    return !!t(e2) && (!!Object.prototype.hasOwnProperty.call(e2, "_controlledTransformStream") && e2 instanceof TransformStreamDefaultController);
-  }
-  function lo(e2) {
-    e2._transformAlgorithm = undefined, e2._flushAlgorithm = undefined, e2._cancelAlgorithm = undefined;
-  }
-  function uo(e2, t2) {
-    const r2 = e2._controlledTransformStream, o2 = r2._readable._readableStreamController;
-    if (!Cr(o2))
-      throw new TypeError("Readable side is not in a state that permits enqueue");
-    try {
-      Rr(o2, t2);
-    } catch (e3) {
-      throw no(r2, e3), r2._readable._storedError;
-    }
-    const n2 = function(e3) {
-      return !gr(e3);
-    }(o2);
-    n2 !== r2._backpressure && ao(r2, true);
-  }
-  function co(e2, t2) {
-    return m(e2._transformAlgorithm(t2), undefined, (t3) => {
-      throw oo(e2._controlledTransformStream, t3), t3;
-    });
-  }
-  function fo(e2) {
-    return new TypeError(`TransformStreamDefaultController.prototype.${e2} can only be used on a TransformStreamDefaultController`);
-  }
-  function ho(e2) {
-    e2._finishPromise_resolve !== undefined && (e2._finishPromise_resolve(), e2._finishPromise_resolve = undefined, e2._finishPromise_reject = undefined);
-  }
-  function bo(e2, t2) {
-    e2._finishPromise_reject !== undefined && (p(e2._finishPromise), e2._finishPromise_reject(t2), e2._finishPromise_resolve = undefined, e2._finishPromise_reject = undefined);
-  }
-  function _o(e2) {
-    return new TypeError(`TransformStream.prototype.${e2} can only be used on a TransformStream`);
-  }
-  Object.defineProperties(TransformStreamDefaultController.prototype, { enqueue: { enumerable: true }, error: { enumerable: true }, terminate: { enumerable: true }, desiredSize: { enumerable: true } }), o(TransformStreamDefaultController.prototype.enqueue, "enqueue"), o(TransformStreamDefaultController.prototype.error, "error"), o(TransformStreamDefaultController.prototype.terminate, "terminate"), typeof Symbol.toStringTag == "symbol" && Object.defineProperty(TransformStreamDefaultController.prototype, Symbol.toStringTag, { value: "TransformStreamDefaultController", configurable: true });
-
-  // packages/core/src/polyfills/streams.ts
-  var streamGlobals = {
-    ByteLengthQueuingStrategy,
-    CountQueuingStrategy,
-    ReadableByteStreamController,
-    ReadableStream: ReadableStream2,
-    ReadableStreamBYOBReader,
-    ReadableStreamBYOBRequest,
-    ReadableStreamDefaultController,
-    ReadableStreamDefaultReader,
-    TransformStream: TransformStream2,
-    TransformStreamDefaultController,
-    WritableStream,
-    WritableStreamDefaultController,
-    WritableStreamDefaultWriter
-  };
-  function installStreamsPolyfill() {
-    installMissingGlobals(streamGlobals);
-  }
-  installStreamsPolyfill();
-
-  // packages/core/src/polyfills/encoding-streams.ts
-  class WabouTextDecoderStream {
-    decoder;
-    transform;
-    constructor(label = "utf-8", options = {}) {
-      this.decoder = new TextDecoder(label, options);
-      this.transform = new TransformStream({
-        transform: (chunk, controller) => {
-          const text = this.decoder.decode(chunk, { stream: true });
-          if (text)
-            controller.enqueue(text);
-        },
-        flush: (controller) => {
-          const text = this.decoder.decode();
-          if (text)
-            controller.enqueue(text);
-        }
-      });
-    }
-    get encoding() {
-      return this.decoder.encoding;
-    }
-    get fatal() {
-      return this.decoder.fatal;
-    }
-    get ignoreBOM() {
-      return this.decoder.ignoreBOM;
-    }
-    get readable() {
-      return this.transform.readable;
-    }
-    get writable() {
-      return this.transform.writable;
-    }
-    get [Symbol.toStringTag]() {
-      return "TextDecoderStream";
-    }
-  }
-
-  class WabouTextEncoderStream {
-    transform;
-    constructor() {
-      const encoder2 = new TextEncoder;
-      let pending = "";
-      this.transform = new TransformStream({
-        transform(chunk, controller) {
-          if (typeof chunk === "symbol")
-            throw new TypeError("Cannot encode a Symbol");
-          let text = pending + String(chunk);
-          pending = "";
-          const last = text.charCodeAt(text.length - 1);
-          if (last >= 55296 && last <= 56319) {
-            pending = text.slice(-1);
-            text = text.slice(0, -1);
-          }
-          if (text)
-            controller.enqueue(encoder2.encode(text));
-        },
-        flush(controller) {
-          if (pending)
-            controller.enqueue(encoder2.encode(pending));
-          pending = "";
-        }
-      });
-    }
-    get encoding() {
-      return "utf-8";
-    }
-    get readable() {
-      return this.transform.readable;
-    }
-    get writable() {
-      return this.transform.writable;
-    }
-    get [Symbol.toStringTag]() {
-      return "TextEncoderStream";
-    }
-  }
-  function installEncodingStreamsPolyfill() {
-    installMissingGlobals({
-      TextDecoderStream: WabouTextDecoderStream,
-      TextEncoderStream: WabouTextEncoderStream
-    });
-  }
-  installEncodingStreamsPolyfill();
-
-  // packages/core/src/polyfills/fetch.ts
-  function normalizeHeaderName(name) {
-    return String(name).toLowerCase();
-  }
-
-  class WabouHeaders {
-    entriesByName = new Map;
-    constructor(init) {
-      if (!init)
-        return;
-      if (Symbol.iterator in Object(init)) {
-        for (const [name, value] of init) {
-          this.append(name, value);
-        }
-        return;
-      }
-      for (const [name, value] of Object.entries(init))
-        this.append(name, value);
-    }
-    append(name, value) {
-      const key = normalizeHeaderName(name);
-      const current = this.entriesByName.get(key);
-      this.entriesByName.set(key, current ? `${current}, ${String(value)}` : String(value));
-    }
-    delete(name) {
-      this.entriesByName.delete(normalizeHeaderName(name));
-    }
-    get(name) {
-      return this.entriesByName.get(normalizeHeaderName(name)) ?? null;
-    }
-    has(name) {
-      return this.entriesByName.has(normalizeHeaderName(name));
-    }
-    set(name, value) {
-      this.entriesByName.set(normalizeHeaderName(name), String(value));
-    }
-    entries() {
-      return this.entriesByName.entries();
-    }
-    keys() {
-      return this.entriesByName.keys();
-    }
-    values() {
-      return this.entriesByName.values();
-    }
-    forEach(callback, thisArg) {
-      for (const [key, value] of this.entriesByName) {
-        callback.call(thisArg, value, key, this);
-      }
-    }
-    [Symbol.iterator]() {
-      return this.entries();
-    }
-    toRecord() {
-      return Object.fromEntries(this.entriesByName);
-    }
-  }
-  function encodeResponseBody(body, copy) {
-    if (typeof body === "string")
-      return new TextEncoder().encode(body);
-    if (body instanceof Uint8Array)
-      return copy ? body.slice() : body;
-    if (body instanceof ArrayBuffer)
-      return new Uint8Array(body.slice(0));
-    return new Uint8Array;
-  }
-
-  class WabouResponse {
-    body;
-    headers;
-    status;
-    statusText;
-    url;
-    bodyBytes;
-    consumed = false;
-    constructor(body = null, init = {}, url = "", copyBody = true) {
-      this.bodyBytes = encodeResponseBody(body, copyBody);
-      this.status = init.status ?? 200;
-      this.statusText = init.statusText ?? "";
-      this.headers = new WabouHeaders(init.headers);
-      this.url = url;
-      if (body === null) {
-        this.body = null;
-      } else {
-        const bytes = this.bodyBytes;
-        const stream = new ReadableStream({
-          start: (controller) => {
-            controller.enqueue(bytes);
-            controller.close();
-          }
-        });
-        const getReader = stream.getReader.bind(stream);
-        stream.getReader = (...args) => {
-          const reader = getReader(...args);
-          this.consumed = true;
-          this.bodyBytes = null;
-          return reader;
-        };
-        this.body = stream;
-      }
-    }
-    get ok() {
-      return this.status >= 200 && this.status < 300;
-    }
-    get bodyUsed() {
-      return this.consumed || this.body?.locked === true;
-    }
-    async consumeBody() {
-      if (this.bodyUsed)
-        throw new TypeError("Response body has already been consumed");
-      if (this.body === null) {
-        this.consumed = true;
-        return new Uint8Array;
-      }
-      const reader = this.body.getReader();
-      const chunks = [];
-      let length = 0;
-      try {
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done)
-            break;
-          chunks.push(value);
-          length += value.length;
-        }
-      } finally {
-        reader.releaseLock();
-      }
-      if (chunks.length === 1)
-        return chunks[0];
-      const bytes = new Uint8Array(length);
-      let offset = 0;
-      for (const chunk of chunks) {
-        bytes.set(chunk, offset);
-        offset += chunk.length;
-      }
-      return bytes;
-    }
-    async text() {
-      return new TextDecoder().decode(await this.consumeBody());
-    }
-    async json() {
-      return JSON.parse(await this.text());
-    }
-    bytes() {
-      return this.consumeBody();
-    }
-    async arrayBuffer() {
-      const bytes = await this.consumeBody();
-      if (bytes.byteOffset === 0 && bytes.byteLength === bytes.buffer.byteLength)
-        return bytes.buffer;
-      return bytes.slice().buffer;
-    }
-    clone() {
-      if (this.bodyUsed)
-        throw new TypeError("Cannot clone a consumed Response body");
-      return new WabouResponse(this.body === null ? null : this.bodyBytes, {
-        status: this.status,
-        statusText: this.statusText,
-        headers: this.headers
-      }, this.url);
-    }
-    static json(value, init = {}) {
-      const headers = new WabouHeaders(init.headers);
-      if (!headers.has("content-type")) {
-        headers.set("content-type", "application/json");
-      }
-      return new WabouResponse(JSON.stringify(value), { ...init, headers });
-    }
-    static fromHost(data, url) {
-      return new WabouResponse(data.body, {
-        status: data.status,
-        statusText: data.statusText,
-        headers: data.headers
-      }, url, false);
-    }
-  }
-  var nextFetchId = 0;
-  function installFetchPolyfill() {
-    installMissingGlobals({ Headers: WabouHeaders, Response: WabouResponse });
-    if (!("__wabou_fetch" in globalThis))
-      return;
-    globalThis.fetch = (input, init) => {
-      const signal2 = init?.signal;
-      if (signal2?.aborted)
-        return Promise.reject(signal2.reason);
-      const runtime = globalThis;
-      const id = ++nextFetchId;
-      const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
-      const serializedInit = init ? {
-        method: init.method,
-        body: init.body,
-        headers: init.headers instanceof WabouHeaders ? init.headers.toRecord() : init.headers
-      } : {};
-      const initJson = JSON.stringify(serializedInit);
-      runtime.__wabou_fetch_start?.(id);
-      const pending = new Promise((resolve2, reject) => {
-        const abort = () => {
-          runtime.__wabou_fetch_cancel?.(id);
-          reject(signal2.reason);
-        };
-        signal2?.addEventListener("abort", abort, { once: true });
-        runtime.__wabou_fetch(url, initJson, id).then(resolve2, reject).finally(() => signal2?.removeEventListener("abort", abort));
-      });
-      return pending.then((data) => {
-        const ResponseConstructor = globalThis.Response;
-        if (ResponseConstructor === WabouResponse)
-          return WabouResponse.fromHost(data, url);
-        return new ResponseConstructor(data.body, {
-          status: data.status,
-          statusText: data.statusText,
-          headers: data.headers
-        });
-      });
-    };
-  }
-  installFetchPolyfill();
 
   // packages/core/src/browser-dom.ts
   function hasBrowserDom() {
@@ -12052,12 +9471,12 @@ ${footer}`;
     getFirstChild,
     getNextSibling
   }) {
-    function insert(parent, accessor2, marker, initial, options) {
+    function insert(parent, accessor, marker, initial, options) {
       const onUpdate = options && options.onUpdate;
       let effectOptions = options;
       if (onUpdate) {
         const {
-          onUpdate: onUpdate2,
+          onUpdate,
           ...rest
         } = options;
         effectOptions = rest;
@@ -12066,11 +9485,11 @@ ${footer}`;
       const multi = marker !== undefined;
       if (multi && !initial)
         initial = [];
-      if (typeof accessor2 !== "function") {
-        accessor2 = normalize(accessor2, multi, true);
-        if (typeof accessor2 !== "function") {
-          insertExpression(parent, accessor2, initial, marker);
-          onUpdate && onUpdate(accessor2);
+      if (typeof accessor !== "function") {
+        accessor = normalize(accessor, multi, true);
+        if (typeof accessor !== "function") {
+          insertExpression(parent, accessor, initial, marker);
+          onUpdate && onUpdate(accessor);
           return;
         }
       }
@@ -12081,7 +9500,7 @@ ${footer}`;
       }
       let current = initial;
       effect2((prev) => {
-        const value = normalize(accessor2(), multi, true);
+        const value = normalize(accessor(), multi, true);
         if (typeof value !== "function")
           return value;
         effect2(() => normalize(value, multi), (inner) => {
@@ -12104,8 +9523,8 @@ ${footer}`;
     function insertExpression(parent, value, current, marker) {
       if (value === current)
         return;
-      const t2 = typeof value, multi = marker !== undefined;
-      if (t2 === "string" || t2 === "number") {
+      const t = typeof value, multi = marker !== undefined;
+      if (t === "string" || t === "number") {
         const tc = typeof current;
         if (tc === "string" || tc === "number") {
           replaceText(getFirstChild(parent), value);
@@ -12148,71 +9567,71 @@ ${footer}`;
       if (multi && !Array.isArray(value))
         value = [value != null ? value : ""];
       if (Array.isArray(value)) {
-        for (let i2 = 0, len = value.length;i2 < len; i2++) {
-          const item = value[i2], t2 = typeof item;
-          if (t2 === "string" || t2 === "number")
-            value[i2] = createTextNode(item);
+        for (let i = 0, len = value.length;i < len; i++) {
+          const item = value[i], t = typeof item;
+          if (t === "string" || t === "number")
+            value[i] = createTextNode(item);
         }
       }
       return value;
     }
-    function reconcileArrays(parentNode, a2, b2) {
-      let bLength = b2.length, aEnd = a2.length, bEnd = bLength, aStart = 0, bStart = 0, after = getNextSibling(a2[aEnd - 1]), map = null;
-      const isLive = (n2) => n2 && getParentNode(n2) === parentNode;
+    function reconcileArrays(parentNode, a, b) {
+      let bLength = b.length, aEnd = a.length, bEnd = bLength, aStart = 0, bStart = 0, after = getNextSibling(a[aEnd - 1]), map = null;
+      const isLive = (n) => n && getParentNode(n) === parentNode;
       while (aStart < aEnd || bStart < bEnd) {
-        if (a2[aStart] === b2[bStart] && isLive(a2[aStart])) {
+        if (a[aStart] === b[bStart] && isLive(a[aStart])) {
           aStart++;
           bStart++;
           continue;
         }
-        while (a2[aEnd - 1] === b2[bEnd - 1] && isLive(a2[aEnd - 1])) {
+        while (a[aEnd - 1] === b[bEnd - 1] && isLive(a[aEnd - 1])) {
           aEnd--;
           bEnd--;
         }
         if (aEnd === aStart) {
-          const node = bEnd < bLength ? bStart ? getNextSibling(b2[bStart - 1]) : b2[bEnd - bStart] : after;
+          const node = bEnd < bLength ? bStart ? getNextSibling(b[bStart - 1]) : b[bEnd - bStart] : after;
           while (bStart < bEnd)
-            insertNode(parentNode, b2[bStart++], node);
+            insertNode(parentNode, b[bStart++], node);
         } else if (bEnd === bStart) {
           while (aStart < aEnd) {
-            if (!map || !map.has(a2[aStart]))
-              removeNode(parentNode, a2[aStart]);
+            if (!map || !map.has(a[aStart]))
+              removeNode(parentNode, a[aStart]);
             aStart++;
           }
-        } else if (a2[aStart] === b2[bEnd - 1] && b2[bStart] === a2[aEnd - 1]) {
-          const anchor = a2[aStart];
+        } else if (a[aStart] === b[bEnd - 1] && b[bStart] === a[aEnd - 1]) {
+          const anchor = a[aStart];
           do {
-            insertNode(parentNode, a2[--aEnd], anchor);
+            insertNode(parentNode, a[--aEnd], anchor);
             bStart++;
             if (aStart >= aEnd - 1 || bStart >= bEnd)
               break;
-          } while (a2[aStart] === b2[bEnd - 1] && b2[bStart] === a2[aEnd - 1]);
+          } while (a[aStart] === b[bEnd - 1] && b[bStart] === a[aEnd - 1]);
         } else {
           if (!map) {
             map = new Map;
-            let i2 = bStart;
-            while (i2 < bEnd)
-              map.set(b2[i2], i2++);
+            let i = bStart;
+            while (i < bEnd)
+              map.set(b[i], i++);
           }
-          const index = map.get(a2[aStart]);
+          const index = map.get(a[aStart]);
           if (index != null) {
             if (bStart < index && index < bEnd) {
-              let i2 = aStart, sequence = 1, t2;
-              while (++i2 < aEnd && i2 < bEnd) {
-                if ((t2 = map.get(a2[i2])) == null || t2 !== index + sequence)
+              let i = aStart, sequence = 1, t;
+              while (++i < aEnd && i < bEnd) {
+                if ((t = map.get(a[i])) == null || t !== index + sequence)
                   break;
                 sequence++;
               }
               if (sequence > index - bStart) {
-                const node = a2[aStart];
+                const node = a[aStart];
                 while (bStart < index)
-                  insertNode(parentNode, b2[bStart++], node);
+                  insertNode(parentNode, b[bStart++], node);
               } else
-                replaceNode(parentNode, b2[bStart++], a2[aStart++]);
+                replaceNode(parentNode, b[bStart++], a[aStart++]);
             } else
               aStart++;
           } else
-            removeNode(parentNode, a2[aStart++]);
+            removeNode(parentNode, a[aStart++]);
         }
       }
     }
@@ -12226,11 +9645,11 @@ ${footer}`;
       }
       if (current.length) {
         let inserted = false;
-        for (let i2 = current.length - 1;i2 >= 0; i2--) {
-          const el = current[i2];
+        for (let i = current.length - 1;i >= 0; i--) {
+          const el = current[i];
           if (replacement !== el) {
             const isParent = getParentNode(el) === parent;
-            if (replacement && !inserted && !i2)
+            if (replacement && !inserted && !i)
               isParent ? replaceNode(parent, replacement, el) : insertNode(parent, replacement, marker);
             else
               isParent && removeNode(parent, el);
@@ -12241,8 +9660,8 @@ ${footer}`;
         insertNode(parent, replacement, marker);
     }
     function appendNodes(parent, array, marker) {
-      for (let i2 = 0, len = array.length;i2 < len; i2++)
-        insertNode(parent, array[i2], marker);
+      for (let i = 0, len = array.length;i < len; i++)
+        insertNode(parent, array[i], marker);
     }
     function replaceNode(parent, newNode, oldNode) {
       insertNode(parent, newNode, oldNode);
@@ -12250,8 +9669,8 @@ ${footer}`;
     }
     function collectNodes(value, nodes) {
       if (Array.isArray(value)) {
-        for (let i2 = 0, len = value.length;i2 < len; i2++)
-          collectNodes(value[i2], nodes);
+        for (let i = 0, len = value.length;i < len; i++)
+          collectNodes(value[i], nodes);
       } else if (value != null && typeof value !== "string" && typeof value !== "number") {
         nodes.push(value);
       }
@@ -12267,8 +9686,8 @@ ${footer}`;
       return nodes;
     }
     function defaultCleanupNodes(parent, nodes) {
-      for (let i2 = 0, len = nodes.length;i2 < len; i2++) {
-        const node = nodes[i2];
+      for (let i = 0, len = nodes.length;i < len; i++) {
+        const node = nodes[i];
         if (getParentNode(node) === parent)
           removeNode(parent, node);
       }
@@ -12298,10 +9717,10 @@ ${footer}`;
       if (Array.isArray(props)) {
         if (!skipChildren)
           insert(node, () => {
-            for (let i2 = props.length - 1;i2 >= 0; i2--) {
-              const s2 = resolveSource(props[i2]);
-              if (s2 != null && entryHas(s2, "children"))
-                return entryGet(s2, "children");
+            for (let i = props.length - 1;i >= 0; i--) {
+              const s = resolveSource(props[i]);
+              if (s != null && entryHas(s, "children"))
+                return entryGet(s, "children");
             }
           }, undefined, undefined, childrenOptions());
         effect2(() => collectSources({}, props, undefined), apply, named(options, "renderer spread props"));
@@ -12318,14 +9737,14 @@ ${footer}`;
           }
         } else
           insert(node, () => {
-            const s2 = resolveSource(props);
-            return s2 != null ? entryGet(s2, "children") : undefined;
+            const s = resolveSource(props);
+            return s != null ? entryGet(s, "children") : undefined;
           }, undefined, undefined, childrenOptions());
       }
       effect2(() => {
-        const s2 = resolveSource(props);
+        const s = resolveSource(props);
         const newProps = {};
-        const table = resolvedTable(s2);
+        const table = resolvedTable(s);
         if (table !== undefined) {
           for (const [prop, leaf] of table) {
             if (typeof prop !== "string" || prop === "children")
@@ -12334,79 +9753,79 @@ ${footer}`;
           }
           return newProps;
         }
-        if (s2 != null) {
-          const view = viewOf(s2);
+        if (s != null) {
+          const view = viewOf(s);
           if (view instanceof OmitView)
             collectProps(newProps, view, SOURCE_OMIT);
           else if (view !== undefined)
             collectSources(newProps, view.sources, view.kinds);
           else
-            collectProps(newProps, s2, $PROXY in s2 ? SOURCE_PROXY : SOURCE_PLAIN);
+            collectProps(newProps, s, $PROXY in s ? SOURCE_PROXY : SOURCE_PLAIN);
         }
         return newProps;
       }, apply, named(options, "renderer spread props"));
       return prevProps;
     }
-    function resolveSource(s2) {
-      return typeof s2 === "function" ? s2() : s2;
+    function resolveSource(s) {
+      return typeof s === "function" ? s() : s;
     }
-    function entryHas(s2, key) {
-      const view = viewOf(s2);
-      return view instanceof OmitView ? sourceHas(view, SOURCE_OMIT, key) : (key in s2);
+    function entryHas(s, key) {
+      const view = viewOf(s);
+      return view instanceof OmitView ? sourceHas(view, SOURCE_OMIT, key) : (key in s);
     }
-    function entryGet(s2, key) {
-      const view = viewOf(s2);
-      return view instanceof OmitView ? sourceGet(view, SOURCE_OMIT, key) : s2[key];
+    function entryGet(s, key) {
+      const view = viewOf(s);
+      return view instanceof OmitView ? sourceGet(view, SOURCE_OMIT, key) : s[key];
     }
     function collectSources(out, sources, kinds) {
       const resolved = [];
       const resolvedKinds = [];
-      for (let i2 = 0;i2 < sources.length; i2++)
-        pushEntry(resolved, resolvedKinds, sources[i2], kinds !== undefined ? kinds[i2] : SOURCE_MEMO);
-      for (let i2 = 0;i2 < resolved.length; i2++)
-        collectProps(out, resolved[i2], resolvedKinds[i2], resolved, resolvedKinds, i2 + 1);
+      for (let i = 0;i < sources.length; i++)
+        pushEntry(resolved, resolvedKinds, sources[i], kinds !== undefined ? kinds[i] : SOURCE_MEMO);
+      for (let i = 0;i < resolved.length; i++)
+        collectProps(out, resolved[i], resolvedKinds[i], resolved, resolvedKinds, i + 1);
       return out;
     }
-    function pushEntry(resolved, kinds, s2, kind) {
+    function pushEntry(resolved, kinds, s, kind) {
       if (kind !== SOURCE_MEMO) {
-        resolved.push(s2);
+        resolved.push(s);
         kinds.push(kind);
         return;
       }
-      s2 = resolveSource(s2);
-      if (s2 == null)
+      s = resolveSource(s);
+      if (s == null)
         return;
-      const view = viewOf(s2);
+      const view = viewOf(s);
       if (view instanceof OmitView) {
         resolved.push(view);
         kinds.push(SOURCE_OMIT);
       } else if (view !== undefined) {
-        const { sources: f2, kinds: k2 } = view;
-        for (let j2 = 0;j2 < f2.length; j2++)
-          pushEntry(resolved, kinds, f2[j2], k2[j2]);
+        const { sources: f, kinds: k } = view;
+        for (let j = 0;j < f.length; j++)
+          pushEntry(resolved, kinds, f[j], k[j]);
       } else {
-        resolved.push(s2);
-        kinds.push($PROXY in s2 ? SOURCE_PROXY : SOURCE_PLAIN);
+        resolved.push(s);
+        kinds.push($PROXY in s ? SOURCE_PROXY : SOURCE_PLAIN);
       }
     }
-    function collectProps(out, s2, kind, later, laterKinds, from) {
-      const keys = sourceKeys(s2, kind);
+    function collectProps(out, s, kind, later, laterKinds, from) {
+      const keys = sourceKeys(s, kind);
       outer:
-        for (let i2 = 0;i2 < keys.length; i2++) {
-          const prop = keys[i2];
+        for (let i = 0;i < keys.length; i++) {
+          const prop = keys[i];
           if (typeof prop !== "string" || prop === "children")
             continue;
           if (later !== undefined) {
-            for (let j2 = from;j2 < later.length; j2++)
-              if (sourceHas(later[j2], laterKinds[j2], prop))
+            for (let j = from;j < later.length; j++)
+              if (sourceHas(later[j], laterKinds[j], prop))
                 continue outer;
           }
-          out[prop] = sourceGet(s2, kind, prop);
+          out[prop] = sourceGet(s, kind, prop);
         }
       return out;
     }
-    function applyRef(r2, element) {
-      Array.isArray(r2) ? r2.flat(Infinity).forEach((f2) => f2 && f2(element)) : r2(element);
+    function applyRef(r, element) {
+      Array.isArray(r) ? r.flat(Infinity).forEach((f) => f && f(element)) : r(element);
     }
     function ref(fn, element) {
       const resolved = untrack(fn);
@@ -12415,10 +9834,10 @@ ${footer}`;
     return {
       render(code, element) {
         let disposer, disposed = false, mounted = [];
-        const cleanup2 = cleanupNodes || defaultCleanupNodes;
+        const cleanup = cleanupNodes || defaultCleanupNodes;
         try {
-          createRoot2((dispose2) => {
-            disposer = dispose2;
+          createRoot2((dispose) => {
+            disposer = dispose;
             const tree = code();
             const renderOptions = {
               schedule: true,
@@ -12434,7 +9853,7 @@ ${footer}`;
         } catch (err) {
           if (disposer)
             disposer();
-          cleanup2(element, mounted);
+          cleanup(element, mounted);
           throw err;
         }
         return () => {
@@ -12442,7 +9861,7 @@ ${footer}`;
             return;
           disposed = true;
           disposer();
-          cleanup2(element, mounted);
+          cleanup(element, mounted);
           mounted = [];
         };
       },
@@ -12522,18 +9941,18 @@ ${footer}`;
     for (const node of sweepSet) {
       if (node.parent !== null)
         continue;
-      const destroy = (n2) => {
-        if (!nodesByKey.has(n2.id))
+      const destroy = (n) => {
+        if (!nodesByKey.has(n.id))
           return;
-        finalizationRegistry?.unregister(n2);
-        nodesByKey.delete(n2.id);
-        listenersByNode.delete(n2.id);
-        writer.dropNode(n2.id);
-        nodeKeys.release(n2.id);
-        let c2 = n2.firstChild;
-        while (c2) {
-          destroy(c2);
-          c2 = c2.next;
+        finalizationRegistry?.unregister(n);
+        nodesByKey.delete(n.id);
+        listenersByNode.delete(n.id);
+        writer.dropNode(n.id);
+        nodeKeys.release(n.id);
+        let c = n.firstChild;
+        while (c) {
+          destroy(c);
+          c = c.next;
         }
       };
       destroy(node);
@@ -12543,12 +9962,12 @@ ${footer}`;
   function imperativeMethods(id) {
     const coordinates = (first, second) => typeof first === "number" ? [first, second ?? Number.NaN] : [first.left ?? Number.NaN, first.top ?? Number.NaN];
     const scrollTo = (first, second) => {
-      const [x2, y2] = coordinates(first, second);
-      writer.scrollTo(id, x2, y2);
+      const [x, y] = coordinates(first, second);
+      writer.scrollTo(id, x, y);
     };
     const scrollBy = (first, second) => {
-      const [x2, y2] = coordinates(first, second);
-      writer.scrollBy(id, x2, y2);
+      const [x, y] = coordinates(first, second);
+      writer.scrollBy(id, x, y);
     };
     return {
       focus: () => writer.focusNode(id),
@@ -12563,7 +9982,7 @@ ${footer}`;
   }
   function makeHandle(tag) {
     const id = nodeKeys.allocate();
-    const h2 = {
+    const h = {
       id,
       tag,
       parent: null,
@@ -12573,18 +9992,18 @@ ${footer}`;
       next: null,
       ...imperativeMethods(id)
     };
-    interactionByNode.set(h2, {
+    interactionByNode.set(h, {
       focusOrder: null,
       blocked: false,
       contained: false
     });
     if (typeof WeakRef !== "undefined") {
-      nodesByKey.set(id, new WeakRef(h2));
+      nodesByKey.set(id, new WeakRef(h));
     }
     if (finalizationRegistry) {
-      finalizationRegistry.register(h2, h2.id, h2);
+      finalizationRegistry.register(h, h.id, h);
     }
-    return h2;
+    return h;
   }
   function linkChild2(parent, child, ref) {
     child.parent = parent;
@@ -12666,7 +10085,12 @@ ${footer}`;
       return;
     }
     if (name === "focusOrder" || name === "interactionBlocked" || name === "focusContained") {
-      const state = interactionByNode.get(node);
+      const state = interactionByNode.get(node) ?? {
+        focusOrder: null,
+        blocked: false,
+        contained: false
+      };
+      interactionByNode.set(node, state);
       if (name === "focusOrder") {
         state.focusOrder = value == null || value === false ? null : Number(value);
       } else if (name === "interactionBlocked") {
@@ -12678,19 +10102,19 @@ ${footer}`;
       return;
     }
     if (name === "scrollbar") {
-      const style2 = value && typeof value === "object" ? value : {};
+      const style = value && typeof value === "object" ? value : {};
       writer.setScrollbarStyle(node.id, {
-        visibility: style2.visibility === "always" ? 1 : style2.visibility === "hidden" ? 2 : 0,
-        hideDelay: style2.hideDelay ?? 500,
-        fadeDuration: style2.fadeDuration ?? 200,
-        thickness: style2.thickness ?? 10,
-        margin: style2.margin ?? 2,
-        minThumbLength: style2.minThumbLength ?? 32,
-        radius: style2.radius ?? -1,
-        trackColor: style2.trackColor ?? 0,
-        thumbColor: style2.thumbColor ?? 1685360574,
-        hoverColor: style2.hoverColor ?? 1685360609,
-        activeColor: style2.activeColor ?? 1196780031
+        visibility: style.visibility === "always" ? 1 : style.visibility === "hidden" ? 2 : 0,
+        hideDelay: style.hideDelay ?? 500,
+        fadeDuration: style.fadeDuration ?? 200,
+        thickness: style.thickness ?? 10,
+        margin: style.margin ?? 2,
+        minThumbLength: style.minThumbLength ?? 32,
+        radius: style.radius ?? -1,
+        trackColor: style.trackColor ?? 0,
+        thumbColor: style.thumbColor ?? 1685360574,
+        hoverColor: style.hoverColor ?? 1685360609,
+        activeColor: style.activeColor ?? 1196780031
       });
       return;
     }
@@ -12784,10 +10208,10 @@ ${footer}`;
     }
     if (value == null || value === false) {
       if (name.startsWith("on") && name.length > 2) {
-        const t2 = EVENT_CODE[name.slice(2).toLowerCase()] ?? null;
-        if (t2 != null) {
-          writer.removeEventListener(node.id, t2);
-          listenersByNode.get(node.id)?.delete(t2);
+        const t = EVENT_CODE[name.slice(2).toLowerCase()] ?? null;
+        if (t != null) {
+          writer.removeEventListener(node.id, t);
+          listenersByNode.get(node.id)?.delete(t);
         }
         return;
       }
@@ -12797,24 +10221,24 @@ ${footer}`;
     if (name === "style" && typeof value === "object" && value !== null) {
       const rec = value;
       const prec = prev && typeof prev === "object" ? prev : {};
-      for (const k2 in rec) {
-        const next = rec[k2];
-        if (k2 in prec && next === prec[k2])
+      for (const k in rec) {
+        const next = rec[k];
+        if (k in prec && next === prec[k])
           continue;
         if (next == null || next === false) {
-          writer.removeStyle(node.id, k2);
+          writer.removeStyle(node.id, k);
           continue;
         }
-        assertInlineStyleValue(k2, next);
+        assertInlineStyleValue(k, next);
         if (isTypedStyleValue(next)) {
-          writer.setStyleValue(node.id, k2, next.kind, next.value);
+          writer.setStyleValue(node.id, k, next.kind, next.value);
           continue;
         }
-        writer.setStyle(node.id, k2, String(next));
+        writer.setStyle(node.id, k, String(next));
       }
-      for (const k2 in prec)
-        if (!(k2 in rec))
-          writer.removeStyle(node.id, k2);
+      for (const k in prec)
+        if (!(k in rec))
+          writer.removeStyle(node.id, k);
       return;
     }
     if (name === "textContent") {
@@ -12822,16 +10246,16 @@ ${footer}`;
       return;
     }
     if (name.startsWith("on") && typeof value === "function") {
-      const t2 = EVENT_CODE[name.slice(2).toLowerCase()];
-      if (t2 == null)
+      const t = EVENT_CODE[name.slice(2).toLowerCase()];
+      if (t == null)
         return;
-      writer.addEventListener(node.id, t2);
-      let m2 = listenersByNode.get(node.id);
-      if (!m2) {
-        m2 = new Map;
-        listenersByNode.set(node.id, m2);
+      writer.addEventListener(node.id, t);
+      let m = listenersByNode.get(node.id);
+      if (!m) {
+        m = new Map;
+        listenersByNode.set(node.id, m);
       }
-      m2.set(t2, value);
+      m.set(t, value);
       return;
     }
     if (isStructuredConfigValue(value)) {
@@ -12882,19 +10306,19 @@ ${footer}`;
   var writer = new Writer;
   var renderer = createRenderer({
     createElement(tag, staticProps) {
-      const h2 = makeHandle(tag);
-      writer.createElement(h2.id, tag);
+      const h = makeHandle(tag);
+      writer.createElement(h.id, tag);
       if (staticProps) {
         for (const [name, value] of Object.entries(staticProps)) {
-          applyProperty(writer, h2, name, value, undefined);
+          applyProperty(writer, h, name, value, undefined);
         }
       }
-      return h2;
+      return h;
     },
     createTextNode(value) {
-      const h2 = makeHandle("#text");
-      writer.createText(h2.id, String(value));
-      return h2;
+      const h = makeHandle("#text");
+      writer.createText(h.id, String(value));
+      return h;
     },
     replaceText(textNode, value) {
       writer.setText(textNode.id, String(value));
@@ -12984,14 +10408,14 @@ ${footer}`;
     mountState.mountedRoot = root;
     mountState.overlayRoots.clear();
     registerRoot2(root);
-    const dispose2 = render(code, root);
+    const dispose = render(code, root);
     flush();
     let disposed = false;
     const disposeMount = () => {
       if (disposed)
         return;
       disposed = true;
-      dispose2();
+      dispose();
       while (root.firstChild)
         removeNode(root, root.firstChild);
       if (mountState.mountedRoot === root) {
@@ -13114,8 +10538,8 @@ ${footer}`;
     let cur = nodeId;
     while (cur != null) {
       ev.currentTarget = nodeKeyEquals(cur, nodeId) ? ev.target : { id: cur };
-      const m2 = listenersByNode.get(cur);
-      const fn = m2?.get(code);
+      const m = listenersByNode.get(cur);
+      const fn = m?.get(code);
       if (fn) {
         try {
           const result = fn(ev);
@@ -13123,8 +10547,8 @@ ${footer}`;
             const current = cur;
             Promise.resolve(result).then(undefined, (error) => logEventHandlerFailure(code, current, nodeId, error));
           }
-        } catch (e2) {
-          logEventHandlerFailure(code, cur, nodeId, e2);
+        } catch (e) {
+          logEventHandlerFailure(code, cur, nodeId, e);
         }
       }
       if (ev.propagationStopped)
@@ -13141,8 +10565,8 @@ ${footer}`;
 ${detail}`);
   }
   function eventName(code) {
-    for (const [name, c2] of Object.entries(EVENT_CODE)) {
-      if (c2 === code)
+    for (const [name, c] of Object.entries(EVENT_CODE)) {
+      if (c === code)
         return name;
     }
     return "unknown";
@@ -13178,7 +10602,7 @@ ${detail}`);
   function tickAnimationFrame(frameTime, deliver = __wabou_flush, flushWriter = () => writer.flush(), commit = flush, queue = animationFrames) {
     const entries = queue.drain();
     commit(() => {
-      for (const [_2, cb] of entries) {
+      for (const [_, cb] of entries) {
         try {
           cb(frameTime);
         } catch (error) {
@@ -13210,11 +10634,8 @@ ${detail}`);
   var allListeners = new Set;
   var utf8 = new TextDecoder;
   function subscribe(topic, handler) {
-    let set = listeners.get(topic);
-    if (!set) {
-      set = new Set;
-      listeners.set(topic, set);
-    }
+    const set = listeners.get(topic) ?? new Set;
+    listeners.set(topic, set);
     set.add(handler);
     return () => {
       set.delete(handler);
@@ -13267,7 +10688,7 @@ ${detail}`);
       return __wabou_sleep(delay);
     }
     if (nativeSetTimeout) {
-      return new Promise((resolve2) => nativeSetTimeout(resolve2, delay));
+      return new Promise((resolve) => nativeSetTimeout(resolve, delay));
     }
     return Promise.reject(new Error("Wabou timer host is unavailable"));
   }
@@ -13279,7 +10700,7 @@ ${detail}`);
       console.error(message);
     }
   }
-  function schedule2(callback, delay, repeat2, args) {
+  function schedule2(callback, delay, repeat, args) {
     const id = nextTimerId++;
     active2.add(id);
     const run = async () => {
@@ -13291,7 +10712,7 @@ ${detail}`);
       } catch (error) {
         reportTimerError(error);
       }
-      if (repeat2 && active2.has(id)) {
+      if (repeat && active2.has(id)) {
         run();
       } else {
         active2.delete(id);
@@ -13301,15 +10722,19 @@ ${detail}`);
     return id;
   }
   if (!hasBrowserDom()) {
-    globalThis.setTimeout = (callback, delay = 0, ...args) => schedule2(callback, Number(delay) || 0, false, args);
-    globalThis.setInterval = (callback, delay = 0, ...args) => schedule2(callback, Number(delay) || 0, true, args);
+    Object.assign(globalThis, {
+      setTimeout: (callback, delay = 0, ...args) => schedule2(callback, Number(delay) || 0, false, args),
+      setInterval: (callback, delay = 0, ...args) => schedule2(callback, Number(delay) || 0, true, args)
+    });
   }
   function clearTimer(id) {
     active2.delete(id);
   }
   if (!hasBrowserDom()) {
-    globalThis.clearTimeout = clearTimer;
-    globalThis.clearInterval = clearTimer;
+    Object.assign(globalThis, {
+      clearTimeout: clearTimer,
+      clearInterval: clearTimer
+    });
   }
 
   // packages/core/src/glue/resize-observer.ts
@@ -13370,12 +10795,12 @@ ${detail}`);
       try {
         callback([entry]);
       } catch (error) {
-        __wabou_log("error", error?.stack ? String(error.stack) : String(error));
+        __wabou_log("error", error instanceof Error && error.stack ? error.stack : String(error));
       }
     }
   }
   if (!hasBrowserDom())
-    globalThis.ResizeObserver = WabouResizeObserver;
+    Object.assign(globalThis, { ResizeObserver: WabouResizeObserver });
 
   // packages/core/src/glue/host-frame.ts
   var RECORD_HEADER_LEN = 8;
@@ -13659,11 +11084,11 @@ ${detail}`);
     return __wabou_effect_submit(op.capability, op.method, JSON.stringify(payload ?? null));
   }
   function dispatchEffect(op, payload) {
-    return new Promise((resolve2, reject) => {
+    return new Promise((resolve, reject) => {
       const id = submit(op, payload);
       pending.set(id, {
         op,
-        resolve: resolve2,
+        resolve,
         reject
       });
     });
@@ -13822,7 +11247,8 @@ ${detail}`);
   // packages/core/src/glue/app-dirs.ts
   var resolved;
   function resolve2() {
-    return resolved ??= dispatchEffect(effectOps.appDirsResolve);
+    resolved ??= dispatchEffect(effectOps.appDirsResolve);
+    return resolved;
   }
   var appDirs = Object.freeze({
     resolve: resolve2,
@@ -13889,6 +11315,16 @@ ${detail}`);
   });
 
   // packages/core/src/glue/intl.ts
+  function encode(options) {
+    return JSON.stringify(options ?? {});
+  }
+  function epochMillis(input) {
+    if (typeof input === "number")
+      return input;
+    if (input instanceof Date)
+      return input.getTime();
+    return new Date(input).getTime();
+  }
   var intl = Object.freeze({
     locale() {
       return defaultHost.intl.locale();
@@ -13898,6 +11334,29 @@ ${detail}`);
     },
     today() {
       return defaultHost.intl.today();
+    },
+    firstWeekday(locale = intl.locale()) {
+      return defaultHost.intl.firstWeekday(locale);
+    },
+    formatNumber(value, options) {
+      const { locale = intl.locale(), ...format } = options ?? {};
+      return defaultHost.intl.formatNumber(locale, value, encode(format));
+    },
+    parseNumber(input, options) {
+      const { locale = intl.locale(), ...format } = options ?? {};
+      return defaultHost.intl.parseNumber(locale, input, encode(format));
+    },
+    pluralCategory(value, options) {
+      const { locale = intl.locale(), ...format } = options ?? {};
+      return defaultHost.intl.pluralCategory(locale, value, encode(format));
+    },
+    formatDate(input, options) {
+      const { locale = intl.locale(), ...format } = options ?? {};
+      return defaultHost.intl.formatDate(locale, epochMillis(input), encode(format));
+    },
+    formatRelativeTime(value, unit, options) {
+      const { locale = intl.locale(), ...format } = options ?? {};
+      return defaultHost.intl.formatRelativeTime(locale, value, unit, encode(format));
     }
   });
   // packages/core/src/glue/color-theme.tsx
@@ -13918,7 +11377,7 @@ ${detail}`);
         throw new TypeError("palette length changed");
       palette = output;
     } catch {
-      throw new Error(`Unknown Wabou color theme \`${name}\`; declare it in the \`theme.themes\` section of vite.config.ts`);
+      throw new Error(`Unknown Wabou color theme \`${name}\`; declare it in the \`theme.themes\` section of wabou.config.ts`);
     }
     if (!(palette instanceof Uint32Array))
       throw new Error(`Wabou color theme \`${name}\` returned an invalid palette`);
@@ -13929,13 +11388,13 @@ ${detail}`);
       return easing;
     switch (easing) {
       case "linear":
-        return (t2) => t2;
+        return (t) => t;
       case "ease-in":
-        return (t2) => t2 * t2 * t2;
+        return (t) => t * t * t;
       case "ease-in-out":
-        return (t2) => t2 < 0.5 ? 4 * t2 * t2 * t2 : 1 - (-2 * t2 + 2) ** 3 / 2;
+        return (t) => t < 0.5 ? 4 * t * t * t : 1 - (-2 * t + 2) ** 3 / 2;
       default:
-        return (t2) => 1 - (1 - t2) ** 3;
+        return (t) => 1 - (1 - t) ** 3;
     }
   }
   function srgbToLinear(value) {
@@ -13945,41 +11404,41 @@ ${detail}`);
     return value <= 0.0031308 ? 12.92 * value : 1.055 * value ** (1 / 2.4) - 0.055;
   }
   function srgbToOklab(red, green, blue) {
-    const r2 = srgbToLinear(red);
-    const g2 = srgbToLinear(green);
-    const b2 = srgbToLinear(blue);
-    const l2 = Math.cbrt(0.4122214708 * r2 + 0.5363325363 * g2 + 0.0514459929 * b2);
-    const m2 = Math.cbrt(0.2119034982 * r2 + 0.6806995451 * g2 + 0.1073969566 * b2);
-    const s2 = Math.cbrt(0.0883024619 * r2 + 0.2817188376 * g2 + 0.6299787005 * b2);
+    const r = srgbToLinear(red);
+    const g = srgbToLinear(green);
+    const b = srgbToLinear(blue);
+    const l = Math.cbrt(0.4122214708 * r + 0.5363325363 * g + 0.0514459929 * b);
+    const m = Math.cbrt(0.2119034982 * r + 0.6806995451 * g + 0.1073969566 * b);
+    const s = Math.cbrt(0.0883024619 * r + 0.2817188376 * g + 0.6299787005 * b);
     return [
-      0.2104542553 * l2 + 0.793617785 * m2 - 0.0040720468 * s2,
-      1.9779984951 * l2 - 2.428592205 * m2 + 0.4505937099 * s2,
-      0.0259040371 * l2 + 0.7827717662 * m2 - 0.808675766 * s2
+      0.2104542553 * l + 0.793617785 * m - 0.0040720468 * s,
+      1.9779984951 * l - 2.428592205 * m + 0.4505937099 * s,
+      0.0259040371 * l + 0.7827717662 * m - 0.808675766 * s
     ];
   }
-  function oklabToSrgb(lightness, a2, b2) {
-    const l2 = (lightness + 0.3963377774 * a2 + 0.2158037573 * b2) ** 3;
-    const m2 = (lightness - 0.1055613458 * a2 - 0.0638541728 * b2) ** 3;
-    const s2 = (lightness - 0.0894841775 * a2 - 1.291485548 * b2) ** 3;
+  function oklabToSrgb(lightness, a, b) {
+    const l = (lightness + 0.3963377774 * a + 0.2158037573 * b) ** 3;
+    const m = (lightness - 0.1055613458 * a - 0.0638541728 * b) ** 3;
+    const s = (lightness - 0.0894841775 * a - 1.291485548 * b) ** 3;
     return [
-      linearToSrgb(4.0767416621 * l2 - 3.3077115913 * m2 + 0.2309699292 * s2),
-      linearToSrgb(-1.2684380046 * l2 + 2.6097574011 * m2 - 0.3413193965 * s2),
-      linearToSrgb(-0.0041960863 * l2 - 0.7034186147 * m2 + 1.707614701 * s2)
+      linearToSrgb(4.0767416621 * l - 3.3077115913 * m + 0.2309699292 * s),
+      linearToSrgb(-1.2684380046 * l + 2.6097574011 * m - 0.3413193965 * s),
+      linearToSrgb(-0.0041960863 * l - 0.7034186147 * m + 1.707614701 * s)
     ];
   }
   function channel(value) {
     return Math.round(Math.min(1, Math.max(0, value)) * 255);
   }
-  function mixColor(from, to2, progress, oklab) {
+  function mixColor(from, to, progress, oklab) {
     const fromRgb = [
       (from >>> 24 & 255) / 255,
       (from >>> 16 & 255) / 255,
       (from >>> 8 & 255) / 255
     ];
     const toRgb = [
-      (to2 >>> 24 & 255) / 255,
-      (to2 >>> 16 & 255) / 255,
-      (to2 >>> 8 & 255) / 255
+      (to >>> 24 & 255) / 255,
+      (to >>> 16 & 255) / 255,
+      (to >>> 8 & 255) / 255
     ];
     const fromValue = oklab ? srgbToOklab(...fromRgb) : fromRgb;
     const toValue = oklab ? srgbToOklab(...toRgb) : toRgb;
@@ -13989,7 +11448,7 @@ ${detail}`);
       fromValue[2] + (toValue[2] - fromValue[2]) * progress
     ];
     const [red, green, blue] = oklab ? oklabToSrgb(...mixed) : mixed;
-    const alpha = channel(((from & 255) + ((to2 & 255) - (from & 255)) * progress) / 255);
+    const alpha = channel(((from & 255) + ((to & 255) - (from & 255)) * progress) / 255);
     return (channel(red) << 24 | channel(green) << 16 | channel(blue) << 8 | alpha) >>> 0;
   }
   function submitPalette(colors) {
@@ -14028,8 +11487,8 @@ ${detail}`);
       let start;
       let settled = false;
       let finish;
-      const finished = new Promise((resolve3) => {
-        finish = resolve3;
+      const finished = new Promise((resolve) => {
+        finish = resolve;
       });
       const controls = {
         finished,
@@ -14069,8 +11528,2611 @@ ${detail}`);
     }
   };
   var ColorThemeContext = createContext(colorTheme);
+  // node_modules/.bun/web-streams-polyfill@4.3.0/node_modules/web-streams-polyfill/dist/ponyfill.mjs
+  function e() {}
+  function t(e) {
+    return typeof e == "object" && e !== null || typeof e == "function";
+  }
+  var r = e;
+  function o(e, t) {
+    try {
+      Object.defineProperty(e, "name", { value: t, configurable: true });
+    } catch (e) {}
+  }
+  var n = Promise;
+  var i = Promise.resolve.bind(n);
+  var a = Promise.prototype.then;
+  var s = Promise.reject.bind(n);
+  var l = i;
+  function u(e) {
+    return new n(e);
+  }
+  function c(e) {
+    return u((t) => t(e));
+  }
+  function d(e) {
+    return s(e);
+  }
+  function f(e, t, r) {
+    return a.call(e, t, r);
+  }
+  function h(e, t, o) {
+    f(f(e, t, o), undefined, r);
+  }
+  function b(e, t) {
+    h(e, t);
+  }
+  function _(e, t) {
+    h(e, undefined, t);
+  }
+  function m(e, t, r) {
+    return f(e, t, r);
+  }
+  function p(e) {
+    f(e, undefined, r);
+  }
+  var y = (e) => {
+    if (typeof queueMicrotask == "function")
+      y = queueMicrotask;
+    else {
+      const e = c(undefined);
+      y = (t) => f(e, t);
+    }
+    return y(e);
+  };
+  function S(e, t, r) {
+    if (typeof e != "function")
+      throw new TypeError("Argument is not a function");
+    return Function.prototype.apply.call(e, t, r);
+  }
+  function g(e, t, r) {
+    try {
+      return c(S(e, t, r));
+    } catch (e) {
+      return d(e);
+    }
+  }
+
+  class v {
+    constructor() {
+      this._cursor = 0, this._size = 0, this._front = { _elements: [], _next: undefined }, this._back = this._front, this._cursor = 0, this._size = 0;
+    }
+    get length() {
+      return this._size;
+    }
+    push(e) {
+      const t = this._back;
+      let r = t;
+      t._elements.length === 16383 && (r = { _elements: [], _next: undefined }), t._elements.push(e), r !== t && (this._back = r, t._next = r), ++this._size;
+    }
+    shift() {
+      const e = this._front;
+      let t = e;
+      const r = this._cursor;
+      let o = r + 1;
+      const n = e._elements, i = n[r];
+      return o === 16384 && (t = e._next, o = 0), --this._size, this._cursor = o, e !== t && (this._front = t), n[r] = undefined, i;
+    }
+    forEach(e) {
+      let t = this._cursor, r = this._front, o = r._elements;
+      for (;!(t === o.length && r._next === undefined || t === o.length && (r = r._next, o = r._elements, t = 0, o.length === 0)); )
+        e(o[t]), ++t;
+    }
+    peek() {
+      const e = this._front, t = this._cursor;
+      return e._elements[t];
+    }
+  }
+  var w = Symbol("[[AbortSteps]]");
+  var R = Symbol("[[ErrorSteps]]");
+  var T = Symbol("[[CancelSteps]]");
+  var P = Symbol("[[PullSteps]]");
+  var C = Symbol("[[CanPullSyncSteps]]");
+  var q = Symbol("[[ReleaseSteps]]");
+  function E(e, t) {
+    e._ownerReadableStream = t, t._reader = e, t._state === "readable" ? j(e) : t._state === "closed" ? function(e) {
+      j(e), z(e);
+    }(e) : k(e, t._storedError);
+  }
+  function W(e, t) {
+    return Mr(e._ownerReadableStream, t);
+  }
+  function O(e) {
+    const t = e._ownerReadableStream;
+    t._state === "readable" ? A(e, new TypeError("Reader was released and can no longer be used to monitor the stream's closedness")) : function(e, t) {
+      k(e, t);
+    }(e, new TypeError("Reader was released and can no longer be used to monitor the stream's closedness")), t._readableStreamController[q](), t._reader = undefined, e._ownerReadableStream = undefined;
+  }
+  function B(e) {
+    return new TypeError("Cannot " + e + " a stream using a released reader");
+  }
+  function j(e) {
+    e._closedPromise = u((t, r) => {
+      e._closedPromise_resolve = t, e._closedPromise_reject = r;
+    });
+  }
+  function k(e, t) {
+    j(e), A(e, t);
+  }
+  function A(e, t) {
+    e._closedPromise_reject !== undefined && (p(e._closedPromise), e._closedPromise_reject(t), e._closedPromise_resolve = undefined, e._closedPromise_reject = undefined);
+  }
+  function z(e) {
+    e._closedPromise_resolve !== undefined && (e._closedPromise_resolve(undefined), e._closedPromise_resolve = undefined, e._closedPromise_reject = undefined);
+  }
+  var D = Number.isFinite || function(e) {
+    return typeof e == "number" && isFinite(e);
+  };
+  var F = Math.trunc || function(e) {
+    return e < 0 ? Math.ceil(e) : Math.floor(e);
+  };
+  function L(e, t) {
+    if (e !== undefined && (typeof (r = e) != "object" && typeof r != "function"))
+      throw new TypeError(`${t} is not an object.`);
+    var r;
+  }
+  function I(e, t) {
+    if (typeof e != "function")
+      throw new TypeError(`${t} is not a function.`);
+  }
+  function $(e, t) {
+    if (!function(e) {
+      return typeof e == "object" && e !== null || typeof e == "function";
+    }(e))
+      throw new TypeError(`${t} is not an object.`);
+  }
+  function M(e, t, r) {
+    if (e === undefined)
+      throw new TypeError(`Parameter ${t} is required in '${r}'.`);
+  }
+  function Y(e, t, r) {
+    if (e === undefined)
+      throw new TypeError(`${t} is required in '${r}'.`);
+  }
+  function x(e) {
+    return Number(e);
+  }
+  function Q(e) {
+    return e === 0 ? 0 : e;
+  }
+  function N(e, t) {
+    const r = Number.MAX_SAFE_INTEGER;
+    let o = Number(e);
+    if (o = Q(o), !D(o))
+      throw new TypeError(`${t} is not a finite number`);
+    if (o = function(e) {
+      return Q(F(e));
+    }(o), o < 0 || o > r)
+      throw new TypeError(`${t} is outside the accepted range of 0 to ${r}, inclusive`);
+    return D(o) && o !== 0 ? o : 0;
+  }
+  function H(e, t) {
+    if (!Ir(e))
+      throw new TypeError(`${t} is not a ReadableStream.`);
+  }
+  function V(e) {
+    return new ReadableStreamDefaultReader(e);
+  }
+  function U(e, t) {
+    e._reader._readRequests.push(t);
+  }
+  function G(e, t, r) {
+    const o = e._reader._readRequests.shift();
+    r ? o._closeSteps() : o._chunkSteps(t);
+  }
+  function X(e) {
+    return e._reader._readRequests.length;
+  }
+  function J(e) {
+    const t = e._reader;
+    return t !== undefined && !!ee(t);
+  }
+
+  class ReadableStreamDefaultReader {
+    constructor(e) {
+      if (M(e, 1, "ReadableStreamDefaultReader"), H(e, "First parameter"), $r(e))
+        throw new TypeError("This stream has already been locked for exclusive reading by another reader");
+      E(this, e), this._readRequests = new v;
+    }
+    get closed() {
+      return ee(this) ? this._closedPromise : d(ne("closed"));
+    }
+    cancel(e = undefined) {
+      return ee(this) ? this._ownerReadableStream === undefined ? d(B("cancel")) : W(this, e) : d(ne("cancel"));
+    }
+    read() {
+      if (!ee(this))
+        return d(ne("read"));
+      if (this._ownerReadableStream === undefined)
+        return d(B("read from"));
+      const e = re(this) ? new Z : new K;
+      return te(this, e), e._promise;
+    }
+    releaseLock() {
+      if (!ee(this))
+        throw ne("releaseLock");
+      this._ownerReadableStream !== undefined && function(e) {
+        O(e);
+        const t = new TypeError("Reader was released");
+        oe(e, t);
+      }(this);
+    }
+  }
+  Object.defineProperties(ReadableStreamDefaultReader.prototype, { cancel: { enumerable: true }, read: { enumerable: true }, releaseLock: { enumerable: true }, closed: { enumerable: true } }), o(ReadableStreamDefaultReader.prototype.cancel, "cancel"), o(ReadableStreamDefaultReader.prototype.read, "read"), o(ReadableStreamDefaultReader.prototype.releaseLock, "releaseLock"), typeof Symbol.toStringTag == "symbol" && Object.defineProperty(ReadableStreamDefaultReader.prototype, Symbol.toStringTag, { value: "ReadableStreamDefaultReader", configurable: true });
+
+  class K {
+    constructor() {
+      this._promise = u((e, t) => {
+        this._resolvePromise = e, this._rejectPromise = t;
+      });
+    }
+    _chunkSteps(e) {
+      this._resolvePromise({ value: e, done: false });
+    }
+    _closeSteps() {
+      this._resolvePromise({ value: undefined, done: true });
+    }
+    _errorSteps(e) {
+      this._rejectPromise(e);
+    }
+  }
+
+  class Z {
+    constructor() {
+      this._promise = undefined;
+    }
+    _chunkSteps(e) {
+      this._promise = l({ value: e, done: false });
+    }
+    _closeSteps() {
+      this._promise = l({ value: undefined, done: true });
+    }
+    _errorSteps(e) {
+      this._promise = d(e);
+    }
+  }
+  function ee(e) {
+    return !!t(e) && (!!Object.prototype.hasOwnProperty.call(e, "_readRequests") && e instanceof ReadableStreamDefaultReader);
+  }
+  function te(e, t) {
+    const r = e._ownerReadableStream;
+    r._disturbed = true, r._state === "closed" ? t._closeSteps() : r._state === "errored" ? t._errorSteps(r._storedError) : r._readableStreamController[P](t);
+  }
+  function re(e) {
+    const t = e._ownerReadableStream;
+    return t._state === "closed" || (t._state === "errored" || t._readableStreamController[C]());
+  }
+  function oe(e, t) {
+    const r = e._readRequests;
+    e._readRequests = new v, r.forEach((e) => {
+      e._errorSteps(t);
+    });
+  }
+  function ne(e) {
+    return new TypeError(`ReadableStreamDefaultReader.prototype.${e} can only be used on a ReadableStreamDefaultReader`);
+  }
+  var ie;
+  var ae;
+  var se;
+  function le(e) {
+    return e.slice();
+  }
+  function ue(e, t, r, o, n) {
+    new Uint8Array(e).set(new Uint8Array(r, o, n), t);
+  }
+  var ce = (e) => (ce = typeof e.transfer == "function" ? (e) => e.transfer() : typeof structuredClone == "function" ? (e) => structuredClone(e, { transfer: [e] }) : (e) => e, ce(e));
+  var de = (e) => (de = typeof e.detached == "boolean" ? (e) => e.detached : (e) => e.byteLength === 0, de(e));
+  function fe(e, t, r) {
+    if (e.slice)
+      return e.slice(t, r);
+    const o = r - t, n = new ArrayBuffer(o);
+    return ue(n, 0, e, t, o), n;
+  }
+  function he(e, t) {
+    const r = e[t];
+    if (r != null) {
+      if (typeof r != "function")
+        throw new TypeError(`${String(t)} is not a function`);
+      return r;
+    }
+  }
+  function be(e) {
+    try {
+      const { done: t, value: r } = e;
+      return f(l(r), (e) => ({ done: t, value: e }));
+    } catch (e) {
+      return d(e);
+    }
+  }
+  var _e = (se = (ie = Symbol.asyncIterator) !== null && ie !== undefined ? ie : (ae = Symbol.for) === null || ae === undefined ? undefined : ae.call(Symbol, "Symbol.asyncIterator")) !== null && se !== undefined ? se : "@@asyncIterator";
+  function me(e, r = "sync", o) {
+    if (o === undefined)
+      if (r === "async") {
+        if ((o = he(e, _e)) === undefined) {
+          return function(e) {
+            const r = { next() {
+              let t;
+              try {
+                t = pe(e);
+              } catch (e) {
+                return d(e);
+              }
+              return be(t);
+            }, return(r) {
+              let o;
+              try {
+                const t = he(e.iterator, "return");
+                if (t === undefined)
+                  return c({ done: true, value: r });
+                o = S(t, e.iterator, [r]);
+              } catch (e) {
+                return d(e);
+              }
+              return t(o) ? be(o) : d(new TypeError("The iterator.return() method must return an object"));
+            } };
+            return { iterator: r, nextMethod: r.next, done: false };
+          }(me(e, "sync", he(e, Symbol.iterator)));
+        }
+      } else
+        o = he(e, Symbol.iterator);
+    if (o === undefined)
+      throw new TypeError("The object is not iterable");
+    const n = S(o, e, []);
+    if (!t(n))
+      throw new TypeError("The iterator method must return an object");
+    return { iterator: n, nextMethod: n.next, done: false };
+  }
+  function pe(e) {
+    const r = S(e.nextMethod, e.iterator, []);
+    if (!t(r))
+      throw new TypeError("The iterator.next() method must return an object");
+    return r;
+  }
+
+  class ye {
+    constructor(e, t) {
+      this._ongoingPromise = undefined, this._isFinished = false, this._reader = e, this._preventCancel = t;
+    }
+    next() {
+      const e = () => this._nextSteps();
+      return this._ongoingPromise = this._ongoingPromise ? m(this._ongoingPromise, e, e) : e(), this._ongoingPromise;
+    }
+    return(e) {
+      const t = () => this._returnSteps(e);
+      return this._ongoingPromise = this._ongoingPromise ? m(this._ongoingPromise, t, t) : t(), this._ongoingPromise;
+    }
+    _nextSteps() {
+      if (this._isFinished)
+        return Promise.resolve({ value: undefined, done: true });
+      const e = this._reader, t = new Se(this);
+      return te(e, t), t._promise;
+    }
+    _returnSteps(e) {
+      if (this._isFinished)
+        return Promise.resolve({ value: e, done: true });
+      this._isFinished = true;
+      const t = this._reader;
+      if (!this._preventCancel) {
+        const r = W(t, e);
+        return O(t), m(r, () => ({ value: e, done: true }));
+      }
+      return O(t), c({ value: e, done: true });
+    }
+  }
+
+  class Se {
+    constructor(e) {
+      this._iterator = e, this._promise = u((e, t) => {
+        this._resolvePromise = e, this._rejectPromise = t;
+      });
+    }
+    _chunkSteps(e) {
+      this._iterator._ongoingPromise = undefined, y(() => this._resolvePromise({ value: e, done: false }));
+    }
+    _closeSteps() {
+      const e = this._iterator;
+      e._ongoingPromise = undefined, e._isFinished = true, O(e._reader), this._resolvePromise({ value: undefined, done: true });
+    }
+    _errorSteps(e) {
+      const t = this._iterator;
+      t._ongoingPromise = undefined, t._isFinished = true, O(t._reader), this._rejectPromise(e);
+    }
+  }
+  var ge = { next() {
+    return ve(this) ? this._asyncIteratorImpl.next() : d(we("next"));
+  }, return(e) {
+    return ve(this) ? this._asyncIteratorImpl.return(e) : d(we("return"));
+  }, [_e]() {
+    return this;
+  } };
+  function ve(e) {
+    if (!t(e))
+      return false;
+    if (!Object.prototype.hasOwnProperty.call(e, "_asyncIteratorImpl"))
+      return false;
+    try {
+      return e._asyncIteratorImpl instanceof ye;
+    } catch (e) {
+      return false;
+    }
+  }
+  function we(e) {
+    return new TypeError(`ReadableStreamAsyncIterator.${e} can only be used on a ReadableSteamAsyncIterator`);
+  }
+  Object.defineProperty(ge, _e, { enumerable: false });
+  var Re = Number.isNaN || function(e) {
+    return e != e;
+  };
+  function Te(e) {
+    const t = fe(e.buffer, e.byteOffset, e.byteOffset + e.byteLength);
+    return new Uint8Array(t);
+  }
+  function Pe(e) {
+    const t = e._queue.shift();
+    return e._queueTotalSize -= t.size, e._queueTotalSize < 0 && (e._queueTotalSize = 0), t.value;
+  }
+  function Ce(e, t, r) {
+    if (typeof (o = r) != "number" || Re(o) || o < 0 || r === 1 / 0)
+      throw new RangeError("Size must be a finite, non-NaN, non-negative number.");
+    var o;
+    e._queue.push({ value: t, size: r }), e._queueTotalSize += r;
+  }
+  function qe(e) {
+    e._queue = new v, e._queueTotalSize = 0;
+  }
+  function Ee(e) {
+    return e === DataView;
+  }
+  function We(e) {
+    return Ee(e) ? 1 : e.BYTES_PER_ELEMENT;
+  }
+
+  class ReadableStreamBYOBRequest {
+    constructor() {
+      throw new TypeError("Illegal constructor");
+    }
+    get view() {
+      if (!Be(this))
+        throw ot("view");
+      return this._view;
+    }
+    respond(e) {
+      if (!Be(this))
+        throw ot("respond");
+      if (M(e, 1, "respond"), e = N(e, "First parameter"), this._associatedReadableByteStreamController === undefined)
+        throw new TypeError("This BYOB request has been invalidated");
+      if (de(this._view.buffer))
+        throw new TypeError("The BYOB request's buffer has been detached and so cannot be used as a response");
+      et(this._associatedReadableByteStreamController, e);
+    }
+    respondWithNewView(e) {
+      if (!Be(this))
+        throw ot("respondWithNewView");
+      if (M(e, 1, "respondWithNewView"), !ArrayBuffer.isView(e))
+        throw new TypeError("You can only respond with array buffer views");
+      if (this._associatedReadableByteStreamController === undefined)
+        throw new TypeError("This BYOB request has been invalidated");
+      if (de(e.buffer))
+        throw new TypeError("The given view's buffer has been detached and so cannot be used as a response");
+      tt(this._associatedReadableByteStreamController, e);
+    }
+  }
+  Object.defineProperties(ReadableStreamBYOBRequest.prototype, { respond: { enumerable: true }, respondWithNewView: { enumerable: true }, view: { enumerable: true } }), o(ReadableStreamBYOBRequest.prototype.respond, "respond"), o(ReadableStreamBYOBRequest.prototype.respondWithNewView, "respondWithNewView"), typeof Symbol.toStringTag == "symbol" && Object.defineProperty(ReadableStreamBYOBRequest.prototype, Symbol.toStringTag, { value: "ReadableStreamBYOBRequest", configurable: true });
+
+  class ReadableByteStreamController {
+    constructor() {
+      throw new TypeError("Illegal constructor");
+    }
+    get byobRequest() {
+      if (!Oe(this))
+        throw nt("byobRequest");
+      return Ke(this);
+    }
+    get desiredSize() {
+      if (!Oe(this))
+        throw nt("desiredSize");
+      return Ze(this);
+    }
+    close() {
+      if (!Oe(this))
+        throw nt("close");
+      if (this._closeRequested)
+        throw new TypeError("The stream has already been closed; do not close it again!");
+      const e = this._controlledReadableByteStream._state;
+      if (e !== "readable")
+        throw new TypeError(`The stream (in ${e} state) is not in the readable state and cannot be closed`);
+      Ue(this);
+    }
+    enqueue(e) {
+      if (!Oe(this))
+        throw nt("enqueue");
+      if (M(e, 1, "enqueue"), !ArrayBuffer.isView(e))
+        throw new TypeError("chunk must be an array buffer view");
+      if (e.byteLength === 0)
+        throw new TypeError("chunk must have non-zero byteLength");
+      if (e.buffer.byteLength === 0)
+        throw new TypeError("chunk's buffer must have non-zero byteLength");
+      if (this._closeRequested)
+        throw new TypeError("stream is closed or draining");
+      const t = this._controlledReadableByteStream._state;
+      if (t !== "readable")
+        throw new TypeError(`The stream (in ${t} state) is not in the readable state and cannot be enqueued to`);
+      Ge(this, e);
+    }
+    error(e = undefined) {
+      if (!Oe(this))
+        throw nt("error");
+      Xe(this, e);
+    }
+    [T](e) {
+      ke(this), qe(this);
+      const t = this._cancelAlgorithm(e);
+      return Ve(this), t;
+    }
+    [P](e) {
+      const t = this._controlledReadableByteStream;
+      if (this._queueTotalSize > 0)
+        return void Je(this, e);
+      const r = this._autoAllocateChunkSize;
+      if (r !== undefined) {
+        let t;
+        try {
+          t = new ArrayBuffer(r);
+        } catch (t) {
+          return void e._errorSteps(t);
+        }
+        const o = { buffer: t, bufferByteLength: r, byteOffset: 0, byteLength: r, bytesFilled: 0, minimumFill: 1, elementSize: 1, viewConstructor: Uint8Array, readerType: "default" };
+        this._pendingPullIntos.push(o);
+      }
+      U(t, e), je(this);
+    }
+    [C]() {
+      return this._queueTotalSize > 0;
+    }
+    [q]() {
+      if (this._pendingPullIntos.length > 0) {
+        const e = this._pendingPullIntos.peek();
+        e.readerType = "none", this._pendingPullIntos = new v, this._pendingPullIntos.push(e);
+      }
+    }
+  }
+  function Oe(e) {
+    return !!t(e) && (!!Object.prototype.hasOwnProperty.call(e, "_controlledReadableByteStream") && e instanceof ReadableByteStreamController);
+  }
+  function Be(e) {
+    return !!t(e) && (!!Object.prototype.hasOwnProperty.call(e, "_associatedReadableByteStreamController") && e instanceof ReadableStreamBYOBRequest);
+  }
+  function je(e) {
+    const t = function(e) {
+      const t = e._controlledReadableByteStream;
+      if (t._state !== "readable")
+        return false;
+      if (e._closeRequested)
+        return false;
+      if (!e._started)
+        return false;
+      if (J(t) && X(t) > 0)
+        return true;
+      if (ut(t) && lt(t) > 0)
+        return true;
+      const r = Ze(e);
+      if (r > 0)
+        return true;
+      return false;
+    }(e);
+    if (!t)
+      return;
+    if (e._pulling)
+      return void (e._pullAgain = true);
+    e._pulling = true;
+    h(e._pullAlgorithm(), () => (e._pulling = false, e._pullAgain && (e._pullAgain = false, je(e)), null), (t) => (Xe(e, t), null));
+  }
+  function ke(e) {
+    xe(e), e._pendingPullIntos = new v;
+  }
+  function Ae(e, t) {
+    let r = false;
+    e._state === "closed" && (r = true);
+    const o = De(t);
+    t.readerType === "default" ? G(e, o, r) : function(e, t, r) {
+      const o = e._reader, n = o._readIntoRequests.shift();
+      r ? n._closeSteps(t) : n._chunkSteps(t);
+    }(e, o, r);
+  }
+  function ze(e, t) {
+    for (let r = 0;r < t.length; ++r)
+      Ae(e, t[r]);
+  }
+  function De(e) {
+    const { bytesFilled: t, elementSize: r } = e;
+    return new e.viewConstructor(e.buffer, e.byteOffset, t / r);
+  }
+  function Fe(e, t, r, o) {
+    e._queue.push({ buffer: t, byteOffset: r, byteLength: o }), e._queueTotalSize += o;
+  }
+  function Le(e, t, r, o) {
+    let n;
+    try {
+      n = fe(t, r, r + o);
+    } catch (t) {
+      throw Xe(e, t), t;
+    }
+    Fe(e, n, 0, o);
+  }
+  function Ie(e, t) {
+    t.bytesFilled > 0 && Le(e, t.buffer, t.byteOffset, t.bytesFilled), He(e);
+  }
+  function $e(e, t) {
+    const r = Math.min(e._queueTotalSize, t.byteLength - t.bytesFilled), o = t.bytesFilled + r;
+    let n = r, i = false;
+    const a = o - o % t.elementSize;
+    a >= t.minimumFill && (n = a - t.bytesFilled, i = true);
+    const s = e._queue;
+    for (;n > 0; ) {
+      const r = s.peek(), o = Math.min(n, r.byteLength), i = t.byteOffset + t.bytesFilled;
+      ue(t.buffer, i, r.buffer, r.byteOffset, o), r.byteLength === o ? s.shift() : (r.byteOffset += o, r.byteLength -= o), e._queueTotalSize -= o, Me(e, o, t), n -= o;
+    }
+    return i;
+  }
+  function Me(e, t, r) {
+    r.bytesFilled += t;
+  }
+  function Ye(e) {
+    e._queueTotalSize === 0 && e._closeRequested ? (Ve(e), Yr(e._controlledReadableByteStream)) : je(e);
+  }
+  function xe(e) {
+    e._byobRequest !== null && (e._byobRequest._associatedReadableByteStreamController = undefined, e._byobRequest._view = null, e._byobRequest = null);
+  }
+  function Qe(e) {
+    const t = [];
+    for (;e._pendingPullIntos.length > 0 && e._queueTotalSize !== 0; ) {
+      const r = e._pendingPullIntos.peek();
+      $e(e, r) && (He(e), t.push(r));
+    }
+    return t;
+  }
+  function Ne(e, t) {
+    const r = e._pendingPullIntos.peek();
+    xe(e);
+    e._controlledReadableByteStream._state === "closed" ? function(e, t) {
+      t.readerType === "none" && He(e);
+      const r = e._controlledReadableByteStream;
+      if (ut(r)) {
+        const t = [];
+        for (;t.length < lt(r); )
+          t.push(He(e));
+        ze(r, t);
+      }
+    }(e, r) : function(e, t, r) {
+      if (Me(0, t, r), r.readerType === "none") {
+        Ie(e, r);
+        const t = Qe(e);
+        return void ze(e._controlledReadableByteStream, t);
+      }
+      if (r.bytesFilled < r.minimumFill)
+        return;
+      He(e);
+      const o = r.bytesFilled % r.elementSize;
+      if (o > 0) {
+        const t = r.byteOffset + r.bytesFilled;
+        Le(e, r.buffer, t - o, o);
+      }
+      r.bytesFilled -= o;
+      const n = Qe(e);
+      Ae(e._controlledReadableByteStream, r), ze(e._controlledReadableByteStream, n);
+    }(e, t, r), je(e);
+  }
+  function He(e) {
+    return e._pendingPullIntos.shift();
+  }
+  function Ve(e) {
+    e._pullAlgorithm = undefined, e._cancelAlgorithm = undefined;
+  }
+  function Ue(e) {
+    const t = e._controlledReadableByteStream;
+    if (!e._closeRequested && t._state === "readable")
+      if (e._queueTotalSize > 0)
+        e._closeRequested = true;
+      else {
+        if (e._pendingPullIntos.length > 0) {
+          const t = e._pendingPullIntos.peek();
+          if (t.bytesFilled % t.elementSize !== 0) {
+            const t = new TypeError("Insufficient bytes to fill elements in the given buffer");
+            throw Xe(e, t), t;
+          }
+        }
+        Ve(e), Yr(t);
+      }
+  }
+  function Ge(e, t) {
+    const r = e._controlledReadableByteStream;
+    if (e._closeRequested || r._state !== "readable")
+      return;
+    const { buffer: o, byteOffset: n, byteLength: i } = t;
+    if (de(o))
+      throw new TypeError("chunk's buffer is detached and so cannot be enqueued");
+    const a = ce(o);
+    if (e._pendingPullIntos.length > 0) {
+      const t = e._pendingPullIntos.peek();
+      if (de(t.buffer))
+        throw new TypeError("The BYOB request's buffer has been detached and so cannot be filled with an enqueued chunk");
+      xe(e), t.buffer = ce(t.buffer), t.readerType === "none" && Ie(e, t);
+    }
+    if (J(r))
+      if (function(e) {
+        const t = e._controlledReadableByteStream._reader;
+        for (;t._readRequests.length > 0; ) {
+          if (e._queueTotalSize === 0)
+            return;
+          Je(e, t._readRequests.shift());
+        }
+      }(e), X(r) === 0)
+        Fe(e, a, n, i);
+      else {
+        e._pendingPullIntos.length > 0 && He(e);
+        G(r, new Uint8Array(a, n, i), false);
+      }
+    else if (ut(r)) {
+      Fe(e, a, n, i);
+      ze(r, Qe(e));
+    } else
+      Fe(e, a, n, i);
+    je(e);
+  }
+  function Xe(e, t) {
+    const r = e._controlledReadableByteStream;
+    r._state === "readable" && (ke(e), qe(e), Ve(e), xr(r, t));
+  }
+  function Je(e, t) {
+    const r = e._queue.shift();
+    e._queueTotalSize -= r.byteLength, Ye(e);
+    const o = new Uint8Array(r.buffer, r.byteOffset, r.byteLength);
+    t._chunkSteps(o);
+  }
+  function Ke(e) {
+    if (e._byobRequest === null && e._pendingPullIntos.length > 0) {
+      const t = e._pendingPullIntos.peek(), r = new Uint8Array(t.buffer, t.byteOffset + t.bytesFilled, t.byteLength - t.bytesFilled), o = Object.create(ReadableStreamBYOBRequest.prototype);
+      (function(e, t, r) {
+        e._associatedReadableByteStreamController = t, e._view = r;
+      })(o, e, r), e._byobRequest = o;
+    }
+    return e._byobRequest;
+  }
+  function Ze(e) {
+    const t = e._controlledReadableByteStream._state;
+    return t === "errored" ? null : t === "closed" ? 0 : e._strategyHWM - e._queueTotalSize;
+  }
+  function et(e, t) {
+    const r = e._pendingPullIntos.peek();
+    if (e._controlledReadableByteStream._state === "closed") {
+      if (t !== 0)
+        throw new TypeError("bytesWritten must be 0 when calling respond() on a closed stream");
+    } else {
+      if (t === 0)
+        throw new TypeError("bytesWritten must be greater than 0 when calling respond() on a readable stream");
+      if (r.bytesFilled + t > r.byteLength)
+        throw new RangeError("bytesWritten out of range");
+    }
+    r.buffer = ce(r.buffer), Ne(e, t);
+  }
+  function tt(e, t) {
+    const r = e._pendingPullIntos.peek();
+    if (e._controlledReadableByteStream._state === "closed") {
+      if (t.byteLength !== 0)
+        throw new TypeError("The view's length must be 0 when calling respondWithNewView() on a closed stream");
+    } else if (t.byteLength === 0)
+      throw new TypeError("The view's length must be greater than 0 when calling respondWithNewView() on a readable stream");
+    if (r.byteOffset + r.bytesFilled !== t.byteOffset)
+      throw new RangeError("The region specified by view does not match byobRequest");
+    if (r.bufferByteLength !== t.buffer.byteLength)
+      throw new RangeError("The buffer of view has different capacity than byobRequest");
+    if (r.bytesFilled + t.byteLength > r.byteLength)
+      throw new RangeError("The region specified by view is larger than byobRequest");
+    const o = t.byteLength;
+    r.buffer = ce(t.buffer), Ne(e, o);
+  }
+  function rt(e, t, r, o, n, i, a) {
+    t._controlledReadableByteStream = e, t._pullAgain = false, t._pulling = false, t._byobRequest = null, t._queue = t._queueTotalSize = undefined, qe(t), t._closeRequested = false, t._started = false, t._strategyHWM = i, t._pullAlgorithm = o, t._cancelAlgorithm = n, t._autoAllocateChunkSize = a, t._pendingPullIntos = new v, e._readableStreamController = t;
+    h(c(r()), () => (t._started = true, je(t), null), (e) => (Xe(t, e), null));
+  }
+  function ot(e) {
+    return new TypeError(`ReadableStreamBYOBRequest.prototype.${e} can only be used on a ReadableStreamBYOBRequest`);
+  }
+  function nt(e) {
+    return new TypeError(`ReadableByteStreamController.prototype.${e} can only be used on a ReadableByteStreamController`);
+  }
+  function it(e, t) {
+    if ((e = `${e}`) !== "byob")
+      throw new TypeError(`${t} '${e}' is not a valid enumeration value for ReadableStreamReaderMode`);
+    return e;
+  }
+  function at(e) {
+    return new ReadableStreamBYOBReader(e);
+  }
+  function st(e, t) {
+    e._reader._readIntoRequests.push(t);
+  }
+  function lt(e) {
+    return e._reader._readIntoRequests.length;
+  }
+  function ut(e) {
+    const t = e._reader;
+    return t !== undefined && !!ft(t);
+  }
+  Object.defineProperties(ReadableByteStreamController.prototype, { close: { enumerable: true }, enqueue: { enumerable: true }, error: { enumerable: true }, byobRequest: { enumerable: true }, desiredSize: { enumerable: true } }), o(ReadableByteStreamController.prototype.close, "close"), o(ReadableByteStreamController.prototype.enqueue, "enqueue"), o(ReadableByteStreamController.prototype.error, "error"), typeof Symbol.toStringTag == "symbol" && Object.defineProperty(ReadableByteStreamController.prototype, Symbol.toStringTag, { value: "ReadableByteStreamController", configurable: true });
+
+  class ReadableStreamBYOBReader {
+    constructor(e) {
+      if (M(e, 1, "ReadableStreamBYOBReader"), H(e, "First parameter"), $r(e))
+        throw new TypeError("This stream has already been locked for exclusive reading by another reader");
+      if (!Oe(e._readableStreamController))
+        throw new TypeError("Cannot construct a ReadableStreamBYOBReader for a stream not constructed with a byte source");
+      E(this, e), this._readIntoRequests = new v;
+    }
+    get closed() {
+      return ft(this) ? this._closedPromise : d(_t("closed"));
+    }
+    cancel(e = undefined) {
+      return ft(this) ? this._ownerReadableStream === undefined ? d(B("cancel")) : W(this, e) : d(_t("cancel"));
+    }
+    read(e, t = {}) {
+      if (!ft(this))
+        return d(_t("read"));
+      if (!ArrayBuffer.isView(e))
+        return d(new TypeError("view must be an array buffer view"));
+      if (e.byteLength === 0)
+        return d(new TypeError("view must have non-zero byteLength"));
+      if (e.buffer.byteLength === 0)
+        return d(new TypeError("view's buffer must have non-zero byteLength"));
+      if (de(e.buffer))
+        return d(new TypeError("view's buffer has been detached"));
+      let r;
+      try {
+        r = function(e, t) {
+          var r;
+          return L(e, t), { min: N((r = e == null ? undefined : e.min) !== null && r !== undefined ? r : 1, `${t} has member 'min' that`) };
+        }(t, "options");
+      } catch (e) {
+        return d(e);
+      }
+      const o = r.min;
+      if (o === 0)
+        return d(new TypeError("options.min must be greater than 0"));
+      if (function(e) {
+        return Ee(e.constructor);
+      }(e)) {
+        if (o > e.byteLength)
+          return d(new RangeError("options.min must be less than or equal to view's byteLength"));
+      } else if (o > e.length)
+        return d(new RangeError("options.min must be less than or equal to view's length"));
+      if (this._ownerReadableStream === undefined)
+        return d(B("read from"));
+      const n = function(e, t, r) {
+        const o = e._ownerReadableStream;
+        return o._state === "errored" || function(e, t, r) {
+          const o = e._controlledReadableByteStream, n = We(t.constructor), { byteLength: i } = t, a = r * n;
+          return !(e._pendingPullIntos.length > 0) && (o._state === "closed" || e._queueTotalSize >= a);
+        }(o._readableStreamController, t, r);
+      }(this, e, o) ? new dt : new ct;
+      return ht(this, e, o, n), n._promise;
+    }
+    releaseLock() {
+      if (!ft(this))
+        throw _t("releaseLock");
+      this._ownerReadableStream !== undefined && function(e) {
+        O(e);
+        const t = new TypeError("Reader was released");
+        bt(e, t);
+      }(this);
+    }
+  }
+  Object.defineProperties(ReadableStreamBYOBReader.prototype, { cancel: { enumerable: true }, read: { enumerable: true }, releaseLock: { enumerable: true }, closed: { enumerable: true } }), o(ReadableStreamBYOBReader.prototype.cancel, "cancel"), o(ReadableStreamBYOBReader.prototype.read, "read"), o(ReadableStreamBYOBReader.prototype.releaseLock, "releaseLock"), typeof Symbol.toStringTag == "symbol" && Object.defineProperty(ReadableStreamBYOBReader.prototype, Symbol.toStringTag, { value: "ReadableStreamBYOBReader", configurable: true });
+
+  class ct {
+    constructor() {
+      this._promise = u((e, t) => {
+        this._resolvePromise = e, this._rejectPromise = t;
+      });
+    }
+    _chunkSteps(e) {
+      this._resolvePromise({ value: e, done: false });
+    }
+    _closeSteps(e) {
+      this._resolvePromise({ value: e, done: true });
+    }
+    _errorSteps(e) {
+      this._rejectPromise(e);
+    }
+  }
+
+  class dt {
+    constructor() {
+      this._promise = undefined;
+    }
+    _chunkSteps(e) {
+      this._promise = l({ value: e, done: false });
+    }
+    _closeSteps(e) {
+      this._promise = l({ value: e, done: true });
+    }
+    _errorSteps(e) {
+      this._promise = d(e);
+    }
+  }
+  function ft(e) {
+    return !!t(e) && (!!Object.prototype.hasOwnProperty.call(e, "_readIntoRequests") && e instanceof ReadableStreamBYOBReader);
+  }
+  function ht(e, t, r, o) {
+    const n = e._ownerReadableStream;
+    n._disturbed = true, n._state === "errored" ? o._errorSteps(n._storedError) : function(e, t, r, o) {
+      const n = e._controlledReadableByteStream, i = t.constructor, a = We(i), { byteOffset: s, byteLength: l } = t, u = r * a;
+      let c;
+      try {
+        c = ce(t.buffer);
+      } catch (e) {
+        return void o._errorSteps(e);
+      }
+      const d = { buffer: c, bufferByteLength: c.byteLength, byteOffset: s, byteLength: l, bytesFilled: 0, minimumFill: u, elementSize: a, viewConstructor: i, readerType: "byob" };
+      if (e._pendingPullIntos.length > 0)
+        return e._pendingPullIntos.push(d), void st(n, o);
+      if (n._state === "closed") {
+        const e = new i(d.buffer, d.byteOffset, 0);
+        return void o._closeSteps(e);
+      }
+      if (e._queueTotalSize > 0) {
+        if ($e(e, d)) {
+          const t = De(d);
+          return Ye(e), void o._chunkSteps(t);
+        }
+        if (e._closeRequested) {
+          const t = new TypeError("Insufficient bytes to fill elements in the given buffer");
+          return Xe(e, t), void o._errorSteps(t);
+        }
+      }
+      e._pendingPullIntos.push(d), st(n, o), je(e);
+    }(n._readableStreamController, t, r, o);
+  }
+  function bt(e, t) {
+    const r = e._readIntoRequests;
+    e._readIntoRequests = new v, r.forEach((e) => {
+      e._errorSteps(t);
+    });
+  }
+  function _t(e) {
+    return new TypeError(`ReadableStreamBYOBReader.prototype.${e} can only be used on a ReadableStreamBYOBReader`);
+  }
+  function mt(e, t) {
+    const { highWaterMark: r } = e;
+    if (r === undefined)
+      return t;
+    if (Re(r) || r < 0)
+      throw new RangeError("Invalid highWaterMark");
+    return r;
+  }
+  function pt(e) {
+    const { size: t } = e;
+    return t || (() => 1);
+  }
+  function yt(e, t) {
+    L(e, t);
+    const r = e == null ? undefined : e.highWaterMark, o = e == null ? undefined : e.size;
+    return { highWaterMark: r === undefined ? undefined : x(r), size: o === undefined ? undefined : St(o, `${t} has member 'size' that`) };
+  }
+  function St(e, t) {
+    return I(e, t), (t) => x(e(t));
+  }
+  function gt(e, t, r) {
+    return I(e, r), (r) => g(e, t, [r]);
+  }
+  function vt(e, t, r) {
+    return I(e, r), () => g(e, t, []);
+  }
+  function wt(e, t, r) {
+    return I(e, r), (r) => S(e, t, [r]);
+  }
+  function Rt(e, t, r) {
+    return I(e, r), (r, o) => g(e, t, [r, o]);
+  }
+  function Tt(e, t) {
+    if (!qt(e))
+      throw new TypeError(`${t} is not a WritableStream.`);
+  }
+
+  class WritableStream {
+    constructor(e = {}, t = {}) {
+      e === undefined ? e = null : $(e, "First parameter");
+      const r = yt(t, "Second parameter"), o = function(e, t) {
+        L(e, t);
+        const r = e == null ? undefined : e.abort, o = e == null ? undefined : e.close, n = e == null ? undefined : e.start, i = e == null ? undefined : e.type, a = e == null ? undefined : e.write;
+        return { abort: r === undefined ? undefined : gt(r, e, `${t} has member 'abort' that`), close: o === undefined ? undefined : vt(o, e, `${t} has member 'close' that`), start: n === undefined ? undefined : wt(n, e, `${t} has member 'start' that`), write: a === undefined ? undefined : Rt(a, e, `${t} has member 'write' that`), type: i };
+      }(e, "First parameter");
+      Ct(this);
+      if (o.type !== undefined)
+        throw new RangeError("Invalid type is specified");
+      const n = pt(r);
+      (function(e, t, r, o) {
+        const n = Object.create(WritableStreamDefaultController.prototype);
+        let i, a, s, l;
+        i = t.start !== undefined ? () => t.start(n) : () => {};
+        a = t.write !== undefined ? (e) => t.write(e, n) : () => c(undefined);
+        s = t.close !== undefined ? () => t.close() : () => c(undefined);
+        l = t.abort !== undefined ? (e) => t.abort(e) : () => c(undefined);
+        Nt(e, n, i, a, s, l, r, o);
+      })(this, o, mt(r, 1), n);
+    }
+    get locked() {
+      if (!qt(this))
+        throw Kt("locked");
+      return Et(this);
+    }
+    abort(e = undefined) {
+      return qt(this) ? Et(this) ? d(new TypeError("Cannot abort a stream that already has a writer")) : Wt(this, e) : d(Kt("abort"));
+    }
+    close() {
+      return qt(this) ? Et(this) ? d(new TypeError("Cannot close a stream that already has a writer")) : At(this) ? d(new TypeError("Cannot close an already-closing stream")) : Ot(this) : d(Kt("close"));
+    }
+    getWriter() {
+      if (!qt(this))
+        throw Kt("getWriter");
+      return Pt(this);
+    }
+  }
+  function Pt(e) {
+    return new WritableStreamDefaultWriter(e);
+  }
+  function Ct(e) {
+    e._state = "writable", e._storedError = undefined, e._writer = undefined, e._writableStreamController = undefined, e._writeRequests = new v, e._inFlightWriteRequest = undefined, e._closeRequest = undefined, e._inFlightCloseRequest = undefined, e._pendingAbortRequest = undefined, e._backpressure = false;
+  }
+  function qt(e) {
+    return !!t(e) && (!!Object.prototype.hasOwnProperty.call(e, "_writableStreamController") && e instanceof WritableStream);
+  }
+  function Et(e) {
+    return e._writer !== undefined;
+  }
+  function Wt(e, t) {
+    var r;
+    if (e._state === "closed" || e._state === "errored")
+      return c(undefined);
+    e._writableStreamController._abortReason = t, (r = e._writableStreamController._abortController) === null || r === undefined || r.abort(t);
+    const o = e._state;
+    if (o === "closed" || o === "errored")
+      return c(undefined);
+    if (e._pendingAbortRequest !== undefined)
+      return e._pendingAbortRequest._promise;
+    let n = false;
+    o === "erroring" && (n = true, t = undefined);
+    const i = u((r, o) => {
+      e._pendingAbortRequest = { _promise: undefined, _resolve: r, _reject: o, _reason: t, _wasAlreadyErroring: n };
+    });
+    return e._pendingAbortRequest._promise = i, n || jt(e, t), i;
+  }
+  function Ot(e) {
+    const t = e._state;
+    if (t === "closed" || t === "errored")
+      return d(new TypeError(`The stream (in ${t} state) is not in the writable state and cannot be closed`));
+    const r = u((t, r) => {
+      const o = { _resolve: t, _reject: r };
+      e._closeRequest = o;
+    }), o = e._writer;
+    var n;
+    return o !== undefined && e._backpressure && t === "writable" && cr(o), Ce(n = e._writableStreamController, xt, 0), Ut(n), r;
+  }
+  function Bt(e, t) {
+    e._state !== "writable" ? kt(e) : jt(e, t);
+  }
+  function jt(e, t) {
+    const r = e._writableStreamController;
+    e._state = "erroring", e._storedError = t;
+    const o = e._writer;
+    o !== undefined && $t(o, t), !function(e) {
+      if (e._inFlightWriteRequest === undefined && e._inFlightCloseRequest === undefined)
+        return false;
+      return true;
+    }(e) && r._started && kt(e);
+  }
+  function kt(e) {
+    e._state = "errored", e._writableStreamController[R]();
+    const t = e._storedError;
+    if (e._writeRequests.forEach((e) => {
+      e._reject(t);
+    }), e._writeRequests = new v, e._pendingAbortRequest === undefined)
+      return void zt(e);
+    const r = e._pendingAbortRequest;
+    if (e._pendingAbortRequest = undefined, r._wasAlreadyErroring)
+      return r._reject(t), void zt(e);
+    h(e._writableStreamController[w](r._reason), () => (r._resolve(), zt(e), null), (t) => (r._reject(t), zt(e), null));
+  }
+  function At(e) {
+    return e._closeRequest !== undefined || e._inFlightCloseRequest !== undefined;
+  }
+  function zt(e) {
+    e._closeRequest !== undefined && (e._closeRequest._reject(e._storedError), e._closeRequest = undefined);
+    const t = e._writer;
+    t !== undefined && nr(t, e._storedError);
+  }
+  function Dt(e, t) {
+    const r = e._writer;
+    r !== undefined && t !== e._backpressure && (t ? function(e) {
+      ar(e);
+    }(r) : cr(r)), e._backpressure = t;
+  }
+  Object.defineProperties(WritableStream.prototype, { abort: { enumerable: true }, close: { enumerable: true }, getWriter: { enumerable: true }, locked: { enumerable: true } }), o(WritableStream.prototype.abort, "abort"), o(WritableStream.prototype.close, "close"), o(WritableStream.prototype.getWriter, "getWriter"), typeof Symbol.toStringTag == "symbol" && Object.defineProperty(WritableStream.prototype, Symbol.toStringTag, { value: "WritableStream", configurable: true });
+
+  class WritableStreamDefaultWriter {
+    constructor(e) {
+      if (M(e, 1, "WritableStreamDefaultWriter"), Tt(e, "First parameter"), Et(e))
+        throw new TypeError("This stream has already been locked for exclusive writing by another writer");
+      this._ownerWritableStream = e, e._writer = this;
+      const t = e._state;
+      if (t === "writable")
+        !At(e) && e._backpressure ? ar(this) : lr(this), rr(this);
+      else if (t === "erroring")
+        sr(this, e._storedError), rr(this);
+      else if (t === "closed")
+        lr(this), rr(r = this), ir(r);
+      else {
+        const t = e._storedError;
+        sr(this, t), or(this, t);
+      }
+      var r;
+    }
+    get closed() {
+      return Ft(this) ? this._closedPromise : d(er("closed"));
+    }
+    get desiredSize() {
+      if (!Ft(this))
+        throw er("desiredSize");
+      if (this._ownerWritableStream === undefined)
+        throw tr("desiredSize");
+      return function(e) {
+        const t = e._ownerWritableStream, r = t._state;
+        if (r === "errored" || r === "erroring")
+          return null;
+        if (r === "closed")
+          return 0;
+        return Vt(t._writableStreamController);
+      }(this);
+    }
+    get ready() {
+      return Ft(this) ? this._readyPromise : d(er("ready"));
+    }
+    abort(e = undefined) {
+      return Ft(this) ? this._ownerWritableStream === undefined ? d(tr("abort")) : function(e, t) {
+        return Wt(e._ownerWritableStream, t);
+      }(this, e) : d(er("abort"));
+    }
+    close() {
+      if (!Ft(this))
+        return d(er("close"));
+      const e = this._ownerWritableStream;
+      return e === undefined ? d(tr("close")) : At(e) ? d(new TypeError("Cannot close an already-closing stream")) : Lt(this);
+    }
+    releaseLock() {
+      if (!Ft(this))
+        throw er("releaseLock");
+      this._ownerWritableStream !== undefined && Mt(this);
+    }
+    write(e = undefined) {
+      return Ft(this) ? this._ownerWritableStream === undefined ? d(tr("write to")) : Yt(this, e) : d(er("write"));
+    }
+  }
+  function Ft(e) {
+    return !!t(e) && (!!Object.prototype.hasOwnProperty.call(e, "_ownerWritableStream") && e instanceof WritableStreamDefaultWriter);
+  }
+  function Lt(e) {
+    return Ot(e._ownerWritableStream);
+  }
+  function It(e, t) {
+    e._closedPromiseState === "pending" ? nr(e, t) : function(e, t) {
+      or(e, t);
+    }(e, t);
+  }
+  function $t(e, t) {
+    e._readyPromiseState === "pending" ? ur(e, t) : function(e, t) {
+      sr(e, t);
+    }(e, t);
+  }
+  function Mt(e) {
+    const t = e._ownerWritableStream, r = new TypeError("Writer was released and can no longer be used to monitor the stream's closedness");
+    $t(e, r), It(e, r), t._writer = undefined, e._ownerWritableStream = undefined;
+  }
+  function Yt(e, t) {
+    const r = e._ownerWritableStream, o = r._writableStreamController, n = function(e, t) {
+      if (e._strategySizeAlgorithm === undefined)
+        return 1;
+      try {
+        return e._strategySizeAlgorithm(t);
+      } catch (t) {
+        return Gt(e, t), 1;
+      }
+    }(o, t);
+    if (r !== e._ownerWritableStream)
+      return d(tr("write to"));
+    const i = r._state;
+    if (i === "errored")
+      return d(r._storedError);
+    if (At(r) || i === "closed")
+      return d(new TypeError("The stream is closing or closed and cannot be written to"));
+    if (i === "erroring")
+      return d(r._storedError);
+    const a = function(e) {
+      return u((t, r) => {
+        const o = { _resolve: t, _reject: r };
+        e._writeRequests.push(o);
+      });
+    }(r);
+    return function(e, t, r) {
+      try {
+        Ce(e, t, r);
+      } catch (t) {
+        return void Gt(e, t);
+      }
+      const o = e._controlledWritableStream;
+      if (!At(o) && o._state === "writable") {
+        Dt(o, Xt(e));
+      }
+      Ut(e);
+    }(o, t, n), a;
+  }
+  Object.defineProperties(WritableStreamDefaultWriter.prototype, { abort: { enumerable: true }, close: { enumerable: true }, releaseLock: { enumerable: true }, write: { enumerable: true }, closed: { enumerable: true }, desiredSize: { enumerable: true }, ready: { enumerable: true } }), o(WritableStreamDefaultWriter.prototype.abort, "abort"), o(WritableStreamDefaultWriter.prototype.close, "close"), o(WritableStreamDefaultWriter.prototype.releaseLock, "releaseLock"), o(WritableStreamDefaultWriter.prototype.write, "write"), typeof Symbol.toStringTag == "symbol" && Object.defineProperty(WritableStreamDefaultWriter.prototype, Symbol.toStringTag, { value: "WritableStreamDefaultWriter", configurable: true });
+  var xt = {};
+
+  class WritableStreamDefaultController {
+    constructor() {
+      throw new TypeError("Illegal constructor");
+    }
+    get abortReason() {
+      if (!Qt(this))
+        throw Zt("abortReason");
+      return this._abortReason;
+    }
+    get signal() {
+      if (!Qt(this))
+        throw Zt("signal");
+      if (this._abortController === undefined)
+        throw new TypeError("WritableStreamDefaultController.prototype.signal is not supported");
+      return this._abortController.signal;
+    }
+    error(e = undefined) {
+      if (!Qt(this))
+        throw Zt("error");
+      this._controlledWritableStream._state === "writable" && Jt(this, e);
+    }
+    [w](e) {
+      const t = this._abortAlgorithm(e);
+      return Ht(this), t;
+    }
+    [R]() {
+      qe(this);
+    }
+  }
+  function Qt(e) {
+    return !!t(e) && (!!Object.prototype.hasOwnProperty.call(e, "_controlledWritableStream") && e instanceof WritableStreamDefaultController);
+  }
+  function Nt(e, t, r, o, n, i, a, s) {
+    t._controlledWritableStream = e, e._writableStreamController = t, t._queue = undefined, t._queueTotalSize = undefined, qe(t), t._abortReason = undefined, t._abortController = function() {
+      if (typeof AbortController == "function")
+        return new AbortController;
+    }(), t._started = false, t._strategySizeAlgorithm = s, t._strategyHWM = a, t._writeAlgorithm = o, t._closeAlgorithm = n, t._abortAlgorithm = i;
+    const l = Xt(t);
+    Dt(e, l);
+    h(c(r()), () => (t._started = true, Ut(t), null), (r) => (t._started = true, Bt(e, r), null));
+  }
+  function Ht(e) {
+    e._writeAlgorithm = undefined, e._closeAlgorithm = undefined, e._abortAlgorithm = undefined, e._strategySizeAlgorithm = undefined;
+  }
+  function Vt(e) {
+    return e._strategyHWM - e._queueTotalSize;
+  }
+  function Ut(e) {
+    const t = e._controlledWritableStream;
+    if (!e._started)
+      return;
+    if (t._inFlightWriteRequest !== undefined)
+      return;
+    if (t._state === "erroring")
+      return void kt(t);
+    if (e._queue.length === 0)
+      return;
+    const r = e._queue.peek().value;
+    r === xt ? function(e) {
+      const t = e._controlledWritableStream;
+      (function(e) {
+        e._inFlightCloseRequest = e._closeRequest, e._closeRequest = undefined;
+      })(t), Pe(e);
+      const r = e._closeAlgorithm();
+      Ht(e), h(r, () => (function(e) {
+        e._inFlightCloseRequest._resolve(undefined), e._inFlightCloseRequest = undefined, e._state === "erroring" && (e._storedError = undefined, e._pendingAbortRequest !== undefined && (e._pendingAbortRequest._resolve(), e._pendingAbortRequest = undefined)), e._state = "closed";
+        const t = e._writer;
+        t !== undefined && ir(t);
+      }(t), null), (e) => (function(e, t) {
+        e._inFlightCloseRequest._reject(t), e._inFlightCloseRequest = undefined, e._pendingAbortRequest !== undefined && (e._pendingAbortRequest._reject(t), e._pendingAbortRequest = undefined), Bt(e, t);
+      }(t, e), null));
+    }(e) : function(e, t) {
+      const r = e._controlledWritableStream;
+      (function(e) {
+        e._inFlightWriteRequest = e._writeRequests.shift();
+      })(r);
+      const o = e._writeAlgorithm(t);
+      h(o, () => {
+        (function(e) {
+          e._inFlightWriteRequest._resolve(undefined), e._inFlightWriteRequest = undefined;
+        })(r);
+        const t = r._state;
+        if (Pe(e), !At(r) && t === "writable") {
+          const t = Xt(e);
+          Dt(r, t);
+        }
+        return Ut(e), null;
+      }, (t) => (r._state === "writable" && Ht(e), function(e, t) {
+        e._inFlightWriteRequest._reject(t), e._inFlightWriteRequest = undefined, Bt(e, t);
+      }(r, t), null));
+    }(e, r);
+  }
+  function Gt(e, t) {
+    e._controlledWritableStream._state === "writable" && Jt(e, t);
+  }
+  function Xt(e) {
+    return Vt(e) <= 0;
+  }
+  function Jt(e, t) {
+    const r = e._controlledWritableStream;
+    Ht(e), jt(r, t);
+  }
+  function Kt(e) {
+    return new TypeError(`WritableStream.prototype.${e} can only be used on a WritableStream`);
+  }
+  function Zt(e) {
+    return new TypeError(`WritableStreamDefaultController.prototype.${e} can only be used on a WritableStreamDefaultController`);
+  }
+  function er(e) {
+    return new TypeError(`WritableStreamDefaultWriter.prototype.${e} can only be used on a WritableStreamDefaultWriter`);
+  }
+  function tr(e) {
+    return new TypeError("Cannot " + e + " a stream using a released writer");
+  }
+  function rr(e) {
+    e._closedPromise = u((t, r) => {
+      e._closedPromise_resolve = t, e._closedPromise_reject = r, e._closedPromiseState = "pending";
+    });
+  }
+  function or(e, t) {
+    rr(e), nr(e, t);
+  }
+  function nr(e, t) {
+    e._closedPromise_reject !== undefined && (p(e._closedPromise), e._closedPromise_reject(t), e._closedPromise_resolve = undefined, e._closedPromise_reject = undefined, e._closedPromiseState = "rejected");
+  }
+  function ir(e) {
+    e._closedPromise_resolve !== undefined && (e._closedPromise_resolve(undefined), e._closedPromise_resolve = undefined, e._closedPromise_reject = undefined, e._closedPromiseState = "resolved");
+  }
+  function ar(e) {
+    e._readyPromise = u((t, r) => {
+      e._readyPromise_resolve = t, e._readyPromise_reject = r;
+    }), e._readyPromiseState = "pending";
+  }
+  function sr(e, t) {
+    ar(e), ur(e, t);
+  }
+  function lr(e) {
+    ar(e), cr(e);
+  }
+  function ur(e, t) {
+    e._readyPromise_reject !== undefined && (p(e._readyPromise), e._readyPromise_reject(t), e._readyPromise_resolve = undefined, e._readyPromise_reject = undefined, e._readyPromiseState = "rejected");
+  }
+  function cr(e) {
+    e._readyPromise_resolve !== undefined && (e._readyPromise_resolve(undefined), e._readyPromise_resolve = undefined, e._readyPromise_reject = undefined, e._readyPromiseState = "fulfilled");
+  }
+  Object.defineProperties(WritableStreamDefaultController.prototype, { abortReason: { enumerable: true }, signal: { enumerable: true }, error: { enumerable: true } }), typeof Symbol.toStringTag == "symbol" && Object.defineProperty(WritableStreamDefaultController.prototype, Symbol.toStringTag, { value: "WritableStreamDefaultController", configurable: true });
+  var dr = typeof globalThis != "undefined" ? globalThis : typeof self != "undefined" ? self : typeof global != "undefined" ? global : undefined;
+  var fr = function() {
+    const e = dr == null ? undefined : dr.DOMException;
+    return function(e) {
+      if (typeof e != "function" && typeof e != "object")
+        return false;
+      if (e.name !== "DOMException")
+        return false;
+      try {
+        return new e, true;
+      } catch (e) {
+        return false;
+      }
+    }(e) ? e : undefined;
+  }() || function() {
+    const e = function(e, t) {
+      this.message = e || "", this.name = t || "Error", Error.captureStackTrace && Error.captureStackTrace(this, this.constructor);
+    };
+    return o(e, "DOMException"), e.prototype = Object.create(Error.prototype), Object.defineProperty(e.prototype, "constructor", { value: e, writable: true, configurable: true }), e;
+  }();
+  function hr(e, t, r, o, n, i) {
+    const a = V(e), s = Pt(t);
+    e._disturbed = true;
+    const l = new br(s), _ = new mr(l);
+    return u((m, y) => {
+      let S;
+      if (i !== undefined) {
+        if (S = () => {
+          const r = i.reason !== undefined ? i.reason : new fr("Aborted", "AbortError"), a = [];
+          o || a.push(() => t._state === "writable" ? Wt(t, r) : c(undefined)), n || a.push(() => e._state === "readable" ? Mr(e, r) : c(undefined)), T(() => Promise.all(a.map((e) => e())), true, r);
+        }, i.aborted)
+          return void S();
+        i.addEventListener("abort", S);
+      }
+      function g() {
+        for (;!l._shuttingDown && !t._backpressure && t._state === "writable" && !At(t) && e._state === "readable" && re(a); )
+          te(a, _);
+        if (l._shuttingDown)
+          return c(true);
+        if (t._backpressure)
+          return f(s._readyPromise, g);
+        const r = new _r(l);
+        return te(a, r), r._promise;
+      }
+      var v, w, R;
+      if (pr(e, a._closedPromise, (e) => (o ? P(true, e) : T(() => Wt(t, e), true, e), null)), pr(t, s._closedPromise, (t) => (n ? P(true, t) : T(() => Mr(e, t), true, t), null)), v = e, w = a._closedPromise, R = () => (r ? P() : T(() => function(e) {
+        const t = e._ownerWritableStream, r = t._state;
+        return At(t) || r === "closed" ? c(undefined) : r === "errored" ? d(t._storedError) : Lt(e);
+      }(s)), null), v._state === "closed" ? R() : b(w, R), At(t) || t._state === "closed") {
+        const t = new TypeError("the destination writable stream closed before all data could be piped to it");
+        n ? P(true, t) : T(() => Mr(e, t), true, t);
+      }
+      function T(e, r, o) {
+        function n() {
+          return h(e(), () => C(r, o), (e) => C(true, e)), null;
+        }
+        l._shuttingDown || (l._shuttingDown = true, t._state !== "writable" || At(t) ? n() : b(l._waitForWritesToFinish(), n));
+      }
+      function P(e, r) {
+        l._shuttingDown || (l._shuttingDown = true, t._state !== "writable" || At(t) ? C(e, r) : b(l._waitForWritesToFinish(), () => C(e, r)));
+      }
+      function C(e, t) {
+        return Mt(s), O(a), i !== undefined && i.removeEventListener("abort", S), e ? y(t) : m(undefined), null;
+      }
+      p(u((e, t) => {
+        (function r(o) {
+          o ? e() : f(g(), r, t);
+        })(false);
+      }));
+    });
+  }
+
+  class br {
+    constructor(e) {
+      this._writer = e, this._shuttingDown = false, this._currentWrite = c(undefined);
+    }
+    _waitForWritesToFinish() {
+      const e = this._currentWrite;
+      return f(this._currentWrite, () => e !== this._currentWrite ? this._waitForWritesToFinish() : undefined);
+    }
+  }
+
+  class _r {
+    constructor(e) {
+      this._state = e, this._promise = u((e, t) => {
+        this._resolvePromise = e, this._rejectPromise = t;
+      });
+    }
+    _chunkSteps(t) {
+      this._state._currentWrite = f(Yt(this._state._writer, t), undefined, e), this._resolvePromise(false);
+    }
+    _closeSteps() {
+      this._resolvePromise(true);
+    }
+    _errorSteps(e) {
+      this._rejectPromise(e);
+    }
+  }
+
+  class mr {
+    constructor(e) {
+      this._state = e;
+    }
+    _chunkSteps(t) {
+      this._state._currentWrite = f(Yt(this._state._writer, t), undefined, e);
+    }
+    _closeSteps() {}
+    _errorSteps(e) {}
+  }
+  function pr(e, t, r) {
+    e._state === "errored" ? r(e._storedError) : _(t, r);
+  }
+
+  class ReadableStreamDefaultController {
+    constructor() {
+      throw new TypeError("Illegal constructor");
+    }
+    get desiredSize() {
+      if (!yr(this))
+        throw Er("desiredSize");
+      return Pr(this);
+    }
+    close() {
+      if (!yr(this))
+        throw Er("close");
+      if (!Cr(this))
+        throw new TypeError("The stream is not in a state that permits close");
+      wr(this);
+    }
+    enqueue(e = undefined) {
+      if (!yr(this))
+        throw Er("enqueue");
+      if (!Cr(this))
+        throw new TypeError("The stream is not in a state that permits enqueue");
+      return Rr(this, e);
+    }
+    error(e = undefined) {
+      if (!yr(this))
+        throw Er("error");
+      Tr(this, e);
+    }
+    [T](e) {
+      qe(this);
+      const t = this._cancelAlgorithm(e);
+      return vr(this), t;
+    }
+    [P](e) {
+      const t = this._controlledReadableStream;
+      if (this._queue.length > 0) {
+        const r = Pe(this);
+        this._closeRequested && this._queue.length === 0 ? (vr(this), Yr(t)) : Sr(this), e._chunkSteps(r);
+      } else
+        U(t, e), Sr(this);
+    }
+    [C]() {
+      return this._queue.length > 0;
+    }
+    [q]() {}
+  }
+  function yr(e) {
+    return !!t(e) && (!!Object.prototype.hasOwnProperty.call(e, "_controlledReadableStream") && e instanceof ReadableStreamDefaultController);
+  }
+  function Sr(e) {
+    if (!gr(e))
+      return;
+    if (e._pulling)
+      return void (e._pullAgain = true);
+    e._pulling = true;
+    h(e._pullAlgorithm(), () => (e._pulling = false, e._pullAgain && (e._pullAgain = false, Sr(e)), null), (t) => (Tr(e, t), null));
+  }
+  function gr(e) {
+    const t = e._controlledReadableStream;
+    if (!Cr(e))
+      return false;
+    if (!e._started)
+      return false;
+    if ($r(t) && X(t) > 0)
+      return true;
+    return Pr(e) > 0;
+  }
+  function vr(e) {
+    e._pullAlgorithm = undefined, e._cancelAlgorithm = undefined, e._strategySizeAlgorithm = undefined;
+  }
+  function wr(e) {
+    if (!Cr(e))
+      return;
+    const t = e._controlledReadableStream;
+    e._closeRequested = true, e._queue.length === 0 && (vr(e), Yr(t));
+  }
+  function Rr(e, t) {
+    if (!Cr(e))
+      return;
+    const r = e._controlledReadableStream;
+    if ($r(r) && X(r) > 0)
+      G(r, t, false);
+    else {
+      let r;
+      try {
+        r = e._strategySizeAlgorithm(t);
+      } catch (t) {
+        throw Tr(e, t), t;
+      }
+      try {
+        Ce(e, t, r);
+      } catch (t) {
+        throw Tr(e, t), t;
+      }
+    }
+    Sr(e);
+  }
+  function Tr(e, t) {
+    const r = e._controlledReadableStream;
+    r._state === "readable" && (qe(e), vr(e), xr(r, t));
+  }
+  function Pr(e) {
+    const t = e._controlledReadableStream._state;
+    return t === "errored" ? null : t === "closed" ? 0 : e._strategyHWM - e._queueTotalSize;
+  }
+  function Cr(e) {
+    const t = e._controlledReadableStream._state;
+    return !e._closeRequested && t === "readable";
+  }
+  function qr(e, t, r, o, n, i, a) {
+    t._controlledReadableStream = e, t._queue = undefined, t._queueTotalSize = undefined, qe(t), t._started = false, t._closeRequested = false, t._pullAgain = false, t._pulling = false, t._strategySizeAlgorithm = a, t._strategyHWM = i, t._pullAlgorithm = o, t._cancelAlgorithm = n, e._readableStreamController = t;
+    h(c(r()), () => (t._started = true, Sr(t), null), (e) => (Tr(t, e), null));
+  }
+  function Er(e) {
+    return new TypeError(`ReadableStreamDefaultController.prototype.${e} can only be used on a ReadableStreamDefaultController`);
+  }
+  function Wr(e, t) {
+    return Oe(e._readableStreamController) ? function(e) {
+      let t, r, o, n, i, a = V(e), s = false, l = false, d = false, f = false, h = false;
+      const b = u((e) => {
+        i = e;
+      });
+      function m(e) {
+        _(e._closedPromise, (t) => (e !== a || (Xe(o._readableStreamController, t), Xe(n._readableStreamController, t), f && h || i(undefined)), null));
+      }
+      function p() {
+        ft(a) && (O(a), a = V(e), m(a));
+        te(a, { _chunkSteps: (t) => {
+          y(() => {
+            l = false, d = false;
+            const r = t;
+            let a = t;
+            if (!f && !h)
+              try {
+                a = Te(t);
+              } catch (t) {
+                return Xe(o._readableStreamController, t), Xe(n._readableStreamController, t), void i(Mr(e, t));
+              }
+            f || Ge(o._readableStreamController, r), h || Ge(n._readableStreamController, a), s = false, l ? g() : d && v();
+          });
+        }, _closeSteps: () => {
+          s = false, f || Ue(o._readableStreamController), h || Ue(n._readableStreamController), o._readableStreamController._pendingPullIntos.length > 0 && et(o._readableStreamController, 0), n._readableStreamController._pendingPullIntos.length > 0 && et(n._readableStreamController, 0), f && h || i(undefined);
+        }, _errorSteps: () => {
+          s = false;
+        } });
+      }
+      function S(t, r) {
+        ee(a) && (O(a), a = at(e), m(a));
+        const u = r ? n : o, c = r ? o : n;
+        ht(a, t, 1, { _chunkSteps: (t) => {
+          y(() => {
+            l = false, d = false;
+            const o = r ? h : f;
+            if (r ? f : h)
+              o || tt(u._readableStreamController, t);
+            else {
+              let r;
+              try {
+                r = Te(t);
+              } catch (t) {
+                return Xe(u._readableStreamController, t), Xe(c._readableStreamController, t), void i(Mr(e, t));
+              }
+              o || tt(u._readableStreamController, t), Ge(c._readableStreamController, r);
+            }
+            s = false, l ? g() : d && v();
+          });
+        }, _closeSteps: (e) => {
+          s = false;
+          const t = r ? h : f, o = r ? f : h;
+          t || Ue(u._readableStreamController), o || Ue(c._readableStreamController), e !== undefined && (t || tt(u._readableStreamController, e), !o && c._readableStreamController._pendingPullIntos.length > 0 && et(c._readableStreamController, 0)), t && o || i(undefined);
+        }, _errorSteps: () => {
+          s = false;
+        } });
+      }
+      function g() {
+        if (s)
+          return l = true, c(undefined);
+        s = true;
+        const e = Ke(o._readableStreamController);
+        return e === null ? p() : S(e._view, false), c(undefined);
+      }
+      function v() {
+        if (s)
+          return d = true, c(undefined);
+        s = true;
+        const e = Ke(n._readableStreamController);
+        return e === null ? p() : S(e._view, true), c(undefined);
+      }
+      function w(o) {
+        if (f = true, t = o, h) {
+          const o = le([t, r]), n = Mr(e, o);
+          i(n);
+        }
+        return b;
+      }
+      function R(o) {
+        if (h = true, r = o, f) {
+          const o = le([t, r]), n = Mr(e, o);
+          i(n);
+        }
+        return b;
+      }
+      function T() {}
+      return o = Fr(T, g, w), n = Fr(T, v, R), m(a), [o, n];
+    }(e) : function(e) {
+      const t = V(e);
+      let r, o, n, i, a, s = false, l = false, d = false, f = false;
+      const h = u((e) => {
+        a = e;
+      });
+      function b() {
+        if (s)
+          return l = true, c(undefined);
+        s = true;
+        return te(t, { _chunkSteps: (e) => {
+          y(() => {
+            l = false;
+            const t = e, r = e;
+            d || Rr(n._readableStreamController, t), f || Rr(i._readableStreamController, r), s = false, l && b();
+          });
+        }, _closeSteps: () => {
+          s = false, d || wr(n._readableStreamController), f || wr(i._readableStreamController), d && f || a(undefined);
+        }, _errorSteps: () => {
+          s = false;
+        } }), c(undefined);
+      }
+      function m(t) {
+        if (d = true, r = t, f) {
+          const t = le([r, o]), n = Mr(e, t);
+          a(n);
+        }
+        return h;
+      }
+      function p(t) {
+        if (f = true, o = t, d) {
+          const t = le([r, o]), n = Mr(e, t);
+          a(n);
+        }
+        return h;
+      }
+      function S() {}
+      return n = Dr(S, b, m), i = Dr(S, b, p), _(t._closedPromise, (e) => (Tr(n._readableStreamController, e), Tr(i._readableStreamController, e), d && f || a(undefined), null)), [n, i];
+    }(e);
+  }
+  function Or(r) {
+    return t(o = r) && o.getReader !== undefined ? function(r) {
+      let o;
+      function n() {
+        let e;
+        try {
+          e = r.read();
+        } catch (e) {
+          return d(e);
+        }
+        return m(e, (e) => {
+          if (!t(e))
+            throw new TypeError("The promise returned by the reader.read() method must fulfill with an object");
+          if (e.done)
+            wr(o._readableStreamController);
+          else {
+            const t = e.value;
+            Rr(o._readableStreamController, t);
+          }
+        });
+      }
+      function i(e) {
+        try {
+          return c(r.cancel(e));
+        } catch (e) {
+          return d(e);
+        }
+      }
+      return o = Dr(e, n, i, 0), o;
+    }(r.getReader()) : function(r) {
+      let o;
+      const n = me(r, "async");
+      function i() {
+        let e;
+        try {
+          e = pe(n);
+        } catch (e) {
+          return d(e);
+        }
+        return m(c(e), (e) => {
+          if (!t(e))
+            throw new TypeError("The promise returned by the iterator.next() method must fulfill with an object");
+          if (e.done)
+            wr(o._readableStreamController);
+          else {
+            const t = e.value;
+            Rr(o._readableStreamController, t);
+          }
+        });
+      }
+      function a(e) {
+        const r = n.iterator;
+        let o;
+        try {
+          o = he(r, "return");
+        } catch (e) {
+          return d(e);
+        }
+        if (o === undefined)
+          return c(undefined);
+        return m(g(o, r, [e]), (e) => {
+          if (!t(e))
+            throw new TypeError("The promise returned by the iterator.return() method must fulfill with an object");
+        });
+      }
+      return o = Dr(e, i, a, 0), o;
+    }(r);
+    var o;
+  }
+  function Br(e, t, r) {
+    return I(e, r), (r) => g(e, t, [r]);
+  }
+  function jr(e, t, r) {
+    return I(e, r), (r) => g(e, t, [r]);
+  }
+  function kr(e, t, r) {
+    return I(e, r), (r) => S(e, t, [r]);
+  }
+  function Ar(e, t) {
+    if ((e = `${e}`) !== "bytes")
+      throw new TypeError(`${t} '${e}' is not a valid enumeration value for ReadableStreamType`);
+    return e;
+  }
+  function zr(e, t) {
+    L(e, t);
+    const r = e == null ? undefined : e.preventAbort, o = e == null ? undefined : e.preventCancel, n = e == null ? undefined : e.preventClose, i = e == null ? undefined : e.signal;
+    return i !== undefined && function(e, t) {
+      if (!function(e) {
+        if (typeof e != "object" || e === null)
+          return false;
+        try {
+          return typeof e.aborted == "boolean";
+        } catch (e) {
+          return false;
+        }
+      }(e))
+        throw new TypeError(`${t} is not an AbortSignal.`);
+    }(i, `${t} has member 'signal' that`), { preventAbort: Boolean(r), preventCancel: Boolean(o), preventClose: Boolean(n), signal: i };
+  }
+  Object.defineProperties(ReadableStreamDefaultController.prototype, { close: { enumerable: true }, enqueue: { enumerable: true }, error: { enumerable: true }, desiredSize: { enumerable: true } }), o(ReadableStreamDefaultController.prototype.close, "close"), o(ReadableStreamDefaultController.prototype.enqueue, "enqueue"), o(ReadableStreamDefaultController.prototype.error, "error"), typeof Symbol.toStringTag == "symbol" && Object.defineProperty(ReadableStreamDefaultController.prototype, Symbol.toStringTag, { value: "ReadableStreamDefaultController", configurable: true });
+
+  class ReadableStream2 {
+    constructor(e = {}, t = {}) {
+      e === undefined ? e = null : $(e, "First parameter");
+      const r = yt(t, "Second parameter"), o = function(e, t) {
+        L(e, t);
+        const r = e, o = r == null ? undefined : r.autoAllocateChunkSize, n = r == null ? undefined : r.cancel, i = r == null ? undefined : r.pull, a = r == null ? undefined : r.start, s = r == null ? undefined : r.type;
+        return { autoAllocateChunkSize: o === undefined ? undefined : N(o, `${t} has member 'autoAllocateChunkSize' that`), cancel: n === undefined ? undefined : Br(n, r, `${t} has member 'cancel' that`), pull: i === undefined ? undefined : jr(i, r, `${t} has member 'pull' that`), start: a === undefined ? undefined : kr(a, r, `${t} has member 'start' that`), type: s === undefined ? undefined : Ar(s, `${t} has member 'type' that`) };
+      }(e, "First parameter");
+      if (Lr(this), o.type === "bytes") {
+        if (r.size !== undefined)
+          throw new RangeError("The strategy for a byte stream cannot have a size function");
+        (function(e, t, r) {
+          const o = Object.create(ReadableByteStreamController.prototype);
+          let n, i, a;
+          n = t.start !== undefined ? () => t.start(o) : () => {}, i = t.pull !== undefined ? () => t.pull(o) : () => c(undefined), a = t.cancel !== undefined ? (e) => t.cancel(e) : () => c(undefined);
+          const s = t.autoAllocateChunkSize;
+          if (s === 0)
+            throw new TypeError("autoAllocateChunkSize must be greater than 0");
+          rt(e, o, n, i, a, r, s);
+        })(this, o, mt(r, 0));
+      } else {
+        const e = pt(r);
+        (function(e, t, r, o) {
+          const n = Object.create(ReadableStreamDefaultController.prototype);
+          let i, a, s;
+          i = t.start !== undefined ? () => t.start(n) : () => {}, a = t.pull !== undefined ? () => t.pull(n) : () => c(undefined), s = t.cancel !== undefined ? (e) => t.cancel(e) : () => c(undefined), qr(e, n, i, a, s, r, o);
+        })(this, o, mt(r, 1), e);
+      }
+    }
+    get locked() {
+      if (!Ir(this))
+        throw Qr("locked");
+      return $r(this);
+    }
+    cancel(e = undefined) {
+      return Ir(this) ? $r(this) ? d(new TypeError("Cannot cancel a stream that already has a reader")) : Mr(this, e) : d(Qr("cancel"));
+    }
+    getReader(e = undefined) {
+      if (!Ir(this))
+        throw Qr("getReader");
+      return function(e, t) {
+        L(e, t);
+        const r = e == null ? undefined : e.mode;
+        return { mode: r === undefined ? undefined : it(r, `${t} has member 'mode' that`) };
+      }(e, "First parameter").mode === undefined ? V(this) : at(this);
+    }
+    pipeThrough(e, t = {}) {
+      if (!Ir(this))
+        throw Qr("pipeThrough");
+      M(e, 1, "pipeThrough");
+      const r = function(e, t) {
+        L(e, t);
+        const r = e == null ? undefined : e.readable;
+        Y(r, "readable", "ReadableWritablePair"), H(r, `${t} has member 'readable' that`);
+        const o = e == null ? undefined : e.writable;
+        return Y(o, "writable", "ReadableWritablePair"), Tt(o, `${t} has member 'writable' that`), { readable: r, writable: o };
+      }(e, "First parameter"), o = zr(t, "Second parameter");
+      if ($r(this))
+        throw new TypeError("ReadableStream.prototype.pipeThrough cannot be used on a locked ReadableStream");
+      if (Et(r.writable))
+        throw new TypeError("ReadableStream.prototype.pipeThrough cannot be used on a locked WritableStream");
+      return p(hr(this, r.writable, o.preventClose, o.preventAbort, o.preventCancel, o.signal)), r.readable;
+    }
+    pipeTo(e, t = {}) {
+      if (!Ir(this))
+        return d(Qr("pipeTo"));
+      if (e === undefined)
+        return d("Parameter 1 is required in 'pipeTo'.");
+      if (!qt(e))
+        return d(new TypeError("ReadableStream.prototype.pipeTo's first argument must be a WritableStream"));
+      let r;
+      try {
+        r = zr(t, "Second parameter");
+      } catch (e) {
+        return d(e);
+      }
+      return $r(this) ? d(new TypeError("ReadableStream.prototype.pipeTo cannot be used on a locked ReadableStream")) : Et(e) ? d(new TypeError("ReadableStream.prototype.pipeTo cannot be used on a locked WritableStream")) : hr(this, e, r.preventClose, r.preventAbort, r.preventCancel, r.signal);
+    }
+    tee() {
+      if (!Ir(this))
+        throw Qr("tee");
+      return le(Wr(this));
+    }
+    values(e = undefined) {
+      if (!Ir(this))
+        throw Qr("values");
+      return function(e, t) {
+        const r = V(e), o = new ye(r, t), n = Object.create(ge);
+        return n._asyncIteratorImpl = o, n;
+      }(this, function(e, t) {
+        L(e, t);
+        const r = e == null ? undefined : e.preventCancel;
+        return { preventCancel: Boolean(r) };
+      }(e, "First parameter").preventCancel);
+    }
+    [_e](e) {
+      return this.values(e);
+    }
+    static from(e) {
+      return Or(e);
+    }
+  }
+  function Dr(e, t, r, o = 1, n = () => 1) {
+    const i = Object.create(ReadableStream2.prototype);
+    Lr(i);
+    return qr(i, Object.create(ReadableStreamDefaultController.prototype), e, t, r, o, n), i;
+  }
+  function Fr(e, t, r) {
+    const o = Object.create(ReadableStream2.prototype);
+    Lr(o);
+    return rt(o, Object.create(ReadableByteStreamController.prototype), e, t, r, 0, undefined), o;
+  }
+  function Lr(e) {
+    e._state = "readable", e._reader = undefined, e._storedError = undefined, e._disturbed = false;
+  }
+  function Ir(e) {
+    return !!t(e) && (!!Object.prototype.hasOwnProperty.call(e, "_readableStreamController") && e instanceof ReadableStream2);
+  }
+  function $r(e) {
+    return e._reader !== undefined;
+  }
+  function Mr(t, r) {
+    if (t._disturbed = true, t._state === "closed")
+      return c(undefined);
+    if (t._state === "errored")
+      return d(t._storedError);
+    Yr(t);
+    const o = t._reader;
+    if (o !== undefined && ft(o)) {
+      const e = o._readIntoRequests;
+      o._readIntoRequests = new v, e.forEach((e) => {
+        e._closeSteps(undefined);
+      });
+    }
+    return m(t._readableStreamController[T](r), e);
+  }
+  function Yr(e) {
+    e._state = "closed";
+    const t = e._reader;
+    if (t !== undefined && (z(t), ee(t))) {
+      const e = t._readRequests;
+      t._readRequests = new v, e.forEach((e) => {
+        e._closeSteps();
+      });
+    }
+  }
+  function xr(e, t) {
+    e._state = "errored", e._storedError = t;
+    const r = e._reader;
+    r !== undefined && (A(r, t), ee(r) ? oe(r, t) : bt(r, t));
+  }
+  function Qr(e) {
+    return new TypeError(`ReadableStream.prototype.${e} can only be used on a ReadableStream`);
+  }
+  function Nr(e, t) {
+    L(e, t);
+    const r = e == null ? undefined : e.highWaterMark;
+    return Y(r, "highWaterMark", "QueuingStrategyInit"), { highWaterMark: x(r) };
+  }
+  Object.defineProperties(ReadableStream2, { from: { enumerable: true } }), Object.defineProperties(ReadableStream2.prototype, { cancel: { enumerable: true }, getReader: { enumerable: true }, pipeThrough: { enumerable: true }, pipeTo: { enumerable: true }, tee: { enumerable: true }, values: { enumerable: true }, locked: { enumerable: true } }), o(ReadableStream2.from, "from"), o(ReadableStream2.prototype.cancel, "cancel"), o(ReadableStream2.prototype.getReader, "getReader"), o(ReadableStream2.prototype.pipeThrough, "pipeThrough"), o(ReadableStream2.prototype.pipeTo, "pipeTo"), o(ReadableStream2.prototype.tee, "tee"), o(ReadableStream2.prototype.values, "values"), typeof Symbol.toStringTag == "symbol" && Object.defineProperty(ReadableStream2.prototype, Symbol.toStringTag, { value: "ReadableStream", configurable: true }), Object.defineProperty(ReadableStream2.prototype, _e, { value: ReadableStream2.prototype.values, writable: true, configurable: true });
+  var Hr = (e) => e.byteLength;
+  o(Hr, "size");
+
+  class ByteLengthQueuingStrategy {
+    constructor(e) {
+      M(e, 1, "ByteLengthQueuingStrategy"), e = Nr(e, "First parameter"), this._byteLengthQueuingStrategyHighWaterMark = e.highWaterMark;
+    }
+    get highWaterMark() {
+      if (!Ur(this))
+        throw Vr("highWaterMark");
+      return this._byteLengthQueuingStrategyHighWaterMark;
+    }
+    get size() {
+      if (!Ur(this))
+        throw Vr("size");
+      return Hr;
+    }
+  }
+  function Vr(e) {
+    return new TypeError(`ByteLengthQueuingStrategy.prototype.${e} can only be used on a ByteLengthQueuingStrategy`);
+  }
+  function Ur(e) {
+    return !!t(e) && (!!Object.prototype.hasOwnProperty.call(e, "_byteLengthQueuingStrategyHighWaterMark") && e instanceof ByteLengthQueuingStrategy);
+  }
+  Object.defineProperties(ByteLengthQueuingStrategy.prototype, { highWaterMark: { enumerable: true }, size: { enumerable: true } }), typeof Symbol.toStringTag == "symbol" && Object.defineProperty(ByteLengthQueuingStrategy.prototype, Symbol.toStringTag, { value: "ByteLengthQueuingStrategy", configurable: true });
+  var Gr = () => 1;
+  o(Gr, "size");
+
+  class CountQueuingStrategy {
+    constructor(e) {
+      M(e, 1, "CountQueuingStrategy"), e = Nr(e, "First parameter"), this._countQueuingStrategyHighWaterMark = e.highWaterMark;
+    }
+    get highWaterMark() {
+      if (!Jr(this))
+        throw Xr("highWaterMark");
+      return this._countQueuingStrategyHighWaterMark;
+    }
+    get size() {
+      if (!Jr(this))
+        throw Xr("size");
+      return Gr;
+    }
+  }
+  function Xr(e) {
+    return new TypeError(`CountQueuingStrategy.prototype.${e} can only be used on a CountQueuingStrategy`);
+  }
+  function Jr(e) {
+    return !!t(e) && (!!Object.prototype.hasOwnProperty.call(e, "_countQueuingStrategyHighWaterMark") && e instanceof CountQueuingStrategy);
+  }
+  function Kr(e, t, r) {
+    return I(e, r), (r) => g(e, t, [r]);
+  }
+  function Zr(e, t, r) {
+    return I(e, r), (r) => S(e, t, [r]);
+  }
+  function eo(e, t, r) {
+    return I(e, r), (r, o) => g(e, t, [r, o]);
+  }
+  function to(e, t, r) {
+    return I(e, r), (r) => g(e, t, [r]);
+  }
+  Object.defineProperties(CountQueuingStrategy.prototype, { highWaterMark: { enumerable: true }, size: { enumerable: true } }), typeof Symbol.toStringTag == "symbol" && Object.defineProperty(CountQueuingStrategy.prototype, Symbol.toStringTag, { value: "CountQueuingStrategy", configurable: true });
+
+  class TransformStream2 {
+    constructor(e = {}, t = {}, r = {}) {
+      e === undefined && (e = null);
+      const o = yt(t, "Second parameter"), n = yt(r, "Third parameter"), i = function(e, t) {
+        L(e, t);
+        const r = e == null ? undefined : e.cancel, o = e == null ? undefined : e.flush, n = e == null ? undefined : e.readableType, i = e == null ? undefined : e.start, a = e == null ? undefined : e.transform, s = e == null ? undefined : e.writableType;
+        return { cancel: r === undefined ? undefined : to(r, e, `${t} has member 'cancel' that`), flush: o === undefined ? undefined : Kr(o, e, `${t} has member 'flush' that`), readableType: n, start: i === undefined ? undefined : Zr(i, e, `${t} has member 'start' that`), transform: a === undefined ? undefined : eo(a, e, `${t} has member 'transform' that`), writableType: s };
+      }(e, "First parameter");
+      if (i.readableType !== undefined)
+        throw new RangeError("Invalid readableType specified");
+      if (i.writableType !== undefined)
+        throw new RangeError("Invalid writableType specified");
+      const a = mt(n, 0), s = pt(n), l = mt(o, 1), f = pt(o);
+      let b;
+      (function(e, t, r, o, n, i) {
+        function a() {
+          return t;
+        }
+        function s(t) {
+          return function(e, t) {
+            const r = e._transformStreamController;
+            if (e._backpressure) {
+              return m(e._backpressureChangePromise, () => {
+                const o = e._writable;
+                if (o._state === "erroring")
+                  throw o._storedError;
+                return co(r, t);
+              });
+            }
+            return co(r, t);
+          }(e, t);
+        }
+        function l(t) {
+          return function(e, t) {
+            const r = e._transformStreamController;
+            if (r._finishPromise !== undefined)
+              return r._finishPromise;
+            const o = e._readable;
+            r._finishPromise = u((e, t) => {
+              r._finishPromise_resolve = e, r._finishPromise_reject = t;
+            });
+            const n = r._cancelAlgorithm(t);
+            return lo(r), h(n, () => (o._state === "errored" ? bo(r, o._storedError) : (Tr(o._readableStreamController, t), ho(r)), null), (e) => (Tr(o._readableStreamController, e), bo(r, e), null)), r._finishPromise;
+          }(e, t);
+        }
+        function c() {
+          return function(e) {
+            const t = e._transformStreamController;
+            if (t._finishPromise !== undefined)
+              return t._finishPromise;
+            const r = e._readable;
+            t._finishPromise = u((e, r) => {
+              t._finishPromise_resolve = e, t._finishPromise_reject = r;
+            });
+            const o = t._flushAlgorithm();
+            return lo(t), h(o, () => (r._state === "errored" ? bo(t, r._storedError) : (wr(r._readableStreamController), ho(t)), null), (e) => (Tr(r._readableStreamController, e), bo(t, e), null)), t._finishPromise;
+          }(e);
+        }
+        function d() {
+          return function(e) {
+            return ao(e, false), e._backpressureChangePromise;
+          }(e);
+        }
+        function f(t) {
+          return function(e, t) {
+            const r = e._transformStreamController;
+            if (r._finishPromise !== undefined)
+              return r._finishPromise;
+            const o = e._writable;
+            r._finishPromise = u((e, t) => {
+              r._finishPromise_resolve = e, r._finishPromise_reject = t;
+            });
+            const n = r._cancelAlgorithm(t);
+            return lo(r), h(n, () => (o._state === "errored" ? bo(r, o._storedError) : (Gt(o._writableStreamController, t), io(e), ho(r)), null), (t) => (Gt(o._writableStreamController, t), io(e), bo(r, t), null)), r._finishPromise;
+          }(e, t);
+        }
+        e._writable = function(e, t, r, o, n = 1, i = () => 1) {
+          const a = Object.create(WritableStream.prototype);
+          return Ct(a), Nt(a, Object.create(WritableStreamDefaultController.prototype), e, t, r, o, n, i), a;
+        }(a, s, c, l, r, o), e._readable = Dr(a, d, f, n, i), e._backpressure = undefined, e._backpressureChangePromise = undefined, e._backpressureChangePromise_resolve = undefined, ao(e, true), e._transformStreamController = undefined;
+      })(this, u((e) => {
+        b = e;
+      }), l, f, a, s), function(e, t) {
+        const r = Object.create(TransformStreamDefaultController.prototype);
+        let o, n, i;
+        o = t.transform !== undefined ? (e) => t.transform(e, r) : (e) => {
+          try {
+            return uo(r, e), c(undefined);
+          } catch (e) {
+            return d(e);
+          }
+        };
+        n = t.flush !== undefined ? () => t.flush(r) : () => c(undefined);
+        i = t.cancel !== undefined ? (e) => t.cancel(e) : () => c(undefined);
+        (function(e, t, r, o, n) {
+          t._controlledTransformStream = e, e._transformStreamController = t, t._transformAlgorithm = r, t._flushAlgorithm = o, t._cancelAlgorithm = n, t._finishPromise = undefined, t._finishPromise_resolve = undefined, t._finishPromise_reject = undefined;
+        })(e, r, o, n, i);
+      }(this, i), i.start !== undefined ? b(i.start(this._transformStreamController)) : b(undefined);
+    }
+    get readable() {
+      if (!ro(this))
+        throw _o("readable");
+      return this._readable;
+    }
+    get writable() {
+      if (!ro(this))
+        throw _o("writable");
+      return this._writable;
+    }
+  }
+  function ro(e) {
+    return !!t(e) && (!!Object.prototype.hasOwnProperty.call(e, "_transformStreamController") && e instanceof TransformStream2);
+  }
+  function oo(e, t) {
+    Tr(e._readable._readableStreamController, t), no(e, t);
+  }
+  function no(e, t) {
+    lo(e._transformStreamController), Gt(e._writable._writableStreamController, t), io(e);
+  }
+  function io(e) {
+    e._backpressure && ao(e, false);
+  }
+  function ao(e, t) {
+    e._backpressureChangePromise !== undefined && e._backpressureChangePromise_resolve(), e._backpressureChangePromise = u((t) => {
+      e._backpressureChangePromise_resolve = t;
+    }), e._backpressure = t;
+  }
+  Object.defineProperties(TransformStream2.prototype, { readable: { enumerable: true }, writable: { enumerable: true } }), typeof Symbol.toStringTag == "symbol" && Object.defineProperty(TransformStream2.prototype, Symbol.toStringTag, { value: "TransformStream", configurable: true });
+
+  class TransformStreamDefaultController {
+    constructor() {
+      throw new TypeError("Illegal constructor");
+    }
+    get desiredSize() {
+      if (!so(this))
+        throw fo("desiredSize");
+      return Pr(this._controlledTransformStream._readable._readableStreamController);
+    }
+    enqueue(e = undefined) {
+      if (!so(this))
+        throw fo("enqueue");
+      uo(this, e);
+    }
+    error(e = undefined) {
+      if (!so(this))
+        throw fo("error");
+      var t;
+      t = e, oo(this._controlledTransformStream, t);
+    }
+    terminate() {
+      if (!so(this))
+        throw fo("terminate");
+      (function(e) {
+        const t = e._controlledTransformStream;
+        wr(t._readable._readableStreamController);
+        const r = new TypeError("TransformStream terminated");
+        no(t, r);
+      })(this);
+    }
+  }
+  function so(e) {
+    return !!t(e) && (!!Object.prototype.hasOwnProperty.call(e, "_controlledTransformStream") && e instanceof TransformStreamDefaultController);
+  }
+  function lo(e) {
+    e._transformAlgorithm = undefined, e._flushAlgorithm = undefined, e._cancelAlgorithm = undefined;
+  }
+  function uo(e, t) {
+    const r = e._controlledTransformStream, o = r._readable._readableStreamController;
+    if (!Cr(o))
+      throw new TypeError("Readable side is not in a state that permits enqueue");
+    try {
+      Rr(o, t);
+    } catch (e) {
+      throw no(r, e), r._readable._storedError;
+    }
+    const n = function(e) {
+      return !gr(e);
+    }(o);
+    n !== r._backpressure && ao(r, true);
+  }
+  function co(e, t) {
+    return m(e._transformAlgorithm(t), undefined, (t) => {
+      throw oo(e._controlledTransformStream, t), t;
+    });
+  }
+  function fo(e) {
+    return new TypeError(`TransformStreamDefaultController.prototype.${e} can only be used on a TransformStreamDefaultController`);
+  }
+  function ho(e) {
+    e._finishPromise_resolve !== undefined && (e._finishPromise_resolve(), e._finishPromise_resolve = undefined, e._finishPromise_reject = undefined);
+  }
+  function bo(e, t) {
+    e._finishPromise_reject !== undefined && (p(e._finishPromise), e._finishPromise_reject(t), e._finishPromise_resolve = undefined, e._finishPromise_reject = undefined);
+  }
+  function _o(e) {
+    return new TypeError(`TransformStream.prototype.${e} can only be used on a TransformStream`);
+  }
+  Object.defineProperties(TransformStreamDefaultController.prototype, { enqueue: { enumerable: true }, error: { enumerable: true }, terminate: { enumerable: true }, desiredSize: { enumerable: true } }), o(TransformStreamDefaultController.prototype.enqueue, "enqueue"), o(TransformStreamDefaultController.prototype.error, "error"), o(TransformStreamDefaultController.prototype.terminate, "terminate"), typeof Symbol.toStringTag == "symbol" && Object.defineProperty(TransformStreamDefaultController.prototype, Symbol.toStringTag, { value: "TransformStreamDefaultController", configurable: true });
+
+  // packages/core/src/polyfills/streams.ts
+  var streamGlobals = {
+    ByteLengthQueuingStrategy,
+    CountQueuingStrategy,
+    ReadableByteStreamController,
+    ReadableStream: ReadableStream2,
+    ReadableStreamBYOBReader,
+    ReadableStreamBYOBRequest,
+    ReadableStreamDefaultController,
+    ReadableStreamDefaultReader,
+    TransformStream: TransformStream2,
+    TransformStreamDefaultController,
+    WritableStream,
+    WritableStreamDefaultController,
+    WritableStreamDefaultWriter
+  };
+  function installStreamsPolyfill() {
+    installMissingGlobals(streamGlobals);
+  }
+  installStreamsPolyfill();
+
+  // packages/core/src/polyfills/encoding-streams.ts
+  class WabouTextDecoderStream {
+    decoder;
+    transform;
+    constructor(label = "utf-8", options = {}) {
+      this.decoder = new TextDecoder(label, options);
+      this.transform = new TransformStream({
+        transform: (chunk, controller) => {
+          const text = this.decoder.decode(chunk, { stream: true });
+          if (text)
+            controller.enqueue(text);
+        },
+        flush: (controller) => {
+          const text = this.decoder.decode();
+          if (text)
+            controller.enqueue(text);
+        }
+      });
+    }
+    get encoding() {
+      return this.decoder.encoding;
+    }
+    get fatal() {
+      return this.decoder.fatal;
+    }
+    get ignoreBOM() {
+      return this.decoder.ignoreBOM;
+    }
+    get readable() {
+      return this.transform.readable;
+    }
+    get writable() {
+      return this.transform.writable;
+    }
+    get [Symbol.toStringTag]() {
+      return "TextDecoderStream";
+    }
+  }
+
+  class WabouTextEncoderStream {
+    transform;
+    constructor() {
+      const encoder = new TextEncoder;
+      let pending = "";
+      this.transform = new TransformStream({
+        transform(chunk, controller) {
+          if (typeof chunk === "symbol")
+            throw new TypeError("Cannot encode a Symbol");
+          let text = pending + String(chunk);
+          pending = "";
+          const last = text.charCodeAt(text.length - 1);
+          if (last >= 55296 && last <= 56319) {
+            pending = text.slice(-1);
+            text = text.slice(0, -1);
+          }
+          if (text)
+            controller.enqueue(encoder.encode(text));
+        },
+        flush(controller) {
+          if (pending)
+            controller.enqueue(encoder.encode(pending));
+          pending = "";
+        }
+      });
+    }
+    get encoding() {
+      return "utf-8";
+    }
+    get readable() {
+      return this.transform.readable;
+    }
+    get writable() {
+      return this.transform.writable;
+    }
+    get [Symbol.toStringTag]() {
+      return "TextEncoderStream";
+    }
+  }
+  function installEncodingStreamsPolyfill() {
+    installMissingGlobals({
+      TextDecoderStream: WabouTextDecoderStream,
+      TextEncoderStream: WabouTextEncoderStream
+    });
+  }
+  installEncodingStreamsPolyfill();
+
+  // packages/core/src/polyfills/fetch.ts
+  function normalizeHeaderName(name) {
+    return String(name).toLowerCase();
+  }
+
+  class WabouHeaders {
+    entriesByName = new Map;
+    constructor(init) {
+      if (!init)
+        return;
+      if (Symbol.iterator in Object(init)) {
+        for (const [name, value] of init) {
+          this.append(name, value);
+        }
+        return;
+      }
+      for (const [name, value] of Object.entries(init))
+        this.append(name, value);
+    }
+    append(name, value) {
+      const key = normalizeHeaderName(name);
+      const current = this.entriesByName.get(key);
+      this.entriesByName.set(key, current ? `${current}, ${String(value)}` : String(value));
+    }
+    delete(name) {
+      this.entriesByName.delete(normalizeHeaderName(name));
+    }
+    get(name) {
+      return this.entriesByName.get(normalizeHeaderName(name)) ?? null;
+    }
+    has(name) {
+      return this.entriesByName.has(normalizeHeaderName(name));
+    }
+    set(name, value) {
+      this.entriesByName.set(normalizeHeaderName(name), String(value));
+    }
+    entries() {
+      return this.entriesByName.entries();
+    }
+    keys() {
+      return this.entriesByName.keys();
+    }
+    values() {
+      return this.entriesByName.values();
+    }
+    forEach(callback, thisArg) {
+      for (const [key, value] of this.entriesByName) {
+        callback.call(thisArg, value, key, this);
+      }
+    }
+    [Symbol.iterator]() {
+      return this.entries();
+    }
+    toRecord() {
+      return Object.fromEntries(this.entriesByName);
+    }
+  }
+  function encodeResponseBody(body, copy) {
+    if (typeof body === "string")
+      return new TextEncoder().encode(body);
+    if (body instanceof Uint8Array)
+      return copy ? body.slice() : body;
+    if (body instanceof ArrayBuffer)
+      return new Uint8Array(body.slice(0));
+    return new Uint8Array;
+  }
+
+  class WabouResponse {
+    body;
+    headers;
+    status;
+    statusText;
+    url;
+    redirected;
+    bodyBytes;
+    consumed = false;
+    constructor(body = null, init = {}, url = "", copyBody = true, redirected = false) {
+      this.bodyBytes = encodeResponseBody(body, copyBody);
+      this.status = init.status ?? 200;
+      this.statusText = init.statusText ?? "";
+      this.headers = new WabouHeaders(init.headers);
+      this.url = url;
+      this.redirected = redirected;
+      if (body === null) {
+        this.body = null;
+      } else {
+        const bytes = this.bodyBytes;
+        const stream = new ReadableStream({
+          start: (controller) => {
+            controller.enqueue(bytes);
+            controller.close();
+          }
+        });
+        const getReader = stream.getReader.bind(stream);
+        stream.getReader = (...args) => {
+          const reader = getReader(...args);
+          this.consumed = true;
+          this.bodyBytes = null;
+          return reader;
+        };
+        this.body = stream;
+      }
+    }
+    get ok() {
+      return this.status >= 200 && this.status < 300;
+    }
+    get bodyUsed() {
+      return this.consumed || this.body?.locked === true;
+    }
+    async consumeBody() {
+      if (this.bodyUsed)
+        throw new TypeError("Response body has already been consumed");
+      if (this.body === null) {
+        this.consumed = true;
+        return new Uint8Array;
+      }
+      const reader = this.body.getReader();
+      const chunks = [];
+      let length = 0;
+      try {
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done)
+            break;
+          chunks.push(value);
+          length += value.length;
+        }
+      } finally {
+        reader.releaseLock();
+      }
+      if (chunks.length === 1)
+        return chunks[0];
+      const bytes = new Uint8Array(length);
+      let offset = 0;
+      for (const chunk of chunks) {
+        bytes.set(chunk, offset);
+        offset += chunk.length;
+      }
+      return bytes;
+    }
+    async text() {
+      return new TextDecoder().decode(await this.consumeBody());
+    }
+    async json() {
+      return JSON.parse(await this.text());
+    }
+    bytes() {
+      return this.consumeBody();
+    }
+    async arrayBuffer() {
+      const bytes = await this.consumeBody();
+      if (bytes.byteOffset === 0 && bytes.byteLength === bytes.buffer.byteLength)
+        return bytes.buffer;
+      return bytes.slice().buffer;
+    }
+    clone() {
+      if (this.bodyUsed)
+        throw new TypeError("Cannot clone a consumed Response body");
+      return new WabouResponse(this.body === null ? null : this.bodyBytes, {
+        status: this.status,
+        statusText: this.statusText,
+        headers: this.headers
+      }, this.url, true, this.redirected);
+    }
+    static json(value, init = {}) {
+      const headers = new WabouHeaders(init.headers);
+      if (!headers.has("content-type")) {
+        headers.set("content-type", "application/json");
+      }
+      return new WabouResponse(JSON.stringify(value), { ...init, headers });
+    }
+    static fromHost(data, url) {
+      return new WabouResponse(data.body, {
+        status: data.status,
+        statusText: data.statusText,
+        headers: data.headers
+      }, data.url ?? url, false, data.redirected ?? false);
+    }
+  }
+  var nextFetchId = 0;
+  function installFetchPolyfill() {
+    installMissingGlobals({ Headers: WabouHeaders, Response: WabouResponse });
+    if (!("__wabou_fetch" in globalThis))
+      return;
+    globalThis.fetch = (input, init) => {
+      const signal = init?.signal;
+      if (signal?.aborted)
+        return Promise.reject(signal.reason);
+      const runtime = globalThis;
+      const id = ++nextFetchId;
+      const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+      const serializedInit = init ? {
+        method: init.method,
+        headers: init.headers instanceof WabouHeaders ? init.headers.toRecord() : init.headers
+      } : {};
+      const body = init?.body;
+      const bodyBytes = typeof body === "string" ? new TextEncoder().encode(body) : body instanceof Uint8Array ? body : body instanceof ArrayBuffer ? new Uint8Array(body) : undefined;
+      const initJson = JSON.stringify(serializedInit);
+      runtime.__wabou_fetch_start?.(id);
+      const pending = new Promise((resolve, reject) => {
+        const abort = () => {
+          runtime.__wabou_fetch_cancel?.(id);
+          reject(signal?.reason);
+        };
+        signal?.addEventListener("abort", abort, { once: true });
+        runtime.__wabou_fetch(url, initJson, id, bodyBytes).then(resolve, reject).finally(() => signal?.removeEventListener("abort", abort));
+      });
+      return pending.then((data) => {
+        const ResponseConstructor = globalThis.Response;
+        if (ResponseConstructor === WabouResponse)
+          return WabouResponse.fromHost(data, url);
+        return new ResponseConstructor(data.body, {
+          status: data.status,
+          statusText: data.statusText,
+          headers: data.headers
+        });
+      });
+    };
+  }
+  installFetchPolyfill();
   // packages/core/test/runtime-fixture.ts
   Object.assign(globalThis, {
+    __wabou_test_solid: { createEffect: createEffect2, createSignal: createSignal2 },
     __wabou_test_host_api: {
       clipboard,
       dialog,
@@ -14080,7 +14142,7 @@ ${detail}`);
       host: defaultHost,
       windowState: useWindow
     },
-    __wabou_test_proxy_children: () => createRoot2((dispose2) => {
+    __wabou_test_proxy_children: () => createRoot2((dispose) => {
       const label = createTextNode("retained");
       const inner = createElement("view");
       spread(inner, omit(merge2({
@@ -14099,7 +14161,7 @@ ${detail}`);
         mergedChild: outer.firstChild === inner,
         omittedChild: inner.firstChild === label
       };
-      dispose2();
+      dispose();
       return result;
     }),
     __wabou_test_streams: async () => {

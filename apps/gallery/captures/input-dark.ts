@@ -5,4 +5,3 @@ test("capture input anatomy in the dark theme", async ({ page }) => {
   await page.getByRole("heading", { name: "Input" }).waitFor();
   await page.getByRole("textbox", { name: "Search components" }).waitFor();
 });
-

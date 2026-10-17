@@ -1,8 +1,7 @@
 # Rendering roadmap
 
 Wabou has one production path: Solid 2 and QuickJS drive a retained Taffy,
-Parley, and Vello Hybrid scene presented through Winit. GPUI, AnyRender, and
-Skia were useful experiments, but they are not selectable application backends.
+Parley, and Vello GPU scene presented through Winit.
 
 ## Linebender alignment
 
@@ -77,7 +76,7 @@ wabou test apps/7guis/tests/app.behavior.ts --app apps/7guis --native
    Platform adapters stay behind the shared focused-text-client contract.
 2. Make renderer resource lifetime bounded. Image, SVG, glyph, and native
    widget allocations must be released or reused instead of exhausting Vello
-   Hybrid atlases during long sessions.
+   Vello GPU atlases during long sessions.
 3. Preserve Solid's batching through the protocol and classify invalidation as
    structure, layout, paint, semantics, or widget work. Avoid polling and root
    rebuild clocks.
@@ -95,15 +94,17 @@ wabou test apps/7guis/tests/app.behavior.ts --app apps/7guis --native
 ## Crate boundaries
 
 ```text
-                         wabou (public facade)
-                                  |
-               wabou-backend-vello-hybrid
+                         wabou
           QuickJS session, projection, host services
-                 /                         \
-       wabou-shell-vello             wabou-runtime
-  Winit, Taffy, text, paint       protocol/runtime services
-        /          \
-widgets-vello   accessibility-vello
+                   /                    \
+          wabou-shell              wabou-runtime
+       Winit and platform I/O       JS/runtime services
+                   |
+             wabou-renderer
+          Taffy, Parley, Vello GPU
+                   |
+            wabou-shell-api
+          shared platform contracts
 ```
 
 Small support crates remain independent only when they provide a real

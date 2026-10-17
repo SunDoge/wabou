@@ -37,7 +37,8 @@ tags.
 - Generate application host bindings from Rust types and automatically enable
   the generator target's required Cargo features.
 - Use a pinned `vendor/wabou` Git submodule as the preview integration path so
-  Rust crates, JavaScript packages, and the CLI share one revision.
+  Rust crates, JavaScript packages, and the CLI share one revision, with
+  `wabou vendor` adding, initializing, or updating that checkout safely.
 
 ### Fixed
 
@@ -58,7 +59,7 @@ tags.
   including asynchronous window creation and native file drag-and-drop events.
 - The router adapter now supports typed search, asynchronous loaders, caching,
   preloading, guards, and native memory history.
-- Wabou now uses a single Winit, Taffy, Parley, and Vello Hybrid backend; the
+- Wabou now uses a single Winit, Taffy, Parley, and Vello GPU backend; the
   retired GPUI, AnyRender, and Skia experiments are no longer public choices.
 - Native windows persist their logical size for responsive desktop layouts.
 - Behavior tests now resolve controls from the rendered semantic tree, scroll

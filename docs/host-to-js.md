@@ -1,7 +1,7 @@
 # Host to JavaScript flow
 
-Status: core bridge, application-producer lifecycle, generated capability
-wrappers and record/replay tooling implemented.
+Status: core bridge, application-producer lifecycle, generated host bindings,
+and record/replay tooling implemented.
 
 ## Decision
 
@@ -13,7 +13,7 @@ point:
 function __wabou_dispatch_host_frame(frame: Uint8Array): HostFrameDisposition;
 ```
 
-The result of a guest-initiated JSON capability returns through that capability
+The result of a guest-initiated host module call returns through that function's
 Promise; it is not turned into an unrelated Host event. JavaScript never runs
 re-entrantly during style resolution, layout, text
 measurement, painting, widget painting or scene submission. A frame is
@@ -57,7 +57,7 @@ The Host owns facts and mechanisms:
 - hit testing, target validation, focus and pointer capture;
 - layout geometry and resize observations;
 - native widget semantic events;
-- native capabilities and their direct/native-Promise completion;
+- native host modules and their direct/native-Promise completion;
 - queue bounds, coalescing and wake-up behavior.
 
 The guest owns application policy:
@@ -66,7 +66,7 @@ The guest owns application policy:
 - Solid signal updates;
 - `preventDefault` and propagation flags;
 - subscriptions to observations and application topics;
-- Promise reactions for JSON capabilities.
+- Promise reactions for asynchronous host-module calls.
 
 JSX/Solid node IDs are runtime-local handles. Every received ID is validated by
 the Host immediately before encoding. IDs must become generational before node
@@ -320,40 +320,40 @@ the PTY and the Rust terminal model/widget. JS receives semantic, low-volume
 events such as title, bell and exit. A future JS-consumed byte stream must use a
 separate bounded stream API with explicit credits.
 
-## User Rust capabilities
+## User Rust host modules
 
-User Rust APIs are mounted as named capabilities. Direct structured methods
-avoid JSON text; individual low-frequency or dynamic methods may opt into the
-JSON codec:
+User Rust APIs are mounted as named `rquickjs` modules. Structured request and
+response values cross directly, without a JSON string envelope:
 
 ```rust
-const READ_FILE: HostMethod<ReadFileRequest, ReadFileResponse> =
-    HostMethod::new("readFile");
-const RUN_EXTENSION: JsonMethod<ExtensionRequest, ExtensionResponse> =
-    JsonMethod::new("runExtension");
-const WORKSPACE: CapabilityContract = CapabilityContract::new("workspace", 1);
+#[wabou::js_module(name = "workspace")]
+#[rquickjs::module(rename_vars = "camelCase")]
+mod workspace {
+    #[rquickjs::function]
+    #[wabou::js(
+        args(request = named(ReadFileRequest)),
+        returns = promise(named(ReadFileResponse))
+    )]
+    pub async fn read_file(
+        wabou::JsValue(request): wabou::JsValue<ReadFileRequest>,
+    ) -> rquickjs::Result<wabou::JsValue<ReadFileResponse>> {
+        read_file(request).await.map(wabou::JsValue).map_err(host_error)
+    }
+}
 
-HostBuilder::new().capability(WORKSPACE, |capability| {
-    capability.method(READ_FILE, read_file)?;
-    capability.json_method(RUN_EXTENSION, run_extension)
-});
+HostBuilder::new().host_module_def::<js_workspace>("workspace");
 ```
 
-The same `CapabilityContract` is consumed by binding generation and host
-registration. Generated clients check its ABI version before the first call,
-so a stale frontend bundle reports `incompatibleHost` instead of failing later
-with an undefined native method.
+Request decoding is strict at the host boundary. A field that the Rust DTO does
+not consume is rejected before the handler runs. This prevents a stale or
+hand-written client from appearing to configure an option that the host
+silently ignored. Use an explicit flattened map in the DTO only when extension
+fields are intentional.
 
-Request decoding is strict at the capability boundary. A field that the Rust
-DTO does not consume is rejected as `invalidRequest` before the handler runs,
-including its full nested path. This prevents a stale or hand-written client
-from appearing to configure an option that the host silently ignored. Use an
-explicit flattened map in the DTO only when extension fields are intentional.
-
-Application capabilities have one public registration path. They are typed
-asynchronous methods with explicit request and response DTOs; JSON coding is an
-opt-in adapter on that path. Applications cannot mount arbitrary
-`rquickjs::Function` values through `HostBuilder`.
+Application host APIs have one public registration path. They are explicit
+`rquickjs` modules with typed request and response DTOs. Capturing QuickJS
+handles in Rust closures is unnecessary; module functions receive `Ctx` as an
+argument and retrieve owned Rust state from runtime userdata.
 Framework-owned synchronous functions use the separately declared native host
 API, whose TypeScript signature is reviewed explicitly beside its Rust
 implementation. Numeric effects remain private framework ABI for replayable OS
@@ -367,10 +367,10 @@ reverse order. `HostBuilder::recoverable_service` keeps windows and JavaScript
 available after startup failure, logs the failure, and preserves its diagnostic
 on the corresponding `HostServiceHandle`. A retained clone of the
 `ManagedHostService` may call `retry()`; it reuses the original host context and
-updates every cloned handle when startup succeeds. A capability handler should
+updates every cloned handle when startup succeeds. A host module function should
 prefer `retry_async()` so synchronous database, process, or network setup does
 not block QuickJS. Use the recoverable form
-only when the UI and its capabilities have a meaningful degraded state.
+only when the UI and its host services have a meaningful degraded state.
 Services that did start are still shut down exactly once in reverse
 registration order.
 
@@ -421,9 +421,9 @@ optional computed-layout snapshots
 
 Replay replaces native/background producers, preserves frame sequences and feeds
 the recorded bytes into the same guest entry point. Deterministic tests compare
-mutation frames and selected computed-layout snapshots. Mounted capability calls
-and returns are traced separately at the capability boundary when a test depends on
-them; replay installs a mock capability. Timestamps may be normalized, but event
+mutation frames and selected computed-layout snapshots. Mounted host calls and
+returns are traced separately when a test depends on them; replay installs a
+mock host module. Timestamps may be normalized, but event
 ordering and sequence numbers may not.
 
 Required test cases:
@@ -434,7 +434,7 @@ Required test cases:
 - pointer move, wheel and resize coalescing;
 - click/default-action cancellation exactly once;
 - resize callback mutations apply on the next turn, without recursive layout;
-- JSON capability operations resolve or reject exactly once;
+- async host module operations resolve or reject exactly once;
 - dropped targets and late async completions are ignored safely;
 - bounded queues wake once and report backpressure;
 - recorded frame replay produces byte-identical mutation frames;
@@ -457,7 +457,7 @@ The design is implemented when all of the following are true:
 - no dispatch occurs inside layout/paint or recursively from a resize callback;
 - Rust and TypeScript codec fixtures are cross-compatible;
 - the required ordering/backpressure/replay tests pass;
-- application JS APIs use generated JSON capability clients; framework-owned
+- application JS APIs use generated host declarations; framework-owned
   synchronous calls use the explicit native host contract. There is no public
   global `Wabou`, raw QuickJS mount API, numeric effect dispatcher or generic
   stringly typed invocation surface.

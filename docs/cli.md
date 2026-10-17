@@ -1,13 +1,12 @@
 # Wabou CLI
 
-Wabou applications use a convention-based layout with no framework config
-file:
+Wabou applications use one typed configuration file:
 
 ```text
 my-app/
 ├── Cargo.toml
 ├── package.json
-├── vite.config.ts
+├── wabou.config.ts
 ├── src/
 │   └── main.rs
 └── ui/
@@ -36,13 +35,14 @@ avoids accidentally combining Rust and JavaScript packages from different
 commits. The default revision is `v0.1.0-alpha.4`; maintainers can exercise a
 candidate commit with `--wabou-repository` and `--wabou-ref`.
 
-The app's Vite config delegates Wabou's compiler, Solid universal renderer,
-aliases, optimizer policy, and bundle defaults to `@wabou/vite`:
+The app's Wabou config contains native application metadata and delegates the
+frontend compiler, Solid universal renderer, aliases, optimizer policy, and
+bundle defaults to `@wabou/vite`:
 
 ```ts
-import { defineWabouConfig } from "@wabou/vite";
+import { defineConfig } from "@wabou/vite";
 
-export default defineWabouConfig({
+export default defineConfig({
   outDir: "../../dist/gallery/resources",
 });
 ```
@@ -59,7 +59,7 @@ destination.
 ```bash
 bun run wabou doctor
 bun run wabou dev apps/gallery
-bun run wabou dev apps/hackernews --devtools
+bun run wabou dev apps/hackernews
 bun run wabou clean apps/gallery
 ```
 
@@ -77,12 +77,11 @@ source workspace, pass `--packages` to additionally remove every local
 
 Development starts Vite and compiles the Rust host with the `wabou/vite` and
 `wabou/devtools` facade features. QuickJS imports the live Vite graph and
-receives HMR updates, while `wabou inspect` can discover the local DevTools
-socket. `--devtools` additionally opens the visual inspector; it is not needed
-for the socket. No JavaScript production build is required before Rust
+receives HMR updates, while `wabou inspect` can query the local diagnostic
+socket. No JavaScript production build is required before Rust
 compilation. Ctrl-C terminates Vite, the host, and the optional inspector.
 
-Rust capabilities and widgets are linked into the application executable. A
+Rust host modules and widgets are linked into the application executable. A
 Rust edit uses Cargo incremental compilation and restarts the host; a TSX edit
 stays on the Vite/Solid HMR path and does not rebuild Rust. Generate the
 Rust-owned client declarations with `wabou bindings write` and verify them with
@@ -90,15 +89,14 @@ Rust-owned client declarations with `wabou bindings write` and verify them with
 
 The installed `wabou` executable is an orchestration CLI and does not link the
 renderer, QuickJS, Winit, or wgpu. Headless `render` and `layout` commands are
-forwarded to the separate `wabou-render` helper, as are the compatibility
-`launch` and `bundle` paths for frontend-only projects. In the Wabou source
-workspace the CLI builds that helper on first use; binary distributions should
-place it next to `wabou`.
+forwarded to the separate `wabou-render` helper. In the Wabou source workspace
+the CLI builds that helper on first use; binary distributions should place it
+next to `wabou`.
 
 The CLI invokes the project-local Vite executable directly. An application
 does not need specially named `build` or `dev` package scripts; those scripts
 are optional shortcuts such as `"build": "wabou build"`. Build customization
-belongs in `vite.config.ts`, where it applies consistently to development,
+belongs in `wabou.config.ts`, where it applies consistently to development,
 tests, rendering, and packaging.
 
 When running directly from the Wabou source workspace, `@wabou/vite`
@@ -135,10 +133,10 @@ Render any named component layout fixture without adding an application-level
 screenshot scenario:
 
 ```bash
-bun run wabou render apps/pi-agent \
-  --fixture conversation/complete-turn \
-  --out target/complete-turn.png \
-  --snapshot target/complete-turn.json
+bun run wabou render apps/gallery \
+  --fixture component/Button \
+  --out target/button.png \
+  --snapshot target/button.json
 ```
 
 The command selects the application's `layout-test` bundle and reuses the
@@ -146,7 +144,7 @@ fixture's declared viewport, device scale, and settling time. The PNG and
 DevTools snapshot therefore describe the same frame used by layout contracts.
 Use this for focused visual review after component behavior and geometry tests
 pass; it is not a replacement for those deterministic assertions. Pixel
-capture uses the offscreen Vello Hybrid renderer. Use `wabou layout` when only
+capture uses the offscreen Vello GPU renderer. Use `wabou layout` when only
 structured geometry is required.
 
 ## Run and package
@@ -156,7 +154,6 @@ bun run wabou run apps/gallery
 bun run wabou build apps/gallery --release
 bun run wabou build apps/gallery --release --source-map
 bun run wabou package apps/gallery
-bun run wabou devtools
 ```
 
 Commands that compile the application host accept Cargo-style feature
@@ -215,13 +212,11 @@ dist/gallery/
 ```
 
 Debug builds generate JavaScript source maps by default; release builds do not.
-Set `build.source-map` in `wabou.toml` to override that default, or pass
+Set `sourceMap` in `wabou.config.ts` to override that default, or pass
 `--source-map`/`--source-map=false` for one build:
 
-```toml
-[build]
-out-dir = "dist/resources"
-source-map = true
+```ts
+export default defineConfig({ sourceMap: true });
 ```
 
 The CLI profile and explicit command-line override are the source of truth for
@@ -236,19 +231,22 @@ later map to `Gallery.app/Contents/Resources/wabou` before signing.
 `package` always performs a release build, copies the executable and resources
 into a deterministic `dist/<app>/stage/` directory, then invokes the typed
 `cargo-packager` library embedded in `wabou-cli`. Users do not install a
-separate packaging executable. Each application opts into native packaging
-with `wabou.toml`:
+separate packaging executable. Each application opts into native packaging in
+`wabou.config.ts`:
 
-```toml
-[package]
-product-name = "Example"
-identifier = "dev.example.desktop"
-description = "A native Wabou application."
-authors = ["Example Team"]
-license-file = "../../LICENSE"
-icons = ["icons/*.png"]
-resources = ["assets"]
-formats = ["appimage", "deb"]
+```ts
+export default defineConfig({
+  package: {
+    productName: "Example",
+    identifier: "dev.example.desktop",
+    description: "A native Wabou application.",
+    authors: ["Example Team"],
+    licenseFile: "../../LICENSE",
+    icons: ["icons/*.png"],
+    resources: ["assets"],
+    formats: ["appimage", "deb"],
+  },
+});
 ```
 
 Command-line formats override the file without changing it:
@@ -312,9 +310,9 @@ guide](testing.md) for semantic locators, artifacts and trace replay.
 
 ## Rust-owned TypeScript bindings
 
-An application can expose a conventional Cargo example named
-`wabou-bindgen`. The example builds a `wabou_bindgen::Bindings` manifest and
-writes its generated module beneath `ui/`:
+`wabou bindings` scans application Rust sources for explicit JavaScript
+contracts and writes ambient TypeScript declarations without compiling the
+application:
 
 ```bash
 bun run wabou bindings write apps/gallery
@@ -322,101 +320,155 @@ bun run wabou bindings check apps/gallery
 ```
 
 `write` explicitly updates the committed declaration. `check` never rewrites
-files and fails when a Rust DTO, capability name, or method name has drifted;
-run it in CI.
+files and fails when the declaration has drifted; run it in CI. The default
+source is `src/` and the default output is
+`ui/generated/rust-bindings.d.ts`. Both can be changed in the shared project
+configuration:
 
-The generated module exposes a typed client while retaining the native
-QuickJS ABI underneath. Each capability method accepts zero or one request;
-the bridge JSON-encodes methods that have a request. A `no_request` method is
-also argument-free at the native boundary; it does not rely on a hidden `null`
-sentinel. Group
-multiple fields into a named DTO. Application code does not manually call
-`JSON.stringify` or decode the native result envelope.
-
-For a Rust-owned capability, derive `specta::Type` on its bridge DTOs and define
-one typed method constant. The same constant is consumed by binding generation
-and runtime registration. `JsonMethod::new` requires the request to implement
-`Deserialize` and the response to implement `Serialize`, so a schema that
-cannot cross the actual wire fails where the contract is declared:
-
-```toml
-[dependencies]
-wabou = { version = "...", features = ["bindings"] }
+```ts
+export default defineConfig({
+  bindings: {
+    sources: ["src", "../application-api/src"],
+    output: "ui/generated/rust-bindings.d.ts",
+  },
+})
 ```
 
-Applications that do not generate Rust-owned TypeScript capabilities leave the
-feature disabled and do not compile Specta or the TypeScript exporter.
+The marker macros do not change runtime behavior. `rquickjs` continues to own
+registration while the Wabou attributes state the public JavaScript contract:
 
 ```rust
-use wabou::{Capability, CapabilityContract, JsonMethod, Type, specta};
-
-#[derive(serde::Deserialize, Type)]
-struct RenameRequest {
-    name: String,
+#[wabou::js_class(name = "Database")]
+#[rquickjs::class]
+pub struct Database {
+    // Rust-only state is not part of the declaration.
 }
 
-const RENAME: JsonMethod<RenameRequest, bool> = JsonMethod::new("rename");
-const STATUS: JsonMethod<(), WorkspaceStatus> = JsonMethod::no_request("status");
-const WORKSPACE: CapabilityContract = CapabilityContract::new("workspace", 1);
+#[rquickjs::methods]
+impl Database {
+    #[qjs(constructor)]
+    #[wabou::js(args(path = string))]
+    pub fn new(path: String) -> rquickjs::Result<Self> {
+        // ...
+    }
 
-let capability = Capability::new(WORKSPACE)
-    .method(RENAME)
-    .method(STATUS);
+    #[qjs(get)]
+    #[wabou::js(returns = string)]
+    pub fn path(&self) -> String {
+        // ...
+    }
+
+    #[wabou::js(
+        args(key = handle(Resource), fallback = optional(string)),
+        returns = promise(nullable(string))
+    )]
+    pub fn read(&self) {
+        // ...
+    }
+}
 ```
 
-The `specta` import is intentionally re-exported by the `bindings` feature so
-its derive expansion resolves without a second version declaration in the
-application's `Cargo.toml`. Serde remains a normal direct dependency because
-its derive macros require the downstream crate to link `serde` by name.
-
-This generates DTO declarations, a module-local raw host contract, injectable
-`createXClient(host)` factories, and `useXClient()` context consumers from the
-shared contracts. It does not expose JSON wire methods as public typed host
-methods. Only explicit bridge DTOs should derive `Type`; persistence entities,
-upstream SDK models and renderer internals are not automatically public
-JavaScript contracts.
-
-Register structured async implementations through the matching runtime
-adapter. It owns JSON decoding, native Promise creation and the standard result
-envelope, so application code does not repeat the wire protocol:
+DTO declarations use the same explicit type vocabulary. The Rust fields may
+remain private and may use different implementation types; the marker records
+the JavaScript wire contract rather than attempting to infer it from Rust:
 
 ```rust
-HostBuilder::new().capability(WORKSPACE, |capability| {
-    capability.json_method(RENAME, rename)
-});
+#[wabou::js_type(fields(
+    id = string,
+    rows = array(named(Row)),
+    next = optional(nullable(string))
+))]
+pub struct QueryResult {
+    id: String,
+    rows: Vec<Row>,
+    next: Option<String>,
+}
+
+#[wabou::js_type(values(idle, loading, not_ready = "not-ready"))]
+pub enum Status {
+    Idle,
+    Loading,
+    NotReady,
+}
+
+#[wabou::js_type(name = "RecordId", alias = union(string, number))]
+pub type Id = String;
 ```
 
-Application capabilities always use this structured adapter. Framework-owned
-synchronous QuickJS functions are declared explicitly in the native host API;
-applications do not receive a raw `rquickjs::Object` escape hatch.
+These emit a TypeScript `interface`, string-literal union, and type alias,
+respectively. `name = "..."` overrides the generated declaration name. Object
+field documentation is copied from matching named Rust fields.
+
+The generator understands `string`, `boolean`, `number`, `safe_integer`,
+`bigint`, `unknown`, `void`, `object`, `uint8_array`, `array_buffer`, and
+`undefined`. It also supports `array(T)`, `readonly_array(T)`, `promise(T)`,
+`nullable(T)`, `optional(T)`, `record(T)`, `union(A, B)`, `literal(...)`,
+`named(Type)`, `json(Type)`, and `handle(Name)`. Dynamic Rust values such as
+`rquickjs::Value` must be assigned an explicit JavaScript type; the generator
+does not silently emit `any`.
+
+The source markers are the only binding manifest. `wabou bindings` no longer
+builds a Cargo example or runs a Specta compatibility generator, so binding
+checks remain fast and deterministic. Host functions and classes are authored
+in Rust, registered with `rquickjs`, and described beside that implementation;
+generated TypeScript contains declarations rather than a second runtime
+client layer.
+
+For a named object exposed through `useHost()`, add Wabou's declaration metadata
+to an ordinary `rquickjs` native module. `rquickjs` generates the runtime
+registration and conversions; Wabou only reads the inert attributes when it
+generates declarations:
+
+```rust
+#[wabou::js_module(name = "database")]
+#[rquickjs::module(rename_vars = "camelCase")]
+pub mod database {
+    #[rquickjs::function]
+    #[qjs(rename = "runQuery")]
+    #[wabou::js(
+        args(query = string),
+        returns = promise(array(named(QueryResult)))
+    )]
+    pub async fn run_query(query: String) -> Vec<QueryResult> {
+        service().query(query).await
+    }
+}
+```
+
+This augments `HostModules` in `@wabou/core`; it does not add a version
+field or generate a JavaScript adapter. Mount the generated module definition
+with `HostBuilder::host_module_def::<js_database>("database")`. JavaScript
+names come from `rquickjs` (`#[qjs(rename = ...)]` above); Wabou's method
+marker only describes argument and return types.
+
+Stateful native services use the same module definition. Wrap the service in a
+module-specific type deriving `JsLifetime`, pass it once with
+`host_module_def_with_state`, and retrieve it from the `Ctx` argument inside an
+exported function. This avoids closures retaining JavaScript handles and keeps
+registration under `rquickjs`:
+
+```rust
+HostBuilder::new().host_module_def_with_state::<js_database, _>(
+    "database",
+    wabou::HostModuleState(database),
+);
+```
+
+Each window runtime receives a clone. A runtime accepts one value for each
+`HostModuleState<T>` promises that `T` is ordinary owned Rust state with no
+QuickJS-borrowed handles. A runtime accepts one value for each `T`, so modules
+using the same service type should introduce distinct newtype wrappers.
 
 ### Development boundary
 
 Keep frequently edited presentation code in `ui/` and stable native services in
-the Rust application. Capability registration is ordinary Rust code in
-`src/main.rs`. Long-lived native objects can live in
+the Rust application. Host registration is ordinary Rust code in `src/main.rs`.
+Long-lived native objects can live in
 `ResidentResources`, whose generational handles remain valid across Solid HMR
 and full UI remounts.
 
-### Optional Intl data
+### Native localization
 
-The Vite configuration includes English and Chinese Intl data by default. Apps
-that do not use Intl or widgets requiring it can omit that data:
-
-```ts
-export default defineWabouConfig({ intl: false });
-```
-
-Apps needing only number formatting can avoid date and time-zone data:
-
-```ts
-export default defineWabouConfig({
-  intl: { locales: ["en"], apis: ["number"] },
-});
-```
-
-`apis` accepts `number`, `date`, and `plural`; required FormatJS dependencies are
-included automatically. This is configured in `vite.config.ts`, independently of
-`wabou.config.ts`. TOML projects can use `intl = false` at the root or set `apis`
-in the `[intl]` table. Disabling Intl is explicit: date/number widgets and libraries
-using Intl still require the relevant APIs.
+Number, date, plural, relative-time, and calendar-week operations use Wabou's
+small native host functions and Jiff time zones. They require no Vite configuration or locale
+polyfill bundle. Generated Paraglide registries are adapted automatically.

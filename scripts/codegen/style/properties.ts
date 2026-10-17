@@ -123,12 +123,7 @@ add(["flex-grow", "flex-shrink", "aspect-ratio", "opacity", "z-index"], {
   typed: [NUMBER],
 });
 add(
-  [
-    "grid-column-start",
-    "grid-column-end",
-    "grid-row-start",
-    "grid-row-end",
-  ],
+  ["grid-column-start", "grid-column-end", "grid-row-start", "grid-row-end"],
   { string: true, number: true, typed: [NUMBER] },
 );
 add(["font-weight"], {

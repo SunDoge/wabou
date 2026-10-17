@@ -1,8 +1,8 @@
+import { mergeClasses } from "@wabou/core/style";
 import { createContext, type JSX, omit, useContext } from "solid-js";
 import { match } from "ts-pattern";
 import { Text, type TextProps, View, type ViewProps } from "../primitives";
 import { Button, type ButtonProps } from "./button";
-import { mergeClasses } from "@wabou/core/style";
 
 export type AttachmentState =
   | "idle"

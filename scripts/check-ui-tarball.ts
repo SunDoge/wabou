@@ -1,6 +1,7 @@
 import { access, mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { gzipSync } from "node:zlib";
 
 const root = new URL("..", import.meta.url).pathname;
 const temporary = await mkdtemp(join(tmpdir(), "wabou-ui-consumer-"));
@@ -94,10 +95,10 @@ await writeFile(
   )}\n`,
 );
 await writeFile(
-  join(temporary, "vite.config.ts"),
-  `import { defineWabouConfig } from "@wabou/vite";
+  join(temporary, "wabou.config.ts"),
+  `import { defineConfig } from "@wabou/vite";
 
-export default defineWabouConfig({ outDir: "dist" });
+export default defineConfig({ outDir: "dist" });
 `,
 );
 await mkdir(join(temporary, "ui"));
@@ -115,7 +116,22 @@ export const Example = () => <View><Button>Run</Button><Text>Ready</Text></View>
 
 await run(["bun", "install"], temporary);
 await run(["bun", "x", "tsc", "--noEmit"], temporary);
-await run(["bun", "x", "vite", "build"], temporary);
+await run(
+  ["bun", "x", "vite", "--config", "wabou.config.ts", "build"],
+  temporary,
+);
+
+const consumerBundle = await readFile(join(temporary, "dist/bundle.js"));
+const consumerBundleGzip = gzipSync(consumerBundle, { level: 9 });
+const bundleBudget = { raw: 180 * 1024, gzip: 60 * 1024 };
+if (
+  consumerBundle.byteLength > bundleBudget.raw ||
+  consumerBundleGzip.byteLength > bundleBudget.gzip
+) {
+  throw new Error(
+    `minimal @wabou/ui consumer exceeded its bundle budget: ${consumerBundle.byteLength} B raw / ${consumerBundleGzip.byteLength} B gzip`,
+  );
+}
 
 for (const packageName of obsoleteUiPackages) {
   const internal = packageName.slice("@wabou/".length);
@@ -144,4 +160,6 @@ for (const packageName of obsoleteUiPackages) {
   }
 }
 
-console.log("verified isolated @wabou/ui tarball consumer");
+console.log(
+  `verified isolated @wabou/ui tarball consumer (${consumerBundle.byteLength} B raw / ${consumerBundleGzip.byteLength} B gzip)`,
+);

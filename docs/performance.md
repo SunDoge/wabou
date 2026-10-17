@@ -95,21 +95,21 @@ The checkout metadata describes the sampling checkout, not proof of the measured
 binary's provenance: rebuild before comparing and archive the build revision with
 the reports. No memory budget is enforced until repeatable platform baselines exist.
 
-### Minimal Hybrid probe
+### Minimal GPU probe
 
 Build once, then sample the release executable directly (not Cargo):
 
 ```bash
-cargo build --release -p wabou-shell-vello --example memory_probe
+cargo build --release -p wabou-shell --example memory_probe
 bun run perf:memory --probe target/release/examples/memory_probe \
-  --width 800 --height 600 --scale 1 --seconds 60 --out /tmp/hybrid-memory-1x.json
+  --width 800 --height 600 --scale 1 --seconds 60 --out /tmp/gpu-memory-1x.json
 bun run perf:memory --probe target/release/examples/memory_probe \
-  --width 800 --height 600 --scale 2 --seconds 60 --out /tmp/hybrid-memory-2x.json
+  --width 800 --height 600 --scale 2 --seconds 60 --out /tmp/gpu-memory-2x.json
 ```
 
 Use the executable under your configured Cargo target directory if it differs.
 The probe renders a red background rectangle and a green inset rectangle using
-the workspace's Vello Hybrid dependency and default renderer settings. It has no
+the workspace's Vello GPU dependency and default renderer settings. It has no
 QuickJS, font loading, widgets, application state, or native window. It pauses at
 each checkpoint until the external sampler has measured its PID:
 
@@ -118,7 +118,7 @@ each checkpoint until the external sampler has measured its PID:
 | `process_started` | Before wgpu instance/device creation |
 | `device_created` | Device created; adapter/backend/device type recorded |
 | `target_created` | Offscreen target and GPU readback staging buffer allocated |
-| `renderer_created` | Hybrid renderer/resources created with default settings |
+| `renderer_created` | Vello GPU renderer/resources created with default settings |
 | `first_frame_completed` | Two rectangles submitted; GPU completion awaited |
 | `steady_state` | Same scene repeatedly rendered for the requested duration |
 | `pixels_verified` | CPU readback performed; background and foreground pixels asserted |
@@ -192,7 +192,7 @@ with the existing frame-time measurements and relevant pixel/platform evidence.
   as successful baselines. Unsupported platforms fail explicitly.
 
 The motivation is [Fission issue 81](https://github.com/fission-ui/fission/issues/81).
-Its classic Vello buffer fix does not directly apply to Wabou's Hybrid renderer;
+Its classic Vello buffer fix does not directly apply to Wabou's Vello GPU renderer;
 measure our own allocation stages before changing defaults or adopting a fork.
 
 ### Initial tool verification (2026-09-12)
@@ -211,7 +211,7 @@ application memory measurement. Values below exclude final CPU readback.
 | First frame completed | 125.2 / 54.3 | 125.1 / 54.3 |
 | Steady endpoint | 126.0 / 55.1 | 126.0 / 55.2 |
 
-In these process counters the largest jump preceded Hybrid renderer creation.
+In these process counters the largest jump preceded Vello GPU renderer creation.
 This does not establish GPU allocation totals or macOS physical footprint.
 Native Gallery/Vlist/Stress and macOS measurements remain to be collected.
 

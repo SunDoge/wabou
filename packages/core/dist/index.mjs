@@ -1,110 +1,17 @@
-import { S as createResourceKeyFamily, c as HOST_RECORD_KIND, n as EVENT_DATA_LEN, o as HOST_FRAME, s as HOST_NODE_PAYLOAD, v as nodeKey } from "./protocol-C0xTI-jG.mjs";
-import { n as defaultHost, r as useHost, t as HostProvider } from "./host-Bo4Kd5LZ.mjs";
+import { S as HOST_RECORD_KIND, b as HOST_FRAME, d as createResourceKeyFamily, s as nodeKey, x as HOST_NODE_PAYLOAD } from "./protocol-B9cErdtk.mjs";
+import { n as defaultHost, r as useHost, t as HostProvider } from "./host-B5CKGzCs.mjs";
 import "./host.mjs";
+import { t as installMissingGlobal } from "./abort-controller-rU77nrtL.mjs";
 import { t as hasBrowserDom } from "./browser-dom-BrHP4mZQ.mjs";
 import { _ as utilityConflictProperties, a as bool, c as mergeClasses, d as px, f as rgba, g as translate2d, h as shadow, i as auto, l as number, m as scale2d, n as StyleValueKind, o as classes, p as rotate2d, r as assertInlineStyleValue, s as isTypedStyleValue, t as STYLE_VALUE, u as percent, v as INLINE_STYLE_CONTRACT } from "./style-B3YAe2-h.mjs";
-import { F as PathBuilder, I as isVectorPath, M as VirtualList, N as createFps, P as Portal, b as observeGlobalPointerEvent, c as dispatchEvent, h as isDirectEvent, j as writer, k as setTransform2D, t as Dynamic, x as reconcileControlledInputValues, y as mount } from "./renderer-Dban-vxD.mjs";
-import "./animation-frame-BMEKyYv2.mjs";
-import { a as subscribeAll, i as subscribe, n as dispatchHostMessage, o as subscribeJson, r as hostMessages, t as dispatchResizeObservation } from "./resize-observer-CJ5pj_Xb.mjs";
+import { F as PathBuilder, I as isVectorPath, M as VirtualList, N as createFps, P as Portal, b as observeGlobalPointerEvent, c as dispatchEvent, h as isDirectEvent, j as writer, k as setTransform2D, t as Dynamic, x as reconcileControlledInputValues, y as mount } from "./renderer-BMakitWn.mjs";
+import "./animation-frame-DJIjswAv.mjs";
+import { a as subscribeAll, i as subscribe, n as dispatchHostMessage, o as subscribeJson, r as hostMessages, t as dispatchResizeObservation } from "./resize-observer-BmUNQ8lg.mjs";
 import { n as effectOps } from "./effect-abi-BzPW8STE.mjs";
-import "./registry.mjs";
+import { t as intl } from "./intl-BQihzwVz.mjs";
 import { flushPerformance, measureAsyncPerformance, measurePerformance } from "./performance.mjs";
+import "./registry.mjs";
 import { For, createComponent, createContext, createEffect, createMemo, createSignal, flush, getOwner, latest, onCleanup, refresh, resolve, untrack, useContext } from "solid-js";
-import AbortControllerPolyfill, { AbortSignal } from "abort-controller/dist/abort-controller";
-import { ByteLengthQueuingStrategy, CountQueuingStrategy, ReadableByteStreamController, ReadableStream as ReadableStream$1, ReadableStreamBYOBReader, ReadableStreamBYOBRequest, ReadableStreamDefaultController, ReadableStreamDefaultReader, TransformStream as TransformStream$1, TransformStreamDefaultController, WritableStream, WritableStreamDefaultController, WritableStreamDefaultWriter } from "web-streams-polyfill";
-//#region src/polyfills/globals.ts
-/** Install a writable runtime global without replacing a host implementation. */
-function installMissingGlobal(name, value) {
-	if (name in globalThis) return false;
-	Object.defineProperty(globalThis, name, {
-		configurable: true,
-		writable: true,
-		value
-	});
-	return true;
-}
-/** Install a related set of runtime globals with the same preservation rule. */
-function installMissingGlobals(values) {
-	for (const [name, value] of Object.entries(values)) installMissingGlobal(name, value);
-}
-//#endregion
-//#region src/polyfills/dom-exception.ts
-var WabouDOMException = class extends Error {
-	code = 0;
-	constructor(message = "", name = "Error") {
-		super(message);
-		this.name = name;
-	}
-};
-/** Install the exception type shared by browser-compatible host APIs. */
-function installDOMExceptionPolyfill() {
-	installMissingGlobal("DOMException", WabouDOMException);
-}
-installDOMExceptionPolyfill();
-//#endregion
-//#region src/polyfills/abort-controller.ts
-const reasons = /* @__PURE__ */ new WeakMap();
-const Signal = AbortSignal;
-Object.defineProperties(Signal.prototype, {
-	reason: {
-		configurable: true,
-		get() {
-			return reasons.get(this);
-		}
-	},
-	throwIfAborted: {
-		configurable: true,
-		value() {
-			if (this.aborted) throw this.reason;
-		}
-	}
-});
-var Controller = class extends AbortControllerPolyfill {
-	abort(reason = new DOMException("The operation was aborted", "AbortError")) {
-		if (this.signal.aborted) return;
-		reasons.set(this.signal, reason);
-		super.abort();
-	}
-};
-Signal.abort = (reason) => {
-	const c = new Controller();
-	c.abort(reason);
-	return c.signal;
-};
-Signal.timeout = (milliseconds) => {
-	if (!Number.isSafeInteger(milliseconds) || milliseconds < 0) throw new RangeError("Invalid timeout");
-	const c = new Controller();
-	setTimeout(() => c.abort(new DOMException("The operation timed out", "TimeoutError")), milliseconds);
-	return c.signal;
-};
-Signal.any = (signals) => {
-	const c = new Controller();
-	const cleanups = [];
-	for (const signal of signals) {
-		if (signal.aborted) {
-			c.abort(signal.reason);
-			break;
-		}
-		const abort = () => c.abort(signal.reason);
-		signal.addEventListener("abort", abort, { once: true });
-		cleanups.push(() => signal.removeEventListener("abort", abort));
-	}
-	const cleanup = () => {
-		for (const remove of cleanups) remove();
-	};
-	if (c.signal.aborted) cleanup();
-	else c.signal.addEventListener("abort", cleanup, { once: true });
-	return c.signal;
-};
-/** Install cancellation primitives when the embedding runtime lacks them. */
-function installAbortControllerPolyfill() {
-	installMissingGlobals({
-		AbortController: Controller,
-		AbortSignal: Signal
-	});
-}
-installAbortControllerPolyfill();
-//#endregion
 //#region src/polyfills/crypto.ts
 const DIGEST_IDS = {
 	"SHA-1": 1,
@@ -154,311 +61,6 @@ function installCryptoPolyfill() {
 }
 installCryptoPolyfill();
 //#endregion
-//#region src/polyfills/streams.ts
-const streamGlobals = {
-	ByteLengthQueuingStrategy,
-	CountQueuingStrategy,
-	ReadableByteStreamController,
-	ReadableStream: ReadableStream$1,
-	ReadableStreamBYOBReader,
-	ReadableStreamBYOBRequest,
-	ReadableStreamDefaultController,
-	ReadableStreamDefaultReader,
-	TransformStream: TransformStream$1,
-	TransformStreamDefaultController,
-	WritableStream,
-	WritableStreamDefaultController,
-	WritableStreamDefaultWriter
-};
-/** Install the WHATWG Streams constructors missing from the current runtime. */
-function installStreamsPolyfill() {
-	installMissingGlobals(streamGlobals);
-}
-installStreamsPolyfill();
-//#endregion
-//#region src/polyfills/encoding-streams.ts
-/** Stream wrapper over the runtime's stateful native TextDecoder. */
-var WabouTextDecoderStream = class {
-	decoder;
-	transform;
-	constructor(label = "utf-8", options = {}) {
-		this.decoder = new TextDecoder(label, options);
-		this.transform = new TransformStream({
-			transform: (chunk, controller) => {
-				const text = this.decoder.decode(chunk, { stream: true });
-				if (text) controller.enqueue(text);
-			},
-			flush: (controller) => {
-				const text = this.decoder.decode();
-				if (text) controller.enqueue(text);
-			}
-		});
-	}
-	get encoding() {
-		return this.decoder.encoding;
-	}
-	get fatal() {
-		return this.decoder.fatal;
-	}
-	get ignoreBOM() {
-		return this.decoder.ignoreBOM;
-	}
-	get readable() {
-		return this.transform.readable;
-	}
-	get writable() {
-		return this.transform.writable;
-	}
-	get [Symbol.toStringTag]() {
-		return "TextDecoderStream";
-	}
-};
-/** Keep a trailing high surrogate until the next chunk or stream flush. */
-var WabouTextEncoderStream = class {
-	transform;
-	constructor() {
-		const encoder = new TextEncoder();
-		let pending = "";
-		this.transform = new TransformStream({
-			transform(chunk, controller) {
-				if (typeof chunk === "symbol") throw new TypeError("Cannot encode a Symbol");
-				let text = pending + String(chunk);
-				pending = "";
-				const last = text.charCodeAt(text.length - 1);
-				if (last >= 55296 && last <= 56319) {
-					pending = text.slice(-1);
-					text = text.slice(0, -1);
-				}
-				if (text) controller.enqueue(encoder.encode(text));
-			},
-			flush(controller) {
-				if (pending) controller.enqueue(encoder.encode(pending));
-				pending = "";
-			}
-		});
-	}
-	get encoding() {
-		return "utf-8";
-	}
-	get readable() {
-		return this.transform.readable;
-	}
-	get writable() {
-		return this.transform.writable;
-	}
-	get [Symbol.toStringTag]() {
-		return "TextEncoderStream";
-	}
-};
-/** Install the Encoding Standard transforms missing from QuickJS. */
-function installEncodingStreamsPolyfill() {
-	installMissingGlobals({
-		TextDecoderStream: WabouTextDecoderStream,
-		TextEncoderStream: WabouTextEncoderStream
-	});
-}
-installEncodingStreamsPolyfill();
-//#endregion
-//#region src/polyfills/fetch.ts
-function normalizeHeaderName(name) {
-	return String(name).toLowerCase();
-}
-var WabouHeaders = class {
-	entriesByName = /* @__PURE__ */ new Map();
-	constructor(init) {
-		if (!init) return;
-		if (Symbol.iterator in Object(init)) {
-			for (const [name, value] of init) this.append(name, value);
-			return;
-		}
-		for (const [name, value] of Object.entries(init)) this.append(name, value);
-	}
-	append(name, value) {
-		const key = normalizeHeaderName(name);
-		const current = this.entriesByName.get(key);
-		this.entriesByName.set(key, current ? `${current}, ${String(value)}` : String(value));
-	}
-	delete(name) {
-		this.entriesByName.delete(normalizeHeaderName(name));
-	}
-	get(name) {
-		return this.entriesByName.get(normalizeHeaderName(name)) ?? null;
-	}
-	has(name) {
-		return this.entriesByName.has(normalizeHeaderName(name));
-	}
-	set(name, value) {
-		this.entriesByName.set(normalizeHeaderName(name), String(value));
-	}
-	entries() {
-		return this.entriesByName.entries();
-	}
-	keys() {
-		return this.entriesByName.keys();
-	}
-	values() {
-		return this.entriesByName.values();
-	}
-	forEach(callback, thisArg) {
-		for (const [key, value] of this.entriesByName) callback.call(thisArg, value, key, this);
-	}
-	[Symbol.iterator]() {
-		return this.entries();
-	}
-	toRecord() {
-		return Object.fromEntries(this.entriesByName);
-	}
-};
-function encodeResponseBody(body, copy) {
-	if (typeof body === "string") return new TextEncoder().encode(body);
-	if (body instanceof Uint8Array) return copy ? body.slice() : body;
-	if (body instanceof ArrayBuffer) return new Uint8Array(body.slice(0));
-	return /* @__PURE__ */ new Uint8Array();
-}
-var WabouResponse = class WabouResponse {
-	body;
-	headers;
-	status;
-	statusText;
-	url;
-	bodyBytes;
-	consumed = false;
-	constructor(body = null, init = {}, url = "", copyBody = true) {
-		this.bodyBytes = encodeResponseBody(body, copyBody);
-		this.status = init.status ?? 200;
-		this.statusText = init.statusText ?? "";
-		this.headers = new WabouHeaders(init.headers);
-		this.url = url;
-		if (body === null) this.body = null;
-		else {
-			const bytes = this.bodyBytes;
-			const stream = new ReadableStream({ start: (controller) => {
-				controller.enqueue(bytes);
-				controller.close();
-			} });
-			const getReader = stream.getReader.bind(stream);
-			stream.getReader = ((...args) => {
-				const reader = getReader(...args);
-				this.consumed = true;
-				this.bodyBytes = null;
-				return reader;
-			});
-			this.body = stream;
-		}
-	}
-	get ok() {
-		return this.status >= 200 && this.status < 300;
-	}
-	get bodyUsed() {
-		return this.consumed || this.body?.locked === true;
-	}
-	async consumeBody() {
-		if (this.bodyUsed) throw new TypeError("Response body has already been consumed");
-		if (this.body === null) {
-			this.consumed = true;
-			return /* @__PURE__ */ new Uint8Array();
-		}
-		const reader = this.body.getReader();
-		const chunks = [];
-		let length = 0;
-		try {
-			while (true) {
-				const { done, value } = await reader.read();
-				if (done) break;
-				chunks.push(value);
-				length += value.length;
-			}
-		} finally {
-			reader.releaseLock();
-		}
-		if (chunks.length === 1) return chunks[0];
-		const bytes = new Uint8Array(length);
-		let offset = 0;
-		for (const chunk of chunks) {
-			bytes.set(chunk, offset);
-			offset += chunk.length;
-		}
-		return bytes;
-	}
-	async text() {
-		return new TextDecoder().decode(await this.consumeBody());
-	}
-	async json() {
-		return JSON.parse(await this.text());
-	}
-	bytes() {
-		return this.consumeBody();
-	}
-	async arrayBuffer() {
-		const bytes = await this.consumeBody();
-		if (bytes.byteOffset === 0 && bytes.byteLength === bytes.buffer.byteLength) return bytes.buffer;
-		return bytes.slice().buffer;
-	}
-	clone() {
-		if (this.bodyUsed) throw new TypeError("Cannot clone a consumed Response body");
-		return new WabouResponse(this.body === null ? null : this.bodyBytes, {
-			status: this.status,
-			statusText: this.statusText,
-			headers: this.headers
-		}, this.url);
-	}
-	static json(value, init = {}) {
-		const headers = new WabouHeaders(init.headers);
-		if (!headers.has("content-type")) headers.set("content-type", "application/json");
-		return new WabouResponse(JSON.stringify(value), {
-			...init,
-			headers
-		});
-	}
-	static fromHost(data, url) {
-		return new WabouResponse(data.body, {
-			status: data.status,
-			statusText: data.statusText,
-			headers: data.headers
-		}, url, false);
-	}
-};
-let nextFetchId = 0;
-/** Install the host-backed Fetch API surface. Safe to call again in tests. */
-function installFetchPolyfill() {
-	installMissingGlobals({
-		Headers: WabouHeaders,
-		Response: WabouResponse
-	});
-	if (!("__wabou_fetch" in globalThis)) return;
-	globalThis.fetch = ((input, init) => {
-		const signal = init?.signal;
-		if (signal?.aborted) return Promise.reject(signal.reason);
-		const runtime = globalThis;
-		const id = ++nextFetchId;
-		const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
-		const serializedInit = init ? {
-			method: init.method,
-			body: init.body,
-			headers: init.headers instanceof WabouHeaders ? init.headers.toRecord() : init.headers
-		} : {};
-		const initJson = JSON.stringify(serializedInit);
-		runtime.__wabou_fetch_start?.(id);
-		return new Promise((resolve, reject) => {
-			const abort = () => {
-				runtime.__wabou_fetch_cancel?.(id);
-				reject(signal.reason);
-			};
-			signal?.addEventListener("abort", abort, { once: true });
-			runtime.__wabou_fetch(url, initJson, id).then(resolve, reject).finally(() => signal?.removeEventListener("abort", abort));
-		}).then((data) => {
-			const ResponseConstructor = globalThis.Response;
-			if (ResponseConstructor === WabouResponse) return WabouResponse.fromHost(data, url);
-			return new ResponseConstructor(data.body, {
-				status: data.status,
-				statusText: data.statusText,
-				headers: data.headers
-			});
-		});
-	});
-}
-installFetchPolyfill();
-//#endregion
 //#region src/glue/app-lifecycle.ts
 function decodeAppLifecycle(value) {
 	if (typeof value !== "object" || value === null) throw new TypeError("application lifecycle event must be an object");
@@ -506,17 +108,17 @@ function schedule(callback, delay, repeat, args) {
 	run();
 	return id;
 }
-if (!hasBrowserDom()) {
-	globalThis.setTimeout = (callback, delay = 0, ...args) => schedule(callback, Number(delay) || 0, false, args);
-	globalThis.setInterval = (callback, delay = 0, ...args) => schedule(callback, Number(delay) || 0, true, args);
-}
+if (!hasBrowserDom()) Object.assign(globalThis, {
+	setTimeout: (callback, delay = 0, ...args) => schedule(callback, Number(delay) || 0, false, args),
+	setInterval: (callback, delay = 0, ...args) => schedule(callback, Number(delay) || 0, true, args)
+});
 function clearTimer(id) {
 	active.delete(id);
 }
-if (!hasBrowserDom()) {
-	globalThis.clearTimeout = clearTimer;
-	globalThis.clearInterval = clearTimer;
-}
+if (!hasBrowserDom()) Object.assign(globalThis, {
+	clearTimeout: clearTimer,
+	clearInterval: clearTimer
+});
 //#endregion
 //#region src/glue/host-frame.ts
 const RECORD_HEADER_LEN = 8;
@@ -571,7 +173,7 @@ function decodeAndDispatchHostFrame(input) {
 				json: ""
 			});
 			else if (payloadKind === HOST_NODE_PAYLOAD.Numeric) {
-				if (numericLen > EVENT_DATA_LEN) throw new TypeError("HostEventFrame numeric payload exceeds ABI slots");
+				if (numericLen > 21) throw new TypeError("HostEventFrame numeric payload exceeds ABI slots");
 				requireBytes(8 * numericLen, end);
 				const absoluteOffset = bytes.byteOffset + offset;
 				let numeric;
@@ -1030,7 +632,8 @@ function useClipboard() {
 //#region src/glue/app-dirs.ts
 let resolved;
 function resolve$1() {
-	return resolved ??= dispatchEffect(effectOps.appDirsResolve);
+	resolved ??= dispatchEffect(effectOps.appDirsResolve);
+	return resolved;
 }
 /** Resolve app-private native roots, caching the host result for this runtime. */
 const appDirs = Object.freeze({
@@ -1098,23 +701,6 @@ const notification = Object.freeze({ show(options) {
 function useNotification() {
 	return usePlatformServices().notification ?? notification;
 }
-//#endregion
-//#region src/glue/intl.ts
-/**
-* Operating-system locale facts. Standards-compatible formatting is installed
-* separately by the FormatJS-backed Intl polyfill.
-*/
-const intl = Object.freeze({
-	locale() {
-		return defaultHost.intl.locale();
-	},
-	timeZone() {
-		return defaultHost.intl.timeZone();
-	},
-	today() {
-		return defaultHost.intl.today();
-	}
-});
 //#endregion
 //#region src/glue/async-action.ts
 /** A concurrent call tried to replace the arguments of an in-flight action. */
@@ -1339,7 +925,7 @@ function paletteFor(name) {
 		if (globalThis.__wabou_get_color_theme_palette(name, output) !== length) throw new TypeError("palette length changed");
 		palette = output;
 	} catch {
-		throw new Error(`Unknown Wabou color theme \`${name}\`; declare it in the \`theme.themes\` section of vite.config.ts`);
+		throw new Error(`Unknown Wabou color theme \`${name}\`; declare it in the \`theme.themes\` section of wabou.config.ts`);
 	}
 	if (!(palette instanceof Uint32Array)) throw new Error(`Wabou color theme \`${name}\` returned an invalid palette`);
 	return palette;
@@ -1483,7 +1069,9 @@ const ColorThemeContext = createContext(colorTheme);
 function ColorThemeProvider(props) {
 	let initialized = false;
 	createEffect(() => [props.theme, props.transition], ([theme, transition]) => {
-		const animation = initialized && transition ? colorTheme.animateTo(theme, transition) : (colorTheme.set(theme), void 0);
+		let animation;
+		if (initialized && transition) animation = colorTheme.animateTo(theme, transition);
+		else colorTheme.set(theme);
 		initialized = true;
 		return animation ? () => animation.cancel() : void 0;
 	});
@@ -1761,47 +1349,6 @@ function createRevisionedHostResource(options) {
 	};
 }
 //#endregion
-//#region src/glue/native-capability.ts
-var CapabilityError = class extends Error {
-	code;
-	constructor(message, code = "capability_unavailable") {
-		super(message);
-		this.name = "CapabilityError";
-		this.code = code;
-	}
-};
-/** Validate and expose one versioned native capability namespace. */
-function bindCapability(capability, options) {
-	if (capability?.__wabouCapabilityVersion !== options.version) throw new CapabilityError(`The native ${options.name} capability version ${options.version} is unavailable`);
-	return capability;
-}
-//#endregion
-//#region src/glue/json-capability.ts
-/** Bind Wabou's versioned JSON capability transport to a typed app wrapper. */
-function bindJsonCapability(capability, options) {
-	return async (method, request) => {
-		if (capability?.__wabouCapabilityVersion !== options.version) throw new CapabilityError(`The native ${options.name} capability version ${options.version} is unavailable`, "capability_unavailable");
-		const functionValue = capability[method];
-		if (typeof functionValue !== "function") throw new CapabilityError(`The native ${options.name}.${method} method is unavailable`, "method_unavailable");
-		const raw = await (request === void 0 ? functionValue.call(capability) : functionValue.call(capability, JSON.stringify(request)));
-		if (typeof raw !== "string") throw new CapabilityError(`The native ${options.name}.${method} method returned a non-string response`, "invalid_response");
-		let envelope;
-		try {
-			envelope = JSON.parse(raw);
-		} catch {
-			throw new CapabilityError(`The native ${options.name}.${method} method returned invalid JSON`, "invalid_response");
-		}
-		if (typeof envelope !== "object" || envelope === null || !("ok" in envelope)) throw new CapabilityError(`The native ${options.name}.${method} method returned an invalid response envelope`, "invalid_response");
-		if (envelope.ok === true) {
-			if (!("value" in envelope)) throw new CapabilityError(`The native ${options.name}.${method} method returned a success envelope without a value`, "invalid_response");
-			return envelope.value;
-		}
-		const error = envelope.error;
-		const code = typeof error?.code === "string" ? error.code : void 0;
-		throw new CapabilityError(typeof error?.message === "string" ? error.message : `${options.name}.${method} failed`, code ?? "handlerFailure");
-	};
-}
-//#endregion
 //#region src/glue/kv.ts
 /** Fluent optimistic transaction committed as one SQLite transaction. */
 var KvAtomicOperation = class {
@@ -1934,10 +1481,7 @@ function createKvSignal(options) {
 * directories. Prefixes are prepended by whole key parts, never string joined.
 */
 function openKv(prefix = []) {
-	const native = bindCapability(useHost().kv, {
-		name: "kv",
-		version: 2
-	});
+	const native = useHost().kv;
 	const namespace = [...prefix];
 	for (const part of namespace) encodePart(part);
 	return {
@@ -2161,6 +1705,6 @@ function reconcileKeyedList(current, patch, keyOf) {
 	return ordered;
 }
 //#endregion
-export { AsyncActionConflictError, CapabilityError, ColorThemeProvider, Dynamic, ForEntity, HostProvider, INLINE_STYLE_CONTRACT, KvAtomicOperation, PathBuilder, PlatformProvider, Portal, RevisionedHostWaitError, STYLE_VALUE, StyleValueKind, VirtualList, appDirs, application, assertInlineStyleValue, auto, bindCapability, bindJsonCapability, bool, classes, clipboard, colorTheme, createAsyncAction, createAsyncQuery, createEventEffect, createFps, createKeyedAsyncAction, createKvSignal, createLatestAsyncResource, createRevisionedHostResource, createWindow, createWindowMatch, currentWindow, currentWindowOptions, defaultHost, dialog, flushPerformance, hostMessages, intl, isDirectEvent, isTypedStyleValue, isVectorPath, measureAsyncPerformance, measurePerformance, mergeClasses, mount, notification, number, observeGlobalPointerEvent, openKv, percent, px, reconcileKeyedList, rgba, rotate2d, scale2d, setTransform2D, shadow, showNativeMenu, subscribeAll as subscribeAllHostMessages, subscribeAppLifecycle, subscribeFileDrop, subscribeGesture, subscribe as subscribeHostMessages, subscribeJson as subscribeJsonHostMessages, subscribeKeyboardModifiers, translate2d, useAppLifecycle, useClipboard, useColorTheme, useDialog, useFileDrop, useGesture, useHost, useKeyboardModifierChanges, useKeyboardModifiers, useNotification, useWindow, utilityConflictProperties, validateEntityKeys };
+export { AsyncActionConflictError, ColorThemeProvider, Dynamic, ForEntity, HostProvider, INLINE_STYLE_CONTRACT, KvAtomicOperation, PathBuilder, PlatformProvider, Portal, RevisionedHostWaitError, STYLE_VALUE, StyleValueKind, VirtualList, appDirs, application, assertInlineStyleValue, auto, bool, classes, clipboard, colorTheme, createAsyncAction, createAsyncQuery, createEventEffect, createFps, createKeyedAsyncAction, createKvSignal, createLatestAsyncResource, createRevisionedHostResource, createWindow, createWindowMatch, currentWindow, currentWindowOptions, defaultHost, dialog, flushPerformance, hostMessages, intl, isDirectEvent, isTypedStyleValue, isVectorPath, measureAsyncPerformance, measurePerformance, mergeClasses, mount, notification, number, observeGlobalPointerEvent, openKv, percent, px, reconcileKeyedList, rgba, rotate2d, scale2d, setTransform2D, shadow, showNativeMenu, subscribeAll as subscribeAllHostMessages, subscribeAppLifecycle, subscribeFileDrop, subscribeGesture, subscribe as subscribeHostMessages, subscribeJson as subscribeJsonHostMessages, subscribeKeyboardModifiers, translate2d, useAppLifecycle, useClipboard, useColorTheme, useDialog, useFileDrop, useGesture, useHost, useKeyboardModifierChanges, useKeyboardModifiers, useNotification, useWindow, utilityConflictProperties, validateEntityKeys };
 
 //# sourceMappingURL=index.mjs.map

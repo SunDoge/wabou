@@ -3,7 +3,6 @@ import {
   endOfMonth,
   isSameDay,
   startOfMonth,
-  startOfWeek,
 } from "@internationalized/date";
 import { useHost } from "@wabou/core";
 import type { Handle } from "@wabou/core/renderer";
@@ -74,8 +73,7 @@ export function Calendar(props: CalendarProps): JSX.Element {
     return new CalendarDate(value.year, value.month, value.day);
   };
   const locale = () => {
-    const requested = props.locale ?? host.intl.locale();
-    return Intl.DateTimeFormat.supportedLocalesOf([requested])[0] ?? "en";
+    return props.locale ?? host.intl.locale();
   };
   const labels = (): CalendarLabels => ({
     ...DEFAULT_LABELS,
@@ -91,39 +89,29 @@ export function Calendar(props: CalendarProps): JSX.Element {
 
   const monthInfo = createMemo(() => {
     const currentLocale = locale();
-    // @internationalized/date uses Intl.Locale week info when available and
-    // falls back to its CLDR-derived region data on older Node and QuickJS.
-    const firstWeekday = dayOfWeek(startOfWeek(visibleMonth(), currentLocale));
-    const weekday = new Intl.DateTimeFormat(currentLocale, {
-      weekday: "short",
-      timeZone: "UTC",
-    });
+    const firstWeekday = host.intl.firstWeekday(currentLocale);
     return {
       first_weekday: firstWeekday,
-      month_label: new Intl.DateTimeFormat(currentLocale, {
-        year: "numeric",
-        month: "long",
-        timeZone: "UTC",
-      }).format(Date.UTC(visibleMonth().year, visibleMonth().month - 1, 1)),
+      month_label: host.intl.formatDate(
+        currentLocale,
+        Date.UTC(visibleMonth().year, visibleMonth().month - 1, 1),
+        JSON.stringify({ year: "numeric", month: "long", timeZone: "UTC" }),
+      ),
       weekday_labels: Array.from({ length: 7 }, (_, offset) => {
         const index = (firstWeekday + offset) % 7;
-        return weekday.format(Date.UTC(2024, 0, 7 + index));
+        return host.intl.formatDate(
+          currentLocale,
+          Date.UTC(2024, 0, 7 + index),
+          JSON.stringify({ weekday: "short", timeZone: "UTC" }),
+        );
       }),
     };
   });
-  const dateFormatters = createMemo(() => ({
-    medium: new Intl.DateTimeFormat(locale(), {
-      dateStyle: "medium",
-      timeZone: "UTC",
-    }),
-    full: new Intl.DateTimeFormat(locale(), {
-      dateStyle: "full",
-      timeZone: "UTC",
-    }),
-  }));
   const formatDate = (date: CalendarDate, style: "medium" | "full") =>
-    dateFormatters()[style].format(
+    host.intl.formatDate(
+      locale(),
       Date.UTC(date.year, date.month - 1, date.day),
+      JSON.stringify({ dateStyle: style, timeZone: "UTC" }),
     );
   const days = () => {
     const first = startOfMonth(visibleMonth());
@@ -338,16 +326,16 @@ export function DatePicker(props: DatePickerProps): JSX.Element {
   };
   const value = () => props.value ?? localValue();
   const locale = () => {
-    const requested = props.locale ?? host.intl.locale();
-    return Intl.DateTimeFormat.supportedLocalesOf([requested])[0] ?? "en";
+    return props.locale ?? host.intl.locale();
   };
   const formatted = () => {
     const date = value();
     return date
-      ? new Intl.DateTimeFormat(locale(), {
-          dateStyle: "medium",
-          timeZone: "UTC",
-        }).format(Date.UTC(date.year, date.month - 1, date.day))
+      ? host.intl.formatDate(
+          locale(),
+          Date.UTC(date.year, date.month - 1, date.day),
+          JSON.stringify({ dateStyle: "medium", timeZone: "UTC" }),
+        )
       : (props.placeholder ?? "Pick a date");
   };
   const select = (date: CalendarDate) => {

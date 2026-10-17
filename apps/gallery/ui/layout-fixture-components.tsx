@@ -23,8 +23,8 @@ import {
   CardHeader,
   CardTitle,
   Checkbox,
-  Combobox,
   ColorThemeProvider,
+  Combobox,
   ComponentsProvider,
   ContentState,
   createToasts,
@@ -68,7 +68,6 @@ import {
   MessageActions,
   MessageContent,
   MessageGroup,
-  MessageScroller,
   Onboarding,
   OnboardingDescription,
   OnboardingFooter,
@@ -119,22 +118,10 @@ import {
   TypographyH3,
   TypographyP,
   View,
-  WorkbenchHeader,
 } from "@wabou/ui";
 import folderIcon from "lucide-static/icons/folder.svg?raw";
 import imageIcon from "lucide-static/icons/image.svg?raw";
 import { For as ForValue } from "solid-js";
-import { AgentActivityStatus } from "../../pi-agent/ui/agent-activity";
-import { initialAgentState } from "../../pi-agent/ui/agent-state";
-import { ComposerContextFiles } from "../../pi-agent/ui/composer-context";
-import { ComposerDeliveryControl } from "../../pi-agent/ui/composer-delivery";
-import { ComposerImages } from "../../pi-agent/ui/composer-images";
-import { ConversationItem } from "../../pi-agent/ui/conversation";
-import { ExtensionUiChrome } from "../../pi-agent/ui/extension-ui";
-import { ModelControls } from "../../pi-agent/ui/model-controls";
-import { SessionActions } from "../../pi-agent/ui/session-actions";
-import { SessionBehaviorSettings } from "../../pi-agent/ui/session-behavior-settings";
-import { TranscriptSearch } from "../../pi-agent/ui/transcript-search";
 import { MangaPageMock } from "./pages/image-viewport";
 import { MarkdownPreview } from "./pages/markdown";
 
@@ -172,45 +159,13 @@ export function LabeledSeparatorLayoutFixture() {
   );
 }
 
-export function PiConversationLayoutFixture() {
-  return (
-    <View
-      role="region"
-      aria-label="Scrollable Pi conversation"
-      class="w-full h-full min-w-0 p-5 flex flex-col gap-3 overflow-y-auto bg-canvas"
-    >
-      <ConversationItem
-        animate={false}
-        item={{
-          id: "fixture-assistant",
-          kind: "assistant",
-          thinkingText: "Inspect the router and verify the active session.",
-          text: "## Change\n\nThe active session now remains selected.\n\n- Preserved navigation state\n- Added a regression test",
-          streaming: true,
-        }}
-      />
-      <ConversationItem
-        animate={false}
-        item={{
-          id: "fixture-tool",
-          kind: "tool",
-          name: "bash",
-          state: "running",
-          input: JSON.stringify({ command: "cargo test -p wabou-runtime" }),
-          output: "running 245 tests",
-        }}
-      />
-    </View>
-  );
-}
-
 export function ToolLayoutFixture() {
   return (
     <View class="w-full h-full min-w-0 p-5 bg-canvas">
       <Tool defaultOpen reducedMotion role="group" aria-label="Tool fixture">
         <ToolHeader
           title="workspace.read_repository_file"
-          summary="crates/wabou-runtime/src/gpui_projection_boundary.rs"
+          summary="crates/wabou-runtime/src/native_projection_boundary.rs"
           status="running"
         />
         <ToolContent role="region" aria-label="Tool details">
@@ -264,201 +219,6 @@ export function PromptSuggestionLayoutFixture() {
           description="Turn an idea into an implementation path."
         />
       </PromptSuggestions>
-    </View>
-  );
-}
-
-export function PiModelControlsLayoutFixture() {
-  return (
-    <View class="w-full h-full min-w-0 p-5 flex items-start bg-canvas">
-      <ModelControls
-        models={[
-          {
-            provider: "anthropic",
-            id: "claude-sonnet-4-5-with-a-deliberately-long-model-id",
-            name: "Claude Sonnet 4.5 with an unusually long display name",
-            reasoning: true,
-            contextWindow: 200_000,
-          },
-        ]}
-        modelProvider="anthropic"
-        modelId="claude-sonnet-4-5-with-a-deliberately-long-model-id"
-        thinking="medium"
-        thinkingLevels={["off", "medium", "high", "xhigh"]}
-        chooseModel={() => {}}
-        chooseThinking={() => {}}
-      />
-    </View>
-  );
-}
-
-export function PiSessionBehaviorLayoutFixture() {
-  return (
-    <View class="w-full min-w-0 p-5 bg-canvas">
-      <SessionBehaviorSettings
-        state={{
-          ...initialAgentState,
-          connection: "ready",
-          autoCompactionEnabled: true,
-          steeringMode: "one-at-a-time",
-          followUpMode: "all",
-        }}
-        setAutoCompaction={() => {}}
-        setSteeringMode={() => {}}
-        setFollowUpMode={() => {}}
-      />
-    </View>
-  );
-}
-
-export function PiAgentHeaderLayoutFixture() {
-  return (
-    <View class="w-full h-12 min-w-0 flex flex-row bg-canvas">
-      <SidebarHeader
-        aria-label="Pi agent sidebar header"
-        class="w-72 flex items-center gap-3 px-4"
-      >
-        <Text class="font-semibold">Pi Agent</Text>
-      </SidebarHeader>
-      <WorkbenchHeader
-        aria-label="Pi agent content header"
-        class="flex-1 justify-between"
-      >
-        <View class="min-w-0 flex-1 flex flex-col gap-0">
-          <Text class="font-semibold truncate">Implement session controls</Text>
-          <View class="min-w-0 flex flex-row items-center gap-2">
-            <Text class="min-w-0 flex-1 text-xs text-muted truncate">
-              Claude Sonnet 4.5 · medium thinking
-            </Text>
-            <AgentActivityStatus
-              state={{
-                ...initialAgentState,
-                connection: "running",
-                activity: { kind: "retrying", attempt: 2, maxAttempts: 3 },
-                queue: { steering: 1, followUp: 2 },
-              }}
-            />
-          </View>
-        </View>
-        <View class="flex-none flex flex-row items-center gap-1">
-          <ModelControls
-            models={[
-              {
-                provider: "anthropic",
-                id: "claude-sonnet-4-5",
-                name: "Claude Sonnet 4.5",
-                reasoning: true,
-                contextWindow: 200_000,
-              },
-            ]}
-            modelProvider="anthropic"
-            modelId="claude-sonnet-4-5"
-            thinking="medium"
-            thinkingLevels={["off", "medium", "high"]}
-            chooseModel={() => {}}
-            chooseThinking={() => {}}
-          />
-          <SessionActions
-            compact={() => {}}
-            clone={() => {}}
-            exportHtml={() => {}}
-          />
-        </View>
-      </WorkbenchHeader>
-    </View>
-  );
-}
-
-export function PiTranscriptSearchLayoutFixture() {
-  return (
-    <View class="w-full h-full min-w-0 min-h-0 bg-canvas">
-      <MessageScroller aria-label="Searchable transcript fixture">
-        <TranscriptSearch
-          items={[
-            { id: "user", kind: "user", text: "Run the cargo tests" },
-            {
-              id: "tool",
-              kind: "tool",
-              name: "bash",
-              state: "success",
-              input: '{"command":"cargo test"}',
-              output: "all tests passed",
-            },
-          ]}
-          resolveItem={() => undefined}
-          activeChanged={() => {}}
-          close={() => {}}
-        />
-        <View class="p-4">
-          <Text>Transcript content</Text>
-        </View>
-      </MessageScroller>
-    </View>
-  );
-}
-
-export function PiComposerImagesLayoutFixture() {
-  return (
-    <View class="w-full h-full min-w-0 p-3 bg-canvas">
-      <ComposerImages
-        paths={[
-          "/home/user/screenshots/very-long-diagnostic-screenshot-name.png",
-          "/home/user/screenshots/layout.png",
-        ]}
-        change={() => {}}
-      />
-    </View>
-  );
-}
-
-export function PiComposerContextLayoutFixture() {
-  return (
-    <View class="w-full h-full min-w-0 p-3 bg-canvas">
-      <ComposerContextFiles
-        paths={[
-          "packages/runtime/src/very/deep/module/with-a-long-file-name.ts",
-          "crates/wabou-runtime/src/host.rs",
-        ]}
-        change={() => {}}
-      />
-    </View>
-  );
-}
-
-export function PiComposerDeliveryLayoutFixture() {
-  return (
-    <View class="w-full h-full p-4 flex items-start bg-surface">
-      <ComposerDeliveryControl value="followUp" change={() => {}} />
-    </View>
-  );
-}
-
-export function PiExtensionUiLayoutFixture() {
-  return (
-    <View class="w-full h-full min-w-0 p-3 bg-canvas">
-      <View class="w-full min-w-0 rounded-xl border border-strong bg-input p-2 gap-2">
-        <ExtensionUiChrome
-          placement="aboveEditor"
-          statuses={[
-            {
-              agentId: "agent-1",
-              key: "branch",
-              text: "Working on a long extension-provided status without overflowing the composer",
-            },
-          ]}
-          widgets={[
-            {
-              agentId: "agent-1",
-              key: "tasks",
-              lines: [
-                "Indexing workspace files",
-                "Checking packages/ui/src/components/markdown.tsx",
-              ],
-              placement: "aboveEditor",
-            },
-          ]}
-        />
-      </View>
     </View>
   );
 }

@@ -1,41 +1,36 @@
+import { useHost } from "@wabou/core";
 import { createTestHost, renderComponent } from "@wabou/test/component";
 import { Button, Text, View } from "@wabou/ui";
 import { createSignal } from "solid-js";
 import { expect, test } from "vitest";
-import {
-  createBindingsDemoTestCapability,
-  type DescribePaletteRequest,
-  useBindingsDemoClient,
-} from "../../apps/gallery/ui/generated/host-bindings";
+import type { DescribePaletteRequest } from "../../apps/gallery/ui/generated/rust-bindings";
 
-test("drives a generated DTO capability through a component", async () => {
+test("drives a generated Rust host module through a component", async () => {
   let received: DescribePaletteRequest | undefined;
-  const bindingsDemo = createBindingsDemoTestCapability({
-    describePalette: async (request) => {
-      received = request;
-      return {
-        status: "palette",
-        title: `${request.name} palette`,
-        swatches: [`${request.name}-1`, `${request.name}-2`],
-      };
+  const fixture = createTestHost({
+    bindingsDemo: {
+      describePalette: (request: DescribePaletteRequest) => {
+        received = request;
+        return {
+          title: `${request.name} palette`,
+          swatches: [`${request.name}-1`, `${request.name}-2`],
+        };
+      },
     },
   });
-  const fixture = createTestHost({ bindingsDemo });
   const Palette = () => {
-    const client = useBindingsDemoClient();
+    const host = useHost();
     const [title, setTitle] = createSignal("Not loaded");
     return (
       <View>
         <Button
           aria-label="Load palette"
-          onClick={async () => {
-            const response = await client.describePalette({
+          onClick={() => {
+            const response = host.bindingsDemo.describePalette({
               name: "Ocean",
               swatchCount: 2,
             });
-            setTitle(
-              response.status === "palette" ? response.title : response.message,
-            );
+            setTitle(response.title);
           }}
         >
           Load palette

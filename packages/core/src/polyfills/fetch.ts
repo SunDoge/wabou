@@ -6,7 +6,7 @@ interface FetchInit {
   signal?: AbortSignal | null;
   method?: string;
   headers?: HeadersInit;
-  body?: string;
+  body?: string | Uint8Array | ArrayBuffer;
 }
 
 interface FetchResponseData {
@@ -14,6 +14,8 @@ interface FetchResponseData {
   statusText: string;
   headers: Record<string, string>;
   body: Uint8Array;
+  url?: string;
+  redirected?: boolean;
 }
 
 type HeadersInit =
@@ -116,6 +118,7 @@ export class WabouResponse {
   readonly status: number;
   readonly statusText: string;
   readonly url: string;
+  readonly redirected: boolean;
   private bodyBytes: Uint8Array | null;
   private consumed = false;
 
@@ -124,12 +127,14 @@ export class WabouResponse {
     init: ResponseInit = {},
     url = "",
     copyBody = true,
+    redirected = false,
   ) {
     this.bodyBytes = encodeResponseBody(body, copyBody);
     this.status = init.status ?? 200;
     this.statusText = init.statusText ?? "";
     this.headers = new WabouHeaders(init.headers);
     this.url = url;
+    this.redirected = redirected;
     if (body === null) {
       this.body = null;
     } else {
@@ -222,6 +227,8 @@ export class WabouResponse {
         headers: this.headers,
       },
       this.url,
+      true,
+      this.redirected,
     );
   }
 
@@ -241,8 +248,9 @@ export class WabouResponse {
         statusText: data.statusText,
         headers: data.headers,
       },
-      url,
+      data.url ?? url,
       false,
+      data.redirected ?? false,
     );
   }
 }
@@ -252,6 +260,7 @@ type FetchRuntime = typeof globalThis & {
     url: string,
     initJson: string,
     id?: number,
+    body?: Uint8Array,
   ): Promise<FetchResponseData>;
   __wabou_fetch_start?: (id: number) => void;
   __wabou_fetch_cancel?: (id: number) => void;
@@ -284,23 +293,31 @@ export function installFetchPolyfill(): void {
     const serializedInit = init
       ? {
           method: init.method,
-          body: init.body,
           headers:
             init.headers instanceof WabouHeaders
               ? init.headers.toRecord()
               : init.headers,
         }
       : {};
+    const body = init?.body;
+    const bodyBytes =
+      typeof body === "string"
+        ? new TextEncoder().encode(body)
+        : body instanceof Uint8Array
+          ? body
+          : body instanceof ArrayBuffer
+            ? new Uint8Array(body)
+            : undefined;
     const initJson = JSON.stringify(serializedInit);
     runtime.__wabou_fetch_start?.(id);
     const pending = new Promise<FetchResponseData>((resolve, reject) => {
       const abort = () => {
         runtime.__wabou_fetch_cancel?.(id);
-        reject(signal!.reason);
+        reject(signal?.reason);
       };
       signal?.addEventListener("abort", abort, { once: true });
       runtime
-        .__wabou_fetch(url, initJson, id)
+        .__wabou_fetch(url, initJson, id, bodyBytes)
         .then(resolve, reject)
         .finally(() => signal?.removeEventListener("abort", abort));
     });

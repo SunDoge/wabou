@@ -13,15 +13,11 @@ const retiredPackages = new Set([
 ]);
 const applicationLayerPackages = new Set(["@wabou/core"]);
 const applicationDependencyExceptions = new Map([
-  ["@wabou/devtools-app", new Set(["@wabou/core"])],
   ["@wabou/gallery", new Set(["@wabou/core"])],
-  ["@wabou/pulse-reference", new Set(["@wabou/core"])],
 ]);
 const rustApplicationDependencyExceptions = new Map([
-  ["devtools", new Set(["wabou-devtools"])],
-  ["pi-agent", new Set(["wabou-terminal"])],
   ["reader", new Set(["wabou-pdf"])],
-  ["terminal", new Set(["wabou-terminal"])],
+  ["terminal", new Set(["wabou-terminal-widget"])],
 ]);
 
 function cargoDependencies(source: string): Set<string> {
@@ -44,7 +40,9 @@ function cargoDependencies(source: string): Set<string> {
       continue;
     }
     if (!dependencySection) continue;
-    const dependency = line.match(/^\s*([A-Za-z0-9_-]+)\s*=/)?.[1];
+    const dependency = line.match(
+      /^\s*([A-Za-z0-9_-]+)(?:\.[A-Za-z0-9_-]+)*\s*=/,
+    )?.[1];
     if (dependency) dependencies.add(dependency);
   }
   return dependencies;
@@ -142,13 +140,13 @@ for (const entry of packages) {
       `${entry.name} was folded into @wabou/ui and must not return`,
     );
   }
-  if (entry.private) {
+  if (entry.private !== true) {
     throw new Error(
-      `${entry.name} is source-only; use a directory inside its owning public package`,
+      `${entry.name} must remain private during Git-vendored previews`,
     );
   }
-  if (entry.publishConfig?.access !== "public") {
-    throw new Error(`${entry.name} must publish with public npm access`);
+  if (entry.publishConfig) {
+    throw new Error(`${entry.name} must not declare npm publication metadata`);
   }
   if (!entry.description) {
     throw new Error(`${entry.name} must have a package description`);
@@ -281,7 +279,6 @@ for (const manifestPath of packageManifestPaths) {
 
 for (const manifestPath of packageManifestPaths) {
   const entry = await manifest(manifestPath);
-  if (entry.private) continue;
   const packageRoot = join(manifestPath, "..");
   const distGlob = new Bun.Glob("dist/**/*.{mjs,d.mts}");
   for await (const path of distGlob.scan({
@@ -364,5 +361,5 @@ for await (const path of sourceGlob.scan({ cwd: root, onlyFiles: true })) {
 }
 
 console.log(
-  `verified ${packages.length} public packages and Rust workspace at ${packageVersion}, plus ${appDirs.length} app manifests`,
+  `verified ${packages.length} private vendored packages and Rust workspace at ${packageVersion}, plus ${appDirs.length} app manifests`,
 );

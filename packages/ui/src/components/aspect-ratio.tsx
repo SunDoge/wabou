@@ -1,7 +1,7 @@
 import type { WabouStyle } from "@wabou/core/style";
+import { mergeClasses } from "@wabou/core/style";
 import { type JSX, omit } from "solid-js";
 import { View, type ViewProps } from "../primitives";
-import { mergeClasses } from "@wabou/core/style";
 
 export interface AspectRatioProps extends Omit<ViewProps, "style"> {
   /** Width divided by height. Defaults to a square. */

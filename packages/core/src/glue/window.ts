@@ -1,8 +1,8 @@
-import { dispatchEffect, dispatchFireAndForget, effectOps } from "./effects";
 import {
   createResourceKeyFamily,
   type ResourceKey,
 } from "../protocol/resource-key";
+import { dispatchEffect, dispatchFireAndForget, effectOps } from "./effects";
 
 const windowKeys = createResourceKeyFamily("window");
 export type WindowKey = ResourceKey<"window">;

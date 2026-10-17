@@ -17,7 +17,7 @@ import {
   useHost,
   View,
 } from "@wabou/ui";
-import { animate, type AnimationControls } from "@wabou/ui/animation";
+import { type AnimationControls, animate } from "@wabou/ui/animation";
 import { Button } from "@wabou/ui/primitives";
 import { createEffect, createSignal, For as ForValue, Show } from "solid-js";
 
@@ -182,7 +182,7 @@ function App() {
       <View class="h-9 flex-none px-3 flex items-center gap-3 border-b border-subtle bg-surface">
         <Text class="text-sm font-semibold text-primary">Emoji stress</Text>
         <Text class="text-xs text-muted">
-          GPUI retained projection · per-node transform updates
+          Native retained projection · per-node transform updates
         </Text>
       </View>
 

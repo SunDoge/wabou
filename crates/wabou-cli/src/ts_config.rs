@@ -1,34 +1,48 @@
 //! Evaluate trusted development configuration with Bun; runtime consumes only JSON.
+use super::config::PackageConfig;
 use super::{App, Result};
 use serde::Deserialize;
-use std::{fs, process::Command};
+use std::{fs, path::PathBuf, process::Command};
 
-#[derive(Default, Deserialize)]
-#[serde(default, deny_unknown_fields)]
-struct Window {
-    title: Option<String>,
-    width: Option<u32>,
-    height: Option<u32>,
-    decorations: Option<bool>,
-}
 #[derive(Default, Deserialize)]
 #[serde(default, deny_unknown_fields)]
 struct Ui {
     entry: Option<String>,
 }
+
+#[derive(Clone, Debug, Deserialize)]
+#[serde(default, deny_unknown_fields, rename_all = "camelCase")]
+pub(super) struct Bindings {
+    pub(super) output: PathBuf,
+    pub(super) sources: Vec<PathBuf>,
+}
+
+impl Default for Bindings {
+    fn default() -> Self {
+        Self {
+            output: PathBuf::from("ui/generated/rust-bindings.d.ts"),
+            sources: vec![PathBuf::from("src")],
+        }
+    }
+}
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
-struct Configuration {
-    #[serde(default)]
-    window: Window,
+pub(super) struct Configuration {
+    #[serde(default, rename = "window")]
+    _window: Option<serde_json::Value>,
     #[serde(default)]
     ui: Ui,
+    #[serde(default)]
+    entry: Option<String>,
+    #[serde(rename = "sourceMap")]
+    #[serde(default)]
+    pub(super) source_map: Option<bool>,
+    #[serde(default)]
+    pub(super) package: Option<PackageConfig>,
+    #[serde(default)]
+    pub(super) bindings: Bindings,
 }
-pub(super) struct Prepared {
-    pub file: tempfile::NamedTempFile,
-    pub entry: String,
-}
-pub(super) fn prepare(app: &App) -> Result<Option<Prepared>> {
+pub(super) fn load(app: &App, command: &str, mode: &str) -> Result<Option<Configuration>> {
     let path = app.root.join("wabou.config.ts");
     if !path.is_file() {
         return Ok(None);
@@ -39,9 +53,17 @@ pub(super) fn prepare(app: &App) -> Result<Option<Prepared>> {
 import { pathToFileURL } from 'node:url';
 import { writeFileSync } from 'node:fs';
 const module = await import(pathToFileURL(process.argv[1]).href);
-const config = typeof module.default === 'function' ? await module.default() : await module.default;
+const exported = await module.default;
+const authored = exported?.__wabouConfig ?? exported;
+const environment = { command: process.env.WABOU_CONFIG_COMMAND ?? 'serve', mode: process.env.WABOU_MODE ?? 'development', isSsrBuild: false, isPreview: false };
+const config = typeof authored === 'function' ? await authored(environment) : await authored;
 if (!config || typeof config !== 'object' || Array.isArray(config)) throw new Error('wabou.config.ts must export a configuration object');
-writeFileSync(process.argv[2], JSON.stringify(config, (key, value) => {
+const allowed = new Set(['target', 'browser', 'root', 'entry', 'outDir', 'sourceMap', 'globalName', 'vite', 'workspaceSource', 'theme', 'themeContrast', 'ignoreClasses', 'window', 'ui', 'package', 'bindings']);
+const selected = { window: config.window, ui: config.ui, entry: config.entry, sourceMap: config.sourceMap, package: config.package, bindings: config.bindings };
+for (const key of Object.keys(config)) {
+  if (!allowed.has(key)) selected[key] = config[key];
+}
+writeFileSync(process.argv[2], JSON.stringify(selected, (key, value) => {
   if (typeof value === 'function' || typeof value === 'symbol' || typeof value === 'bigint' ||
       (typeof value === 'number' && !Number.isFinite(value))) {
     throw new Error(`Configuration field ${key || '<root>'} must contain JSON data`);
@@ -51,32 +73,35 @@ writeFileSync(process.argv[2], JSON.stringify(config, (key, value) => {
 "#;
     let status = Command::new("bun")
         .current_dir(&app.root)
+        .env("WABOU_CONFIG_COMMAND", command)
+        .env("WABOU_MODE", mode)
         .args(["--eval", script])
         .arg(&path)
         .arg(output.path())
         .status()?;
     super::ensure(status, "Wabou TS configuration")?;
-    let config: Configuration = serde_json::from_slice(&fs::read(output.path())?)?;
-    let entry = config.ui.entry.unwrap_or_else(|| app.entry.clone());
+    let config = serde_json::from_slice(&fs::read(output.path())?)?;
+    Ok(Some(config))
+}
+
+pub(super) fn entry(app: &App, command: &str, mode: &str) -> Result<Option<String>> {
+    let Some(config) = load(app, command, mode)? else {
+        return Ok(None);
+    };
+    let entry = config
+        .entry
+        .or(config.ui.entry)
+        .unwrap_or_else(|| app.entry.clone());
     if !app.root.join(&entry).is_file() {
         return Err(format!("UI entry does not exist: {entry}").into());
     }
-    let mut launch = wabou_launch::LaunchConfig::new(wabou_launch::UiSource::Bundle {
-        path: entry.clone().into(),
-    });
-    launch.title = config.window.title.unwrap_or(launch.title);
-    launch.width = config.window.width.unwrap_or(launch.width);
-    launch.height = config.window.height.unwrap_or(launch.height);
-    launch.decorations = config.window.decorations.unwrap_or(launch.decorations);
-    if launch.width == 0 || launch.height == 0 {
-        return Err("window dimensions must be positive".into());
-    }
-    launch.resolve_paths(path.parent().ok_or("configuration has no directory")?);
-    fs::write(output.path(), serde_json::to_vec(&launch)?)?;
-    Ok(Some(Prepared {
-        file: output,
-        entry,
-    }))
+    Ok(Some(entry))
+}
+
+pub(super) fn bindings(app: &App) -> Result<Bindings> {
+    Ok(load(app, "bindings", "development")?
+        .map(|config| config.bindings)
+        .unwrap_or_default())
 }
 
 #[cfg(test)]
@@ -97,16 +122,46 @@ mod tests {
         let app = app(directory.path());
         fs::write(directory.path().join("wabou.config.ts"), r#"
 console.log('config logs must not corrupt the protocol');
-export default async () => ({ window: { title: 'Configured', width: 900, decorations: false }, ui: { entry: './custom.tsx' } });
+const authored = async () => ({ window: { title: 'Configured', width: 900, decorations: false }, ui: { entry: './custom.tsx' } });
+const viteConfig = () => ({ plugins: [() => {}] });
+Object.defineProperty(viteConfig, '__wabouConfig', { value: authored });
+export default viteConfig;
 "#).unwrap();
-        let prepared = prepare(&app).unwrap().unwrap();
-        assert_eq!(prepared.entry, "./custom.tsx");
-        let config: wabou_launch::LaunchConfig =
-            serde_json::from_slice(&fs::read(prepared.file.path()).unwrap()).unwrap();
-        assert_eq!(config.title, "Configured");
-        assert_eq!(config.width, 900);
-        assert_eq!(config.height, 600);
-        assert!(!config.decorations);
+        assert_eq!(
+            entry(&app, "serve", "development").unwrap().as_deref(),
+            Some("./custom.tsx")
+        );
+    }
+    #[test]
+    fn top_level_entry_matches_the_vite_configuration_contract() {
+        let directory = tempfile::tempdir().unwrap();
+        let app = app(directory.path());
+        fs::write(
+            directory.path().join("wabou.config.ts"),
+            "export default ({ mode }) => ({ entry: mode === 'fixture' ? './custom.tsx' : './missing.tsx' });",
+        )
+        .unwrap();
+        assert_eq!(
+            entry(&app, "build", "fixture").unwrap().as_deref(),
+            Some("./custom.tsx")
+        );
+    }
+
+    #[test]
+    fn reads_source_binding_paths_from_the_shared_configuration() {
+        let directory = tempfile::tempdir().unwrap();
+        let app = app(directory.path());
+        fs::write(
+            directory.path().join("wabou.config.ts"),
+            "export default { bindings: { output: 'types/native.d.ts', sources: ['src', '../api/src'] } };",
+        )
+        .unwrap();
+        let bindings = bindings(&app).unwrap();
+        assert_eq!(bindings.output, PathBuf::from("types/native.d.ts"));
+        assert_eq!(
+            bindings.sources,
+            [PathBuf::from("src"), PathBuf::from("../api/src")]
+        );
     }
     #[test]
     fn rejects_non_data_configuration_values() {
@@ -116,7 +171,7 @@ export default async () => ({ window: { title: 'Configured', width: 900, decorat
             fs::write(directory.path().join("wabou.config.ts"), format!(
                 "export default {{ ui: {{ entry: './custom.tsx' }}, window: {{ width: {expression} }} }};"
             )).unwrap();
-            let message = prepare(&app)
+            let message = entry(&app, "serve", "development")
                 .err()
                 .unwrap_or_else(|| panic!("accepted {expression}"))
                 .to_string();
@@ -135,9 +190,8 @@ export default async () => ({ window: { title: 'Configured', width: 900, decorat
             "export default { windows: {} };",
         )
         .unwrap();
-        let message = prepare(&app)
-            .err()
-            .expect("accepted misspelled field")
+        let message = entry(&app, "serve", "development")
+            .expect_err("accepted misspelled field")
             .to_string();
         assert!(message.contains("unknown field `windows`"), "{message}");
         fs::write(
@@ -145,9 +199,8 @@ export default async () => ({ window: { title: 'Configured', width: 900, decorat
             "export default { ui: { entry: 'missing.tsx' } };",
         )
         .unwrap();
-        let message = prepare(&app)
-            .err()
-            .expect("accepted missing entry")
+        let message = entry(&app, "serve", "development")
+            .expect_err("accepted missing entry")
             .to_string();
         assert!(message.contains("UI entry does not exist"), "{message}");
     }

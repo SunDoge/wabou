@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
-import { dispatchHostMessage } from "./host-messages";
 import { subscribeGesture } from "./gesture";
+import { dispatchHostMessage } from "./host-messages";
 
 test("decodes native gestures without DOM compatibility semantics", () => {
   const events: unknown[] = [];
@@ -9,10 +9,7 @@ test("decodes native gestures without DOM compatibility semantics", () => {
     "wabou:gesture",
     JSON.stringify({ type: "pan", deltaX: 12, deltaY: -4, phase: "changed" }),
   );
-  dispatchHostMessage(
-    "wabou:gesture",
-    JSON.stringify({ type: "double-tap" }),
-  );
+  dispatchHostMessage("wabou:gesture", JSON.stringify({ type: "double-tap" }));
   unsubscribe();
   expect(events).toEqual([
     { type: "pan", deltaX: 12, deltaY: -4, phase: "changed" },

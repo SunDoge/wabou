@@ -1,6 +1,8 @@
 import { expect, test } from "@wabou/test";
 
-test("sheet remains mounted for its native exit transition", async ({ page }) => {
+test("sheet remains mounted for its native exit transition", async ({
+  page,
+}) => {
   await page.getByRole("button", { name: "Sheet" }).click();
   await page.getByRole("button", { name: "Open sheet" }).click();
 

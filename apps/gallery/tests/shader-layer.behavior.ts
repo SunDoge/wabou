@@ -1,4 +1,4 @@
-import { expect, test } from "@wabou/test";
+import { test } from "@wabou/test";
 
 test("custom shader surface keeps native identity while controls update", async ({
   page,

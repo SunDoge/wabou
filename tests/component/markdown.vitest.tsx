@@ -166,19 +166,22 @@ test.each([
     "inline images",
     "before ![a shot](https://example.com/x.png) after, and more prose.",
   ],
-])("incremental %s appends agree with a fresh streaming parse", (_name, source) => {
-  for (const chunkSize of [1, 2, 3, 7, 17, 64]) {
-    const document = new MarkdownDocument();
-    let accumulated = "";
-    const characters = Array.from(source);
-    for (let index = 0; index < characters.length; index += chunkSize) {
-      accumulated += characters.slice(index, index + chunkSize).join("");
-      expect(semanticBlocks(document.setSource(accumulated, true))).toEqual(
-        semanticBlocks(parseMarkdown(accumulated, true)),
-      );
+])(
+  "incremental %s appends agree with a fresh streaming parse",
+  (_name, source) => {
+    for (const chunkSize of [1, 2, 3, 7, 17, 64]) {
+      const document = new MarkdownDocument();
+      let accumulated = "";
+      const characters = Array.from(source);
+      for (let index = 0; index < characters.length; index += chunkSize) {
+        accumulated += characters.slice(index, index + chunkSize).join("");
+        expect(semanticBlocks(document.setSource(accumulated, true))).toEqual(
+          semanticBlocks(parseMarkdown(accumulated, true)),
+        );
+      }
     }
-  }
-});
+  },
+);
 
 test("marks only text appended after mount for a streaming reveal", () => {
   const [source, setSource] = createSignal("Settled text");

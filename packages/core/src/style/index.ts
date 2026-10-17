@@ -5,8 +5,8 @@ export {
 export * from "./generated/utility-types.ts";
 
 import { INLINE_STYLE_CONTRACT } from "./generated/style-properties.ts";
-import type { WabouUtility } from "./generated/utility-types.ts";
 import { UTILITY_CONFLICT_DATA } from "./generated/utility-conflicts.ts";
+import type { WabouUtility } from "./generated/utility-types.ts";
 
 export const STYLE_VALUE = "__wabou_style_value__" as const;
 

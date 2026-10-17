@@ -1,6 +1,5 @@
 import "@wabou/core";
 
-import { createElement, mount, spread, useHost } from "../src/renderer";
 import {
   createComponent,
   createMemo,
@@ -8,9 +7,10 @@ import {
   type JSX,
   Loading,
 } from "solid-js";
+import { createElement, mount, spread, useHost } from "../src/renderer";
 
 declare module "@wabou/core/registry" {
-  interface HostCapabilities {
+  interface HostModules {
     readonly promiseTest: {
       resolve(): Promise<string>;
       reject(): Promise<string>;

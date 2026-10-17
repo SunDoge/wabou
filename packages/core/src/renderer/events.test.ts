@@ -189,7 +189,10 @@ test("mount manages the host root lifecycle", () => {
 
   dispose();
   runSweep();
-  writer.flush();
+  const retirement = writer.flush();
+  expect(retirement).not.toBeNull();
+  expect(retirement![8]).toBe(OP.RemoveChild);
+  expect(retirement![25]).toBe(OP.DropNode);
 });
 
 test("mount commits initial Solid effects before the first host frame", () => {

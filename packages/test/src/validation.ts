@@ -1,4 +1,7 @@
-import { isResourceKeyParts, type ResourceKeyParts } from "@wabou/core/protocol";
+import {
+  isResourceKeyParts,
+  type ResourceKeyParts,
+} from "@wabou/core/protocol";
 
 const MAX_SAFE_JAVASCRIPT_INTEGER = 9_007_199_254_740_991;
 
@@ -22,7 +25,9 @@ export function validateKey(key: string): void {
 
 export function validateWindowKey(windowKey: ResourceKeyParts): void {
   if (!isResourceKeyParts(windowKey)) {
-    throw new RangeError("window key must contain a non-zero slot and odd generation");
+    throw new RangeError(
+      "window key must contain a non-zero slot and odd generation",
+    );
   }
 }
 

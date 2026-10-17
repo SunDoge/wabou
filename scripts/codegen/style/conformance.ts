@@ -1,9 +1,9 @@
 import { writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
-import { STYLE_IR_VERSION } from "../../../packages/vite/src/style-compiler/ir.ts";
-import { compileWabouUtilities } from "../../../packages/vite/src/style-compiler/vite.ts";
 import { validateWabouUtility } from "../../../packages/vite/src/preset/index.ts";
 import manifest from "../../../packages/vite/src/preset/manifest.json";
+import { STYLE_IR_VERSION } from "../../../packages/vite/src/style-compiler/ir.ts";
+import { compileWabouUtilities } from "../../../packages/vite/src/style-compiler/vite.ts";
 
 const root = resolve(import.meta.dir, "../../..");
 
@@ -36,7 +36,7 @@ const stylesheet = {
   diagnostics: [],
   // The parser manifest describes every recognized utility, including
   // legacy-only candidates. Formal conformance exercises only candidates that
-  // the GPUI support contract allows the compiler to emit.
+  // the native renderer contract allows the compiler to emit.
   rules: compileWabouUtilities(
     [...candidates].filter((candidate) => !validateWabouUtility(candidate)),
   ),

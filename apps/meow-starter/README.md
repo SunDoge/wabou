@@ -2,7 +2,7 @@
 
 This app rebuilds the visual direction of the WebView-based
 [`meow-starter`](https://github.com/Shiaoming123/meow-starter) concept with Wabou's
-Solid renderer, Vello Hybrid backend, Style IR, and native window APIs. It is a
+Solid renderer, Vello GPU backend, Style IR, and native window APIs. It is a
 rendering and component-system comparison rather than a port of the original
 Tauri APIs.
 

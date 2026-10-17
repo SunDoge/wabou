@@ -7,12 +7,9 @@ edition = "2024"
 name = "gallery"
 path = "src/main.rs"
 
-[[example]]
-name = "gallery-bindgen"
-path = "examples/wabou-bindgen.rs"
-
 [dependencies]
 gallery-api = { path = "../gallery-api" }
 gallery-functions = { path = "../gallery-functions" }
+rquickjs = { version = "0.14.0", features = ["macro"] }
 snafu = { workspace = true }
-wabou = { workspace = true, features = ["bindings", "vello-hybrid"] }
+wabou.workspace = true

@@ -1,8 +1,8 @@
+import { mergeClasses } from "@wabou/core/style";
 import pencil from "lucide-static/icons/pencil.svg?raw";
 import { createSignal, type JSX, untrack } from "solid-js";
 import { Icon, Text, View } from "../primitives";
 import { Button } from "./button";
-import { mergeClasses } from "@wabou/core/style";
 import { Input } from "./input";
 
 export interface InlineEditProps {

@@ -24,12 +24,13 @@ pub mod host_abi;
 pub mod host_ffi;
 mod host_frame;
 mod host_message;
+mod host_module;
 mod image_resource;
-mod json_capability;
+mod js_value;
 mod jsrt;
+#[allow(missing_docs)]
 mod kv;
 mod managed_service;
-mod native_capability;
 mod persistent_cache;
 mod reload;
 pub mod resource;
@@ -72,16 +73,17 @@ pub use host_message::{
     HostMessage, HostMessageContext, HostMessageError, HostMessageHandle, HostMessagePayload,
     HostMessageRouter, RevisionedHostPublication, RevisionedHostPublisher, RevisionedHostSnapshot,
 };
+pub use host_module::HostModuleState;
 pub use image_resource::{ImageResource, ImageResourceHandle, ImageResourceStore};
+pub use js_value::JsValue;
 pub use jsrt::{DEFAULT_QUICKJS_STACK_SIZE, JsRuntime, JsRuntimeOptions};
 #[doc(hidden)]
 pub use jsrt::{
     HostFrameDisposition, LayoutMetric, LayoutMetricsSnapshot, LayoutRect, ResizeTargets,
 };
 #[doc(hidden)]
-pub use kv::mount_kv_methods;
+pub use kv::{KvModuleState, js_kv_host};
 pub use managed_service::{HostServiceHandle, ManagedHostService, managed_host_service};
-pub use native_capability::NativeCapability;
 pub use persistent_cache::PersistentJsonCache;
 #[cfg(feature = "vite")]
 #[doc(hidden)]
@@ -111,3 +113,5 @@ pub mod intl;
 mod web_url;
 
 mod web_encoding;
+
+mod web_fetch;

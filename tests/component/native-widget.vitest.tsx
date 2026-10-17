@@ -57,9 +57,9 @@ test("uses the ordinary controlled input contract for a custom native editor", (
   const editor = screen.getByRole("textbox", { name: "Native source" });
   const identity = editor.identity;
 
-  editor.input("updated by GPUI");
+  editor.input("updated natively");
 
   const updated = screen.getByRole("textbox", { name: "Native source" });
   expect(updated.identity).toEqual(identity);
-  expect(updated.widgetConfig).toEqual({ value: "updated by GPUI" });
+  expect(updated.widgetConfig).toEqual({ value: "updated natively" });
 });

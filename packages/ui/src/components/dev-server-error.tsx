@@ -2,9 +2,10 @@ import { rgba } from "@wabou/core";
 import { type JSX, Show } from "solid-js";
 import { Button, Modal, Text, View } from "../primitives";
 import {
-  useDevelopmentDiagnostics,
   type DevServerDiagnostic,
+  useDevelopmentDiagnostics,
 } from "./development-diagnostics";
+
 export type { DevServerDiagnostic } from "./development-diagnostics";
 
 function diagnosticLocation(diagnostic: DevServerDiagnostic): string {

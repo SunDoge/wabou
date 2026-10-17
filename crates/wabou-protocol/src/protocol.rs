@@ -9,8 +9,8 @@
 //! values and text use inline UTF-8 plus frame-local references.
 //! Node identities are `[lo: u32, hi: u32]` full-width generational keys.
 //!
-//! Decoder copied from blitz-js (host-agnostic); op constants are generated
-//! from `packages/core/src/protocol/index.ts` by `scripts/codegen/protocol/op.ts`.
+//! Decoder copied from blitz-js (host-agnostic); TypeScript constants are
+//! generated from the Rust definitions in `wire.rs`.
 //! New records and resource handles follow `docs/runtime-contract.md`.
 
 #![allow(dead_code)]
@@ -19,28 +19,21 @@
 // schema changes harder to audit without adding semantic information.
 #![allow(missing_docs)]
 
-include!("gen/op.rs");
-
-use crate::Atom;
+use crate::{
+    Atom, GRAPHIC_DATA_VECTOR_PATH, GRAPHIC_SOURCE_RESOURCE_RASTER, GRAPHIC_SOURCE_SVG,
+    INTERACTION_POLICY_BLOCK_SUBTREE, INTERACTION_POLICY_CONTAIN_FOCUS,
+    INTERACTION_POLICY_FOCUSABLE, MAX_GRAPHIC_DATA_BYTES, TEXT_BEHAVIOR_AGGREGATE_DIRECT,
+    TEXT_BEHAVIOR_AGGREGATE_STYLED, TEXT_BEHAVIOR_CLIP_LINES, TEXT_BEHAVIOR_SINGLE_LINE, op,
+};
 pub use wabou_host_api::NodeKey;
 
-pub const TEXT_BEHAVIOR_AGGREGATE_DIRECT: u8 = 0x01;
-pub const TEXT_BEHAVIOR_SINGLE_LINE: u8 = 0x02;
-pub const TEXT_BEHAVIOR_AGGREGATE_STYLED: u8 = 0x04;
-pub const TEXT_BEHAVIOR_CLIP_LINES: u8 = 0x08;
 const TEXT_BEHAVIOR_MASK: u8 = TEXT_BEHAVIOR_AGGREGATE_DIRECT
     | TEXT_BEHAVIOR_SINGLE_LINE
     | TEXT_BEHAVIOR_AGGREGATE_STYLED
     | TEXT_BEHAVIOR_CLIP_LINES;
-pub const INTERACTION_POLICY_FOCUSABLE: u8 = 0x01;
-pub const INTERACTION_POLICY_BLOCK_SUBTREE: u8 = 0x02;
-pub const INTERACTION_POLICY_CONTAIN_FOCUS: u8 = 0x04;
 const INTERACTION_POLICY_MASK: u8 = INTERACTION_POLICY_FOCUSABLE
     | INTERACTION_POLICY_BLOCK_SUBTREE
     | INTERACTION_POLICY_CONTAIN_FOCUS;
-pub const GRAPHIC_SOURCE_SVG: u8 = 0x01;
-pub const GRAPHIC_SOURCE_RESOURCE_RASTER: u8 = 0x04;
-
 fn valid_graphic_source_kind(kind: u8) -> bool {
     matches!(kind, GRAPHIC_SOURCE_SVG | GRAPHIC_SOURCE_RESOURCE_RASTER)
 }
@@ -64,9 +57,6 @@ pub struct ShadowValue {
     pub color: u32,
     pub radius: Option<f32>,
 }
-
-pub const GRAPHIC_DATA_VECTOR_PATH: u8 = 0x01;
-const MAX_GRAPHIC_DATA_BYTES: usize = 16 * 1024 * 1024;
 
 /// A decoded operation. String operands borrow from the frame buffer
 /// (`'a`) so decode is allocation-free; the applier owns them into `String`s.

@@ -401,7 +401,7 @@ export function OverviewPage(): JSX.Element {
           </CardHeader>
           <CardContent class="gap-0 pt-1">
             {[
-              [code, "Renderer", "Vello Hybrid"],
+              [code, "Renderer", "Vello GPU"],
               [sparkles, "UI", "Solid 2"],
               [database, "Storage", "SQLite KV"],
               [monitor, "Platform", "Cross-platform"],

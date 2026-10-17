@@ -8,9 +8,6 @@
     "url": "git+https://github.com/SunDoge/wabou.git",
     "directory": "packages/core"
   },
-  "publishConfig": {
-    "access": "public"
-  },
   "files": [
     "dist"
   ],
@@ -65,6 +62,11 @@
       "types": "./dist/i18n.d.mts",
       "import": "./dist/i18n.mjs"
     },
+    "./web": {
+      "wabou-source": "./src/web.ts",
+      "types": "./dist/web.d.mts",
+      "import": "./dist/web.mjs"
+    },
     "./jsx-runtime": {
       "wabou-source": "./src/jsx.ts",
       "types": "./dist/jsx-runtime.d.mts",
@@ -90,5 +92,6 @@
     "abort-controller": "3.0.0",
     "solid-js": "2.0.0-rc.14",
     "web-streams-polyfill": "4.3.0"
-  }
+  },
+  "private": true
 }

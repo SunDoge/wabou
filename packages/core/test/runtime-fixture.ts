@@ -6,7 +6,15 @@ import {
   notification,
   useWindow,
 } from "@wabou/core";
-import { createRoot, flush, merge, omit } from "solid-js";
+import "@wabou/core/web";
+import {
+  createEffect,
+  createRoot,
+  createSignal,
+  flush,
+  merge,
+  omit,
+} from "solid-js";
 import {
   createElement,
   createTextNode,
@@ -16,6 +24,7 @@ import {
 } from "../src/renderer";
 
 Object.assign(globalThis, {
+  __wabou_test_solid: { createEffect, createSignal },
   __wabou_test_host_api: {
     clipboard,
     dialog,

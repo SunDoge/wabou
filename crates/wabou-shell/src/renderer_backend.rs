@@ -1,0 +1,835 @@
+//! Direct Vello GPU window renderer and retained-command replay.
+
+use std::sync::Arc;
+
+use glifo::FontEmbolden;
+use raw_window_handle::{
+    DisplayHandle, HandleError, HasDisplayHandle, HasWindowHandle, WindowHandle,
+};
+use rustc_hash::FxHashMap;
+use skrifa::raw::TableProvider;
+use vello_common::geometry::RectU16;
+use vello_common::kurbo::{Affine, Diagonal2, Shape};
+use vello_common::paint::{ImageId, ImageSource, PaintType};
+use vello_common::peniko::{Brush, BrushRef, Color, Fill, ImageQuality, ImageSampler, StyleRef};
+use vello_gpu::{
+    ClearSettings, RenderSettings, RenderSize, RenderTargetConfig, Renderer, Resources,
+    Scene as GpuScene, TargetInit, TextureBindings,
+};
+use wgpu::{CommandEncoderDescriptor, CompositeAlphaMode, Features, PresentMode, TextureFormat};
+#[cfg(not(target_vendor = "apple"))]
+use wgpu_context::{AlphaConversion, TextureConfiguration};
+use wgpu_context::{DeviceHandle, SurfaceRenderer, SurfaceRendererConfiguration, WGPUContext};
+use winit::window::Window;
+
+use crate::{Glyph, NormalizedCoord, PaintScene, Scene, ShaderEffect, shader::ShaderRenderer};
+
+#[cfg(target_os = "android")]
+const DEFAULT_TEXTURE_FORMAT: TextureFormat = TextureFormat::Rgba8Unorm;
+#[cfg(not(target_os = "android"))]
+const DEFAULT_TEXTURE_FORMAT: TextureFormat = TextureFormat::Bgra8Unorm;
+const DEFAULT_TOLERANCE: f64 = 0.1;
+
+fn font_uses_bitmap_strikes(data: &[u8], index: u32) -> bool {
+    skrifa::FontRef::from_index(data, index)
+        .is_ok_and(|font| font.cbdt().is_ok() || font.sbix().is_ok())
+}
+
+pub(crate) fn render_size(width: u32, height: u32) -> crate::Result<RenderSize> {
+    if width == 0 || height == 0 {
+        return Err(crate::Error::InvalidRenderSize { width, height });
+    }
+    Ok(RenderSize {
+        width: u16::try_from(width)
+            .map_err(|_| crate::Error::InvalidRenderSize { width, height })?,
+        height: u16::try_from(height)
+            .map_err(|_| crate::Error::InvalidRenderSize { width, height })?,
+    })
+}
+
+struct SharedWindow(Arc<dyn Window>);
+
+impl HasWindowHandle for SharedWindow {
+    fn window_handle(&self) -> Result<WindowHandle<'_>, HandleError> {
+        self.0.window_handle()
+    }
+}
+
+impl HasDisplayHandle for SharedWindow {
+    fn display_handle(&self) -> Result<DisplayHandle<'_>, HandleError> {
+        self.0.display_handle()
+    }
+}
+
+struct ActiveRenderer {
+    renderer: Renderer,
+    resources: Resources,
+    surface: SurfaceRenderer<'static>,
+    shaders: ShaderRenderer,
+    depth_view: wgpu::TextureView,
+}
+
+#[derive(Clone, Copy)]
+struct CachedImage {
+    id: ImageId,
+    last_used_frame: u64,
+}
+
+fn finish_image_frame(
+    cache: &mut FxHashMap<u64, CachedImage>,
+    frame: u64,
+    renderer: &mut Renderer,
+    resources: &mut Resources,
+    encoder: &mut wgpu::CommandEncoder,
+) {
+    cache.retain(|_, cached| {
+        if cached.last_used_frame == frame {
+            true
+        } else {
+            renderer.destroy_image(resources, encoder, cached.id);
+            false
+        }
+    });
+}
+
+/// Renderer owned by a Wabou window. There is deliberately no backend switch:
+/// Wabou's Vello shell talks to Vello GPU directly.
+pub(crate) struct WindowRenderer {
+    context: WGPUContext,
+    active: Option<ActiveRenderer>,
+    scene: GpuScene,
+    image_cache: FxHashMap<u64, CachedImage>,
+    image_frame: u64,
+    transparent: bool,
+}
+
+impl WindowRenderer {
+    pub(crate) fn new(transparent: bool) -> crate::Result<Self> {
+        tracing::info!(target: "wabou::renderer", transparent, "initializing Vello GPU window renderer");
+        Ok(Self {
+            context: WGPUContext::with_features_and_limits(
+                Some(Features::CLEAR_TEXTURE | Features::PIPELINE_CACHE),
+                None,
+            ),
+            active: None,
+            scene: GpuScene::new(1, 1),
+            image_cache: FxHashMap::default(),
+            image_frame: 0,
+            transparent,
+        })
+    }
+
+    pub(crate) fn resume(&mut self, window: Arc<dyn Window>, width: u32, height: u32) {
+        let target_size = match render_size(width, height) {
+            Ok(size) => size,
+            Err(error) => {
+                tracing::warn!(%error, "skipping invalid Vello GPU window dimensions");
+                return;
+            }
+        };
+        tracing::debug!(
+            target: "wabou::renderer",
+            transparent = self.transparent,
+            width,
+            height,
+            "creating window render surface"
+        );
+        let owned: Arc<SharedWindow> = Arc::new(SharedWindow(window));
+        let surface = self
+            .context
+            .create_surface(owned)
+            .expect("failed to create Vello GPU surface");
+        tracing::debug!(target: "wabou::renderer", "selecting compatible render device");
+        let existing_device = self.context.find_compatible_device_handle(Some(&surface));
+        let created_device = existing_device.is_none();
+        let device = existing_device.unwrap_or_else(|| {
+            pollster::block_on(DeviceHandle::new_from_compatible_surface(
+                self.context.instance.clone(),
+                Some(&surface),
+                self.context.extra_features(),
+                self.context.override_limits(),
+            ))
+            .expect("failed to create Vello GPU device")
+        });
+        let requested_alpha_mode = if self.transparent {
+            #[cfg(target_vendor = "apple")]
+            {
+                CompositeAlphaMode::PostMultiplied
+            }
+            #[cfg(not(target_vendor = "apple"))]
+            {
+                CompositeAlphaMode::PreMultiplied
+            }
+        } else {
+            CompositeAlphaMode::Opaque
+        };
+        let capabilities = surface.get_capabilities(&device.adapter);
+        let alpha_mode = select_alpha_mode(requested_alpha_mode, &capabilities.alpha_modes);
+        if self.transparent
+            && !matches!(
+                alpha_mode,
+                CompositeAlphaMode::PreMultiplied | CompositeAlphaMode::PostMultiplied
+            )
+        {
+            tracing::warn!(
+                ?requested_alpha_mode,
+                ?alpha_mode,
+                supported_alpha_modes = ?capabilities.alpha_modes,
+                "surface does not expose a guaranteed transparency-preserving alpha mode"
+            );
+        }
+        tracing::debug!(
+            transparent = self.transparent,
+            ?requested_alpha_mode,
+            ?alpha_mode,
+            supported_alpha_modes = ?capabilities.alpha_modes,
+            "configured window surface alpha mode"
+        );
+        #[cfg(not(target_vendor = "apple"))]
+        let intermediate_texture =
+            (alpha_mode == CompositeAlphaMode::PostMultiplied).then_some(TextureConfiguration {
+                usage: wgpu::TextureUsages::RENDER_ATTACHMENT
+                    | wgpu::TextureUsages::TEXTURE_BINDING,
+                format: DEFAULT_TEXTURE_FORMAT,
+                alpha_conversion: Some(AlphaConversion::Unpremultiply),
+            });
+        // Metal reports straight alpha for a surface which is premultiplied in practice.
+        #[cfg(target_vendor = "apple")]
+        let intermediate_texture = None;
+        let surface_renderer = SurfaceRenderer::new(
+            surface,
+            SurfaceRendererConfiguration {
+                usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
+                formats: vec![DEFAULT_TEXTURE_FORMAT],
+                width,
+                height,
+                present_mode: PresentMode::AutoNoVsync,
+                desired_maximum_frame_latency: 2,
+                alpha_mode,
+                view_formats: vec![],
+            },
+            intermediate_texture,
+            device.clone(),
+        )
+        .expect("failed to configure Vello GPU surface");
+        tracing::debug!(target: "wabou::renderer", "window render surface configured");
+        let (renderer, resources) = Renderer::new_with(
+            surface_renderer.device(),
+            &RenderTargetConfig {
+                format: DEFAULT_TEXTURE_FORMAT,
+                width: target_size.width,
+                height: target_size.height,
+            },
+            RenderSettings::default(),
+        );
+        if created_device {
+            self.context.device_pool.push(device);
+        }
+        self.scene = GpuScene::new(target_size.width, target_size.height);
+        let shaders = ShaderRenderer::new(surface_renderer.device());
+        let depth_view =
+            Renderer::create_depth_texture_view(surface_renderer.device(), &target_size);
+        self.active = Some(ActiveRenderer {
+            renderer,
+            resources,
+            surface: surface_renderer,
+            shaders,
+            depth_view,
+        });
+    }
+
+    pub(crate) fn resize(&mut self, width: u32, height: u32) {
+        let target_size = match render_size(width, height) {
+            Ok(size) => size,
+            Err(error) => {
+                tracing::warn!(%error, "skipping invalid Vello GPU window dimensions");
+                return;
+            }
+        };
+        self.scene
+            .reset_and_resize(target_size.width, target_size.height);
+        if let Some(active) = &mut self.active {
+            active.surface.resize(width, height);
+            active.depth_view =
+                Renderer::create_depth_texture_view(active.surface.device(), &target_size);
+        }
+    }
+
+    pub(crate) fn render(
+        &mut self,
+        recorded: &mut Scene,
+        width: u32,
+        height: u32,
+        base_color: Color,
+    ) {
+        let target_size = match render_size(width, height) {
+            Ok(size) => size,
+            Err(error) => {
+                tracing::warn!(%error, "skipping invalid Vello GPU window dimensions");
+                return;
+            }
+        };
+        let Some(active) = &mut self.active else {
+            return;
+        };
+        let mut encoder =
+            active
+                .surface
+                .device()
+                .create_command_encoder(&CommandEncoderDescriptor {
+                    label: Some("Wabou Vello GPU frame"),
+                });
+        self.scene
+            .reset_and_resize(target_size.width, target_size.height);
+        let mut texture_bindings = TextureBindings::new();
+        self.image_frame = self.image_frame.wrapping_add(1);
+        active.shaders.begin_frame();
+        let mut painter = GpuPainter {
+            scene: &mut self.scene,
+            renderer: &mut active.renderer,
+            resources: &mut active.resources,
+            device: active.surface.device(),
+            queue: active.surface.queue(),
+            encoder: &mut encoder,
+            image_cache: &mut self.image_cache,
+            image_frame: self.image_frame,
+            shaders: &mut active.shaders,
+            texture_bindings: &mut texture_bindings,
+            layers: Vec::new(),
+        };
+        if base_color != Color::TRANSPARENT {
+            painter.scene.set_paint(base_color);
+            painter.scene.fill_rect(&vello_common::kurbo::Rect::new(
+                0.0,
+                0.0,
+                f64::from(width),
+                f64::from(height),
+            ));
+        }
+        painter.append_scene(std::mem::take(recorded), Affine::IDENTITY);
+
+        let Ok(view) = active.surface.target_texture_view() else {
+            active.surface.clear_surface_texture();
+            return;
+        };
+        active
+            .renderer
+            .render(
+                &self.scene,
+                &mut active.resources,
+                active.surface.device(),
+                active.surface.queue(),
+                &mut encoder,
+                &target_size,
+                &view,
+                Some(&active.depth_view),
+                &texture_bindings,
+                TargetInit::Clear(ClearSettings::default()),
+            )
+            .expect("failed to render Vello GPU frame");
+        finish_image_frame(
+            &mut self.image_cache,
+            self.image_frame,
+            &mut active.renderer,
+            &mut active.resources,
+            &mut encoder,
+        );
+        active.surface.queue().submit([encoder.finish()]);
+        active.shaders.finish_frame();
+        drop(view);
+        if active.surface.maybe_blit_and_present().is_ok() {
+            let _ = active.surface.device().poll(wgpu::PollType::Poll);
+        }
+    }
+}
+
+fn select_alpha_mode(
+    requested: CompositeAlphaMode,
+    supported: &[CompositeAlphaMode],
+) -> CompositeAlphaMode {
+    if supported.contains(&requested) {
+        return requested;
+    }
+    supported
+        .iter()
+        .copied()
+        .min_by_key(|mode| match mode {
+            CompositeAlphaMode::PreMultiplied => 0,
+            CompositeAlphaMode::PostMultiplied => 1,
+            CompositeAlphaMode::Inherit => 2,
+            CompositeAlphaMode::Auto => 3,
+            CompositeAlphaMode::Opaque => 4,
+        })
+        .unwrap_or(CompositeAlphaMode::Auto)
+}
+
+enum LayerKind {
+    Layer,
+    Clip,
+}
+
+pub(crate) struct GpuPainter<'a> {
+    scene: &'a mut GpuScene,
+    renderer: &'a mut Renderer,
+    resources: &'a mut Resources,
+    device: &'a wgpu::Device,
+    queue: &'a wgpu::Queue,
+    encoder: &'a mut wgpu::CommandEncoder,
+    image_cache: &'a mut FxHashMap<u64, CachedImage>,
+    image_frame: u64,
+    shaders: &'a mut ShaderRenderer,
+    texture_bindings: &'a mut TextureBindings,
+    layers: Vec<LayerKind>,
+}
+
+impl GpuPainter<'_> {
+    fn paint(&mut self, brush: BrushRef<'_>) -> PaintType {
+        match brush {
+            Brush::Solid(color) => PaintType::Solid(color),
+            Brush::Gradient(gradient) => PaintType::Gradient(gradient.clone()),
+            Brush::Image(image) => {
+                let key = image.image.data.id();
+                let id = if let Some(cached) = self.image_cache.get_mut(&key) {
+                    cached.last_used_frame = self.image_frame;
+                    cached.id
+                } else {
+                    let ImageSource::Pixmap(pixmap) =
+                        ImageSource::from_peniko_image_data(image.image)
+                    else {
+                        unreachable!()
+                    };
+                    let id = self.renderer.upload_image(
+                        self.resources,
+                        self.device,
+                        self.queue,
+                        self.encoder,
+                        &pixmap,
+                    );
+                    self.image_cache.insert(
+                        key,
+                        CachedImage {
+                            id,
+                            last_used_frame: self.image_frame,
+                        },
+                    );
+                    id
+                };
+                PaintType::Image(vello_common::peniko::ImageBrush {
+                    image: ImageSource::OpaqueId {
+                        id,
+                        may_have_transparency: true,
+                    },
+                    sampler: image.sampler,
+                })
+            }
+        }
+    }
+}
+
+impl PaintScene for GpuPainter<'_> {
+    fn reset(&mut self) {
+        self.scene.reset();
+    }
+
+    fn push_layer(
+        &mut self,
+        blend: impl Into<vello_common::peniko::BlendMode>,
+        alpha: f32,
+        transform: Affine,
+        clip: &impl Shape,
+        filter: Option<Arc<vello_common::filter_effects::Filter>>,
+        _backdrop_filter: Option<Arc<vello_common::filter_effects::Filter>>,
+    ) {
+        self.scene.set_transform(transform);
+        self.scene
+            .push_clip_path(&clip.into_path(DEFAULT_TOLERANCE));
+        self.scene.push_layer(
+            None,
+            Some(blend.into()),
+            Some(alpha),
+            None,
+            filter.map(|value| (*value).clone()),
+        );
+        self.layers.push(LayerKind::Layer);
+    }
+
+    fn push_clip_layer(&mut self, transform: Affine, clip: &impl Shape) {
+        self.scene.set_transform(transform);
+        self.scene
+            .push_clip_path(&clip.into_path(DEFAULT_TOLERANCE));
+        self.layers.push(LayerKind::Clip);
+    }
+
+    fn pop_layer(&mut self) {
+        match self.layers.pop() {
+            Some(LayerKind::Layer) => {
+                self.scene.pop_layer();
+                self.scene.pop_clip();
+            }
+            Some(LayerKind::Clip) => self.scene.pop_clip(),
+            None => {}
+        }
+    }
+
+    fn stroke<'a>(
+        &mut self,
+        style: &vello_common::kurbo::Stroke,
+        transform: Affine,
+        brush: impl Into<BrushRef<'a>>,
+        brush_transform: Option<Affine>,
+        shape: &impl Shape,
+    ) {
+        let paint = self.paint(brush.into());
+        self.scene.set_transform(transform);
+        self.scene.set_stroke(style.clone());
+        self.scene.set_paint(paint);
+        self.scene
+            .set_paint_transform(brush_transform.unwrap_or(Affine::IDENTITY));
+        self.scene.stroke_path(&shape.into_path(DEFAULT_TOLERANCE));
+    }
+
+    fn fill<'a>(
+        &mut self,
+        fill: Fill,
+        transform: Affine,
+        brush: impl Into<BrushRef<'a>>,
+        brush_transform: Option<Affine>,
+        shape: &impl Shape,
+    ) {
+        let paint = self.paint(brush.into());
+        self.scene.set_transform(transform);
+        self.scene.set_fill_rule(fill);
+        self.scene.set_paint(paint);
+        self.scene
+            .set_paint_transform(brush_transform.unwrap_or(Affine::IDENTITY));
+        self.scene.fill_path(&shape.into_path(DEFAULT_TOLERANCE));
+    }
+
+    fn draw_glyphs<'a, 's: 'a>(
+        &'s mut self,
+        font: &'a vello_common::peniko::FontData,
+        font_size: f32,
+        hint: bool,
+        normalized_coords: &'a [NormalizedCoord],
+        embolden: vello_common::kurbo::Vec2,
+        style: impl Into<StyleRef<'a>>,
+        brush: impl Into<BrushRef<'a>>,
+        brush_alpha: f32,
+        transform: Affine,
+        glyph_transform: Option<Affine>,
+        glyphs: impl Iterator<Item = Glyph> + Clone,
+    ) {
+        // Keep ordinary text on the hinted outline path used by Xilem/Masonry.
+        // Rasterizing outlines into Glifo's grayscale atlas softens small UI
+        // text at 1x. Bitmap fonts still need the atlas because Vello GPU cannot
+        // consume their uncached pixmaps; selecting the physical strike also
+        // keeps color emoji sharp on HiDPI displays.
+        let atlas_cache = font_uses_bitmap_strikes(font.data.data(), font.index);
+        let brush = brush.into().to_owned().multiply_alpha(brush_alpha);
+        let paint = self.paint((&brush).into());
+        self.scene.set_paint(paint);
+        self.scene.set_transform(transform);
+        match style.into() {
+            StyleRef::Fill(fill) => {
+                self.scene.set_fill_rule(fill);
+                self.scene
+                    .glyph_run(self.resources, font)
+                    .atlas_cache(atlas_cache)
+                    .font_size(font_size)
+                    .hint(hint)
+                    .normalized_coords(normalized_coords)
+                    .font_embolden(FontEmbolden::new(Diagonal2::new(embolden.x, embolden.y)))
+                    .glyph_transform(glyph_transform.unwrap_or_default())
+                    .fill_glyphs(glyphs.map(|glyph| glifo::Glyph {
+                        id: glyph.id,
+                        x: glyph.x,
+                        y: glyph.y,
+                    }))
+                    .unwrap_or_else(
+                        |error| tracing::warn!(%error, "Vello GPU glyph rendering failed"),
+                    );
+            }
+            StyleRef::Stroke(stroke) => {
+                self.scene.set_stroke(stroke.clone());
+                self.scene
+                    .glyph_run(self.resources, font)
+                    .atlas_cache(atlas_cache)
+                    .font_size(font_size)
+                    .hint(hint)
+                    .normalized_coords(normalized_coords)
+                    .glyph_transform(glyph_transform.unwrap_or_default())
+                    .stroke_glyphs(glyphs.map(|glyph| glifo::Glyph {
+                        id: glyph.id,
+                        x: glyph.x,
+                        y: glyph.y,
+                    }))
+                    .unwrap_or_else(
+                        |error| tracing::warn!(%error, "Vello GPU glyph rendering failed"),
+                    );
+            }
+        }
+    }
+
+    fn draw_box_shadow(
+        &mut self,
+        transform: Affine,
+        rect: vello_common::kurbo::Rect,
+        brush: Color,
+        radius: f64,
+        std_dev: f64,
+    ) {
+        self.scene.set_transform(transform);
+        self.scene.set_paint(brush);
+        self.scene
+            .fill_blurred_rounded_rect(&rect, radius as f32, std_dev as f32, false);
+    }
+
+    fn draw_svg(&mut self, document: crate::SvgDocument, transform: Affine) {
+        if let Err(error) =
+            crate::svg::append_tree_with_transform(self.scene, &document.0, transform)
+        {
+            tracing::warn!(?error, "failed to project retained SVG into Vello GPU");
+        }
+    }
+
+    fn draw_shader_effect(&mut self, effect: ShaderEffect, transform: Affine) {
+        let texture_id = self.shaders.render(
+            &effect,
+            self.device,
+            self.queue,
+            self.encoder,
+            self.texture_bindings,
+        );
+        let [physical_width, physical_height] = effect.physical_size();
+        self.scene.set_transform(
+            transform
+                * Affine::scale_non_uniform(
+                    f64::from(effect.logical_size()[0]) / f64::from(physical_width),
+                    f64::from(effect.logical_size()[1]) / f64::from(physical_height),
+                ),
+        );
+        self.scene.set_paint(vello_common::paint::Image {
+            image: ImageSource::external_texture(
+                texture_id,
+                RectU16::new(0, 0, physical_width, physical_height),
+                true,
+            ),
+            sampler: ImageSampler {
+                quality: ImageQuality::High,
+                ..Default::default()
+            },
+        });
+        self.scene.set_paint_transform(Affine::IDENTITY);
+        self.scene.fill_rect(&vello_common::kurbo::Rect::new(
+            0.0,
+            0.0,
+            f64::from(physical_width),
+            f64::from(physical_height),
+        ));
+    }
+}
+
+/// Reusable offscreen renderer backed by the same replay path as windows.
+pub(crate) struct ImageRenderer {
+    buffer: wgpu_context::BufferRenderer,
+    renderer: Renderer,
+    resources: Resources,
+    scene: GpuScene,
+    image_cache: FxHashMap<u64, CachedImage>,
+    image_frame: u64,
+    shaders: ShaderRenderer,
+    depth_view: wgpu::TextureView,
+}
+
+impl ImageRenderer {
+    pub(crate) fn new(width: u32, height: u32) -> Self {
+        let target_size = render_size(width, height)
+            .expect("offscreen dimensions must be validated before rendering");
+        let mut context =
+            WGPUContext::with_features_and_limits(Some(Features::CLEAR_TEXTURE), None);
+        let buffer = pollster::block_on(context.create_buffer_renderer(
+            wgpu_context::BufferRendererConfig {
+                width,
+                height,
+                usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
+            },
+        ))
+        .expect("no compatible Vello GPU device for offscreen rendering");
+        let (renderer, resources) = Renderer::new(
+            buffer.device(),
+            &RenderTargetConfig {
+                format: TextureFormat::Rgba8Unorm,
+                width: target_size.width,
+                height: target_size.height,
+            },
+        );
+        let shaders = ShaderRenderer::new(buffer.device());
+        let depth_view = Renderer::create_depth_texture_view(buffer.device(), &target_size);
+        Self {
+            buffer,
+            renderer,
+            resources,
+            scene: GpuScene::new(target_size.width, target_size.height),
+            image_cache: FxHashMap::default(),
+            image_frame: 0,
+            shaders,
+            depth_view,
+        }
+    }
+
+    pub(crate) fn render(
+        &mut self,
+        recorded: &Scene,
+        width: u32,
+        height: u32,
+        base_color: Color,
+    ) -> Vec<u8> {
+        let target_size = render_size(width, height)
+            .expect("offscreen dimensions must be validated before rendering");
+        if self.buffer.size().width != width || self.buffer.size().height != height {
+            self.buffer.resize(width, height);
+            self.depth_view =
+                Renderer::create_depth_texture_view(self.buffer.device(), &target_size);
+            (self.renderer, self.resources) = Renderer::new(
+                self.buffer.device(),
+                &RenderTargetConfig {
+                    format: TextureFormat::Rgba8Unorm,
+                    width: target_size.width,
+                    height: target_size.height,
+                },
+            );
+            self.image_cache.clear();
+        }
+        self.scene
+            .reset_and_resize(target_size.width, target_size.height);
+        let mut encoder = self
+            .buffer
+            .device()
+            .create_command_encoder(&CommandEncoderDescriptor {
+                label: Some("Wabou Vello GPU offscreen frame"),
+            });
+        let mut texture_bindings = TextureBindings::new();
+        self.image_frame = self.image_frame.wrapping_add(1);
+        self.shaders.begin_frame();
+        let mut painter = GpuPainter {
+            scene: &mut self.scene,
+            renderer: &mut self.renderer,
+            resources: &mut self.resources,
+            device: self.buffer.device(),
+            queue: self.buffer.queue(),
+            encoder: &mut encoder,
+            image_cache: &mut self.image_cache,
+            image_frame: self.image_frame,
+            shaders: &mut self.shaders,
+            texture_bindings: &mut texture_bindings,
+            layers: Vec::new(),
+        };
+        if base_color != Color::TRANSPARENT {
+            painter.scene.set_paint(base_color);
+            painter.scene.fill_rect(&vello_common::kurbo::Rect::new(
+                0.0,
+                0.0,
+                f64::from(width),
+                f64::from(height),
+            ));
+        }
+        painter.append_scene(recorded.clone(), Affine::IDENTITY);
+        self.renderer
+            .render(
+                &self.scene,
+                &mut self.resources,
+                self.buffer.device(),
+                self.buffer.queue(),
+                &mut encoder,
+                &target_size,
+                &self.buffer.target_texture_view(),
+                Some(&self.depth_view),
+                &texture_bindings,
+                TargetInit::Clear(ClearSettings::default()),
+            )
+            .expect("failed to render Vello GPU scene offscreen");
+        finish_image_frame(
+            &mut self.image_cache,
+            self.image_frame,
+            &mut self.renderer,
+            &mut self.resources,
+            &mut encoder,
+        );
+        self.buffer.queue().submit([encoder.finish()]);
+        self.shaders.finish_frame();
+        let mut rgba = vec![0; (width * height * 4) as usize];
+        self.buffer.copy_texture_to_buffer(&mut rgba);
+        rgba
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn ordinary_outline_fonts_do_not_use_the_grayscale_atlas() {
+        let font = include_bytes!("../../../examples/web-preview/public/DejaVuSans.ttf");
+        assert!(!font_uses_bitmap_strikes(font, 0));
+    }
+
+    #[test]
+    fn surface_alpha_selection_prefers_a_premultiplied_fallback() {
+        assert_eq!(
+            select_alpha_mode(
+                CompositeAlphaMode::Opaque,
+                &[
+                    CompositeAlphaMode::Auto,
+                    CompositeAlphaMode::PostMultiplied,
+                    CompositeAlphaMode::PreMultiplied,
+                ],
+            ),
+            CompositeAlphaMode::PreMultiplied,
+        );
+    }
+
+    #[test]
+    fn surface_alpha_selection_keeps_a_supported_request() {
+        assert_eq!(
+            select_alpha_mode(
+                CompositeAlphaMode::Opaque,
+                &[
+                    CompositeAlphaMode::PreMultiplied,
+                    CompositeAlphaMode::Opaque
+                ],
+            ),
+            CompositeAlphaMode::Opaque,
+        );
+    }
+
+    #[test]
+    fn transparent_alpha_fallback_avoids_opaque_when_auto_is_available() {
+        assert_eq!(
+            select_alpha_mode(
+                CompositeAlphaMode::PreMultiplied,
+                &[CompositeAlphaMode::Opaque, CompositeAlphaMode::Auto],
+            ),
+            CompositeAlphaMode::Auto,
+        );
+    }
+
+    #[test]
+    fn transient_images_release_their_atlas_allocations_after_each_frame() {
+        let mut renderer = ImageRenderer::new(64, 64);
+        let mut text = crate::TextContext::new();
+
+        for frame in 0..12_u8 {
+            let pixels = [frame, 80, 160, 255].repeat(64 * 64);
+            let image = crate::WidgetRasterImage::from_rgba8(64, 64, pixels).unwrap();
+            let mut paint = crate::PaintContext::new(64.0, 64.0, 1.0, &mut text);
+            paint.draw_raster_image(&image);
+
+            renderer.render(&paint.finish(), 64, 64, Color::BLACK);
+            assert_eq!(
+                renderer.image_cache.len(),
+                1,
+                "only the image retained by the current frame may occupy the atlas",
+            );
+        }
+    }
+}

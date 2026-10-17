@@ -1,14 +1,28 @@
-// Wabou binary bridge protocol — single source of truth for the wire format.
-// New records and handles must follow docs/runtime-contract.md.
-//
-// OP and EVENT_CODE here are the SOT. Rust constants are generated from them
-// by `bun run gen` (scripts/gen-rust-op.ts →
-// crates/wabou-runtime/src/gen/op.rs, include!d by
-// src/protocol.rs). A drift-guard test in protocol.rs asserts every opcode
-// decodes, so a stale regen surfaces as a test failure.
+// Wabou binary bridge encoder. Numeric wire definitions are generated from
+// crates/wabou-protocol/src/wire.rs; do not redeclare them in TypeScript.
 
+import type { OpCode } from "../generated/wire-protocol";
+import {
+  EVENT_CODE,
+  EVENT_DATA_LEN,
+  EVENT_DATA_SLOT,
+  GRAPHIC_DATA,
+  GRAPHIC_SOURCE,
+  HOST_FRAME,
+  HOST_NODE_PAYLOAD,
+  HOST_RECORD_KIND,
+  INTERACTION_POLICY,
+  MAX_GRAPHIC_DATA_BYTES,
+  OP,
+  TEXT_BEHAVIOR,
+} from "../generated/wire-protocol";
 import type { NodeKey } from "./node-key";
 
+export type {
+  EventDataSlot,
+  EventType,
+  OpCode,
+} from "../generated/wire-protocol";
 export {
   formatNodeKey,
   isNodeKey,
@@ -30,174 +44,34 @@ export {
   ResourceKeyTable,
   validateResourceKeyParts,
 } from "./resource-key";
+export {
+  EVENT_CODE,
+  EVENT_DATA_LEN,
+  EVENT_DATA_SLOT,
+  GRAPHIC_DATA,
+  GRAPHIC_SOURCE,
+  HOST_FRAME,
+  HOST_NODE_PAYLOAD,
+  HOST_RECORD_KIND,
+  INTERACTION_POLICY,
+  OP,
+  TEXT_BEHAVIOR,
+};
 
-export const OP = {
-  CreateElement: 0x01,
-  CreateText: 0x02,
-  AppendChild: 0x04,
-  InsertBefore: 0x05,
-  RemoveChild: 0x06,
-  SetText: 0x08,
-  SetAttribute: 0x09,
-  RemoveAttribute: 0x0a,
-  SetStyle: 0x0b,
-  RemoveStyle: 0x0c,
-  AddEventListener: 0x0d,
-  RemoveEventListener: 0x0e,
-  SetClassName: 0x0f,
-  DropNode: 0x11,
-  SetTransform2D: 0x12,
-  FocusNode: 0x13,
-  ScrollTo: 0x14,
-  ScrollBy: 0x15,
-  SetStyleValue: 0x16,
-  SetShadows: 0x17,
-  SetOverlayPlane: 0x18,
-  SetScrollbarStyle: 0x19,
-  SetWidgetConfig: 0x1a,
-  RemoveWidgetConfig: 0x1b,
-  SetTextBehavior: 0x1c,
-  SetInteractionPolicy: 0x1d,
-  SetGraphicSource: 0x1e,
-  ClearGraphicSource: 0x1f,
-  SetGraphicData: 0x20,
-  ClearGraphicData: 0x21,
-  SetTextMaxLines: 0x22,
-  SetTextSelection: 0x23,
-  TextCommand: 0x24,
-  BlurNode: 0x25,
-  SetProjectionBoundary: 0x26,
-  AcknowledgeTextValue: 0x27,
-} as const;
-
-export type OpCode = (typeof OP)[keyof typeof OP];
-
-export const TEXT_BEHAVIOR = {
-  AggregateDirectText: 0x01,
-  SingleLine: 0x02,
-  AggregateStyledText: 0x04,
-  ClipLines: 0x08,
-} as const;
 const TEXT_BEHAVIOR_MASK =
   TEXT_BEHAVIOR.AggregateDirectText |
   TEXT_BEHAVIOR.SingleLine |
   TEXT_BEHAVIOR.AggregateStyledText |
   TEXT_BEHAVIOR.ClipLines;
 
-export const INTERACTION_POLICY = {
-  Focusable: 0x01,
-  BlockSubtree: 0x02,
-  ContainFocus: 0x04,
-} as const;
 const INTERACTION_POLICY_MASK =
   INTERACTION_POLICY.Focusable |
   INTERACTION_POLICY.BlockSubtree |
   INTERACTION_POLICY.ContainFocus;
 
-export const GRAPHIC_SOURCE = {
-  Svg: 0x01,
-  ResourceRaster: 0x04,
-} as const;
-
-export const GRAPHIC_DATA = { VectorPath: 0x01 } as const;
-const MAX_GRAPHIC_DATA_BYTES = 16 * 1024 * 1024;
-
 function validGraphicSourceKind(kind: number): boolean {
   return kind === GRAPHIC_SOURCE.Svg || kind === GRAPHIC_SOURCE.ResourceRaster;
 }
-
-export const EVENT_CODE = {
-  click: 1,
-  input: 2,
-  submit: 3,
-  keydown: 4,
-  keyup: 5,
-  change: 6,
-  pointerdown: 7,
-  pointermove: 8,
-  pointerup: 9,
-  pointerenter: 10,
-  pointerleave: 11,
-  wheel: 12,
-  focus: 13,
-  blur: 14,
-  imecommit: 15,
-  pointercancel: 16,
-  pointerover: 17,
-  pointerout: 18,
-  contextmenu: 19,
-  dblclick: 20,
-  focusin: 21,
-  focusout: 22,
-  scroll: 23,
-  terminalexit: 24,
-  terminalprogress: 25,
-  terminalnotification: 26,
-  terminaltitlechange: 27,
-  terminalcwdchange: 28,
-  terminalselectionchange: 29,
-  textselectionchange: 30,
-  terminalbell: 31,
-  resourceready: 32,
-  resourceerror: 33,
-  imeenabled: 34,
-  imepreedit: 35,
-  imedeletesurrounding: 36,
-  imedisabled: 37,
-  windowcloserequested: 38,
-  transitionend: 39,
-  secretstatechange: 40,
-} as const;
-
-export type EventType = keyof typeof EVENT_CODE;
-
-export const EVENT_DATA_SLOT = {
-  clientX: 0,
-  clientY: 1,
-  offsetX: 2,
-  offsetY: 3,
-  button: 4,
-  buttons: 5,
-  mods: 6,
-  deltaX: 7,
-  deltaY: 8,
-  scrollX: 9,
-  scrollY: 10,
-  phase: 11,
-  pointerIdLo: 12,
-  pointerIdHi: 13,
-  pointerType: 14,
-  primary: 15,
-  pressure: 16,
-  tangentialPressure: 17,
-  tiltX: 18,
-  tiltY: 19,
-  twist: 20,
-} as const;
-
-export const EVENT_DATA_LEN = Object.keys(EVENT_DATA_SLOT).length;
-export type EventDataSlot = keyof typeof EVENT_DATA_SLOT;
-
-/** Versioned Host → JS frame envelope. Keep in sync through `bun run gen`. */
-export const HOST_FRAME = {
-  Magic: 0x31464857,
-  Version: 3,
-  HeaderLen: 32,
-} as const;
-
-export const HOST_RECORD_KIND = {
-  NodeEvent: 1,
-  Resize: 2,
-  ApplicationMessage: 3,
-  Window: 4,
-  Widget: 5,
-} as const;
-
-export const HOST_NODE_PAYLOAD = {
-  None: 0,
-  Numeric: 1,
-  Json: 2,
-} as const;
 
 // Non-host fallback used by unit tests and standalone renderer tooling. A real
 // Wabou runtime provides Rust-authoritative IDs through its private ABI.

@@ -18,20 +18,34 @@ type DatabaseKey = ResourceKey<Database>;
 
 let databases = ResidentResources::<Database, Arc<MyDatabase>>::new();
 
-let open_databases = databases.clone();
-host = host.capability(bindings::DATABASE, move |capability| {
-    let open_databases = open_databases.clone();
-    capability.method(bindings::OPEN, move |request| {
-        let open_databases = open_databases.clone();
-        async move {
-            let key: DatabaseKey = open_databases.get_or_insert_with(
-                request.workspace,
-                || Arc::new(MyDatabase::open()),
-            );
-            Ok::<_, String>(key)
-        }
-    })
-});
+#[derive(Clone)]
+struct DatabaseService {
+    databases: ResidentResources<Database, Arc<MyDatabase>>,
+}
+
+#[wabou::js_module(name = "database")]
+#[rquickjs::module]
+mod database_host {
+    #[rquickjs::function]
+    #[wabou::js(args(workspace = string), returns = handle(Database))]
+    pub fn open(
+        ctx: rquickjs::Ctx<'_>,
+        workspace: String,
+    ) -> rquickjs::Result<wabou::JsValue<DatabaseKey>> {
+        let service = ctx
+            .userdata::<wabou::HostModuleState<DatabaseService>>()
+            .ok_or_else(|| rquickjs::Exception::throw_type(&ctx, "database state unavailable"))?;
+        Ok(wabou::JsValue(service.0.databases.get_or_insert_with(
+            workspace,
+            || Arc::new(MyDatabase::open()),
+        )))
+    }
+}
+
+let host = HostBuilder::new().host_module_def_with_state::<js_database_host, _>(
+    "database",
+    wabou::HostModuleState(DatabaseService { databases }),
+);
 ```
 
 There are two useful reload cases:

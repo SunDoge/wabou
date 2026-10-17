@@ -8,9 +8,6 @@
     "url": "git+https://github.com/SunDoge/wabou.git",
     "directory": "packages/terminal"
   },
-  "publishConfig": {
-    "access": "public"
-  },
   "files": [
     "dist"
   ],
@@ -27,5 +24,6 @@
   "dependencies": {
     "@wabou/core": "workspace:*",
     "solid-js": "2.0.0-rc.14"
-  }
+  },
+  "private": true
 }

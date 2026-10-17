@@ -2,7 +2,7 @@
   "version": 1,
   "entries": [
     {
-      "name": "__wabou_capabilities",
+      "name": "__wabou_host_modules",
       "direction": "host",
       "owner": "runtime",
       "kind": "const",
@@ -63,7 +63,7 @@
       "kind": "function",
       "browserMethod": "set_stylesheet",
       "browserInvalidates": true,
-      "params": [["json", "string"]],
+      "params": [["bytes", "Uint8Array"]],
       "returns": "void"
     },
     {
@@ -162,6 +162,75 @@
       "returns": "string"
     },
     {
+      "name": "__wabou_first_weekday",
+      "direction": "host",
+      "owner": "runtime",
+      "kind": "function",
+      "params": [["locale", "string"]],
+      "returns": "number"
+    },
+    {
+      "name": "__wabou_format_number",
+      "direction": "host",
+      "owner": "runtime",
+      "kind": "function",
+      "params": [
+        ["locale", "string"],
+        ["value", "number"],
+        ["options", "string"]
+      ],
+      "returns": "string"
+    },
+    {
+      "name": "__wabou_parse_number",
+      "direction": "host",
+      "owner": "runtime",
+      "kind": "function",
+      "params": [
+        ["locale", "string"],
+        ["input", "string"],
+        ["options", "string"]
+      ],
+      "returns": "number"
+    },
+    {
+      "name": "__wabou_plural_category",
+      "direction": "host",
+      "owner": "runtime",
+      "kind": "function",
+      "params": [
+        ["locale", "string"],
+        ["value", "number"],
+        ["options", "string"]
+      ],
+      "returns": "string"
+    },
+    {
+      "name": "__wabou_format_date",
+      "direction": "host",
+      "owner": "runtime",
+      "kind": "function",
+      "params": [
+        ["locale", "string"],
+        ["epochMillis", "number"],
+        ["options", "string"]
+      ],
+      "returns": "string"
+    },
+    {
+      "name": "__wabou_format_relative_time",
+      "direction": "host",
+      "owner": "runtime",
+      "kind": "function",
+      "params": [
+        ["locale", "string"],
+        ["value", "number"],
+        ["unit", "string"],
+        ["options", "string"]
+      ],
+      "returns": "string"
+    },
+    {
       "name": "__wabou_flush",
       "direction": "host",
       "owner": "runtime",
@@ -201,8 +270,13 @@
       "direction": "host",
       "owner": "runtime",
       "kind": "function",
-      "params": [["url", "string"], ["initJson", "string"], ["id?", "number"]],
-      "returns": "Promise<{ status: number; statusText: string; headers: Record<string, string>; body: Uint8Array }>"
+      "params": [
+        ["url", "string"],
+        ["initJson", "string"],
+        ["id?", "number"],
+        ["body?", "Uint8Array"]
+      ],
+      "returns": "Promise<{ status: number; statusText: string; headers: Record<string, string>; body: Uint8Array; url: string; redirected: boolean }>"
     },
     {
       "name": "__wabou_crypto_random",

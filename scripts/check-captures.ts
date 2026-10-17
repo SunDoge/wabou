@@ -27,7 +27,7 @@ interface CaptureConfig {
 }
 
 export interface CaptureCase extends CaptureViewport {
-  renderer: "vello-hybrid";
+  renderer: "vello-gpu";
   application: string;
   scenario: string;
   output: string;
@@ -115,6 +115,8 @@ export function captureCommand(
     "run",
     "-p",
     "wabou-cli",
+    "--bin",
+    "wabou",
     "--",
     "render",
     capture.application,
@@ -381,9 +383,9 @@ export async function discoverCaptureCases(
     cases.push({
       application,
       scenario,
-      renderer: "vello-hybrid",
-      output: `target/wabou-captures/${basename(application)}/vello-hybrid/${relativeScenario.replace(/\.ts$/u, ".png")}`,
-      snapshot: `target/wabou-captures/${basename(application)}/vello-hybrid/${relativeScenario.replace(/\.ts$/u, ".json")}`,
+      renderer: "vello-gpu",
+      output: `target/wabou-captures/${basename(application)}/vello-gpu/${relativeScenario.replace(/\.ts$/u, ".png")}`,
+      snapshot: `target/wabou-captures/${basename(application)}/vello-gpu/${relativeScenario.replace(/\.ts$/u, ".json")}`,
       ...viewport,
     });
   }
@@ -1448,10 +1450,7 @@ export function parseCaptureArguments(arguments_: string[]): CaptureArguments {
       throw new Error(`unsupported argument ${argument}`);
     }
   }
-  if (
-    parsed.list &&
-    (parsed.checkExisting || parsed.scenarios.length > 0)
-  ) {
+  if (parsed.list && (parsed.checkExisting || parsed.scenarios.length > 0)) {
     throw new Error(
       "--list cannot be combined with capture selection or checking",
     );

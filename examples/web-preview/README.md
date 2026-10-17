@@ -22,7 +22,7 @@ import { App } from "./app";
 mount(() => <App />);
 ```
 
-`defineWabouConfig({ target: "browser", browser: { canvas, runtimeModule, fonts } })`
+`defineConfig({ target: "browser", browser: { canvas, runtimeModule, fonts } })`
 generates the host bootstrap. The application does not initialize Wasm, intern
 protocol atoms, flush writers, dispatch browser input or manage a frame loop.
 Canvas readiness/errors are exposed as `wabou:ready` and `wabou:error` events for
@@ -85,9 +85,9 @@ native/browser parity or a general browser accessibility adapter.
 
 ## Crate ownership
 
-- `wabou-render-core`: shared styles, layout, fonts, paint scenes and widget
+- `wabou-renderer`: shared styles, layout, fonts, paint scenes and widget
   contracts. No Winit, clipboard, dialogs or QuickJS dependency.
-- `wabou-shell-vello`: native window host, input/platform services and resident
+- `wabou-shell`: native window host, input/platform services and resident
   widgets. Existing public rendering paths remain compatibility re-exports.
 - `wabou-web`: Wasm/browser protocol adapter and canvas entry points; JavaScript
   execution stays in the browser.

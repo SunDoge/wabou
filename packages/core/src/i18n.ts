@@ -1,4 +1,71 @@
 import { type Accessor, createSignal, flush } from "solid-js";
+import {
+  intl,
+  type NumberFormatOptions,
+  type PluralOptions,
+  type RelativeTimeOptions,
+  type RelativeTimeUnit,
+} from "./glue/intl";
+
+export {
+  type CalendarDateFields,
+  type DateFormatOptions,
+  intl,
+  type NumberFormatOptions,
+  type PluralOptions,
+  type RelativeTimeOptions,
+  type RelativeTimeUnit,
+} from "./glue/intl";
+
+/** Paraglide registry adapter backed by Wabou's native formatters. */
+export function plural(
+  locale: string,
+  input: unknown,
+  options?: PluralOptions,
+): string {
+  return intl.pluralCategory(Number(input), { locale, ...options });
+}
+
+/** Paraglide registry adapter backed by Wabou's native formatters. */
+export function number(
+  locale: string,
+  input: unknown,
+  options?: NumberFormatOptions,
+): string {
+  return intl.formatNumber(Number(input), { locale, ...options });
+}
+
+export function icuPound(
+  locale: string,
+  input: unknown,
+  options?: { offset?: unknown },
+): string {
+  const value = typeof input === "number" ? input : Number(input);
+  if (!Number.isFinite(value)) return String(input);
+  return number(locale, value - Number(options?.offset ?? 0));
+}
+
+/** Paraglide registry adapter backed by Wabou's native formatters. */
+export function datetime(
+  locale: string,
+  input: unknown,
+  options?: Parameters<typeof intl.formatDate>[1],
+): string {
+  return intl.formatDate(input as string | number | Date, {
+    locale,
+    ...options,
+  });
+}
+
+/** Paraglide registry adapter backed by Wabou's native formatters. */
+export function relativetime(
+  locale: string,
+  input: unknown,
+  options: RelativeTimeOptions & { unit: RelativeTimeUnit },
+): string {
+  const { unit, ...format } = options;
+  return intl.formatRelativeTime(Number(input), unit, { locale, ...format });
+}
 
 export interface CompiledMessageOptions<Locale extends string> {
   locale?: Locale;

@@ -9,7 +9,7 @@ publish = false
 hayro = "0.8.0"
 serde = { workspace = true, features = ["derive"] }
 wabou-bindgen = { workspace = true, optional = true, features = ["generate"] }
-wabou-render-core.workspace = true
+wabou-renderer.workspace = true
 
 [features]
 bindings = ["dep:wabou-bindgen"]
@@ -18,7 +18,7 @@ bindings = ["dep:wabou-bindgen"]
 serde_json.workspace = true
 tempfile = "3"
 vello-common.workspace = true
-wabou-shell-vello.workspace = true
+wabou-shell.workspace = true
 
 [[example]]
 name = "wabou-pdf-bindings"

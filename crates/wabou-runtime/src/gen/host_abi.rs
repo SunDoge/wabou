@@ -15,7 +15,7 @@ pub(crate) struct HostAbiEntry {
 
 pub(crate) const HOST_ABI: &[HostAbiEntry] = &[
     HostAbiEntry {
-        name: "__wabou_capabilities",
+        name: "__wabou_host_modules",
         direction: Direction::Host,
         owner: "runtime",
         feature: None,
@@ -118,6 +118,42 @@ pub(crate) const HOST_ABI: &[HostAbiEntry] = &[
     },
     HostAbiEntry {
         name: "__wabou_system_calendar_date",
+        direction: Direction::Host,
+        owner: "runtime",
+        feature: None,
+    },
+    HostAbiEntry {
+        name: "__wabou_first_weekday",
+        direction: Direction::Host,
+        owner: "runtime",
+        feature: None,
+    },
+    HostAbiEntry {
+        name: "__wabou_format_number",
+        direction: Direction::Host,
+        owner: "runtime",
+        feature: None,
+    },
+    HostAbiEntry {
+        name: "__wabou_parse_number",
+        direction: Direction::Host,
+        owner: "runtime",
+        feature: None,
+    },
+    HostAbiEntry {
+        name: "__wabou_plural_category",
+        direction: Direction::Host,
+        owner: "runtime",
+        feature: None,
+    },
+    HostAbiEntry {
+        name: "__wabou_format_date",
+        direction: Direction::Host,
+        owner: "runtime",
+        feature: None,
+    },
+    HostAbiEntry {
+        name: "__wabou_format_relative_time",
         direction: Direction::Host,
         owner: "runtime",
         feature: None,
@@ -306,7 +342,7 @@ pub(crate) const HOST_ABI: &[HostAbiEntry] = &[
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum HostBinding {
-    Capabilities,
+    HostModules,
     Intern,
     OpenUrl,
     MotionCreate,
@@ -324,6 +360,12 @@ pub enum HostBinding {
     SystemLocale,
     SystemTimeZone,
     SystemCalendarDate,
+    FirstWeekday,
+    FormatNumber,
+    ParseNumber,
+    PluralCategory,
+    FormatDate,
+    FormatRelativeTime,
     Flush,
     Log,
     Utf8Encode,
@@ -359,7 +401,7 @@ pub enum HostBinding {
 impl HostBinding {
     pub const fn name(self) -> &'static str {
         match self {
-            Self::Capabilities => "__wabou_capabilities",
+            Self::HostModules => "__wabou_host_modules",
             Self::Intern => "__wabou_intern",
             Self::OpenUrl => "__wabou_open_url",
             Self::MotionCreate => "__wabou_motion_create",
@@ -377,6 +419,12 @@ impl HostBinding {
             Self::SystemLocale => "__wabou_system_locale",
             Self::SystemTimeZone => "__wabou_system_time_zone",
             Self::SystemCalendarDate => "__wabou_system_calendar_date",
+            Self::FirstWeekday => "__wabou_first_weekday",
+            Self::FormatNumber => "__wabou_format_number",
+            Self::ParseNumber => "__wabou_parse_number",
+            Self::PluralCategory => "__wabou_plural_category",
+            Self::FormatDate => "__wabou_format_date",
+            Self::FormatRelativeTime => "__wabou_format_relative_time",
             Self::Flush => "__wabou_flush",
             Self::Log => "__wabou_log",
             Self::Utf8Encode => "__wabou_utf8_encode",

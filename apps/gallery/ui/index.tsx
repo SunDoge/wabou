@@ -10,7 +10,6 @@ import {
   createScrollReset,
   createWindowMatch,
   currentWindow,
-  Fps,
   type Handle,
   mergeClasses,
   mount,
@@ -29,8 +28,8 @@ import { createSignal, Match, Show, Switch as ShowCase } from "solid-js";
 import "virtual:wabou-stylesheet";
 
 import { OverlayPage } from "./pages/overlay";
-import { SystemPage } from "./pages/system";
 import { ShaderLayerPage } from "./pages/shader-layer";
+import { SystemPage } from "./pages/system";
 import { GallerySidebar } from "./sidebar";
 
 type ComponentId =
@@ -259,7 +258,7 @@ const descriptions: Record<ComponentId, string> = {
   platform: "Native windows and Rust-powered custom widgets.",
   system: "Native file dialogs, message dialogs and desktop notifications.",
   "shader-layer":
-    "Runs validated custom WGSL inside a retained, layout-aware Vello Hybrid surface.",
+    "Runs validated custom WGSL inside a retained, layout-aware Vello GPU surface.",
   colors: "Every color token exported by the native Wabou utility theme.",
   shadows: "Backend-neutral box shadows with explicit Gaussian parameters.",
   "layout-styles":
@@ -379,9 +378,9 @@ import {
 import { ChartPage } from "./pages/chart";
 import { DataTablePage } from "./pages/data-table";
 import { ColorsPage, LayoutStylesPage, ShadowsPage } from "./pages/foundations";
+import { GithubDesktopReferencePage } from "./pages/github-desktop";
 import { I18nPage } from "./pages/i18n";
 import { ImageViewportPage } from "./pages/image-viewport";
-import { GithubDesktopReferencePage } from "./pages/github-desktop";
 import { MarkdownPage } from "./pages/markdown";
 import { MenubarPage } from "./pages/menubar";
 import { OverviewPage } from "./pages/overview";

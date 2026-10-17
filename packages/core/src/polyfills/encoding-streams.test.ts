@@ -3,6 +3,7 @@ import {
   ReadableStream as PolyfillReadableStream,
   TransformStream,
 } from "web-streams-polyfill";
+
 const ReadableStream =
   PolyfillReadableStream as unknown as typeof globalThis.ReadableStream;
 const previousTransform = globalThis.TransformStream;
@@ -13,6 +14,7 @@ beforeAll(() => {
 afterAll(() => {
   globalThis.TransformStream = previousTransform;
 });
+
 import {
   installEncodingStreamsPolyfill,
   WabouTextDecoderStream,

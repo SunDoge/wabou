@@ -5,15 +5,15 @@ import { match, P } from "ts-pattern";
 import {
   Image,
   type ImageResourceErrorEvent,
-  type ImageResourceReadyEvent,
   type ImageResourceHandle,
+  type ImageResourceReadyEvent,
   Button as PrimitiveButton,
   Text,
   View,
 } from "../primitives";
 
 export interface ImageListProps<T> {
-  /** Reactive backing collection. GPUI materializes only visible native rows. */
+  /** Reactive backing collection. The renderer materializes only visible native rows. */
   items: () => readonly T[];
   getItemKey: (item: T, index: number) => string | number;
   getResource?: (item: T, index: number) => ImageResourceHandle;

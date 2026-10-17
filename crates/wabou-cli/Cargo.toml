@@ -19,26 +19,23 @@ required-features = ["embedded-renderer"]
 usage-rs.workspace = true
 ctrlc = "3.5"
 fs4 = "0.13.1"
+ignore.workspace = true
 process-wrap = { version = "10.0.1", features = ["std"] }
 cargo-packager = { version = "0.11.8", default-features = false, features = ["rustls-tls"] }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
+syn = { version = "2", features = ["full", "parsing"] }
 tempfile = "3"
-toml = "0.9"
 wabou-devtools = { workspace = true }
-wabou-launch = { path = "../wabou-launch" }
-wabou-backend-vello-hybrid = { workspace = true, features = ["devtools"], optional = true }
-wabou-shell-vello = { workspace = true, optional = true, features = ["widgets"] }
+wabou = { workspace = true, features = ["devtools"], optional = true }
+wabou-shell = { workspace = true, optional = true, features = ["widgets"] }
 wabou-shell-api.workspace = true
-
-wabou-runtime-library = { path = "../wabou-runtime-library", optional = true }
 
 [features]
 default = []
 # The engine is isolated in the wabou-render helper. Normal CLI commands do not
 # compile or link the renderer, QuickJS, Winit, or wgpu.
 embedded-renderer = [
-  "dep:wabou-backend-vello-hybrid",
-  "dep:wabou-shell-vello",
-  "dep:wabou-runtime-library",
+  "dep:wabou",
+  "dep:wabou-shell",
 ]

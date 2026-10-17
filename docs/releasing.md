@@ -1,13 +1,14 @@
 # Releasing a preview
 
-Rust previews are distributed from immutable Git tags. JavaScript packages can
-also be published to npm under the `alpha` dist-tag; crates.io remains deferred
-until the Rust crate boundaries stabilize.
+Developer previews are distributed from immutable Git tags. Applications pin
+that tag as `vendor/wabou`, so the Rust crates and private TypeScript workspace
+packages always come from the same revision. npm and crates.io publication are
+deferred until the package boundaries stabilize.
 
 ## Prepare
 
-1. Prepare an explicit, unused prerelease version. This consumes pending
-   Changesets, synchronizes Rust and JavaScript versions, updates changelogs and
+1. Prepare an explicit, unused prerelease version. This synchronizes Rust and
+   vendored TypeScript package versions, updates the root changelog and
    lockfiles, and refuses to reuse a local or remote Git tag:
 
    ```bash
@@ -32,27 +33,6 @@ until the Rust crate boundaries stabilize.
 6. Run `wabou new` against the candidate Git revision, then verify `bun
    install`, `bun run check`, `bun run build`, and `cargo check` in the generated
    standalone project.
-
-## Publish JavaScript packages
-
-The repository remains in Changesets prerelease mode between alpha releases.
-Use `release:prepare` rather than calling `version-packages` directly so an
-explicit version is shared with the Rust workspace and checked against Git
-tags.
-
-1. Confirm `bun pm whoami` reports an npm account with publish access to the
-   `@wabou` scope.
-2. Run `bun run release:prepare <version>`, review its output, then commit the
-   release metadata.
-3. Re-run every preparation gate against that commit.
-4. Publish in dependency order with the prerelease dist-tag:
-
-   ```bash
-   bun run release-packages --tag alpha
-   ```
-
-The release command rebuilds all packages with tsdown before publishing. Do
-not publish an alpha under npm's default `latest` tag.
 
 ## Tag
 

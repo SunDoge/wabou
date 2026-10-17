@@ -25,7 +25,6 @@ import {
   nodeKeyEquals,
   OP,
   ROOT_NODE_KEY,
-  TEXT_BEHAVIOR,
   Writer,
 } from "../protocol";
 
@@ -36,7 +35,7 @@ export {
 } from "../protocol";
 
 import { createMemo, flush, omit, untrack } from "solid-js";
-import type { HostCapabilities, WabouIntrinsicElements } from "../registry";
+import type { WabouIntrinsicElements } from "../registry";
 import {
   type Affine2D,
   assertInlineStyleValue,
@@ -47,7 +46,7 @@ import {
 import { isVectorPath, type VectorPath } from "../vector-path";
 
 export type {
-  HostCapabilities,
+  HostModules,
   WabouIntrinsicElements,
 } from "../registry";
 export const isServer = false;
@@ -64,9 +63,9 @@ import type { JSX } from "./jsx";
  */
 export interface WabouBuiltinIntrinsicElements {
   view: WabouElementProps;
-  /** GPUI-owned animated activity indicator. Prefer the `Spinner` component. */
+  /** Renderer-owned animated activity indicator. Prefer the `Spinner` component. */
   spinner: WabouElementProps;
-  /** GPUI-backed uniform virtual list. Prefer the `VirtualList` component. */
+  /** Renderer-backed uniform virtual list. Prefer the `VirtualList` component. */
   "virtual-list": WabouElementProps;
   "vector-path": WabouVectorPathProps;
 }
@@ -152,11 +151,11 @@ export interface WabouElementProps {
   focusContained?: boolean;
   /** Places this subtree in a native overlay plane above ordinary content. */
   overlayPlane?: "content" | "floating" | "modal";
-  /** Retains this subtree behind an independently invalidated GPUI Entity. */
+  /** Retains this subtree behind an independently invalidated projection boundary. */
   projectionBoundary?: boolean;
   /** Renderer-owned motion sampled without per-frame JS traffic. */
   nativeMotion?: WabouNativeMotion;
-  /** Positions this element from a retained node or viewport point in GPUI. */
+  /** Positions this element from a retained node or viewport point. */
   floatingPosition?: WabouFloatingPosition;
   "aria-label"?: string;
   "aria-hidden"?: boolean | "true" | "false";
@@ -758,7 +757,12 @@ function applyProperty(
     name === "interactionBlocked" ||
     name === "focusContained"
   ) {
-    const state = interactionByNode.get(node)!;
+    const state = interactionByNode.get(node) ?? {
+      focusOrder: null,
+      blocked: false,
+      contained: false,
+    };
+    interactionByNode.set(node, state);
     if (name === "focusOrder") {
       state.focusOrder =
         value == null || value === false ? null : Number(value);
@@ -1067,7 +1071,7 @@ export function setTransform2D(node: Handle, matrix: Affine2D): void {
   if (!matrix.every(Number.isFinite)) return;
   writer.setTransform2D(node.id, matrix);
 }
-export const render = renderer.render as any as (
+export const render = renderer.render as unknown as (
   code: () => JSX.Element,
   node: Handle,
 ) => () => void;
@@ -1426,8 +1430,15 @@ function derefHandle(id: NodeKey): Handle | undefined {
   return nodesByKey.get(id)?.deref();
 }
 
+/** Structural slice of a dispatched event that `bubble` retargets as it walks. */
+interface BubbledEvent {
+  target: unknown;
+  currentTarget: unknown;
+  propagationStopped: boolean;
+}
+
 /** Walk parent chain from `nodeId`, firing `code` listeners until stopped. */
-function bubble(nodeId: NodeKey, code: number, ev: any): void {
+function bubble(nodeId: NodeKey, code: number, ev: BubbledEvent): void {
   let cur: NodeKey | null = nodeId;
   while (cur != null) {
     ev.currentTarget = nodeKeyEquals(cur, nodeId) ? ev.target : { id: cur };

@@ -146,8 +146,20 @@ export default {{
     })
 }
 
-/// Use authored Vite configuration when present; otherwise provide Wabou's defaults.
+/// Adapt the single authored Wabou configuration for Vite, or provide defaults.
 pub(super) fn default_vite_config(app: &App) -> Result<Option<tempfile::NamedTempFile>> {
+    let project = app.root.join("wabou.config.ts");
+    if project.is_file() {
+        let file = tempfile::Builder::new().suffix(".mjs").tempfile()?;
+        fs::write(
+            file.path(),
+            format!(
+                "export {{ default }} from {};\n",
+                serde_json::to_string(&project.canonicalize()?)?
+            ),
+        )?;
+        return Ok(Some(file));
+    }
     if ["ts", "js", "mts", "mjs", "cts", "cjs"]
         .iter()
         .any(|extension| app.root.join(format!("vite.config.{extension}")).is_file())
@@ -162,7 +174,7 @@ pub(super) fn default_vite_config(app: &App) -> Result<Option<tempfile::NamedTem
     fs::write(
         file.path(),
         format!(
-            "import {{ defineWabouConfig }} from {};\nexport default defineWabouConfig({options});\n",
+            "import {{ defineConfig }} from {};\nexport default defineConfig({options});\n",
             serde_json::to_string(&module)?
         ),
     )?;

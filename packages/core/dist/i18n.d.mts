@@ -1,5 +1,19 @@
+import { a as RelativeTimeOptions, i as PluralOptions, n as DateFormatOptions, o as RelativeTimeUnit, r as NumberFormatOptions, s as intl, t as CalendarDateFields } from "./intl-C6JICTBS.mjs";
 import { Accessor } from "solid-js";
 //#region src/i18n.d.ts
+/** Paraglide registry adapter backed by Wabou's native formatters. */
+export declare function plural(locale: string, input: unknown, options?: PluralOptions): string;
+/** Paraglide registry adapter backed by Wabou's native formatters. */
+export declare function number(locale: string, input: unknown, options?: NumberFormatOptions): string;
+export declare function icuPound(locale: string, input: unknown, options?: {
+  offset?: unknown;
+}): string;
+/** Paraglide registry adapter backed by Wabou's native formatters. */
+export declare function datetime(locale: string, input: unknown, options?: Parameters<typeof intl.formatDate>[1]): string;
+/** Paraglide registry adapter backed by Wabou's native formatters. */
+export declare function relativetime(locale: string, input: unknown, options: RelativeTimeOptions & {
+  unit: RelativeTimeUnit;
+}): string;
 export interface CompiledMessageOptions<Locale extends string> {
   locale?: Locale;
 }
@@ -20,4 +34,5 @@ export interface LocaleOptions<Locale extends string> {
  */
 export declare function createLocale<const Locale extends string>(initialLocale: Locale, options?: LocaleOptions<Locale>): LocaleController<Locale>;
 //#endregion
+export { type CalendarDateFields, type DateFormatOptions, type NumberFormatOptions, type PluralOptions, type RelativeTimeOptions, type RelativeTimeUnit, intl };
 //# sourceMappingURL=i18n.d.mts.map

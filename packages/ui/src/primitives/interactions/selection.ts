@@ -1,4 +1,3 @@
-import { match } from "ts-pattern";
 import {
   type Accessor,
   createEffect,
@@ -6,6 +5,7 @@ import {
   createSignal,
   untrack,
 } from "solid-js";
+import { match } from "ts-pattern";
 
 export type SelectionMode = "single" | "multiple";
 export type Selection = string | readonly string[] | undefined;

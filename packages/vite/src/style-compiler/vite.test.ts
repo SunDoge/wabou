@@ -55,7 +55,7 @@ describe("utility source extraction", () => {
     ).not.toThrow();
   });
 
-  test("accepts directional radii implemented by the GPUI host", () => {
+  test("accepts directional radii implemented by the native host", () => {
     expect(() =>
       assertSupportedWabouCandidates([
         "rounded-l-lg",

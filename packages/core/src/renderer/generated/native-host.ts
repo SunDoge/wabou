@@ -100,10 +100,16 @@ type NodeKey = {
 
 export interface NativeHostApi {
   debugOverlayPaintStats(): DebugOverlayPaintStats | null;
+  firstWeekday(locale: string): number;
+  formatDate(locale: string, epochMillis: number, options: string): string;
+  formatNumber(locale: string, value: number, options: string): string;
+  formatRelativeTime(locale: string, value: number, unit: string, options: string): string;
   frameStats(): FrameStats | null;
   layoutSnapshot(ids: NodeKey[]): LayoutSnapshot;
   loadFont(path: string): boolean;
   openUrl(url: string): boolean;
+  parseNumber(locale: string, input: string, options: string): number;
+  pluralCategory(locale: string, value: number, options: string): string;
   setDebugOverlay(layout: boolean, clips: boolean, hitTarget: boolean): boolean;
   systemCalendarDate(): CalendarDateInfo;
   systemLocale(): string;

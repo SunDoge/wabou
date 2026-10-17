@@ -354,7 +354,7 @@ pub enum ImeEvent {
 /// Focused text state exposed by a backend-owned editor to the native IME.
 ///
 /// Selection offsets use UTF-16 because that is the common contract expected
-/// by macOS and GPUI input handlers. Backends remain responsible for mapping
+/// by macOS and native input handlers. Backends remain responsible for mapping
 /// those offsets to their authoritative UTF-8 document representation.
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct ProjectedTextInputState {
@@ -585,7 +585,7 @@ pub enum HostActionResult {
     },
 }
 
-/// Thread-safe callback used by asynchronous producers to wake the GPUI
+/// Thread-safe callback used by asynchronous producers to wake the native
 /// application loop.
 pub type WakeCallback = Arc<dyn Fn() + Send + Sync>;
 
@@ -636,27 +636,6 @@ impl FrameStats {
         self.scene_ms = self.scene_ms * prev + scene_ms * Self::ALPHA;
         self.present_ms = self.present_ms * prev + present_ms * Self::ALPHA;
         self.node_count = node_count;
-    }
-
-    /// Blend a GPUI frame sample, including the JavaScript flush and viewport.
-    pub fn update_gpui(
-        &mut self,
-        build_frame_ms: f64,
-        js_tick_ms: f64,
-        scene_ms: f64,
-        node_count: usize,
-        viewport: (u32, u32),
-    ) {
-        let prev = 1.0 - Self::ALPHA;
-        self.build_frame_ms = self.build_frame_ms * prev + build_frame_ms * Self::ALPHA;
-        self.js_tick_ms = self.js_tick_ms * prev + js_tick_ms * Self::ALPHA;
-        self.scene_ms = self.scene_ms * prev + scene_ms * Self::ALPHA;
-        // GPUI-CE does not currently expose a per-window present-completion
-        // timestamp to application views. Zero means unavailable, not free.
-        self.present_ms = 0.0;
-        self.node_count = node_count;
-        self.viewport_w = viewport.0;
-        self.viewport_h = viewport.1;
     }
 }
 

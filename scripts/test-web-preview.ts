@@ -4,7 +4,6 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 
 const url = process.argv[2] ?? "http://127.0.0.1:5179/";
-// biome-ignore lint/suspicious/noUndeclaredEnvVars: documented override for the browser proof executable.
 const chromeOverride = process.env.CHROME;
 const chrome =
   chromeOverride ?? Bun.which("google-chrome") ?? Bun.which("chromium");

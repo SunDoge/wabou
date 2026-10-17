@@ -6,34 +6,6 @@ its dependencies. The server publishes immutable copies of runtime state; its
 socket thread never accesses QuickJS, Taffy, widgets, the window or the GPU
 directly.
 
-## Native inspector
-
-The visual inspector is itself a Wabou application. Build its Solid bundle,
-then launch its Rust host while a debug Wabou application is running:
-
-```bash
-mise exec -- cargo run -p wabou-cli -- devtools
-```
-
-It auto-discovers the newest live target, or accepts an explicit Unix socket
-path. The inspector provides searchable nodes, computed layout and style,
-event listeners, recent binary-protocol frames, on-demand screenshots, and a
-selected-node overlay. Disconnect errors retain the last useful snapshot.
-
-The inspector disables its own DevTools server, so it cannot accidentally
-discover or recursively inspect itself.
-
-For distribution, build the GUI like any other Wabou application:
-
-```bash
-mise exec -- cargo run -p wabou-cli -- build apps/devtools --release
-```
-
-This produces `dist/devtools/wabou-devtools` with its
-`resources/bundle.js`. Install that directory intact. `wabou devtools` and
-`wabou dev --devtools` look for `wabou-devtools` next to the `wabou` binary
-first, then on `PATH`; `WABOU_DEVTOOLS_SOCKET` selects a specific target.
-
 ## CLI
 
 The CLI discovers the newest live Wabou process in `$XDG_RUNTIME_DIR`. Set
@@ -84,6 +56,15 @@ the retained tree is valid and JavaScript throws no exception. The first
 published snapshot may have `frameStats: null`; query again after interacting
 with the application.
 
+The same response includes `processMemory` and `quickJsMemory`. Process memory
+is sampled when the command runs. Linux reports RSS, lifetime peak RSS, and PSS;
+macOS and Windows report the current and peak resident working set.
+QuickJS reports allocator bytes plus live atoms, strings, objects, properties,
+functions, bytecode, arrays, and binary backing stores from the latest native
+projection. This separation makes driver/renderer growth distinguishable from
+guest-heap growth. QuickJS collection is limited to DevTools builds and does
+not run on every production frame.
+
 `validate` checks the latest retained snapshot before pixel diagnosis. It
 reports stable issue codes for duplicate or dangling node identities, parent
 cycles, invalid border/content/clip geometry, non-finite transforms, stale
@@ -112,7 +93,7 @@ completed captures are retained; normal frames do not perform a GPU readback.
 
 ## Headless screenshots
 
-`wabou render` defaults to the offscreen Vello Hybrid renderer with the same
+`wabou render` defaults to the offscreen Vello GPU renderer with the same
 host-global ordering as the native runtime. In bundle-only mode it does not run
 application-owned Rust services or capabilities. This is appropriate for
 isolated component and interaction captures. Both render backends drive frames
@@ -133,16 +114,16 @@ wabou render apps/gallery --out /tmp/gallery.png \
   --snapshot /tmp/gallery-tree.json
 ```
 
-Captures carry an explicit `vello-hybrid` provenance label, so stale artifacts
+Captures carry an explicit `vello-gpu` provenance label, so stale artifacts
 cannot satisfy the current renderer gate. Use `--with-host` when the rendered
 state depends on registrations in the application's `HostBuilder`. Wabou starts
 the real application binary on its
-deterministic headless backend, including services, capabilities, host-message
+deterministic headless backend, including services, host modules, host-message
 producers, and custom widget factories, then shuts them down normally:
 
 ```sh
-wabou render apps/motrix --with-host \
-  --out /tmp/motrix.png
+wabou render /path/to/app --with-host \
+  --out /tmp/app.png
 ```
 
 An authored `@wabou/test` scenario can navigate or mutate the real application
@@ -150,10 +131,10 @@ before capture. All tests registered by the scenario run first, followed by the
 capture settling window:
 
 ```sh
-wabou render apps/motrix --with-host \
-  --scenario apps/motrix/captures/downloads.ts \
-  --out /tmp/motrix-downloads.png \
-  --snapshot /tmp/motrix-downloads.json
+wabou render /path/to/app --with-host \
+  --scenario /path/to/app/captures/ready.ts \
+  --out /tmp/app-ready.png \
+  --snapshot /tmp/app-ready.json
 ```
 
 Scenario failures abort the capture with the same semantic locator diagnostics
@@ -197,10 +178,9 @@ Use repeatable exact `--scenario` arguments to render or recheck only the state
 affected by a local change:
 
 ```sh
-bun run scripts/check-captures.ts \
-  --scenario apps/motrix/captures/task-details.ts
+bun run scripts/check-captures.ts --scenario apps/gallery/captures/alert-light.ts
 bun run scripts/check-captures.ts --check-existing \
-  --scenario apps/motrix/captures/task-details.ts
+  --scenario apps/gallery/captures/alert-light.ts
 ```
 
 `page.waitForIdle()` waits for queued test actions and runtime work; it does

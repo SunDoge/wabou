@@ -15,7 +15,7 @@ import type {
   NativeHostApi,
   NodeKey as NativeNodeKey,
 } from "./generated/native-host";
-import type { HostCapabilities } from "./index";
+import type { HostModules } from "./index";
 
 export type {
   DebugOverlayPaintStats,
@@ -42,7 +42,34 @@ declare function __wabou_layout_snapshot(
 declare function __wabou_system_locale(): string;
 declare function __wabou_system_time_zone(): string;
 declare function __wabou_system_calendar_date(): string;
-declare const __wabou_capabilities: Record<string, object>;
+declare function __wabou_first_weekday(locale: string): number;
+declare function __wabou_format_number(
+  locale: string,
+  value: number,
+  options: string,
+): string;
+declare function __wabou_parse_number(
+  locale: string,
+  input: string,
+  options: string,
+): number;
+declare function __wabou_plural_category(
+  locale: string,
+  value: number,
+  options: string,
+): string;
+declare function __wabou_format_date(
+  locale: string,
+  epochMillis: number,
+  options: string,
+): string;
+declare function __wabou_format_relative_time(
+  locale: string,
+  value: number,
+  unit: string,
+  options: string,
+): string;
+declare const __wabou_host_modules: Record<string, object>;
 
 export type LayoutTarget = NodeKey | { readonly id: NodeKey };
 
@@ -79,6 +106,17 @@ export interface BuiltinHost {
     timeZone(): string;
     /** Current Gregorian date in the operating system's local time zone. */
     today(): CalendarDateInfo;
+    firstWeekday(locale: string): number;
+    formatNumber(locale: string, value: number, options: string): string;
+    parseNumber(locale: string, input: string, options: string): number;
+    pluralCategory(locale: string, value: number, options: string): string;
+    formatDate(locale: string, epochMillis: number, options: string): string;
+    formatRelativeTime(
+      locale: string,
+      value: number,
+      unit: string,
+      options: string,
+    ): string;
   };
   readonly layout: {
     /** Measure several nodes from one coherent, completed native layout. */
@@ -92,8 +130,8 @@ export interface BuiltinHost {
   };
 }
 
-/** Augment `HostCapabilities` in generated/user declarations. */
-export type Host = BuiltinHost & HostCapabilities;
+/** Augment `HostModules` in generated/user declarations. */
+export type Host = BuiltinHost & HostModules;
 
 /** Checked adapter around the private Rust/QuickJS ABI. */
 const LAYOUT_SNAPSHOT_VERSION = 1;
@@ -175,6 +213,44 @@ const nativeHost: NativeHostApi = {
   systemTimeZone: () => __wabou_system_time_zone(),
   systemCalendarDate: () =>
     JSON.parse(__wabou_system_calendar_date()) as CalendarDateInfo,
+  firstWeekday: (locale) =>
+    typeof __wabou_first_weekday === "function"
+      ? __wabou_first_weekday(locale)
+      : new Intl.Locale(locale).getWeekInfo().firstDay % 7,
+  formatNumber: (locale, value, options) =>
+    typeof __wabou_format_number === "function"
+      ? __wabou_format_number(locale, value, options)
+      : new Intl.NumberFormat(locale, JSON.parse(options)).format(value),
+  parseNumber: (locale, input, options) => {
+    if (typeof __wabou_parse_number === "function")
+      return __wabou_parse_number(locale, input, options);
+    const formatter = new Intl.NumberFormat(locale, JSON.parse(options));
+    const parts = formatter.formatToParts(12345.6);
+    const group = parts.find((part) => part.type === "group")?.value ?? ",";
+    const decimal = parts.find((part) => part.type === "decimal")?.value ?? ".";
+    const normalized = input
+      .replaceAll(group, "")
+      .replace(decimal, ".")
+      .replace(/[^0-9+.-]/g, "");
+    return Number(normalized);
+  },
+  pluralCategory: (locale, value, options) =>
+    typeof __wabou_plural_category === "function"
+      ? __wabou_plural_category(locale, value, options)
+      : new Intl.PluralRules(locale, JSON.parse(options)).select(value),
+  formatDate: (locale, epochMillis, options) =>
+    typeof __wabou_format_date === "function"
+      ? __wabou_format_date(locale, epochMillis, options)
+      : new Intl.DateTimeFormat(locale, JSON.parse(options)).format(
+          epochMillis,
+        ),
+  formatRelativeTime: (locale, value, unit, options) =>
+    typeof __wabou_format_relative_time === "function"
+      ? __wabou_format_relative_time(locale, value, unit, options)
+      : new Intl.RelativeTimeFormat(locale, JSON.parse(options)).format(
+          value,
+          unit as Intl.RelativeTimeFormatUnit,
+        ),
 };
 
 const builtinHost: BuiltinHost = {
@@ -194,6 +270,12 @@ const builtinHost: BuiltinHost = {
     locale: nativeHost.systemLocale,
     timeZone: nativeHost.systemTimeZone,
     today: nativeHost.systemCalendarDate,
+    firstWeekday: nativeHost.firstWeekday,
+    formatNumber: nativeHost.formatNumber,
+    parseNumber: nativeHost.parseNumber,
+    pluralCategory: nativeHost.pluralCategory,
+    formatDate: nativeHost.formatDate,
+    formatRelativeTime: nativeHost.formatRelativeTime,
   },
   layout: {
     snapshot: (targets) =>
@@ -214,7 +296,7 @@ const builtinHost: BuiltinHost = {
 
 export const defaultHost: Host = Object.assign(
   builtinHost,
-  typeof __wabou_capabilities === "undefined" ? {} : __wabou_capabilities,
+  typeof __wabou_host_modules === "undefined" ? {} : __wabou_host_modules,
 ) as unknown as Host;
 
 const HostContext = createContext<Host>(defaultHost);

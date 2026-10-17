@@ -1,7 +1,7 @@
+import { mergeClasses } from "@wabou/core/style";
 import { createSignal, For as ForValue, type JSX } from "solid-js";
 import { Text, View, type ViewProps } from "../primitives";
 import { Button } from "./button";
-import { mergeClasses } from "@wabou/core/style";
 
 export interface StepperStep {
   id: string;

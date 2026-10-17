@@ -1,23 +1,8 @@
-/** Frontend-only fallback-host configuration.
- *
- * Normal Wabou applications register Rust capabilities and widgets directly
- * in their statically linked executable.
- */
-export interface WabouProjectConfig {
-  window?: {
-    title?: string;
-    width?: number;
-    height?: number;
-    decorations?: boolean;
-  };
-  ui?: { entry?: string };
-}
-
-/** Type-check ordinary data or an asynchronous environment-dependent factory. */
-export function defineConfig<
-  T extends
-    | WabouProjectConfig
-    | (() => WabouProjectConfig | Promise<WabouProjectConfig>),
->(config: T): T {
-  return config;
-}
+export {
+  defineConfig,
+  type WabouBindingsOptions,
+  type WabouPackageOptions,
+  type WabouProjectConfig,
+  type WabouProjectConfigExport,
+  type WabouWindowOptions,
+} from "./index";

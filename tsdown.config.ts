@@ -1,5 +1,5 @@
-import { defineConfig, type UserConfig } from "tsdown";
 import solid from "@solidjs/vite-plugin";
+import { defineConfig, type UserConfig } from "tsdown";
 
 const stageName = process.env.WABOU_PACKAGE_STAGE_NAME;
 
@@ -16,6 +16,7 @@ const packages: Record<string, UserConfig["entry"]> = {
     testing: "src/testing.ts",
     style: "src/style.ts",
     i18n: "src/i18n.ts",
+    web: "src/web.ts",
     "jsx-runtime": "src/jsx.ts",
   },
   pdf: { index: "generated/index.tsx" },
@@ -33,6 +34,7 @@ const packages: Record<string, UserConfig["entry"]> = {
     index: "src/index.ts",
     i18n: "src/i18n.ts",
     primitives: "src/primitives/index.ts",
+    web: "src/web.ts",
     "jsx-runtime": "src/jsx.ts",
   },
   vite: {
@@ -54,6 +56,8 @@ export default defineConfig(
     format: "esm",
     platform: "neutral",
     target: "es2022",
+    unbundle: name === "ui",
+    root: name === "ui" ? "src" : undefined,
     dts: name === "ui" ? { eager: true, newContext: true } : true,
     outDir: stageName ?? "dist",
     outExtensions: () => ({ js: ".mjs", dts: ".d.mts" }),

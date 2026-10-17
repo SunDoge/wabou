@@ -3,7 +3,13 @@
 // that package graph for ordinary UI work.
 
 export * from "@wabou/core";
-export * from "@wabou/core/i18n";
+export {
+  type CompiledMessage,
+  type CompiledMessageOptions,
+  createLocale,
+  type LocaleController,
+  type LocaleOptions,
+} from "@wabou/core/i18n";
 export * from "./animation";
 export * from "./components";
 // Prefer the styled component where a high-level component and a host-service
@@ -82,8 +88,8 @@ export {
   Path,
   PathBuilder,
   type PathProps,
-  ProjectionBoundary,
   type PressResult,
+  ProjectionBoundary,
   Pulse,
   type RetainedItem,
   type RetainedItems,

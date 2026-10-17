@@ -210,10 +210,10 @@ test("builds a single-process fixture batch invocation", () => {
   ]);
 });
 
-test("builds a host-backed layout invocation for application capabilities", () => {
+test("builds a host-backed layout invocation for application modules", () => {
   expect(
     layoutCommandArgs({
-      app: "apps/pi-agent",
+      app: "apps/gallery",
       out: "/tmp/layout.json",
       width: 1200,
       height: 800,
@@ -222,7 +222,7 @@ test("builds a host-backed layout invocation for application capabilities", () =
     }),
   ).toEqual([
     "render",
-    "apps/pi-agent",
+    "apps/gallery",
     "--out",
     "/tmp/layout.json.png",
     "--snapshot",

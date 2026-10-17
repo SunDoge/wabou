@@ -78,10 +78,14 @@ export function dispatchResizeObservation(
   for (const callback of observed.callbacks) {
     try {
       callback([entry]);
-    } catch (error: any) {
-      __wabou_log("error", error?.stack ? String(error.stack) : String(error));
+    } catch (error: unknown) {
+      __wabou_log(
+        "error",
+        error instanceof Error && error.stack ? error.stack : String(error),
+      );
     }
   }
 }
 
-if (!hasBrowserDom()) (globalThis as any).ResizeObserver = WabouResizeObserver;
+if (!hasBrowserDom())
+  Object.assign(globalThis, { ResizeObserver: WabouResizeObserver });

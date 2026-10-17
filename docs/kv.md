@@ -2,8 +2,8 @@
 
 Wabou includes an opt-in hierarchical key-value service for small durable
 application records. The native store uses embedded SQLite through
-`wabou-database`; JavaScript receives typed structured
-values through the ordinary native capability boundary.
+`wabou-database`; JavaScript receives typed structured values through a native
+`rquickjs` module.
 
 Enable it together with a stable application identity:
 

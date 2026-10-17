@@ -111,7 +111,7 @@ export interface ComponentLocator extends ComponentQueries {
   readonly focusContained: boolean;
   /** Native stacking plane authored for this node. */
   readonly overlayPlane: ComponentOverlayPlane;
-  /** Whether this node owns an explicit retained GPUI projection boundary. */
+  /** Whether this node owns an explicit retained projection boundary. */
   readonly projectionBoundary: boolean;
   attribute(name: string): string | null;
   pointerDown(position?: ComponentPointerPosition): void;
@@ -211,7 +211,7 @@ export declare function assertFocusOwnerCount(root: ComponentLocator, expected: 
 /** Assert that a rendered overlay is attached to the requested native plane. */
 export declare function assertInOverlayPlane(locator: ComponentLocator, expected: Exclude<ComponentOverlayPlane, "content">): void;
 /** Create a typed, deterministic Host with automatic call recording. */
-export declare function createTestHost<C extends object = Record<string, never>>(capabilities?: C, builtins?: TestBuiltinHost): TestHostFixture<Host & C>;
+export declare function createTestHost<C extends object = Record<string, never>>(modules?: C, builtins?: TestBuiltinHost): TestHostFixture<Host & C>;
 /** Dispose the active component tree. Vitest users get this automatically. */
 export declare function cleanupComponents(): void;
 /**

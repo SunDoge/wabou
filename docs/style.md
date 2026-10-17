@@ -80,9 +80,9 @@ constructing utility names dynamically. Applications that need multiple
 runtime palettes can declare semantic color tokens in their Vite config:
 
 ```ts
-import { defineWabouConfig } from "@wabou/vite";
+import { defineConfig } from "@wabou/vite";
 
-export default defineWabouConfig({
+export default defineConfig({
   theme: {
     default: "light",
     themes: {

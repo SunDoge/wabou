@@ -1,7 +1,7 @@
-import { t as EVENT_CODE, v as nodeKey } from "./protocol-C0xTI-jG.mjs";
+import { h as EVENT_CODE, s as nodeKey } from "./protocol-B9cErdtk.mjs";
 import { t as hasBrowserDom } from "./browser-dom-BrHP4mZQ.mjs";
-import { c as dispatchEvent, j as writer, l as disposeMountedApp } from "./renderer-Dban-vxD.mjs";
-import { t as tickAnimationFrame } from "./animation-frame-BMEKyYv2.mjs";
+import { c as dispatchEvent, j as writer, l as disposeMountedApp } from "./renderer-BMakitWn.mjs";
+import { t as tickAnimationFrame } from "./animation-frame-DJIjswAv.mjs";
 //#region src/generated/browser-host-bindings.ts
 function createBrowserHostBindings(bridge, invalidate) {
 	return {
@@ -9,8 +9,8 @@ function createBrowserHostBindings(bridge, invalidate) {
 		__wabou_motion_create: (descriptor) => bridge.motion_create(descriptor),
 		__wabou_motion_sample: (id, elapsed, output) => bridge.motion_sample(id, elapsed, output),
 		__wabou_motion_drop: (id) => bridge.motion_drop(id),
-		__wabou_set_stylesheet: (json) => {
-			const result = bridge.set_stylesheet(json);
+		__wabou_set_stylesheet: (bytes) => {
+			const result = bridge.set_stylesheet(bytes);
 			invalidate();
 			return result;
 		}
@@ -71,6 +71,7 @@ async function startBrowserApp(options) {
 		dirty = true;
 	};
 	const targetAt = (event, code) => {
+		if (!runtime) return "";
 		const rect = canvas.getBoundingClientRect();
 		return runtime.hit_test(event.clientX - rect.left - canvas.clientLeft, event.clientY - rect.top - canvas.clientTop, code);
 	};

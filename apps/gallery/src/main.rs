@@ -17,11 +17,7 @@ fn main() -> Result<(), Whatever> {
         .widget("fractal", || {
             Box::new(gallery::fractal::WinitFractal::default())
         })
-        .capability(gallery::bindings::CAPABILITY, |capability| {
-            capability.json_method(gallery::bindings::DESCRIBE_PALETTE, |request| async move {
-                gallery_functions::describe_palette(request)
-            })
-        })
+        .host_module_def::<gallery::bindings::js_bindings_demo>("bindingsDemo")
         .run()
         .whatever_context("failed to run component gallery")
 }

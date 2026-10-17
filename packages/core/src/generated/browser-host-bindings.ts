@@ -12,7 +12,7 @@ export interface BrowserHostBridge {
   motion_create(descriptor: string): number;
   motion_sample(id: number, elapsed: number, output: Float64Array): boolean;
   motion_drop(id: number): boolean;
-  set_stylesheet(json: string): void;
+  set_stylesheet(bytes: Uint8Array): void;
 }
 
 export function createBrowserHostBindings(
@@ -29,8 +29,8 @@ export function createBrowserHostBindings(
       output: Float64Array,
     ) => bridge.motion_sample(id, elapsed, output),
     __wabou_motion_drop: (id: number) => bridge.motion_drop(id),
-    __wabou_set_stylesheet: (json: string) => {
-      const result = bridge.set_stylesheet(json);
+    __wabou_set_stylesheet: (bytes: Uint8Array) => {
+      const result = bridge.set_stylesheet(bytes);
       invalidate();
       return result;
     },

@@ -1,15 +1,7 @@
-import { NumberFormatter, NumberParser } from "@internationalized/number";
-import { useHost } from "@wabou/core";
+import { type NumberFormatOptions, useHost } from "@wabou/core";
 import minus from "lucide-static/icons/minus.svg?raw";
 import plus from "lucide-static/icons/plus.svg?raw";
-import {
-  createEffect,
-  createMemo,
-  createSignal,
-  type JSX,
-  omit,
-  untrack,
-} from "solid-js";
+import { createEffect, createSignal, type JSX, omit, untrack } from "solid-js";
 import { match } from "ts-pattern";
 import { Icon } from "../primitives";
 import { InputGroup, InputGroupButton, InputGroupInput } from "./forms";
@@ -32,7 +24,7 @@ export interface NumberFieldProps
   step?: number;
   largeStep?: number;
   locale?: string;
-  formatOptions?: Intl.NumberFormatOptions;
+  formatOptions?: NumberFormatOptions;
   placeholder?: string;
   changeOnWheel?: boolean;
   onValueChange?(value: number | null): void;
@@ -72,12 +64,7 @@ export function NumberField(props: NumberFieldProps): JSX.Element {
       props.largeStep,
     );
   const locale = () => props.locale ?? host.intl.locale();
-  const parser = createMemo(
-    () => new NumberParser(locale(), props.formatOptions),
-  );
-  const formatter = createMemo(
-    () => new NumberFormatter(locale(), props.formatOptions),
-  );
+  const formatOptions = () => JSON.stringify(props.formatOptions ?? {});
   const state = createControllableState<number | null>({
     value: () => props.value,
     defaultValue: props.defaultValue ?? null,
@@ -86,7 +73,9 @@ export function NumberField(props: NumberFieldProps): JSX.Element {
   });
   const formattedValue = () => {
     const value = state.value();
-    return value === null ? "" : formatter().format(value);
+    return value === null
+      ? ""
+      : host.intl.formatNumber(locale(), value, formatOptions());
   };
   const [focused, setFocused] = createSignal(false);
   const [draft, setDraft] = createSignal(untrack(formattedValue));
@@ -112,7 +101,12 @@ export function NumberField(props: NumberFieldProps): JSX.Element {
       update(null);
       return;
     }
-    const parsed = parser().parse(value);
+    let parsed = Number.NaN;
+    try {
+      parsed = host.intl.parseNumber(locale(), value, formatOptions());
+    } catch {
+      // Invalid drafts are restored below.
+    }
     if (Number.isFinite(parsed)) update(parsed);
     else setDraft(formattedValue());
   };
@@ -178,9 +172,12 @@ export function NumberField(props: NumberFieldProps): JSX.Element {
           // text. Only valid partial numbers update the canonical value; blur
           // restores the formatted canonical value otherwise.
           setDraft(next);
-          if (!parser().isValidPartialNumber(next, range().min, range().max))
+          let parsed = Number.NaN;
+          try {
+            parsed = host.intl.parseNumber(locale(), next, formatOptions());
+          } catch {
             return;
-          const parsed = parser().parse(next);
+          }
           if (
             Number.isFinite(parsed) &&
             parsed >= range().min &&

@@ -195,7 +195,7 @@ mod tests {
         let report = serde_json::json!({
             "environment": {
                 "backend": "deterministic",
-                "renderer": "vello-hybrid",
+                "renderer": "vello-gpu",
                 "os": "linux",
                 "arch": "x86_64",
                 "wabouVersion": "0.1.0-test",
@@ -225,9 +225,8 @@ mod tests {
         assert!(summary.contains("---- submits form ----"));
         assert!(summary.contains("at form.tsx:42:3"));
         assert!(
-            summary.contains(
-                "environment: vello-hybrid/deterministic; linux/x86_64; wabou 0.1.0-test"
-            )
+            summary
+                .contains("environment: vello-gpu/deterministic; linux/x86_64; wabou 0.1.0-test")
         );
         assert!(summary.contains("artifacts: /tmp/artifacts"));
         assert!(!summary.contains("private action payload"));
@@ -259,12 +258,12 @@ mod tests {
 
     #[test]
     fn environment_distinguishes_deterministic_and_native_runs() {
-        let deterministic = test_environment(true, Some("vello-hybrid"));
-        let native = test_environment(false, Some("gpui"));
+        let deterministic = test_environment(true, Some("vello-gpu"));
+        let native = test_environment(false, Some("vello-gpu"));
         assert_eq!(deterministic["backend"], "deterministic");
-        assert_eq!(deterministic["renderer"], "vello-hybrid");
+        assert_eq!(deterministic["renderer"], "vello-gpu");
         assert_eq!(native["backend"], "native");
-        assert_eq!(native["renderer"], "gpui");
+        assert_eq!(native["renderer"], "vello-gpu");
         assert_eq!(deterministic["os"], std::env::consts::OS);
         assert_eq!(deterministic["arch"], std::env::consts::ARCH);
         assert_eq!(deterministic["wabouVersion"], env!("CARGO_PKG_VERSION"));

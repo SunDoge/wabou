@@ -11,7 +11,9 @@ interface Report {
 
 const paths = process.argv.slice(2);
 if (paths.length === 0) {
-  throw new Error("usage: report-performance.ts <metrics.json> [...metrics.json]");
+  throw new Error(
+    "usage: report-performance.ts <metrics.json> [...metrics.json]",
+  );
 }
 
 const rows: string[] = [];

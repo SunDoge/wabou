@@ -1,9 +1,10 @@
-import { T as ResourceKey } from "./protocol-DY1oGbNE.mjs";
-import { A as WabouNativeMotion, At as Portal, B as WabouSubmitEvent, Bt as PathLineJoin, C as WabouImageProps, D as WabouInputProps, Dt as VirtualListProps, E as WabouInputEvent, Et as VirtualListController, F as WabouPointerEvent, G as WabouTransitionEvent, Gt as DebugOverlayPaintStats, H as WabouSvgShapeProps, Ht as VectorPath, I as WabouPositionedEvent, J as WabouWheelEvent, Jt as LayoutRect, K as WabouValueChangeEvent, Kt as FrameStats, L as WabouScrollEvent, Lt as PathBuilder, M as WabouNativeTag, N as WabouNativeTransition, O as WabouKeyEvent, P as WabouNodeEvent, Rt as PathFillRule, S as WabouGlobalPointerListener, St as setTransform2D, T as WabouImePreeditEvent, Tt as VirtualList, U as WabouTextCommitEvent, Ut as VectorPathPaint, V as WabouSvgProps, Vt as PathPoint, W as WabouTextSelectionChangeEvent, Wt as isVectorPath, Xt as LayoutSnapshot, Yt as LayoutScrollMetrics, _ as WabouExposedSemanticRole, a as HostProviderProps, b as WabouFloatingPosition, c as useHost, ct as isDirectEvent, d as Handle, ft as mount, g as WabouEventTarget, h as WabouElementProps, i as HostProvider, j as WabouNativeSpring, jt as PortalProps, k as WabouNativeElements, l as Dynamic, m as WabouControlProps, n as DebugOverlayOptions, o as LayoutTarget, p as WabouBuiltinIntrinsicElements, pt as observeGlobalPointerEvent, q as WabouVectorPathProps, qt as LayoutNodeMetrics, r as Host, s as defaultHost, t as BuiltinHost, u as DynamicProps, v as WabouFloatingAnchor, w as WabouImeDeleteSurroundingEvent, x as WabouGlobalPointerEventType, y as WabouFloatingPlacement, z as WabouSemanticRole, zt as PathLineCap } from "./host-Bcfe71oo.mjs";
-import { n as WabouIntrinsicElements, t as HostCapabilities } from "./registry-DXOPfC3L.mjs";
+import { d as ResourceKey } from "./protocol-8dabwejL.mjs";
+import { A as WabouNativeMotion, At as Portal, B as WabouSubmitEvent, Bt as PathLineJoin, C as WabouImageProps, D as WabouInputProps, Dt as VirtualListProps, E as WabouInputEvent, Et as VirtualListController, F as WabouPointerEvent, G as WabouTransitionEvent, Gt as DebugOverlayPaintStats, H as WabouSvgShapeProps, Ht as VectorPath, I as WabouPositionedEvent, J as WabouWheelEvent, Jt as LayoutRect, K as WabouValueChangeEvent, Kt as FrameStats, L as WabouScrollEvent, Lt as PathBuilder, M as WabouNativeTag, N as WabouNativeTransition, O as WabouKeyEvent, P as WabouNodeEvent, Rt as PathFillRule, S as WabouGlobalPointerListener, St as setTransform2D, T as WabouImePreeditEvent, Tt as VirtualList, U as WabouTextCommitEvent, Ut as VectorPathPaint, V as WabouSvgProps, Vt as PathPoint, W as WabouTextSelectionChangeEvent, Wt as isVectorPath, Xt as LayoutSnapshot, Yt as LayoutScrollMetrics, _ as WabouExposedSemanticRole, a as HostProviderProps, b as WabouFloatingPosition, c as useHost, ct as isDirectEvent, d as Handle, ft as mount, g as WabouEventTarget, h as WabouElementProps, i as HostProvider, j as WabouNativeSpring, jt as PortalProps, k as WabouNativeElements, l as Dynamic, m as WabouControlProps, n as DebugOverlayOptions, o as LayoutTarget, p as WabouBuiltinIntrinsicElements, pt as observeGlobalPointerEvent, q as WabouVectorPathProps, qt as LayoutNodeMetrics, r as Host, s as defaultHost, t as BuiltinHost, u as DynamicProps, v as WabouFloatingAnchor, w as WabouImeDeleteSurroundingEvent, x as WabouGlobalPointerEventType, y as WabouFloatingPlacement, z as WabouSemanticRole, zt as PathLineCap } from "./host-CLg3SjjV.mjs";
+import { n as WabouIntrinsicElements, t as HostModules } from "./registry-BK_gwbNC.mjs";
 import { A as WabouStyle, C as WabouBaseUtility, D as WabouStaticUtility, E as WabouSpacingToken, O as WabouUtility, S as utilityConflictProperties, T as WabouDynamicUtility, _ as rgba, a as ShadowOptions, b as shadow, c as assertInlineStyleValue, d as classes, f as isTypedStyleValue, g as px, h as percent, i as Shadow, k as INLINE_STYLE_CONTRACT, l as auto, m as number, n as ClassValue, o as StyleValueKind, p as mergeClasses, r as STYLE_VALUE, s as TypedStyleValue, t as Affine2D, u as bool, v as rotate2d, w as WabouColorToken, x as translate2d, y as scale2d } from "./style-D7FlqLds.mjs";
-import { t as createFps } from "./renderer-D4S_c5Nm.mjs";
+import { t as createFps } from "./renderer-zYuNjvPO.mjs";
 import "./host.mjs";
+import { a as RelativeTimeOptions, i as PluralOptions, n as DateFormatOptions, o as RelativeTimeUnit, r as NumberFormatOptions, s as intl, t as CalendarDateFields } from "./intl-C6JICTBS.mjs";
 import { a as subscribeFileDrop, i as FileDropPosition, n as FileDropHandler, o as useFileDrop, r as FileDropPhase, t as FileDropEvent } from "./file-drop-Ci2RppE8.mjs";
 import { flushPerformance, measureAsyncPerformance, measurePerformance } from "./performance.mjs";
 import { Accessor, JSX, SourceAccessor } from "solid-js";
@@ -261,22 +262,6 @@ interface Notification {
 export declare const notification: Notification;
 export declare function useNotification(): Notification;
 //#endregion
-//#region src/glue/intl.d.ts
-interface CalendarDateFields {
-  year: number;
-  month: number;
-  day: number;
-}
-/**
- * Operating-system locale facts. Standards-compatible formatting is installed
- * separately by the FormatJS-backed Intl polyfill.
- */
-export declare const intl: Readonly<{
-  locale(): string;
-  timeZone(): string;
-  today(): CalendarDateFields;
-}>;
-//#endregion
 //#region src/glue/async-action.d.ts
 type AsyncActionResult<T> = {
   ok: true;
@@ -475,27 +460,6 @@ export declare class RevisionedHostWaitError extends Error {
  */
 export declare function createRevisionedHostResource<T extends RevisionedHostValue, P extends RevisionedHostPatch = RevisionedHostPatch>(options: RevisionedHostResourceOptions<T, P>): RevisionedHostResource<T>;
 //#endregion
-//#region src/glue/native-capability.d.ts
-interface NativeCapability {
-  readonly __wabouCapabilityVersion: number;
-}
-interface CapabilityClientOptions {
-  name: string;
-  version: number;
-}
-export declare class CapabilityError extends Error {
-  readonly code: string;
-  constructor(message: string, code?: string);
-}
-/** Validate and expose one versioned native capability namespace. */
-export declare function bindCapability<Capability extends NativeCapability>(capability: Capability | undefined, options: CapabilityClientOptions): Capability;
-//#endregion
-//#region src/glue/json-capability.d.ts
-type JsonCapabilityMethodName<Capability> = Extract<{ [Key in keyof Capability]: Capability[Key] extends ((...args: never[]) => unknown) ? Key : never; }[keyof Capability], string>;
-type JsonCapabilityClient = <Response>(method: string, request?: unknown) => Promise<Response>;
-/** Bind Wabou's versioned JSON capability transport to a typed app wrapper. */
-export declare function bindJsonCapability<Capability extends NativeCapability>(capability: Capability | undefined, options: CapabilityClientOptions): JsonCapabilityClient;
-//#endregion
 //#region src/glue/kv.d.ts
 /** JSON-compatible values stored by the built-in KV service. */
 type KvValue = null | boolean | number | string | readonly KvValue[] | {
@@ -550,7 +514,7 @@ interface WireEntry {
   versionstamp: string;
   expiresAt: number | null;
 }
-interface NativeKvCapability extends NativeCapability {
+interface NativeKvHost {
   get(request: {
     key: WireKeyPart[];
   }): Promise<WireEntry | null>;
@@ -597,7 +561,7 @@ interface NativeKvCapability extends NativeCapability {
 /** Fluent optimistic transaction committed as one SQLite transaction. */
 export declare class KvAtomicOperation {
   #private;
-  constructor(prefix: KvKey, native: NativeKvCapability);
+  constructor(prefix: KvKey, native: NativeKvHost);
   check(check: KvCheck | Pick<KvEntry, "key" | "versionstamp">): this;
   set(key: KvKey, value: KvValue, options?: KvSetOptions): this;
   /** Apply an RFC 7396 JSON Merge Patch inside this transaction. */
@@ -741,5 +705,5 @@ export interface KeyedListPatch<T, Key> {
  */
 export declare function reconcileKeyedList<T, Key>(current: readonly T[], patch: KeyedListPatch<T, Key>, keyOf: (value: T) => Key): T[] | undefined;
 //#endregion
-export { Affine2D, type AppDirectories, type AppLifecycleEvent, type AppLifecycleState, type Application, type AsyncAction, type AsyncActionResult, type AsyncQuery, type AsyncQueryOptions, type BuiltinHost, type CalendarDateFields, type CapabilityClientOptions, ClassValue, type Clipboard, type ColorPalette, type ColorThemeAnimation, type ColorThemeAnimationOptions, type ColorThemeController, type ColorThemeEasing, type CreateWindowOptions, type DebugOverlayOptions, type DebugOverlayPaintStats, type Dialog, type DialogFilter, Dynamic, type DynamicProps, type EntityKey, type EventEffectOptions, type FileDropEvent, type FileDropHandler, type FileDropPhase, type FileDropPosition, type ForEntityProps, type FrameStats, type GestureEvent, type GestureHandler, type GesturePhase, type Handle, type Host, HostCapabilities, type HostJsonSubscriptionOptions, type HostMessage, type HostMessageAllHandler, type HostMessageHandler, HostProvider, type HostProviderProps, INLINE_STYLE_CONTRACT, type JsonCapabilityClient, type JsonCapabilityMethodName, type KeyboardModifiers, type KeyedAsyncAction, type Kv, type KvCheck, type KvCommitResult, type KvEntry, type KvKey, type KvKeyPart, type KvListOptions, type KvSetOptions, type KvSignal, type KvValue, type KvVersionstamp, type LatestAsyncResource, type LatestAsyncResourceOptions, type LatestAsyncResourceStatus, type LayoutNodeMetrics, type LayoutRect, type LayoutScrollMetrics, type LayoutSnapshot, type LayoutTarget, type MessageDialogButtons, type MessageDialogLevel, type MessageDialogOptions, type MessageDialogResult, type NativeCapability, type NativeMenuItem, type NativeMenuOptions, type NativeMenuPosition, type Notification, type NotificationOptions, type OpenDialogOptions, PathBuilder, PathFillRule, PathLineCap, PathLineJoin, PathPoint, type PickDirectoryOptions, type PlatformProviderProps, type PlatformServices, Portal, type PortalProps, type RevisionedHostPatch, type RevisionedHostResource, type RevisionedHostResourceOptions, type RevisionedHostValue, type RevisionedHostWaitErrorReason, type RevisionedHostWaitOptions, STYLE_VALUE, type SaveDialogOptions, Shadow, ShadowOptions, StyleValueKind, TypedStyleValue, VectorPath, VectorPathPaint, VirtualList, type VirtualListController, type VirtualListProps, WabouBaseUtility, type WabouBuiltinIntrinsicElements, WabouColorToken, type WabouControlProps, WabouDynamicUtility, type WabouElementProps, type WabouEventTarget, type WabouExposedSemanticRole, type WabouFloatingAnchor, type WabouFloatingPlacement, type WabouFloatingPosition, type WabouGlobalPointerEventType, type WabouGlobalPointerListener, type WabouImageProps, type WabouImeDeleteSurroundingEvent, type WabouImePreeditEvent, type WabouInputEvent, type WabouInputProps, WabouIntrinsicElements, type WabouKeyEvent, type WabouNativeElements, type WabouNativeMotion, type WabouNativeSpring, type WabouNativeTag, type WabouNativeTransition, type WabouNodeEvent, type WabouPointerEvent, type WabouPositionedEvent, type WabouScrollEvent, type WabouSemanticRole, WabouSpacingToken, WabouStaticUtility, type WabouStyle, type WabouSubmitEvent, type WabouSvgProps, type WabouSvgShapeProps, type WabouTextCommitEvent, type WabouTextSelectionChangeEvent, type WabouTransitionEvent, WabouUtility, type WabouValueChangeEvent, type WabouVectorPathProps, type WabouWheelEvent, type WindowHandle, type WindowKey, type WindowMetrics, type WindowSizeQuery, type WindowState, assertInlineStyleValue, auto, bool, classes, createFps, defaultHost, flushPerformance, isDirectEvent, isTypedStyleValue, isVectorPath, measureAsyncPerformance, measurePerformance, mergeClasses, mount, number, observeGlobalPointerEvent, percent, px, rgba, rotate2d, scale2d, setTransform2D, shadow, subscribeAll as subscribeAllHostMessages, subscribeFileDrop, subscribe as subscribeHostMessages, subscribeJson as subscribeJsonHostMessages, translate2d, useFileDrop, useHost, utilityConflictProperties };
+export { Affine2D, type AppDirectories, type AppLifecycleEvent, type AppLifecycleState, type Application, type AsyncAction, type AsyncActionResult, type AsyncQuery, type AsyncQueryOptions, type BuiltinHost, type CalendarDateFields, ClassValue, type Clipboard, type ColorPalette, type ColorThemeAnimation, type ColorThemeAnimationOptions, type ColorThemeController, type ColorThemeEasing, type CreateWindowOptions, type DateFormatOptions, type DebugOverlayOptions, type DebugOverlayPaintStats, type Dialog, type DialogFilter, Dynamic, type DynamicProps, type EntityKey, type EventEffectOptions, type FileDropEvent, type FileDropHandler, type FileDropPhase, type FileDropPosition, type ForEntityProps, type FrameStats, type GestureEvent, type GestureHandler, type GesturePhase, type Handle, type Host, type HostJsonSubscriptionOptions, type HostMessage, type HostMessageAllHandler, type HostMessageHandler, HostModules, HostProvider, type HostProviderProps, INLINE_STYLE_CONTRACT, type KeyboardModifiers, type KeyedAsyncAction, type Kv, type KvCheck, type KvCommitResult, type KvEntry, type KvKey, type KvKeyPart, type KvListOptions, type KvSetOptions, type KvSignal, type KvValue, type KvVersionstamp, type LatestAsyncResource, type LatestAsyncResourceOptions, type LatestAsyncResourceStatus, type LayoutNodeMetrics, type LayoutRect, type LayoutScrollMetrics, type LayoutSnapshot, type LayoutTarget, type MessageDialogButtons, type MessageDialogLevel, type MessageDialogOptions, type MessageDialogResult, type NativeMenuItem, type NativeMenuOptions, type NativeMenuPosition, type Notification, type NotificationOptions, type NumberFormatOptions, type OpenDialogOptions, PathBuilder, PathFillRule, PathLineCap, PathLineJoin, PathPoint, type PickDirectoryOptions, type PlatformProviderProps, type PlatformServices, type PluralOptions, Portal, type PortalProps, type RelativeTimeOptions, type RelativeTimeUnit, type RevisionedHostPatch, type RevisionedHostResource, type RevisionedHostResourceOptions, type RevisionedHostValue, type RevisionedHostWaitErrorReason, type RevisionedHostWaitOptions, STYLE_VALUE, type SaveDialogOptions, Shadow, ShadowOptions, StyleValueKind, TypedStyleValue, VectorPath, VectorPathPaint, VirtualList, type VirtualListController, type VirtualListProps, WabouBaseUtility, type WabouBuiltinIntrinsicElements, WabouColorToken, type WabouControlProps, WabouDynamicUtility, type WabouElementProps, type WabouEventTarget, type WabouExposedSemanticRole, type WabouFloatingAnchor, type WabouFloatingPlacement, type WabouFloatingPosition, type WabouGlobalPointerEventType, type WabouGlobalPointerListener, type WabouImageProps, type WabouImeDeleteSurroundingEvent, type WabouImePreeditEvent, type WabouInputEvent, type WabouInputProps, WabouIntrinsicElements, type WabouKeyEvent, type WabouNativeElements, type WabouNativeMotion, type WabouNativeSpring, type WabouNativeTag, type WabouNativeTransition, type WabouNodeEvent, type WabouPointerEvent, type WabouPositionedEvent, type WabouScrollEvent, type WabouSemanticRole, WabouSpacingToken, WabouStaticUtility, type WabouStyle, type WabouSubmitEvent, type WabouSvgProps, type WabouSvgShapeProps, type WabouTextCommitEvent, type WabouTextSelectionChangeEvent, type WabouTransitionEvent, WabouUtility, type WabouValueChangeEvent, type WabouVectorPathProps, type WabouWheelEvent, type WindowHandle, type WindowKey, type WindowMetrics, type WindowSizeQuery, type WindowState, assertInlineStyleValue, auto, bool, classes, createFps, defaultHost, flushPerformance, intl, isDirectEvent, isTypedStyleValue, isVectorPath, measureAsyncPerformance, measurePerformance, mergeClasses, mount, number, observeGlobalPointerEvent, percent, px, rgba, rotate2d, scale2d, setTransform2D, shadow, subscribeAll as subscribeAllHostMessages, subscribeFileDrop, subscribe as subscribeHostMessages, subscribeJson as subscribeJsonHostMessages, translate2d, useFileDrop, useHost, utilityConflictProperties };
 //# sourceMappingURL=index.d.mts.map

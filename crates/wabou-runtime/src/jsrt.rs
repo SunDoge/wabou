@@ -80,35 +80,6 @@ const LAYOUT_SNAPSHOT_HEADER_LEN: usize = 8;
 const LAYOUT_SNAPSHOT_NODE_LEN: usize = 14;
 const LAYOUT_SNAPSHOT_VERSION: f64 = 1.0;
 
-#[derive(serde::Deserialize, Default)]
-struct FetchInit {
-    method: Option<String>,
-    headers: Option<HashMap<String, String>>,
-    body: Option<String>,
-}
-
-struct FetchResponse {
-    status: u16,
-    status_text: String,
-    headers: HashMap<String, String>,
-    body: Vec<u8>,
-}
-
-impl<'js> rquickjs::IntoJs<'js> for FetchResponse {
-    fn into_js(self, ctx: &Ctx<'js>) -> JsResult<rquickjs::Value<'js>> {
-        let value = Object::new(ctx.clone())?;
-        value.set("status", self.status)?;
-        value.set("statusText", self.status_text)?;
-        let headers = Object::new(ctx.clone())?;
-        for (name, value) in self.headers {
-            headers.set(name, value)?;
-        }
-        value.set("headers", headers)?;
-        value.set("body", crate::host_ffi::OwnedJsBytes(self.body))?;
-        Ok(value.into_value())
-    }
-}
-
 struct RuntimeWake {
     callback: Mutex<Option<WakeCallback>>,
     pending: AtomicBool,
@@ -194,14 +165,16 @@ impl JsRuntimeOptions {
 /// own its frame/event lifecycle.
 pub struct JsRuntime {
     clock: Arc<dyn crate::clock::Clock>,
+    /// Virtual time source when the runtime was built for deterministic tests.
+    virtual_clock: Option<crate::clock::VirtualClock>,
     max_stack_size: usize,
     /// Bytes flushed by the most recent `__wabou_flush` call.
     out: Rc<RefCell<Vec<u8>>>,
     /// True once the app's initial render has been evaluated.
     booted: bool,
     source_map: Rc<RefCell<Option<crate::source_map::StackSourceMap>>>,
-    /// Stylesheet pushed through `__wabou_set_stylesheet` (JSON parsed by host
-    /// into the atomic-CSS dict). Drained by the Applier in build_frame.
+    /// Stylesheet pushed through `__wabou_set_stylesheet` as compact binary
+    /// Style IR. Drained by the Applier in build_frame.
     pending_css: Rc<RefCell<Option<StylesheetUpdate>>>,
     /// Latest explicit window color-theme request from JavaScript.
     pending_color_theme: Rc<RefCell<Option<String>>>,
@@ -225,7 +198,6 @@ pub struct JsRuntime {
     /// Scalar animation curves retained outside the replaceable JS bundle.
     value_motions: Rc<RefCell<wabou_motion::ValueMotionStore>>,
     host_frame_sequence: u64,
-    host_frame_epoch: std::time::Instant,
     #[cfg(any(feature = "devtools", test))]
     debug_state: Rc<RefCell<Option<wabou_devtools::SharedDebugState>>>,
     resize_targets: ResizeTargets,
@@ -252,25 +224,67 @@ impl JsRuntime {
         Self::new_with_clock_and_options(Arc::new(crate::clock::SystemClock::new()), options)
     }
 
-    #[doc(hidden)]
+    /// Create an empty runtime with the system monotonic clock.
     pub fn new_with_clock(clock: Arc<dyn crate::clock::Clock>) -> JsResult<Self> {
         Self::new_with_clock_and_options(clock, JsRuntimeOptions::default())
     }
 
-    fn new_with_clock_and_options(
+    /// Create an empty runtime driven by an explicit clock and resource
+    /// limits. Test hosts pass a [`crate::clock::VirtualClock`] here.
+    pub fn new_with_clock_and_options(
         clock: Arc<dyn crate::clock::Clock>,
         options: JsRuntimeOptions,
     ) -> JsResult<Self> {
+        let virtual_clock = clock
+            .as_ref()
+            .as_any()
+            .and_then(|any| any.downcast_ref::<crate::clock::VirtualClock>())
+            .cloned();
         let rt = AsyncRuntime::new()?;
         futures_lite::future::block_on(async {
             rt.set_max_stack_size(options.stack_size()).await;
         });
-        Self::build_inner(rt, clock, options.stack_size())
+        Self::build_inner(rt, clock, virtual_clock, options.stack_size())
+    }
+
+    /// Create a runtime on a manually advanced virtual clock, returning the
+    /// clock handle the test driver owns.
+    ///
+    /// `performance.now()`, animation-frame timestamps and `__wabou_sleep`
+    /// deadlines all read virtual time; the runtime is otherwise identical.
+    /// Advancing the clock fires pending sleeps, whose continuations run on
+    /// the next [`JsRuntime::poll_async_runtime`] — the test loop controls
+    /// when that happens, so timer firings land on explicit frame boundaries
+    /// and never depend on wall-clock scheduling.
+    pub fn new_virtual(options: JsRuntimeOptions) -> JsResult<(Self, crate::clock::VirtualClock)> {
+        let clock = crate::clock::VirtualClock::new();
+        let runtime = Self::new_with_clock_and_options(Arc::new(clock.clone()), options)?;
+        let wake = runtime.runtime_wake.clone();
+        clock.set_notify(Arc::new(move || wake.notify()));
+        Ok((runtime, clock))
+    }
+
+    /// The virtual clock backing this runtime, when constructed with one.
+    #[doc(hidden)]
+    pub fn virtual_clock(&self) -> Option<&crate::clock::VirtualClock> {
+        self.virtual_clock.as_ref()
+    }
+
+    /// The runtime's monotonic clock.
+    ///
+    /// All semantic time — `performance.now`, animation-frame timestamps,
+    /// `__wabou_sleep` deadlines — reads this. Native time state outside the
+    /// runtime should read [`Clock::now_instant`] through this handle
+    /// instead of `Instant::now()`, keeping every timeline coherent under
+    /// a virtual clock.
+    pub fn clock(&self) -> std::sync::Arc<dyn crate::clock::Clock> {
+        self.clock.clone()
     }
 
     fn build_inner(
         rt: AsyncRuntime,
         clock: Arc<dyn crate::clock::Clock>,
+        virtual_clock: Option<crate::clock::VirtualClock>,
         max_stack_size: usize,
     ) -> JsResult<Self> {
         let tokio_rt = tokio::runtime::Builder::new_multi_thread()
@@ -291,7 +305,7 @@ impl JsRuntime {
             let globals = ctx.globals();
             crate::host_abi::register_value(
                 &globals,
-                HostBinding::Capabilities,
+                HostBinding::HostModules,
                 Object::new(ctx.clone())?,
             )?;
 
@@ -312,6 +326,7 @@ impl JsRuntime {
         let this = Self {
             max_stack_size,
             clock,
+            virtual_clock,
             rt,
             ctx,
             out,
@@ -327,7 +342,6 @@ impl JsRuntime {
             atoms: Rc::new(RefCell::new(AtomPool::default())),
             value_motions: Rc::new(RefCell::new(wabou_motion::ValueMotionStore::default())),
             host_frame_sequence: 0,
-            host_frame_epoch: std::time::Instant::now(),
             #[cfg(any(feature = "devtools", test))]
             debug_state: Rc::new(RefCell::new(None)),
             resize_targets,
@@ -491,7 +505,7 @@ impl JsRuntime {
 
             self.register_intl_host_fns(ctx.clone(), &globals)?;
 
-            // Read a raw font file (TTF/OTF) and queue it for the GPUI text
+            // Read a raw font file (TTF/OTF) and queue it for the native text
             // system on the next frame. Call once at boot before first paint.
             // Returns false (and warns) if the file can't be read.
             let pf = self.pending_fonts.clone();
@@ -563,6 +577,69 @@ impl JsRuntime {
                     .expect("calendar date serialization is infallible")
             })?,
         )?;
+        register_function(
+            globals,
+            HostBinding::FirstWeekday,
+            rquickjs::Function::new(ctx.clone(), |ctx: Ctx<'_>, locale: String| {
+                crate::intl::first_weekday(&locale)
+                    .map_err(|error| rquickjs::Exception::throw_range(&ctx, &error))
+            })?,
+        )?;
+        register_function(
+            globals,
+            HostBinding::FormatNumber,
+            rquickjs::Function::new(
+                ctx.clone(),
+                |ctx: Ctx<'_>, locale: String, value: f64, options: String| {
+                    crate::intl::format_number(&locale, value, &options)
+                        .map_err(|error| rquickjs::Exception::throw_range(&ctx, &error))
+                },
+            )?,
+        )?;
+        register_function(
+            globals,
+            HostBinding::ParseNumber,
+            rquickjs::Function::new(
+                ctx.clone(),
+                |ctx: Ctx<'_>, locale: String, input: String, options: String| {
+                    crate::intl::parse_number(&locale, &input, &options)
+                        .map_err(|error| rquickjs::Exception::throw_range(&ctx, &error))
+                },
+            )?,
+        )?;
+        register_function(
+            globals,
+            HostBinding::PluralCategory,
+            rquickjs::Function::new(
+                ctx.clone(),
+                |ctx: Ctx<'_>, locale: String, value: f64, options: String| {
+                    crate::intl::plural_category(&locale, value, &options)
+                        .map_err(|error| rquickjs::Exception::throw_range(&ctx, &error))
+                },
+            )?,
+        )?;
+        register_function(
+            globals,
+            HostBinding::FormatDate,
+            rquickjs::Function::new(
+                ctx.clone(),
+                |ctx: Ctx<'_>, locale: String, value: f64, options: String| {
+                    crate::intl::format_date(&locale, value, &options)
+                        .map_err(|error| rquickjs::Exception::throw_range(&ctx, &error))
+                },
+            )?,
+        )?;
+        register_function(
+            globals,
+            HostBinding::FormatRelativeTime,
+            rquickjs::Function::new(
+                ctx.clone(),
+                |ctx: Ctx<'_>, locale: String, value: f64, unit: String, options: String| {
+                    crate::intl::format_relative_time(&locale, value, &unit, &options)
+                        .map_err(|error| rquickjs::Exception::throw_range(&ctx, &error))
+                },
+            )?,
+        )?;
         Ok(())
     }
 
@@ -576,16 +653,17 @@ impl JsRuntime {
         register_function(
             globals,
             HostBinding::SetStylesheet,
-            rquickjs::Function::new(ctx.clone(), move |source: String| -> JsResult<()> {
-                match serde_json::from_str::<StylesheetUpdate>(&source) {
-                    Ok(update) => {
-                        let StylesheetUpdate::Ir(sheet) = &update;
+            rquickjs::Function::new(ctx.clone(), move |source: TypedArray<u8>| -> JsResult<()> {
+                // SAFETY: decoding and all copies complete before control returns to JS.
+                let bytes = unsafe { source.as_bytes() }.ok_or(rquickjs::Error::Unknown)?;
+                match crate::style_ir::binary::decode(bytes) {
+                    Ok(sheet) => {
                         *available_themes.borrow_mut() = sheet.color_themes.clone();
-                        *pending_css.borrow_mut() = Some(update);
+                        *pending_css.borrow_mut() = Some(StylesheetUpdate::Ir(sheet));
                         Ok(())
                     }
                     Err(error) => {
-                        tracing::error!(target: "stylesheet", "setStylesheet parse failed: {error}");
+                        tracing::error!(target: "stylesheet", "setStylesheet decode failed: {error}");
                         Err(rquickjs::Error::Unknown)
                     }
                 }
@@ -867,34 +945,22 @@ impl JsRuntime {
     /// owns the Rust Future -> JavaScript Promise conversion; the shell only
     /// supplies a waker that reconnects its scheduler to the native event loop.
     fn register_fetch(&self) -> JsResult<()> {
-        let client = reqwest::Client::builder()
-            .no_proxy()
-            .build()
-            .map_err(|_| rquickjs::Error::Unknown)?;
-        let cancellations = Arc::new(Mutex::new(HashMap::<
-            u32,
-            tokio_util::sync::CancellationToken,
-        >::new()));
+        let service = crate::web_fetch::FetchService::new()?;
         self.with(|ctx| {
-            let active = cancellations.clone();
+            let fetch = service.clone();
             register_function(
                 &ctx.globals(),
                 HostBinding::FetchStart,
                 Function::new(ctx.clone(), move |id: u32| {
-                    active
-                        .lock()
-                        .unwrap()
-                        .insert(id, tokio_util::sync::CancellationToken::new());
+                    fetch.start(id);
                 })?,
             )?;
-            let active = cancellations.clone();
+            let fetch = service.clone();
             register_function(
                 &ctx.globals(),
                 HostBinding::FetchCancel,
                 Function::new(ctx.clone(), move |id: u32| {
-                    if let Some(token) = active.lock().unwrap().get(&id) {
-                        token.cancel();
-                    }
+                    fetch.cancel(id);
                 })?,
             )?;
             register_function(
@@ -903,26 +969,17 @@ impl JsRuntime {
                 Function::new(
                     ctx.clone(),
                     rquickjs::prelude::Async(
-                        move |url: String, init_json: String, id: rquickjs::function::Opt<u32>| {
-                            let client = client.clone();
-                            let active = cancellations.clone();
-                            let token =
-                                id.0.and_then(|id| active.lock().unwrap().get(&id).cloned());
-                            async move {
-                                let result = if let Some(token) = token {
-                                    tokio::select! {
-                                        biased;
-                                        _ = token.cancelled() => Err(rquickjs::Error::Unknown),
-                                        result = fetch_request(client, url, init_json) => result,
-                                    }
-                                } else {
-                                    fetch_request(client, url, init_json).await
-                                };
-                                if let Some(id) = id.0 {
-                                    active.lock().unwrap().remove(&id);
-                                }
-                                result
-                            }
+                        move |url: String,
+                              init_json: String,
+                              id: rquickjs::function::Opt<u32>,
+                              body: rquickjs::function::Opt<TypedArray<u8>>| {
+                            // SAFETY: copy the JS view before constructing the future. No JS
+                            // handle crosses the await boundary.
+                            let body = body
+                                .0
+                                .and_then(|body| unsafe { body.as_bytes() }.map(<[u8]>::to_vec));
+                            let service = service.clone();
+                            async move { service.request(url, init_json, id.0, body).await }
                         },
                     ),
                 )?,
@@ -931,21 +988,31 @@ impl JsRuntime {
     }
 
     fn register_sleep(&self) -> JsResult<()> {
+        let virtual_clock = self.virtual_clock.clone();
         self.with(|ctx| {
             register_function(
                 &ctx.globals(),
                 HostBinding::Sleep,
                 Function::new(
                     ctx.clone(),
-                    rquickjs::prelude::Async(|delay_ms: f64| async move {
-                        let delay_ms = if delay_ms.is_finite() {
-                            delay_ms.max(0.0)
-                        } else {
-                            0.0
-                        };
-                        tokio::time::sleep(std::time::Duration::from_secs_f64(delay_ms / 1000.0))
-                            .await;
-                        Ok::<(), rquickjs::Error>(())
+                    rquickjs::prelude::Async(move |delay_ms: f64| {
+                        let virtual_clock = virtual_clock.clone();
+                        async move {
+                            let delay_ms = if delay_ms.is_finite() {
+                                delay_ms.max(0.0)
+                            } else {
+                                0.0
+                            };
+                            if let Some(clock) = virtual_clock.as_ref() {
+                                clock.sleep_for(delay_ms).await;
+                            } else {
+                                tokio::time::sleep(std::time::Duration::from_secs_f64(
+                                    delay_ms / 1000.0,
+                                ))
+                                .await;
+                            }
+                            Ok::<(), rquickjs::Error>(())
+                        }
                     }),
                 )?,
             )
@@ -977,7 +1044,15 @@ impl JsRuntime {
         let _guard = self._tokio.handle().enter();
         let waker = Waker::from(self.runtime_wake.clone());
         let mut task_context = TaskContext::from_waker(&waker);
-        let deadline = std::time::Instant::now() + std::time::Duration::from_millis(1);
+        // The wall-clock slice keeps one poll from starving the UI thread in
+        // production. Under a virtual clock it would instead make the number
+        // of iterations a burst needs depend on real machine speed, so the
+        // job budget is the only limit there.
+        let deadline = if self.virtual_clock.is_some() {
+            None
+        } else {
+            Some(std::time::Instant::now() + std::time::Duration::from_millis(1))
+        };
         let mut progressed = false;
         for _ in 0..32 {
             let mut next = Box::pin(self.rt.execute_pending_job());
@@ -991,7 +1066,7 @@ impl JsRuntime {
                     return progressed || self.runtime_wake.pending.load(Ordering::Acquire);
                 }
             }
-            if std::time::Instant::now() >= deadline {
+            if deadline.is_some_and(|deadline| std::time::Instant::now() >= deadline) {
                 // We are already on the UI thread. Calling the event-loop
                 // proxy here can create a self-wake storm that starves macOS
                 // RedrawRequested events. The FrameSource return value and
@@ -1049,6 +1124,36 @@ impl JsRuntime {
         self.frame_stats.clone()
     }
 
+    #[cfg(any(feature = "devtools", test))]
+    #[doc(hidden)]
+    pub fn memory_usage_snapshot(&self) -> wabou_devtools::DebugQuickJsMemory {
+        fn nonnegative(value: i64) -> u64 {
+            u64::try_from(value).unwrap_or_default()
+        }
+
+        let _guard = self._tokio.handle().enter();
+        let usage = self._local.block_on(&self._tokio, self.rt.memory_usage());
+        wabou_devtools::DebugQuickJsMemory {
+            malloc_bytes: nonnegative(usage.malloc_size),
+            used_bytes: nonnegative(usage.memory_used_size),
+            allocation_count: nonnegative(usage.malloc_count),
+            atom_count: nonnegative(usage.atom_count),
+            atom_bytes: nonnegative(usage.atom_size),
+            string_count: nonnegative(usage.str_count),
+            string_bytes: nonnegative(usage.str_size),
+            object_count: nonnegative(usage.obj_count),
+            object_bytes: nonnegative(usage.obj_size),
+            property_count: nonnegative(usage.prop_count),
+            property_bytes: nonnegative(usage.prop_size),
+            function_count: nonnegative(usage.js_func_count),
+            function_bytes: nonnegative(usage.js_func_size),
+            bytecode_bytes: nonnegative(usage.js_func_code_size),
+            array_count: nonnegative(usage.array_count),
+            binary_object_count: nonnegative(usage.binary_object_count),
+            binary_object_bytes: nonnegative(usage.binary_object_size),
+        }
+    }
+
     #[doc(hidden)]
     pub fn layout_metrics_handle(&self) -> Rc<RefCell<LayoutMetricsSnapshot>> {
         self.layout_metrics.clone()
@@ -1085,26 +1190,26 @@ impl JsRuntime {
         self._local.block_on(&self._tokio, self.ctx.with(f))
     }
 
-    /// Mount one named Rust capability before the guest bundle boots.
-    /// Capability members are deliberately not installed as globals.
-    pub fn mount_capability<F>(&self, name: &str, mount: F) -> JsResult<()>
+    /// Mount one named Rust host module before the guest bundle boots.
+    /// Module members are exposed through `useHost()`, not as globals.
+    pub fn mount_host_module<F>(&self, name: &str, mount: F) -> JsResult<()>
     where
         F: for<'js> FnOnce(Ctx<'js>, Object<'js>) -> JsResult<()> + rquickjs::markers::ParallelSend,
     {
         if !wabou_bindgen::is_contract_identifier(name) {
             return Err(rquickjs::Error::new_into_js_message(
-                "Rust capability name",
+                "Rust host module name",
                 "JavaScript identifier",
-                format!("invalid capability identifier `{name}`"),
+                format!("invalid host module identifier `{name}`"),
             ));
         }
         let name = name.to_owned();
         self.with(move |ctx| {
-            let root: Object = ctx.globals().get("__wabou_capabilities")?;
+            let root: Object = ctx.globals().get("__wabou_host_modules")?;
             if root.contains_key(name.as_str())? {
                 return Err(rquickjs::Exception::throw_type(
                     &ctx,
-                    &format!("duplicate capability namespace `{name}`"),
+                    &format!("duplicate host module `{name}`"),
                 ));
             }
             let capability = Object::new(ctx.clone())?;
@@ -1115,6 +1220,50 @@ impl JsRuntime {
             mount(ctx, capability.clone())?;
             root.set(name, capability)
         })
+    }
+
+    /// Mount exports generated by `#[rquickjs::module]` under the Wabou host root.
+    pub fn mount_host_module_def<D>(&self, name: &str) -> JsResult<()>
+    where
+        D: rquickjs::module::ModuleDef,
+    {
+        self.mount_host_module(name, |ctx, object| {
+            let (module, evaluation) = rquickjs::Module::evaluate_def::<D, _>(ctx, name)?;
+            evaluation.finish::<()>()?;
+            for property in module.namespace()?.props::<String, rquickjs::Value>() {
+                let (key, value) = property?;
+                object.set(key, value)?;
+            }
+            Ok(())
+        })
+    }
+
+    /// Store module-owned Rust state, then mount an `#[rquickjs::module]`.
+    ///
+    /// Exported functions can request a [`Ctx`] and retrieve `S` with
+    /// `ctx.userdata::<S>()`. One runtime may contain at most one value of a
+    /// given state type, so each stateful module should use its own wrapper.
+    pub fn mount_host_module_def_with_state<D, S>(&self, name: &str, state: S) -> JsResult<()>
+    where
+        D: rquickjs::module::ModuleDef,
+        S: rquickjs::markers::ParallelSend
+            + 'static
+            + for<'js> rquickjs::JsLifetime<'js, Changed<'static> = S>,
+    {
+        self.with(move |ctx| {
+            if ctx.userdata::<S>().is_some() {
+                return Err(rquickjs::Exception::throw_type(
+                    &ctx,
+                    &format!(
+                        "duplicate host module state type `{}`",
+                        std::any::type_name::<S>()
+                    ),
+                ));
+            }
+            ctx.store_userdata(state).map_err(rquickjs::Error::from)?;
+            Ok(())
+        })?;
+        self.mount_host_module_def::<D>(name)
     }
 
     /// Evaluate the bundled app. The IIFE registers host glue and runs the app's
@@ -1330,7 +1479,10 @@ impl JsRuntime {
         measurement.attribute("hostFrameSequence", self.host_frame_sequence);
         let bytes = encode_host_frame(
             self.host_frame_sequence,
-            self.host_frame_epoch.elapsed(),
+            // Frame timestamps ride the runtime clock so virtual-mode wire
+            // bytes stay deterministic (the JS decoder never reads this
+            // field today; DevTools frame captures do).
+            std::time::Duration::from_secs_f64(self.clock.now_ms() / 1000.0),
             events,
         )
         .map_err(|_| rquickjs::Error::Unknown)?;
@@ -1415,6 +1567,7 @@ impl JsRuntime {
         let mut this = Self::build_inner(
             rt,
             Arc::new(crate::clock::SystemClock::new()),
+            None,
             options.stack_size(),
         )?;
         this.with(|ctx| -> JsResult<()> {
@@ -1511,47 +1664,6 @@ fn hmr_diagnostic(error: rquickjs::CaughtError<'_>) -> String {
             .unwrap_or_else(|| "JavaScript threw a non-string value".into()),
         rquickjs::CaughtError::Error(error) => error.to_string(),
     }
-}
-
-async fn fetch_request(
-    client: reqwest::Client,
-    url: String,
-    init_json: String,
-) -> JsResult<FetchResponse> {
-    let init: FetchInit = serde_json::from_str(&init_json).unwrap_or_default();
-    let method = init
-        .method
-        .as_deref()
-        .unwrap_or("GET")
-        .parse::<reqwest::Method>()
-        .map_err(|_| rquickjs::Error::Unknown)?;
-    let mut request = client.request(method, &url);
-    if let Some(headers) = init.headers {
-        for (name, value) in headers {
-            request = request.header(name, value);
-        }
-    }
-    if let Some(body) = init.body {
-        request = request.body(body);
-    }
-    let response = request.send().await.map_err(|_| rquickjs::Error::Unknown)?;
-    let status = response.status();
-    let headers = response
-        .headers()
-        .iter()
-        .map(|(name, value)| (name.to_string(), value.to_str().unwrap_or("").to_owned()))
-        .collect::<HashMap<_, _>>();
-    let body = response
-        .bytes()
-        .await
-        .map_err(|_| rquickjs::Error::Unknown)?
-        .to_vec();
-    Ok(FetchResponse {
-        status: status.as_u16(),
-        status_text: status.canonical_reason().unwrap_or("").to_owned(),
-        headers,
-        body,
-    })
 }
 
 fn digest_bytes(algorithm: u8, bytes: &[u8]) -> JsResult<Vec<u8>> {

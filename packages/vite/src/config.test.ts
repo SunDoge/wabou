@@ -1,18 +1,24 @@
 import { expect, test } from "bun:test";
 import { defineConfig } from "./config";
 
-test("defines frontend-only window and UI configuration", () => {
+test("defines one project configuration for Vite and the CLI", async () => {
   const config = defineConfig({
     window: { title: "Example", width: 960, height: 640, decorations: false },
     ui: { entry: "ui/main.tsx" },
   });
-  expect(config.window?.width).toBe(960);
-  expect(config.ui?.entry).toBe("ui/main.tsx");
+  expect(typeof config).toBe("function");
+  if (typeof config !== "function")
+    throw new Error("expected Vite config factory");
+  const resolved = await config({ command: "build", mode: "production" });
+  expect(resolved.build?.lib).toMatchObject({ entry: "ui/main.tsx" });
 });
 
-test("accepts an asynchronous configuration factory", async () => {
+test("accepts an asynchronous environment-dependent configuration factory", async () => {
   const factory = defineConfig(async () => ({
     window: { title: "Async" },
   }));
-  expect((await factory()).window?.title).toBe("Async");
+  if (typeof factory !== "function")
+    throw new Error("expected Vite config factory");
+  const resolved = await factory({ command: "serve", mode: "development" });
+  expect(resolved.build?.minify).toBe(false);
 });

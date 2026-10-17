@@ -1,4 +1,5 @@
 import "./host";
+
 interface Measurement {
   name: string;
   durationUs: number;

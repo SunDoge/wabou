@@ -117,26 +117,36 @@ disabled states, and internal vertical scrolling:
 
 `PasswordInput` stores its value only in a Rust `SecretStore`. QuickJS receives
 the non-sensitive slot identifier but never a `value` attribute or input-event
-payload. Register the store on the host and atomically take the secret in the
-native capability:
+payload. Register the store on the host and atomically take the secret in a
+Rust host module:
 
 ```rust
-let secrets = VelloHybridSecretStore::default();
-let login_secrets = secrets.clone();
-const UNLOCK: JsonMethod<UnlockRequest, UnlockResult> = JsonMethod::new("unlock");
-VelloHybridHostBuilder::new()
-    .password_inputs(secrets)
-    .capability(VAULT, move |capability| {
-        let login_secrets = login_secrets.clone();
-        capability.json_method(UNLOCK, move |request: UnlockRequest| {
-            let login_secrets = login_secrets.clone();
-            async move {
-                let password = login_secrets.take(&request.secret_slot);
-                // Pass `password` directly to the Rust SDK.
-                unlock_vault(password).await
-            }
-        })
-    });
+let secrets = SecretStore::default();
+
+#[derive(Clone)]
+struct VaultState(SecretStore);
+
+#[rquickjs::module]
+mod vault_host {
+    #[rquickjs::function]
+    pub async fn unlock(
+        ctx: rquickjs::Ctx<'_>,
+        wabou::JsValue(request): wabou::JsValue<UnlockRequest>,
+    ) -> rquickjs::Result<wabou::JsValue<UnlockResult>> {
+        let state = ctx
+            .userdata::<wabou::HostModuleState<VaultState>>()
+            .ok_or_else(|| rquickjs::Exception::throw_type(&ctx, "vault state unavailable"))?;
+        let password = state.0.0.take(&request.secret_slot);
+        unlock_vault(password).await.map(wabou::JsValue).map_err(host_error)
+    }
+}
+
+HostBuilder::new()
+    .password_inputs(secrets.clone())
+    .host_module_def_with_state::<js_vault_host, _>(
+        "vault",
+        wabou::HostModuleState(VaultState(secrets)),
+    );
 ```
 
 ```tsx
@@ -257,9 +267,9 @@ const shortcuts = createShortcuts({
 `Primary` accepts Control or Meta. Available modifier names are `Primary`,
 `Control`/`Ctrl`, `Meta`/`Cmd`, `Alt`/`Option`, and `Shift`.
 
-Floating overlays use GPUI's native positioner. The JavaScript layer sends a
+Floating overlays use the native renderer's positioner. The JavaScript layer sends a
 stable node handle or pointer coordinate together with placement, offset, and
-window-margin preferences. GPUI performs measurement, collision flipping, and
+window-margin preferences. The renderer performs measurement, collision flipping, and
 viewport clamping in the same native layout pass, without a JavaScript layout
 snapshot or animation-frame round trip.
 

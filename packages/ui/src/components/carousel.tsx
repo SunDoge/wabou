@@ -1,4 +1,5 @@
 import type { WabouPointerEvent } from "@wabou/core/renderer";
+import { mergeClasses } from "@wabou/core/style";
 import arrowDown from "lucide-static/icons/arrow-down.svg?raw";
 import arrowLeft from "lucide-static/icons/arrow-left.svg?raw";
 import arrowRight from "lucide-static/icons/arrow-right.svg?raw";
@@ -29,7 +30,6 @@ import {
 } from "../primitives";
 import { createControllableState } from "../primitives/interactions";
 import { Button, type ButtonProps } from "./button";
-import { mergeClasses } from "@wabou/core/style";
 
 export type CarouselOrientation = "horizontal" | "vertical";
 

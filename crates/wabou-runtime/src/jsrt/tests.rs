@@ -1,4 +1,29 @@
 use super::*;
+use std::{cell::Cell, rc::Rc};
+
+#[derive(Clone, rquickjs::JsLifetime)]
+struct GeneratedHostState(Rc<Cell<u32>>);
+
+#[rquickjs::module(rename_vars = "camelCase")]
+mod generated_host_module {
+    use super::GeneratedHostState;
+
+    #[rquickjs::function]
+    #[qjs(rename = "addOne")]
+    pub fn add_one(value: u32) -> u32 {
+        value + 1
+    }
+
+    #[rquickjs::function]
+    pub fn increment(ctx: rquickjs::Ctx<'_>) -> rquickjs::Result<u32> {
+        let state = ctx.userdata::<GeneratedHostState>().ok_or_else(|| {
+            rquickjs::Exception::throw_type(&ctx, "generated host state is unavailable")
+        })?;
+        let value = state.0.get() + 1;
+        state.0.set(value);
+        Ok(value)
+    }
+}
 
 #[test]
 fn mounted_stateful_capability_releases_capture_on_runtime_drop() {
@@ -7,7 +32,7 @@ fn mounted_stateful_capability_releases_capture_on_runtime_drop() {
         let state = Arc::new(Mutex::new(0_u32));
         let weak = Arc::downgrade(&state);
         runtime
-            .mount_capability("host", move |ctx, capability| {
+            .mount_host_module("host", move |ctx, capability| {
                 capability.set(
                     "tick",
                     Function::new(ctx, move || -> JsResult<()> {
@@ -23,7 +48,7 @@ fn mounted_stateful_capability_releases_capture_on_runtime_drop() {
         );
         if mode == "invoked" {
             runtime
-                .with(|ctx| ctx.eval::<(), _>("__wabou_capabilities.host.tick()"))
+                .with(|ctx| ctx.eval::<(), _>("__wabou_host_modules.host.tick()"))
                 .expect("invoke capability");
             assert_eq!(*weak.upgrade().unwrap().lock().unwrap(), 1);
         } else if mode == "invalid_global" {
@@ -50,6 +75,11 @@ impl TestClock {
 impl crate::clock::Clock for TestClock {
     fn now_ms(&self) -> f64 {
         self.0.load(Ordering::Relaxed) as f64
+    }
+
+    fn now_instant(&self) -> std::time::Instant {
+        // Only now_ms accuracy matters to these tests.
+        std::time::Instant::now()
     }
 }
 
@@ -426,7 +456,7 @@ fn encoding_streams_run_inside_quickjs() {
 fn mounted_capabilities_are_namespaced_and_reject_duplicates() {
     let runtime = JsRuntime::new().expect("runtime");
     runtime
-        .mount_capability("workspace", |ctx, capability| {
+        .mount_host_module("workspace", |ctx, capability| {
             capability.set(
                 "basename",
                 Function::new(ctx, |path: String| {
@@ -437,7 +467,7 @@ fn mounted_capabilities_are_namespaced_and_reject_duplicates() {
         .expect("mount workspace capability");
     let value = runtime
         .with(|ctx| {
-            ctx.eval::<String, _>("__wabou_capabilities.workspace.basename('/tmp/readme.md')")
+            ctx.eval::<String, _>("__wabou_host_modules.workspace.basename('/tmp/readme.md')")
         })
         .expect("call mounted function");
     assert_eq!(value, "readme.md");
@@ -447,9 +477,56 @@ fn mounted_capabilities_are_namespaced_and_reject_duplicates() {
     assert!(!leaked);
     assert!(
         runtime
-            .mount_capability("workspace", |_ctx, _capability| Ok(()))
+            .mount_host_module("workspace", |_ctx, _capability| Ok(()))
             .is_err()
     );
+}
+
+#[test]
+fn mounts_rquickjs_generated_module_exports() {
+    let runtime = JsRuntime::new().expect("runtime");
+    runtime
+        .mount_host_module_def::<js_generated_host_module>("generated")
+        .expect("mount generated module");
+
+    let keys = runtime
+        .with(|ctx| {
+            ctx.eval::<String, _>("JSON.stringify(Object.keys(__wabou_host_modules.generated))")
+        })
+        .expect("inspect generated exports");
+    assert_eq!(keys, r#"["addOne","increment"]"#);
+
+    let value = runtime
+        .with(|ctx| ctx.eval::<u32, _>("__wabou_host_modules.generated.addOne(41)"))
+        .expect("call generated export");
+    assert_eq!(value, 42);
+}
+
+#[test]
+fn mounts_rquickjs_generated_module_with_runtime_state() {
+    let runtime = JsRuntime::new().expect("runtime");
+    let value = Rc::new(Cell::new(9));
+    runtime
+        .mount_host_module_def_with_state::<js_generated_host_module, _>(
+            "statefulGenerated",
+            GeneratedHostState(value.clone()),
+        )
+        .expect("mount generated module with state");
+    assert!(
+        runtime
+            .mount_host_module_def_with_state::<js_generated_host_module, _>(
+                "secondStatefulGenerated",
+                GeneratedHostState(Rc::new(Cell::new(100))),
+            )
+            .is_err(),
+        "one runtime must not silently replace module state of the same type"
+    );
+
+    let result = runtime
+        .with(|ctx| ctx.eval::<u32, _>("__wabou_host_modules.statefulGenerated.increment()"))
+        .expect("call stateful generated export");
+    assert_eq!(result, 10);
+    assert_eq!(value.get(), 10);
 }
 
 #[test]
@@ -458,13 +535,13 @@ fn capability_names_use_the_generated_contract_identifier_rules() {
     for invalid in ["", "1workspace", "work-space", "工作区"] {
         assert!(
             runtime
-                .mount_capability(invalid, |_ctx, _capability| Ok(()))
+                .mount_host_module(invalid, |_ctx, _capability| Ok(()))
                 .is_err(),
             "accepted invalid capability name {invalid:?}"
         );
     }
     runtime
-        .mount_capability("_workspace2", |_ctx, _capability| Ok(()))
+        .mount_host_module("_workspace2", |_ctx, _capability| Ok(()))
         .expect("shared identifier grammar accepts valid names");
 }
 
@@ -712,6 +789,66 @@ fn fetch_wakes_host_and_resolves_on_js_thread() {
 }
 
 #[test]
+fn fetch_sends_binary_request_body_without_json_encoding() {
+    use std::io::{Read, Write};
+    use std::net::TcpListener;
+
+    let listener = TcpListener::bind("127.0.0.1:0").expect("bind test server");
+    let address = listener.local_addr().expect("server address");
+    let server = std::thread::spawn(move || {
+        let (mut stream, _) = listener.accept().expect("accept request");
+        stream
+            .set_read_timeout(Some(std::time::Duration::from_secs(3)))
+            .expect("set read timeout");
+        let mut request = Vec::new();
+        let header_end = loop {
+            let mut chunk = [0u8; 1024];
+            let count = stream.read(&mut chunk).expect("read request");
+            assert!(count > 0, "connection closed before request body");
+            request.extend_from_slice(&chunk[..count]);
+            if let Some(index) = request.windows(4).position(|window| window == b"\r\n\r\n") {
+                break index + 4;
+            }
+        };
+        while request.len() < header_end + 4 {
+            let mut chunk = [0u8; 4];
+            let count = stream.read(&mut chunk).expect("read request body");
+            assert!(count > 0, "connection closed before request body");
+            request.extend_from_slice(&chunk[..count]);
+        }
+        let headers = String::from_utf8_lossy(&request[..header_end]);
+        assert!(headers.starts_with("PUT /upload HTTP/1.1"));
+        assert!(headers.to_ascii_lowercase().contains("content-length: 4"));
+        assert_eq!(&request[header_end..header_end + 4], &[0, 255, 128, 1]);
+        stream
+            .write_all(b"HTTP/1.1 204 No Content\r\nconnection: close\r\n\r\n")
+            .expect("write response");
+    });
+
+    let runtime = JsRuntime::new().expect("runtime");
+    runtime
+        .with(|ctx| {
+            ctx.eval::<(), _>(format!(
+                "globalThis.uploaded = false; __wabou_fetch('http://{address}/upload', '{{\"method\":\"PUT\"}}', 0, new Uint8Array([0,255,128,1])).then(() => uploaded = true);"
+            ))
+        })
+        .expect("start upload");
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
+    loop {
+        runtime.poll_async_runtime();
+        if runtime
+            .with(|ctx| ctx.eval::<bool, _>("uploaded"))
+            .expect("inspect upload result")
+        {
+            break;
+        }
+        assert!(std::time::Instant::now() < deadline, "upload timed out");
+        std::thread::yield_now();
+    }
+    server.join().expect("join server");
+}
+
+#[test]
 fn host_ffi_surface_matches_contract() {
     // Lock the globals installed by a bare JsRuntime. Applier adds the
     // window, clipboard, and renderer-specific half of the host bridge;
@@ -753,6 +890,32 @@ fn host_ffi_surface_matches_contract() {
         })
         .expect("check for stale FFI names");
     assert!(stale.is_empty(), "stale FFI names still defined: {stale:?}");
+}
+
+#[test]
+fn native_intl_host_functions_execute_inside_quickjs() {
+    let runtime = JsRuntime::new().expect("runtime");
+    let output = runtime
+        .with(|ctx| {
+            ctx.eval::<String, _>(
+                r#"JSON.stringify({
+                    number: __wabou_format_number("de-DE", 1234.5, "{}"),
+                    parsed: __wabou_parse_number("de-DE", "1.234,5", "{}"),
+                    plural: __wabou_plural_category("en", 1, "{}"),
+                    date: __wabou_format_date("en", 0, '{"dateStyle":"medium","timeZone":"UTC"}'),
+                    firstWeekday: __wabou_first_weekday("de-DE"),
+                    relative: __wabou_format_relative_time("en", -1, "day", '{"numeric":"auto"}')
+                })"#,
+            )
+        })
+        .expect("native formatters");
+    let output: serde_json::Value = serde_json::from_str(&output).expect("formatter result JSON");
+    assert_eq!(output["number"], "1.234,5");
+    assert_eq!(output["parsed"], 1234.5);
+    assert_eq!(output["plural"], "one");
+    assert_eq!(output["firstWeekday"], 1);
+    assert_eq!(output["relative"], "yesterday");
+    assert!(output["date"].as_str().unwrap().contains("1970"));
 }
 
 #[test]
@@ -1051,6 +1214,18 @@ fn buffered_response_memory_contract_runs_inside_quickjs() {
 }
 
 #[test]
+fn quickjs_memory_snapshot_reports_live_runtime_allocations() {
+    let runtime = JsRuntime::new().unwrap();
+    runtime
+        .with(|ctx| ctx.eval::<(), _>("globalThis.memoryProbe = new Uint8Array(4096)"))
+        .unwrap();
+    let memory = runtime.memory_usage_snapshot();
+    assert!(memory.malloc_bytes >= memory.used_bytes);
+    assert!(memory.used_bytes > 0);
+    assert!(memory.object_count > 0);
+}
+
+#[test]
 fn solid_proxy_props_preserve_nested_native_children() {
     let mut runtime = JsRuntime::new().unwrap();
     runtime
@@ -1062,4 +1237,212 @@ fn solid_proxy_props_preserve_nested_native_children() {
     let result: serde_json::Value = serde_json::from_str(&result).unwrap();
     assert_eq!(result["mergedChild"], true);
     assert_eq!(result["omittedChild"], true);
+}
+
+#[test]
+fn virtual_clock_timer_and_frame_timing_is_deterministic_under_real_time_chaos() {
+    const CORE_FIXTURE: &str = include_str!("../gen/test-runtime.js");
+
+    // Drives one virtual frame the way the headless test host does: poll
+    // pending jobs (timer continuations from the previous advance run here),
+    // run the rAF tick on virtual time, then advance one 16 ms frame.
+    fn drive_frame(runtime: &mut JsRuntime, clock: &crate::clock::VirtualClock) {
+        runtime.poll_async_runtime();
+        runtime.tick().expect("tick");
+        clock.advance_ms(16.0);
+    }
+
+    let scenario = r#"
+        globalThis.trace = [];
+        requestAnimationFrame((t) => trace.push("raf:" + t));
+        setTimeout(() => trace.push("t0:" + performance.now()), 0);
+        setTimeout(() => trace.push("t10:" + performance.now()), 10);
+        setTimeout(() => trace.push("t40:" + performance.now()), 40);
+        __wabou_sleep(35).then(() => trace.push("sleep35:" + performance.now()));
+        Promise.resolve().then(() => trace.push("microtask:" + performance.now()));
+        trace.push("sync:" + performance.now());
+    "#;
+
+    let run = |chaotic: bool| -> Vec<String> {
+        let (mut runtime, clock) =
+            JsRuntime::new_virtual(JsRuntimeOptions::default()).expect("runtime");
+        runtime.boot(CORE_FIXTURE).expect("boot fixture");
+        runtime
+            .with(|ctx| ctx.eval::<(), _>(scenario))
+            .expect("schedule scenario");
+        for frame in 0..8 {
+            if chaotic {
+                // Interleave real wall-clock delays of varying length: a slow
+                // machine or busy scheduler must not move the virtual trace.
+                std::thread::sleep(std::time::Duration::from_millis(frame % 3));
+            }
+            drive_frame(&mut runtime, &clock);
+        }
+        runtime
+            .with(|ctx| {
+                ctx.eval::<Vec<String>, _>("globalThis.trace.map((entry) => String(entry)).sort()")
+            })
+            .expect("read trace")
+    };
+
+    assert_eq!(run(false), run(true));
+}
+
+#[test]
+fn virtual_clock_zero_delay_sleeps_wait_for_the_next_advance() {
+    const CORE_FIXTURE: &str = include_str!("../gen/test-runtime.js");
+    let (mut runtime, clock) =
+        JsRuntime::new_virtual(JsRuntimeOptions::default()).expect("runtime");
+    runtime.boot(CORE_FIXTURE).expect("boot fixture");
+    runtime
+        .with(|ctx| {
+            ctx.eval::<(), _>(
+                "globalThis.seen = []; setTimeout(() => seen.push(performance.now()), 0)",
+            )
+        })
+        .expect("schedule timer");
+    runtime.poll_async_runtime();
+    // Registered but unfired: zero-delay timers still land on an advance.
+    runtime.poll_async_runtime();
+    assert!(
+        runtime
+            .with(|ctx| ctx.eval::<Vec<f64>, _>("globalThis.seen"))
+            .expect("read")
+            .is_empty()
+    );
+    clock.advance_ms(16.0);
+    runtime.poll_async_runtime();
+    runtime.poll_async_runtime();
+    let seen = runtime
+        .with(|ctx| ctx.eval::<Vec<f64>, _>("globalThis.seen"))
+        .expect("read fired");
+    assert_eq!(seen, [16.0]);
+}
+
+/// Minimal reproduction of the headless virtual-clock loop: a Solid-style
+/// signal write inside a synchronous host dispatch, whose reaction is
+/// scheduled by Solid's `schedule()` → `queueMicrotask(flush)` path, with an
+/// rAF animation started from that effect. This is the drawer-exit shape.
+#[test]
+fn virtual_clock_runs_reactions_scheduled_from_host_dispatch() {
+    const CORE_FIXTURE: &str = include_str!("../gen/test-runtime.js");
+    let (mut runtime, clock) =
+        JsRuntime::new_virtual(JsRuntimeOptions::default()).expect("runtime");
+    runtime.boot(CORE_FIXTURE).expect("boot fixture");
+
+    // Install a signal + effect + rAF animation mirroring the drawer close:
+    // host dispatch (click) flips the signal; the queued microtask effect
+    // starts an rAF animation; frames drive it to completion.
+    runtime
+        .with(|ctx| {
+            ctx.eval::<(), _>(
+                r#"
+                globalThis.done = false;
+                let open = true;
+                const listeners = [];
+                globalThis.setOpen = (next) => {
+                    open = next;
+                    // Solid's schedule(): queueMicrotask(flush)
+                    queueMicrotask(() => {
+                        if (!open) {
+                            // createTransition effect: start exit animation
+                            let start;
+                            const duration = 220;
+                            const tickFn = (t) => {
+                                start ??= t;
+                                if (t - start >= duration) {
+                                    globalThis.done = true;
+                                    return;
+                                }
+                                requestAnimationFrame(tickFn);
+                            };
+                            requestAnimationFrame(tickFn);
+                        }
+                    });
+                };
+                globalThis.isOpen = () => open;
+                "#,
+            )
+        })
+        .expect("install signal");
+
+    runtime.poll_async_runtime();
+    runtime.tick().expect("initial tick");
+
+    // Host dispatch: the click handler writes the signal synchronously.
+    runtime
+        .with(|ctx| ctx.eval::<(), _>("globalThis.setOpen(false)"))
+        .expect("click closes the drawer");
+
+    // Headless loop shape: poll jobs, tick frames, advance virtual time.
+    for _frame in 0..30 {
+        runtime.poll_async_runtime();
+        runtime.tick().expect("tick");
+        clock.advance_ms(16.0);
+        let done = runtime
+            .with(|ctx| ctx.eval::<bool, _>("globalThis.done"))
+            .expect("probe");
+        if done {
+            return;
+        }
+    }
+    panic!("exit animation never completed under the virtual-clock headless loop shape");
+}
+
+/// Real Solid scheduler (createEffect via schedule() → queueMicrotask(flush))
+/// under the virtual-clock headless loop shape. Isolates the drawer-exit bug
+/// from the hand-rolled queueMicrotask of the previous test.
+#[test]
+fn virtual_clock_runs_solid_effects_from_host_dispatch() {
+    const CORE_FIXTURE: &str = include_str!("../gen/test-runtime.js");
+    let (mut runtime, clock) =
+        JsRuntime::new_virtual(JsRuntimeOptions::default()).expect("runtime");
+    runtime.boot(CORE_FIXTURE).expect("boot fixture");
+
+    runtime
+        .with(|ctx| {
+            ctx.eval::<(), _>(
+                r#"
+                const { createSignal, createEffect } = globalThis.__wabou_test_solid;
+                globalThis.done = false;
+                const [open, setOpen] = createSignal(true);
+                globalThis.close = () => setOpen(false);
+                createEffect(open, (isOpen) => {
+                    if (!isOpen) {
+                        let start;
+                        const duration = 220;
+                        const tickFn = (t) => {
+                            start ??= t;
+                            if (t - start >= duration) {
+                                globalThis.done = true;
+                                return;
+                            }
+                            requestAnimationFrame(tickFn);
+                        };
+                        requestAnimationFrame(tickFn);
+                    }
+                });
+                "#,
+            )
+        })
+        .expect("install solid effect");
+    runtime.poll_async_runtime();
+    runtime.tick().expect("initial tick");
+
+    runtime
+        .with(|ctx| ctx.eval::<(), _>("globalThis.close()"))
+        .expect("host dispatch closes");
+
+    for _frame in 0..30 {
+        runtime.poll_async_runtime();
+        runtime.tick().expect("tick");
+        clock.advance_ms(16.0);
+        if runtime
+            .with(|ctx| ctx.eval::<bool, _>("globalThis.done"))
+            .expect("probe")
+        {
+            return;
+        }
+    }
+    panic!("Solid effect + rAF animation never completed under the virtual clock");
 }

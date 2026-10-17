@@ -31,10 +31,7 @@ const manifest = JSON.parse(json) as {
     prefixes: { name: string; properties: string[] }[];
   }[];
 };
-await writeFile(
-  resolve(root, "packages/vite/src/preset/manifest.json"),
-  json,
-);
+await writeFile(resolve(root, "packages/vite/src/preset/manifest.json"), json);
 
 const union = (values: string[]) =>
   values.length
@@ -130,10 +127,16 @@ export const UTILITY_CONFLICT_DATA = ${JSON.stringify(
     spacing: Object.keys(manifest.spacing),
     colors: Object.keys(manifest.colors),
     staticUtilities: Object.fromEntries(
-      Object.entries(manifest.staticUtilities).map(([candidate, declarations]) => [
-        candidate,
-        [...new Set(expandedProperties(declarations.map(({ property }) => property)))],
-      ]),
+      Object.entries(manifest.staticUtilities).map(
+        ([candidate, declarations]) => [
+          candidate,
+          [
+            ...new Set(
+              expandedProperties(declarations.map(({ property }) => property)),
+            ),
+          ],
+        ],
+      ),
     ),
     dynamicRules: manifest.dynamicRules.flatMap(({ resolver, prefixes }) =>
       prefixes.map(({ name, properties }) => ({

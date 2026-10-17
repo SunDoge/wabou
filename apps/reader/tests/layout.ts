@@ -14,7 +14,7 @@ import { renderAppLayout } from "@wabou/test/layout/node";
 
 const command = process.env.WABOU_LAYOUT_COMMAND
   ? process.env.WABOU_LAYOUT_COMMAND.split(" ").filter(Boolean)
-  : [resolve("target/debug/wabou-render")];
+  : [resolve("target/release/wabou-render")];
 
 const directory = await mkdtemp(join(tmpdir(), "wabou-reader-layout-"));
 try {

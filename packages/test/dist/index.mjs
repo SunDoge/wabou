@@ -565,6 +565,7 @@ function createPage(windowId, scope = []) {
 	};
 }
 const context = {
+	host: defaultHost,
 	page: createPage({
 		lo: __wabou_window_id_lo,
 		hi: __wabou_window_id_hi

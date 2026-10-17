@@ -1,10 +1,8 @@
 # wabou
 
-`wabou` is the public Rust application API for the Wabou native SolidJS
-runtime. It is a facade over Wabou's implementation crates so applications do
-not need to depend directly on `wabou-runtime` or backend implementation
-crates. The public runtime uses the Winit + Taffy + Parley + Vello Hybrid
-backend.
+`wabou` is the public Rust application runtime for Wabou. It combines the
+SolidJS host with the Winit + Taffy + Parley + Vello renderer behind one
+application-facing crate.
 
 During the developer preview, depend on a tagged Git revision:
 
@@ -26,6 +24,6 @@ fn main() -> wabou::Result<()> {
 }
 ```
 
-The facade is intentionally not published to crates.io yet. Its first job is
-to validate and stabilize the public boundary while internal crates can still
-be merged or renamed.
+The crate is intentionally not published to crates.io yet. Its first job is to
+validate and stabilize the public boundary while internal crates can still be
+merged or renamed.

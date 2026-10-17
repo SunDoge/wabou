@@ -36,7 +36,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         if time::Instant::now() >= deadline {
             return Err(Box::new(rquickjs::Error::Unknown));
         }
-        // Native async functions normally wake the GPUI application. This
+        // Native async functions normally wake the application. This
         // standalone evaluator has no application loop, so yield and poll again
         // instead of treating the first parked job as completion.
         thread::sleep(time::Duration::from_millis(1));

@@ -11,7 +11,7 @@ const thumbX = (screen: ReturnType<typeof renderComponent>): number => {
   return thumb.transform?.[4] ?? 0;
 };
 
-test("delegates switch thumb movement to a persistent GPUI spring", () => {
+test("delegates switch thumb movement to a persistent native spring", () => {
   const screen = renderComponent(() => (
     <Switch aria-label="Sync" defaultChecked={false} />
   ));
@@ -108,7 +108,7 @@ test("disables spring travel under reduced motion", () => {
   expect(thumbX(screen)).toBe(16);
 });
 
-test("uses compact GPUI-native track geometry without focus reflow", () => {
+test("uses compact native track geometry without focus reflow", () => {
   const screen = renderComponent(() => <Switch aria-label="Sync" />);
   const control = screen.getByRole("switch", { name: "Sync" });
   const track = control.children[0];
@@ -146,7 +146,7 @@ test("only keyboard-visible focus paints the focus ring", () => {
   ).toContain("border-focus");
 });
 
-test("supports gpui-component compact track geometry", () => {
+test("supports compact native track geometry", () => {
   const screen = renderComponent(() => (
     <Switch aria-label="Compact" size="sm" />
   ));

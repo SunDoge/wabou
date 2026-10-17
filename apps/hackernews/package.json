@@ -4,10 +4,10 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "vite --host 127.0.0.1 --port 5174 --strictPort",
-    "dev:live": "VITE_HN_LIVE=1 vite --host 127.0.0.1 --port 5174 --strictPort",
-    "build": "vite build",
-    "build:live": "VITE_HN_LIVE=1 vite build"
+    "dev": "vite --config wabou.config.ts --host 127.0.0.1 --port 5174 --strictPort",
+    "dev:live": "VITE_HN_LIVE=1 vite --config wabou.config.ts --host 127.0.0.1 --port 5174 --strictPort",
+    "build": "vite --config wabou.config.ts build",
+    "build:live": "VITE_HN_LIVE=1 vite --config wabou.config.ts build"
   },
   "dependencies": {
     "@wabou/ui": "workspace:*",

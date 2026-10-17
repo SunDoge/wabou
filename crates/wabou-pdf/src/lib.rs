@@ -14,7 +14,7 @@ use std::path::PathBuf;
 use std::sync::{Arc, Mutex, mpsc};
 #[cfg(feature = "bindings")]
 use wabou_bindgen::specta;
-use wabou_render_core::{
+use wabou_renderer::{
     NativeWidgetPlugin, PaintContext, SemanticRole, WakeCallback, Widget, WidgetAccessibility,
     WidgetChanges, WidgetRasterImage, WidgetRasterImageError, decode_widget_config,
 };

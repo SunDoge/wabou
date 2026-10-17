@@ -529,19 +529,19 @@ test("waits for Promise-driven component work with bounded diagnostics", async (
   );
 });
 
-test("injects typed host capabilities and records their calls", () => {
-  interface DemoCapability {
+test("injects typed host modules and records their calls", () => {
+  interface DemoModule {
     demo: {
       format(request: { value: number }): { label: string };
     };
   }
-  const fixture = createTestHost<DemoCapability>({
+  const fixture = createTestHost<DemoModule>({
     demo: {
       format: ({ value }) => ({ label: `Value ${value}` }),
     },
   });
   const HostConsumer = () => {
-    const host = useHost<Host & DemoCapability>();
+    const host = useHost<Host & DemoModule>();
     return <Text role="status">{host.demo.format({ value: 42 }).label}</Text>;
   };
 

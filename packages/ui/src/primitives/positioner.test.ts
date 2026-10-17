@@ -14,7 +14,8 @@ describe("native floating-position contract", () => {
     });
 
     expect(position.anchor.kind).toBe("node");
-    if (position.anchor.kind !== "node") throw new Error("expected node anchor");
+    if (position.anchor.kind !== "node")
+      throw new Error("expected node anchor");
     expect(position.anchor.id).toBe(anchor.id);
     expect(position.placement).toBe("right-end");
     expect(position.offset).toBe(9);

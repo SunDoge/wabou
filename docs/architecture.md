@@ -1,14 +1,20 @@
 # Architecture boundaries
 
-Wabou presents one application model: Solid 2 runs inside QuickJS and emits a
-versioned mutation protocol into a retained native runtime. The current backend
-uses Winit for windows and input, Taffy for layout, Parley for text, and
-Vello Hybrid for painting.
+Wabou is a Rust application runtime with replaceable UI-language adapters. The
+first adapter runs Solid 2 inside QuickJS and emits a versioned mutation
+protocol into a retained native runtime. The current backend uses Winit for
+windows and input, Taffy for layout, Parley for text, and Vello GPU for
+painting.
 
 ```text
-Application state and TSX (Solid 2)
+Rust application state and resources
                  |
-          completed Solid flush
+        typed commands and events
+                 |
+       UI-language adapter
+       (Solid 2 + QuickJS today)
+                 |
+          completed adapter flush
                  |
      batched, versioned operations
                  |
@@ -16,24 +22,23 @@ Application state and TSX (Solid 2)
        /          |          \
     Taffy       Parley    native widgets
        \          |          /
-          Vello Hybrid scene
+          Vello GPU scene
                  |
                Winit
 ```
-
-The repository previously contained GPUI and AnyRender experiments. They are
-not application backends or public API. Backend-specific names remain only
-where a crate owns a real implementation boundary, such as
-`wabou-shell-vello` and `wabou-terminal-vello`.
 
 ## Sources of truth
 
 Wabou keeps one authoritative owner for each kind of state:
 
-- Solid signals and owners own application state and authored component
-  structure.
-- `packages/core/src/protocol/index.ts` owns the binary wire format. Generated
-  Rust constants and golden frames verify it; they are not separate schemas.
+- Rust owns durable application state, resources, asynchronous work, database
+  connections, and operating-system integration.
+- The active UI adapter owns authored component structure and disposable UI
+  state such as local disclosure or hover state. Durable form drafts and other
+  state that must survive a frontend reload belong in Rust.
+- `crates/wabou-protocol/src/wire.rs` owns the binary wire format. TypeScript
+  constants are generated from those Rust definitions; golden frames verify
+  the encoder and decoder against the same numeric contract.
 - The committed Rust projection tree owns the latest native node structure. A
   partially decoded frame is never observable.
 - Taffy owns completed layout. The shell owns clipping, hit testing, focus,
@@ -67,29 +72,30 @@ details never cross the wire.
 
 ## Ownership
 
-JavaScript owns application state, component composition, routing, interaction
-policy, and semantic intent. A primitive declares capabilities such as focus
-participation explicitly. Rust does not infer web behavior from tag names,
-`href`, or CSS conventions.
+Rust owns application state and behavior. The UI adapter owns component
+composition, routing presentation, interaction policy, and semantic intent. A
+primitive declares capabilities such as focus participation explicitly. Rust
+does not infer web behavior from tag names, `href`, or CSS conventions.
 
 Rust validates and executes that intent: retained nodes, resources, layout,
 text, paint, native input, windows, and operating-system services. Inference is
 limited to local native work such as intrinsic measurement or deriving an
 accessible label from explicit descendants.
 
-Native widgets follow the same split. Solid authors a complete configuration
+Native widgets follow the same split. The UI adapter authors a complete configuration
 snapshot; the widget measures, paints, and handles transient input; typed
-events return facts to Solid. See [native widgets](native-widgets.md).
+events return facts to the adapter. See [native widgets](native-widgets.md).
 
 ## Public surfaces
 
-- `@wabou/ui` is the application-facing JSX and component API.
+- `@wabou/ui` is the first application-facing JSX adapter and component API.
 - `@wabou/core` contains the embedded renderer and protocol runtime.
 - `@wabou/vite` owns build integration and static style compilation.
 - `@wabou/test` owns component, layout, native behavior, and capture tooling.
 - `@wabou/terminal` is the optional terminal component package.
-- `wabou` is the Rust application facade. Applications normally use
-  `wabou::HostBuilder` and do not depend on backend internals.
+- `wabou` is the Rust application runtime and the application-facing source of
+  truth for commands, events, resources, and native extensions. Applications
+  normally use `wabou::HostBuilder` and do not depend on backend internals.
 
 The five JavaScript packages have different consumers and build lifecycles.
 Components, primitives, animation, routing, protocol, and style subsystems stay
@@ -110,14 +116,21 @@ The normative selection and lifetime rules live in
 | --- | --- |
 | frame protocol | high-frequency batched mutations and host events |
 | native intrinsics | private synchronous runtime/engine primitives |
-| capability methods | typed application request/response APIs |
+| generated bindings | typed Rust commands, events, data, and resource handles |
 
-`HostMethod` exchanges structured QuickJS values directly. `JsonMethod` is the
-same capability mechanism with JSON as an explicit codec for dynamic or
-externally sourced payloads; it is not a second plugin system. Long-running
-native producers publish through host event frames.
+QuickJS values are an implementation detail of the current adapter. Public Rust
+contracts use a restricted, language-neutral type vocabulary. Binding backends
+derive TypeScript declarations today and can derive Dart or another frontend
+language later without changing application services. Long-running native
+producers publish typed events; resource identity crosses the adapter as an
+opaque generational handle.
 
-New cross-language features need one authoritative declaration and generated
-Rust/TypeScript views. Handwritten parallel enums and registration lists are
-drift bugs. Resource identity uses full generational keys, normally transported
-as two `u32` values, so a stale handle cannot target a reused slot.
+The mutation protocol is likewise independent of Solid and QuickJS. A future
+adapter needs to produce the same retained-tree operations, receive typed
+events, and implement the generated command surface. It does not reimplement
+layout, text, rendering, resource ownership, or application business logic.
+
+New cross-language features need one authoritative Rust declaration and a
+generated view for each adapter. Handwritten parallel enums and registration
+lists are drift bugs. Resource identity uses full generational keys, normally
+transported as two `u32` values, so a stale handle cannot target a reused slot.

@@ -737,8 +737,7 @@ export function AccordionPage() {
             </AccordionTrigger>
             <AccordionContent role="region" aria-label="Native rendering">
               <Text class="w-full whitespace-normal text-sm text-muted">
-                No. Solid produces a retained native tree projected into GPUI by
-                Rust.
+                No. Solid produces a retained native tree projected by Rust.
               </Text>
             </AccordionContent>
           </AccordionItem>

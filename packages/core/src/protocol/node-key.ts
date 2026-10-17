@@ -64,7 +64,11 @@ export class NodeKeyAllocator {
   #nextSlot: number;
 
   constructor(firstSlot = 2) {
-    if (!Number.isInteger(firstSlot) || firstSlot < 0 || firstSlot > 0xffff_ffff) {
+    if (
+      !Number.isInteger(firstSlot) ||
+      firstSlot < 0 ||
+      firstSlot > 0xffff_ffff
+    ) {
       throw new RangeError("firstSlot must be an unsigned 32-bit integer");
     }
     this.#nextSlot = firstSlot;

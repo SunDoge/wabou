@@ -10,5 +10,5 @@
     "noEmit": true,
     "skipLibCheck": true
   },
-  "include": ["ui", "vite.config.ts"]
+  "include": ["ui", "wabou.config.ts"]
 }

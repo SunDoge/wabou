@@ -405,7 +405,7 @@ pub struct DebugStatus {
     /// Platform policy used when ordinary raster text must fall back to outlines.
     #[serde(default)]
     pub text_outline_fallback: String,
-    /// Application-requested GPUI glyph rasterization mode.
+    /// Application-requested glyph rasterization mode.
     #[serde(default)]
     pub text_rendering_mode: String,
     /// Runtime policy after applying known platform and window constraints.
@@ -414,6 +414,12 @@ pub struct DebugStatus {
     /// Timing metrics from the most recently presented frame, when available.
     #[serde(default)]
     pub frame_stats: Option<FrameStats>,
+    /// Process memory sampled when the `status` command is handled.
+    #[serde(default)]
+    pub process_memory: Option<DebugProcessMemory>,
+    /// QuickJS allocator and object statistics from the latest native projection.
+    #[serde(default)]
+    pub quick_js_memory: Option<DebugQuickJsMemory>,
     /// Focused Solid node identifier.
     pub focused_node: Option<NodeKey>,
     /// Hovered Solid node identifier.
@@ -445,12 +451,162 @@ impl Default for DebugStatus {
             text_rendering_mode: String::new(),
             text_rendering_policy: String::new(),
             frame_stats: None,
+            process_memory: None,
+            quick_js_memory: None,
             focused_node: None,
             hovered_node: None,
             overlay: DebugOverlay::default(),
             overlay_paint: DebugOverlayPaintStats::default(),
         }
     }
+}
+
+#[derive(Clone, Copy, Debug, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[cfg_attr(feature = "bindings", derive(specta::Type))]
+#[serde(rename_all = "camelCase")]
+/// Operating-system memory counters for the inspected process.
+pub struct DebugProcessMemory {
+    /// Resident pages currently charged to the process.
+    #[cfg_attr(feature = "bindings", specta(type = specta_typescript::Number))]
+    pub rss_bytes: u64,
+    /// Lifetime high-water mark for resident pages, when available.
+    #[cfg_attr(feature = "bindings", specta(type = specta_typescript::Number))]
+    pub rss_peak_bytes: Option<u64>,
+    /// Proportional set size, which divides shared pages among processes.
+    #[cfg_attr(feature = "bindings", specta(type = specta_typescript::Number))]
+    pub pss_bytes: Option<u64>,
+}
+
+#[derive(Clone, Copy, Debug, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[cfg_attr(feature = "bindings", derive(specta::Type))]
+#[serde(rename_all = "camelCase")]
+/// QuickJS-owned allocations and live object counts.
+pub struct DebugQuickJsMemory {
+    /// Bytes reserved through the QuickJS allocator.
+    #[cfg_attr(feature = "bindings", specta(type = specta_typescript::Number))]
+    pub malloc_bytes: u64,
+    /// Bytes QuickJS attributes to live runtime values.
+    #[cfg_attr(feature = "bindings", specta(type = specta_typescript::Number))]
+    pub used_bytes: u64,
+    /// Number of live allocator blocks.
+    #[cfg_attr(feature = "bindings", specta(type = specta_typescript::Number))]
+    pub allocation_count: u64,
+    /// Number of interned atoms.
+    #[cfg_attr(feature = "bindings", specta(type = specta_typescript::Number))]
+    pub atom_count: u64,
+    /// Bytes occupied by interned atoms.
+    #[cfg_attr(feature = "bindings", specta(type = specta_typescript::Number))]
+    pub atom_bytes: u64,
+    /// Number of live JavaScript strings.
+    #[cfg_attr(feature = "bindings", specta(type = specta_typescript::Number))]
+    pub string_count: u64,
+    /// Bytes occupied by JavaScript strings.
+    #[cfg_attr(feature = "bindings", specta(type = specta_typescript::Number))]
+    pub string_bytes: u64,
+    /// Number of live JavaScript objects.
+    #[cfg_attr(feature = "bindings", specta(type = specta_typescript::Number))]
+    pub object_count: u64,
+    /// Bytes occupied by JavaScript objects.
+    #[cfg_attr(feature = "bindings", specta(type = specta_typescript::Number))]
+    pub object_bytes: u64,
+    /// Number of live object properties.
+    #[cfg_attr(feature = "bindings", specta(type = specta_typescript::Number))]
+    pub property_count: u64,
+    /// Bytes occupied by object properties.
+    #[cfg_attr(feature = "bindings", specta(type = specta_typescript::Number))]
+    pub property_bytes: u64,
+    /// Number of JavaScript functions.
+    #[cfg_attr(feature = "bindings", specta(type = specta_typescript::Number))]
+    pub function_count: u64,
+    /// Bytes occupied by function metadata and closures.
+    #[cfg_attr(feature = "bindings", specta(type = specta_typescript::Number))]
+    pub function_bytes: u64,
+    /// Bytes occupied by JavaScript bytecode.
+    #[cfg_attr(feature = "bindings", specta(type = specta_typescript::Number))]
+    pub bytecode_bytes: u64,
+    /// Number of JavaScript arrays.
+    #[cfg_attr(feature = "bindings", specta(type = specta_typescript::Number))]
+    pub array_count: u64,
+    /// Number of ArrayBuffer and typed-array backing objects.
+    #[cfg_attr(feature = "bindings", specta(type = specta_typescript::Number))]
+    pub binary_object_count: u64,
+    /// Bytes occupied by ArrayBuffer and typed-array backing stores.
+    #[cfg_attr(feature = "bindings", specta(type = specta_typescript::Number))]
+    pub binary_object_bytes: u64,
+}
+
+#[cfg(any(target_os = "linux", test))]
+fn kib_field(input: &str, name: &str) -> Option<u64> {
+    input.lines().find_map(|line| {
+        let value = line.strip_prefix(name)?.trim();
+        let value = value.strip_suffix("kB")?.trim().parse::<u64>().ok()?;
+        value.checked_mul(1024)
+    })
+}
+
+#[cfg(target_os = "linux")]
+fn sample_process_memory() -> Option<DebugProcessMemory> {
+    let status = fs::read_to_string("/proc/self/status").ok()?;
+    let rollup = fs::read_to_string("/proc/self/smaps_rollup").ok();
+    Some(DebugProcessMemory {
+        rss_bytes: kib_field(&status, "VmRSS:")?,
+        rss_peak_bytes: kib_field(&status, "VmHWM:"),
+        pss_bytes: rollup.as_deref().and_then(|text| kib_field(text, "Pss:")),
+    })
+}
+
+#[cfg(target_os = "macos")]
+#[allow(deprecated)]
+fn sample_process_memory() -> Option<DebugProcessMemory> {
+    let mut info = std::mem::MaybeUninit::<libc::mach_task_basic_info_data_t>::zeroed();
+    let mut count = libc::MACH_TASK_BASIC_INFO_COUNT;
+    // SAFETY: `info` points to the structure selected by MACH_TASK_BASIC_INFO,
+    // and `count` is initialized to its ABI-defined integer count.
+    let result = unsafe {
+        libc::task_info(
+            libc::mach_task_self(),
+            libc::MACH_TASK_BASIC_INFO,
+            info.as_mut_ptr().cast(),
+            &mut count,
+        )
+    };
+    if result != libc::KERN_SUCCESS {
+        return None;
+    }
+    // SAFETY: task_info returned success and initialized the complete structure.
+    let info = unsafe { info.assume_init() };
+    Some(DebugProcessMemory {
+        rss_bytes: info.resident_size,
+        rss_peak_bytes: Some(info.resident_size_max),
+        pss_bytes: None,
+    })
+}
+
+#[cfg(windows)]
+fn sample_process_memory() -> Option<DebugProcessMemory> {
+    use windows_sys::Win32::System::{
+        ProcessStatus::{GetProcessMemoryInfo, PROCESS_MEMORY_COUNTERS},
+        Threading::GetCurrentProcess,
+    };
+
+    let mut counters = PROCESS_MEMORY_COUNTERS {
+        cb: std::mem::size_of::<PROCESS_MEMORY_COUNTERS>() as u32,
+        ..Default::default()
+    };
+    // SAFETY: the pseudo-handle is always valid for the current process and
+    // `counters` has the size declared in its `cb` field.
+    let succeeded =
+        unsafe { GetProcessMemoryInfo(GetCurrentProcess(), &mut counters, counters.cb) } != 0;
+    succeeded.then_some(DebugProcessMemory {
+        rss_bytes: counters.WorkingSetSize as u64,
+        rss_peak_bytes: Some(counters.PeakWorkingSetSize as u64),
+        pss_bytes: None,
+    })
+}
+
+#[cfg(not(any(target_os = "linux", target_os = "macos", windows)))]
+fn sample_process_memory() -> Option<DebugProcessMemory> {
+    None
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
@@ -997,7 +1153,9 @@ impl DebugState {
     fn execute(&mut self, command: &DebugCommand) -> Result<Value, String> {
         match command {
             DebugCommand::Status(_) => {
-                serde_json::to_value(&self.snapshot.status).map_err(|e| e.to_string())
+                let mut status = self.snapshot.status.clone();
+                status.process_memory = sample_process_memory();
+                serde_json::to_value(status).map_err(|e| e.to_string())
             }
             DebugCommand::QueryNodes(params) => {
                 let query = params.query.to_lowercase();

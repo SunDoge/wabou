@@ -13,7 +13,6 @@ export function App() {
       </view>
       <view class="text-5xl font-bold text-accent">{`Count: ${count()}`}</view>
       <view class="flex flex-wrap gap-3">
-        {/* biome-ignore lint/a11y/useSemanticElements: Wabou universal nodes use view with explicit roles, not HTML tags. */}
         <view
           role="button"
           class="bg-accent text-on-accent px-5 py-3 rounded-lg cursor-pointer"
@@ -21,7 +20,6 @@ export function App() {
         >
           Increment
         </view>
-        {/* biome-ignore lint/a11y/useSemanticElements: Wabou universal nodes use view with explicit roles, not HTML tags. */}
         <view
           role="button"
           class="bg-control text-primary px-5 py-3 rounded-lg cursor-pointer"

@@ -1,21 +1,2 @@
-//#region src/config.d.ts
-/** Frontend-only fallback-host configuration.
- *
- * Normal Wabou applications register Rust capabilities and widgets directly
- * in their statically linked executable.
- */
-export interface WabouProjectConfig {
-  window?: {
-    title?: string;
-    width?: number;
-    height?: number;
-    decorations?: boolean;
-  };
-  ui?: {
-    entry?: string;
-  };
-}
-/** Type-check ordinary data or an asynchronous environment-dependent factory. */
-export declare function defineConfig<T extends WabouProjectConfig | (() => WabouProjectConfig | Promise<WabouProjectConfig>)>(config: T): T;
-//#endregion
-//# sourceMappingURL=config.d.mts.map
+import { c as defineConfig, i as WabouProjectConfigExport, n as WabouPackageOptions, r as WabouProjectConfig, s as WabouWindowOptions, t as WabouBindingsOptions } from "./index-nwM6w_JZ.mjs";
+export { type WabouBindingsOptions, type WabouPackageOptions, type WabouProjectConfig, type WabouProjectConfigExport, type WabouWindowOptions, defineConfig };

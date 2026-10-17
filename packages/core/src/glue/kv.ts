@@ -1,6 +1,5 @@
 import { type Accessor, createSignal, onCleanup } from "solid-js";
 import { type Host, useHost } from "../renderer/host";
-import { bindCapability, type NativeCapability } from "./native-capability";
 
 /** JSON-compatible values stored by the built-in KV service. */
 export type KvValue =
@@ -60,7 +59,7 @@ interface WireEntry {
   expiresAt: number | null;
 }
 
-interface NativeKvCapability extends NativeCapability {
+interface NativeKvHost {
   get(request: { key: WireKeyPart[] }): Promise<WireEntry | null>;
   set(request: {
     key: WireKeyPart[];
@@ -93,13 +92,13 @@ interface NativeKvCapability extends NativeCapability {
 }
 
 interface KvHost extends Host {
-  kv: NativeKvCapability;
+  kv: NativeKvHost;
 }
 
 /** Fluent optimistic transaction committed as one SQLite transaction. */
 export class KvAtomicOperation {
   readonly #prefix: KvKey;
-  readonly #native: NativeKvCapability;
+  readonly #native: NativeKvHost;
   readonly #checks: { key: WireKeyPart[]; versionstamp: string | null }[] = [];
   readonly #mutations: (
     | {
@@ -116,7 +115,7 @@ export class KvAtomicOperation {
     | { type: "delete"; key: WireKeyPart[] }
   )[] = [];
 
-  constructor(prefix: KvKey, native: NativeKvCapability) {
+  constructor(prefix: KvKey, native: NativeKvHost) {
     this.#prefix = prefix;
     this.#native = native;
   }
@@ -299,10 +298,7 @@ export function createKvSignal<T extends KvValue>(options: {
  * directories. Prefixes are prepended by whole key parts, never string joined.
  */
 export function openKv(prefix: KvKey = []): Kv {
-  const native = bindCapability(useHost<KvHost>().kv, {
-    name: "kv",
-    version: 2,
-  });
+  const native = useHost<KvHost>().kv;
   const namespace = [...prefix];
   for (const part of namespace) encodePart(part);
 

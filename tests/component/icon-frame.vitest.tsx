@@ -38,8 +38,8 @@ test("Icon lets an explicitly interactive graphic opt into hit testing", () => {
   ));
 
   expect(
-    screen.getByRole("img", { name: "Interactive image" }).style(
-      "pointer-events",
-    ),
+    screen
+      .getByRole("img", { name: "Interactive image" })
+      .style("pointer-events"),
   ).toBe("auto");
 });

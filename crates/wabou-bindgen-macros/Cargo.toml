@@ -1,0 +1,10 @@
+[package]
+name = "wabou-bindgen-macros"
+version.workspace = true
+edition = "2024"
+license.workspace = true
+description = "Source-level JavaScript contract markers for Wabou bindgen"
+
+[lib]
+proc-macro = true
+

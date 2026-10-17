@@ -1,5 +1,6 @@
 import type { WabouPointerEvent } from "@wabou/core/renderer";
 import type { WabouStyle } from "@wabou/core/style";
+import { mergeClasses } from "@wabou/core/style";
 import {
   createContext,
   createMemo,
@@ -18,7 +19,6 @@ import {
   View,
   type ViewProps,
 } from "../primitives";
-import { mergeClasses } from "@wabou/core/style";
 
 export interface ImageViewportSize {
   width: number;
@@ -513,13 +513,18 @@ export function AnnotationLayer(props: AnnotationLayerProps): JSX.Element {
           </View>
         )}
       </ForValue>
-      {draft() && (
-        <View
-          aria-hidden="true"
-          class="absolute border-2 border-accent bg-transparent pointer-events-none"
-          style={styleFor(draft()!)}
-        />
-      )}
+      {(() => {
+        const rect = draft();
+        return (
+          rect && (
+            <View
+              aria-hidden="true"
+              class="absolute border-2 border-accent bg-transparent pointer-events-none"
+              style={styleFor(rect)}
+            />
+          )
+        );
+      })()}
     </View>
   );
 }

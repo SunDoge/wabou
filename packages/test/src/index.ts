@@ -4,6 +4,7 @@ import {
   type DebugOverlayPaintStats,
   defaultHost,
   type FrameStats,
+  type Host,
   type WabouExposedSemanticRole,
 } from "@wabou/core/renderer";
 import {
@@ -21,15 +22,15 @@ import {
 import {
   type PollOptions,
   pollUntil,
-  retryUntilHandled,
   type ResolvedPollOptions,
   resolvePollOptions,
+  retryUntilHandled,
 } from "./poll";
 import { replayActions } from "./replay";
 import {
   replayTimeout,
-  suiteTimeout,
   SuiteTimeoutError,
+  suiteTimeout,
   TestTimeoutError,
   testTimeout,
   withSuiteTimeout,
@@ -108,12 +109,14 @@ interface NativeTestCapability {
 }
 
 declare module "@wabou/core/registry" {
-  interface HostCapabilities {
+  interface HostModules {
     readonly test: NativeTestCapability;
   }
 }
 
 export interface TestContext {
+  /** Host modules installed in the application runtime under test. */
+  readonly host: Host;
   readonly page: TestPage;
   readonly window: TestWindow;
   readonly effects: TestEffects;
@@ -341,7 +344,7 @@ export interface LocatorReference extends LocatorSelector {
 
 export interface TestEnvironment {
   backend: "deterministic" | "native";
-  renderer: "vello-hybrid" | "unknown";
+  renderer: "vello-gpu" | "unknown";
   os: string;
   arch: string;
   wabouVersion: string;
@@ -859,6 +862,7 @@ function createPage(
 }
 
 const context: TestContext = {
+  host: defaultHost,
   page: createPage({
     lo: __wabou_window_id_lo,
     hi: __wabou_window_id_hi,

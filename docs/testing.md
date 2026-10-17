@@ -22,7 +22,7 @@ compatible `rquickjs-serde`. Run the runtime contracts and backend feature check
 
 ```bash
 cargo test -p wabou-runtime --features vite --lib
-cargo check -p wabou-backend-vello-hybrid --features vite,devtools
+cargo check -p wabou --features vite,devtools
 ```
 
 To exercise the real Vite module graph reported in issue #29 without a window or
@@ -58,7 +58,7 @@ to the same node. The contract is split into deterministic layers:
    emitted by a signal;
 2. backend tests feed that operation into the retained document and assert
    deterministic style, layout, interaction, and paint state;
-3. Vello Hybrid layout fixtures assert final geometry and native-widget metrics
+3. Vello GPU layout fixtures assert final geometry and native-widget metrics
    without opening a platform window.
 
 Do not replace these assertions with FPS thresholds. Timing is machine-specific;
@@ -97,7 +97,7 @@ bun run wabou render apps/gallery \
   --snapshot /tmp/gallery-dark.json
 ```
 
-The default capture backend is Vello Hybrid and runs in a completely offscreen
+The default capture backend is Vello GPU and runs in a completely offscreen
 process. The command still boots the real application bundle and can mount
 named layout fixtures or replay ordered input actions, but it does not connect
 to the user's desktop session:
@@ -105,8 +105,8 @@ to the user's desktop session:
 ```bash
 bun run wabou render apps/gallery \
   --fixture widgets/Select \
-  --out /tmp/gallery-hybrid.png \
-  --snapshot /tmp/gallery-hybrid.json
+  --out /tmp/gallery-vello-gpu.png \
+  --snapshot /tmp/gallery-vello-gpu.json
 ```
 
 Application capture suites can set the same contract in
@@ -323,7 +323,7 @@ actual protocol writer and remains live across reactive updates. It does not
 pretend to be computed layout or pixel output; keep those checks in native
 layout and screenshot tests.
 
-Promise-backed capabilities and async event handlers can be observed with the
+Promise-backed host modules and async event handlers can be observed with the
 harness-owned retry loop. `waitFor` commits Solid and protocol work before each
 assertion, reports the last locator/assertion failure on timeout, and does not
 implicitly advance a fake clock:
@@ -348,26 +348,21 @@ screen.getByRole("group", { name: "Panel" }).resize({
 This drives Wabou's real `ResizeObserver` callback and Solid update; it does not
 claim that Taffy would produce that geometry.
 
-Inject typed Host capabilities without booting Rust by passing a fixture to
-the component renderer. Generated DTOs remain the request and response types;
-the fixture does not introduce another schema. `wabou-bindgen` emits a test
-adapter beside every client, so tests implement typed DTO handlers rather than
-the native JSON strings and result envelope:
+Inject typed host-module methods without booting Rust by passing a fixture to
+the component renderer. Generated declarations remain the request and response
+types; the fixture does not introduce another schema. `createTestHost` records
+calls to the ordinary structured methods:
 
 ```tsx
-const downloads = createDownloadsTestCapability({
+const host = createTestHost({
+  downloads: {
     list: async () => [{ id: "1", name: "demo.zip" }],
+  },
 });
-const host = createTestHost({ downloads });
 
 const screen = renderComponent(() => <Downloads />, { host: host.host });
 expect(host.callsTo("downloads.list")).toHaveLength(1);
 ```
-
-The adapter mirrors the Rust capability boundary's `invalidRequest`,
-`handlerFailure`, and `responseEncodingFailure` envelopes. TypeScript catches
-DTO drift at authoring time; runtime schema validation remains Rust's job in a
-native run.
 
 Calls retain their path and exact arguments. Read-only locale/time defaults are
 deterministic (`en-US`, `UTC`, 1970-01-01). Layout reads return a deterministic
@@ -679,12 +674,29 @@ bun run wabou test /path/to/app/tests/window-lifecycle.behavior.ts \
   --app /path/to/app
 ```
 
-The deterministic backend boots the same retained Vello Hybrid document as a
+The deterministic backend boots the same retained Vello GPU document as a
 normal application. It exercises QuickJS, Solid flushes, the protocol, Taffy
 layout, native widgets, and projected input without requiring a compositor. It
 also uses an isolated temporary XDG data directory so
 persisted application state cannot make scenarios order-dependent. Pass
 `--native` for a real platform-window smoke test.
+
+Set `WABOU_TEST_CLOCK=virtual` for a run whose timing is reproducible
+byte-for-byte: `performance.now()`, animation-frame timestamps, and every
+`setTimeout` deadline advance on a manually driven virtual clock instead of
+the wall clock. One host loop iteration is one 16 ms virtual frame: the frame
+is built at virtual time T, scenario dispatches land at T, their reactions
+drain to a fixpoint still at T (matching a browser, where an input event's
+microtasks run before the next animation frame), and time advances last, so
+timer continuations fired by the advance observe T+16 on the next iteration.
+Two runs of the same scenario produce identical `report.json` and
+`trace.json` artifacts, including under injected CPU contention, because no
+part of the timing path observes real time.
+
+Semantic time now shares the injected clock across JavaScript scheduling,
+native motion, widget animation, caret blinking, click windows, and selection
+autoscroll. Mechanical timing such as watchdogs, performance measurement, and
+external I/O timeouts continues to use the system monotonic clock.
 
 The deterministic backend models shell-owned window lifecycle transitions but
 does not initialize native `ShellExtension` resources. Tests that must activate
@@ -698,7 +710,7 @@ equivalent to the native integration it is meant to verify.
 
 Every run writes versioned `report.json` and `trace.json` artifacts beneath
 `target/wabou-test/<app>/artifacts` by default. Use `--artifacts <dir>` to
-select another destination. The offscreen Vello Hybrid renderer can run without
+select another destination. The offscreen Vello GPU renderer can run without
 a display server. Pass `--failure-screenshot` to request `failure.png`.
 At the start of a run, Wabou removes only its known report, trace, temporary
 JSON, and failure-screenshot outputs from that directory. This prevents a
@@ -900,10 +912,10 @@ Type checking uses TypeScript 7. The AST-based identity/package checks import
 TypeScript 7 package does not expose the legacy JavaScript compiler API. Keep this
 separation until those checks migrate to a supported parser API.
 
-The Vello GPU 0.3 backend (formerly Vello Hybrid) requires wgpu 30. Keep the
+The Vello GPU 0.3 backend (formerly Vello GPU) requires wgpu 30. Keep the
 direct wgpu dependency and `wgpu_context` 0.10 on that same generation, along
 with `vello_common` 0.3 and `glifo` 0.4. Public Wabou crate/feature names and
-capture provenance labels retain `vello-hybrid` for compatibility; the renderer
+capture provenance labels retain `vello-gpu` for compatibility; the renderer
 implementation uses `vello_gpu`. winit 0.31 beta.3 replaces path-based file-drop
 events with asynchronous data transfer; keep beta.2 until the native input
 adapter and drag/drop contracts are migrated.

@@ -1,12 +1,10 @@
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync } from "node:fs";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import solid from "@solidjs/vite-plugin";
-import MagicString from "magic-string";
-import { parse } from "smol-toml";
 import {
   type ConfigEnv,
-  defineConfig,
+  defineConfig as defineViteConfig,
   mergeConfig,
   type Plugin,
   type UserConfig,
@@ -41,8 +39,10 @@ export interface WabouViteOptions {
   root?: string;
   /** Solid entry module. */
   entry?: string;
-  /** Directory for bundle.js and its assets. Defaults to build.out-dir in wabou.toml. */
+  /** Directory for bundle.js and its assets. The CLI supplies its profile directory. */
   outDir?: string;
+  /** Generate source maps. Defaults to true in development and false in release builds. */
+  sourceMap?: boolean;
   /** IIFE global used by Rollup. */
   globalName?: string;
   /** Additional Vite configuration merged over Wabou defaults. */
@@ -55,22 +55,66 @@ export interface WabouViteOptions {
   themeContrast?: "warn" | "error";
   /** Ignore third-party metadata classes. Supports `*` globs. */
   ignoreClasses?: string[];
-  /** ECMA-402 locale and time-zone data included in the application bundle. */
-  intl?: WabouIntlOptions | false;
 }
 
-export interface WabouIntlOptions {
-  /** APIs to include. Dependencies are included automatically; defaults to all. */
-  apis?: ("number" | "date" | "plural")[];
-  /** FormatJS locale-data modules. Defaults to English and Chinese. */
-  locales?: string[];
-  /** Time-zone data set. `golden` is the compact recommended default. */
-  timeZones?: "golden" | "all";
+export interface WabouWindowOptions {
+  title?: string;
+  width?: number;
+  height?: number;
+  decorations?: boolean;
+}
+
+export interface WabouPackageOptions {
+  productName: string;
+  identifier: string;
+  description?: string;
+  authors?: string[];
+  copyright?: string;
+  licenseFile?: string;
+  icons?: string[];
+  resources?: string[];
+  formats?: ("app" | "dmg" | "nsis" | "wix" | "deb" | "appimage" | "pacman")[];
+}
+
+export interface WabouBindingsOptions {
+  /** Generated ambient declaration path, relative to the application root. */
+  output?: string;
+  /** Rust source files or directories scanned for Wabou JS markers. */
+  sources?: string[];
+}
+
+/** Complete application configuration shared by Vite and the Wabou CLI. */
+export interface WabouProjectConfig extends WabouViteOptions {
+  window?: WabouWindowOptions;
+  ui?: { entry?: string };
+  package?: WabouPackageOptions;
+  bindings?: WabouBindingsOptions;
 }
 
 export type WabouViteOptionsExport =
   | WabouViteOptions
   | ((environment: ConfigEnv) => WabouViteOptions);
+
+export type WabouProjectConfigExport =
+  | WabouProjectConfig
+  | ((
+      environment: ConfigEnv,
+    ) => WabouProjectConfig | Promise<WabouProjectConfig>);
+
+const PROJECT_CONFIG = "__wabouConfig";
+
+/** Define the single typed configuration consumed by both Vite and the CLI. */
+export function defineConfig(
+  options: WabouProjectConfigExport,
+): UserConfigExport {
+  const viteConfig = defineViteConfig(async (environment) => {
+    const resolved =
+      typeof options === "function" ? await options(environment) : options;
+    return resolveWabouConfig(resolved, environment);
+  });
+  Object.defineProperty(viteConfig, PROJECT_CONFIG, { value: options });
+  return viteConfig;
+}
 
 function wabouWorkspaceRoot(start: string): string | undefined {
   let directory = resolve(start);
@@ -115,12 +159,10 @@ export function wabouPlugins(
   root = process.cwd(),
   theme?: WabouColorThemeOptions,
   ignoreClasses?: string[],
-  intl?: WabouIntlOptions | false,
-  entry = "ui/index.tsx",
   themeContrast: "warn" | "error" = "warn",
 ): Plugin[] {
   return [
-    wabouIntlPlugin(root, entry, intl ?? manifestIntl(root)),
+    wabouNativeIntlPlugin(),
     wabouStylePlugin({
       root,
       colorThemes: theme ?? defaultWabouColorThemes,
@@ -134,31 +176,36 @@ export function wabouPlugins(
   ];
 }
 
-/** Define the complete conventional Vite configuration for a Wabou app. */
+/** @deprecated Use defineConfig and wabou.config.ts. */
 export function defineWabouConfig(
   options: WabouViteOptionsExport,
 ): UserConfigExport {
   if (typeof options === "function") {
-    return defineConfig((environment) =>
+    return defineViteConfig((environment) =>
       resolveWabouConfig(options(environment), environment),
     );
   }
-  return defineConfig((environment) =>
+  return defineViteConfig((environment) =>
     resolveWabouConfig(options, environment),
   );
 }
 
 function resolveWabouConfig(
-  options: WabouViteOptions,
+  options: WabouProjectConfig,
   environment: ConfigEnv,
 ): UserConfig {
   const root = options.root ?? process.cwd();
+  const entry =
+    process.env.WABOU_VITE_ENTRY ??
+    options.entry ??
+    options.ui?.entry ??
+    "ui/index.tsx";
   if (options.target === "browser" && !options.browser)
     throw new Error("target: browser requires browser host options");
   const outDir =
     process.env.WABOU_OUT_DIR ??
     options.outDir ??
-    (options.target === "browser" ? "dist" : manifestOutDir(root));
+    (options.target === "browser" ? "dist" : "dist/resources");
   const sourceMap = process.env.WABOU_SOURCE_MAP;
   const debug =
     process.env.WABOU_ENV_DEBUG === "true" || environment.command === "serve";
@@ -167,7 +214,7 @@ function resolveWabouConfig(
       ? true
       : sourceMap === "false"
         ? false
-        : (manifestSourceMap(root) ?? debug);
+        : (options.sourceMap ?? debug);
   const workspaceRoot = wabouWorkspaceRoot(root);
   const workspaceSource =
     options.workspaceSource ?? workspaceRoot !== undefined;
@@ -178,7 +225,6 @@ function resolveWabouConfig(
   if (options.target === "browser") {
     if (!options.browser)
       throw new Error("target: browser requires browser host options");
-    const entry = options.entry ?? "ui/index.tsx";
     return mergeConfig(
       {
         root,
@@ -188,8 +234,6 @@ function resolveWabouConfig(
             root,
             options.theme,
             options.ignoreClasses,
-            false,
-            entry,
             options.themeContrast,
           ),
         ],
@@ -223,8 +267,6 @@ function resolveWabouConfig(
       root,
       options.theme,
       options.ignoreClasses,
-      options.intl,
-      process.env.WABOU_VITE_ENTRY ?? options.entry ?? "ui/index.tsx",
       options.themeContrast,
     ),
     resolve: {
@@ -247,7 +289,7 @@ function resolveWabouConfig(
       // instead of opaque generated bundle offsets.
       sourcemap,
       lib: {
-        entry: process.env.WABOU_VITE_ENTRY ?? options.entry ?? "ui/index.tsx",
+        entry,
         formats: ["iife"],
         name: options.globalName ?? "WabouApp",
         fileName: () => "bundle.js",
@@ -278,158 +320,19 @@ function resolveWabouConfig(
   return config;
 }
 
-const INTL_DATA_ID = "virtual:wabou-intl-data";
-const RESOLVED_INTL_DATA_ID = `\0${INTL_DATA_ID}`;
-
-function wabouIntlPlugin(
-  root: string,
-  entry: string,
-  options: WabouIntlOptions | false,
-): Plugin {
-  const entryPath = resolve(root, entry);
+function wabouNativeIntlPlugin(): Plugin {
   return {
-    name: "wabou-intl-data",
+    name: "wabou-native-intl",
     enforce: "pre",
-    resolveId(id) {
-      return id === INTL_DATA_ID ? RESOLVED_INTL_DATA_ID : undefined;
-    },
-    load(id) {
-      if (id !== RESOLVED_INTL_DATA_ID) return undefined;
-      return intlDataModule(options);
-    },
     transform(code, id) {
-      if (id.split("?", 1)[0] !== entryPath) return undefined;
-      const transformed = new MagicString(code);
-      transformed.prepend(`import ${JSON.stringify(INTL_DATA_ID)};\n`);
-      return {
-        code: transformed.toString(),
-        map: transformed.generateMap({ hires: true }),
-      };
+      if (!id.split("?", 1)[0].endsWith("/paraglide/registry.js"))
+        return undefined;
+      if (
+        !code.includes("function getIntlFormatter") ||
+        !code.includes("export function plural")
+      )
+        return undefined;
+      return 'export { plural, number, icuPound, datetime, relativetime } from "@wabou/core/i18n";\n';
     },
   };
-}
-
-function intlDataModule(options: WabouIntlOptions | false): string {
-  if (options === false) return "export {};";
-  const locales = [...new Set(options.locales ?? ["en", "zh"])];
-  if (locales.length === 0)
-    throw new Error("Wabou intl.locales cannot be empty");
-  for (const locale of locales) {
-    if (!/^[A-Za-z0-9-]+$/.test(locale)) {
-      throw new Error(
-        `invalid Wabou Intl locale module ${JSON.stringify(locale)}`,
-      );
-    }
-  }
-  const apis = new Set(options.apis ?? ["number", "date", "plural"]);
-  for (const api of apis) {
-    if (!["number", "date", "plural"].includes(api))
-      throw new Error(`invalid Wabou Intl API ${api}`);
-  }
-  if (apis.size === 0) return "export {};";
-  const imports = [
-    "@formatjs/intl-getcanonicallocales/polyfill.js",
-    "@formatjs/intl-locale/polyfill.js",
-  ];
-  const include = (name: string) => {
-    imports.push(
-      `@formatjs/intl-${name}/polyfill.js`,
-      ...locales.map(
-        (locale) => `@formatjs/intl-${name}/locale-data/${locale}.js`,
-      ),
-    );
-  };
-  if (apis.has("plural") || apis.has("number") || apis.has("date"))
-    include("pluralrules");
-  if (apis.has("number") || apis.has("date")) include("numberformat");
-  if (apis.has("date")) {
-    include("datetimeformat");
-    imports.push(
-      options.timeZones === "all"
-        ? "@formatjs/intl-datetimeformat/add-all-tz.js"
-        : "@formatjs/intl-datetimeformat/add-golden-tz.js",
-    );
-  }
-  // A virtual module has no package location of its own, so Vite otherwise
-  // resolves these imports from the application root. Resolve them here from
-  // @wabou/vite, which owns the dependencies, so isolated workspace installs
-  // do not require applications to repeat our implementation dependencies.
-  const resolvedImports = imports.map((id) =>
-    fileURLToPath(import.meta.resolve(id)),
-  );
-  return `${resolvedImports.map((id) => `import ${JSON.stringify(id)};`).join("\n")}
-${apis.has("date") ? "Intl.DateTimeFormat.__setDefaultTimeZone?.(__wabou_system_time_zone());" : ""}`;
-}
-
-function manifestIntl(root: string): WabouIntlOptions | false {
-  if (!existsSync(resolve(root, "wabou.toml"))) return {};
-  const { manifest, path } = readManifest(root);
-  const intl = (manifest as { intl?: unknown }).intl;
-  if (intl === undefined) return {};
-  if (intl === false) return false;
-  if (typeof intl !== "object" || intl === null || Array.isArray(intl)) {
-    throw new Error(`${path} intl must be a table`);
-  }
-  const value = intl as {
-    locales?: unknown;
-    apis?: unknown;
-    "time-zones"?: unknown;
-  };
-  if (
-    value.apis !== undefined &&
-    (!Array.isArray(value.apis) ||
-      value.apis.some((api) => !["number", "date", "plural"].includes(api)))
-  )
-    throw new Error(`${path} intl.apis must contain number, date or plural`);
-  if (
-    value.locales !== undefined &&
-    (!Array.isArray(value.locales) ||
-      value.locales.some((locale) => typeof locale !== "string"))
-  ) {
-    throw new Error(`${path} intl.locales must be an array of strings`);
-  }
-  if (
-    value["time-zones"] !== undefined &&
-    value["time-zones"] !== "golden" &&
-    value["time-zones"] !== "all"
-  ) {
-    throw new Error(`${path} intl.time-zones must be "golden" or "all"`);
-  }
-  return {
-    apis: value.apis as WabouIntlOptions["apis"],
-    locales: value.locales as string[] | undefined,
-    timeZones: value["time-zones"] as "golden" | "all" | undefined,
-  };
-}
-
-function manifestOutDir(root: string): string {
-  const { manifest, path } = readManifest(root);
-  const outDir = (manifest as { build?: { "out-dir"?: unknown } }).build?.[
-    "out-dir"
-  ];
-  if (typeof outDir !== "string" || outDir.trim() === "") {
-    throw new Error(`${path} must declare a non-empty build.out-dir`);
-  }
-  return outDir;
-}
-
-function manifestSourceMap(root: string): boolean | undefined {
-  if (!existsSync(resolve(root, "wabou.toml"))) return undefined;
-  const { manifest, path } = readManifest(root);
-  const sourceMap = (manifest as { build?: { "source-map"?: unknown } })
-    .build?.["source-map"];
-  if (sourceMap === undefined) return undefined;
-  if (typeof sourceMap !== "boolean") {
-    throw new Error(`${path} build.source-map must be true or false`);
-  }
-  return sourceMap;
-}
-
-function readManifest(root: string): { manifest: unknown; path: string } {
-  const path = resolve(root, "wabou.toml");
-  try {
-    return { manifest: parse(readFileSync(path, "utf8")), path };
-  } catch (error) {
-    throw new Error(`cannot read Wabou build output from ${path}: ${error}`);
-  }
 }

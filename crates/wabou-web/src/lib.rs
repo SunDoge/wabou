@@ -5,7 +5,7 @@ use std::sync::Arc;
 use std::time::Duration;
 use taffy::{NodeId, Style, TaffyTree};
 use wabou_protocol::{AtomPool, NodeKey, Op, StyleValue, decode_frame};
-use wabou_render_core::{
+use wabou_renderer::{
     Scene, TextContext,
     layout::{PlacedNode, compute_and_walk_with_scroll},
     motion::MotionSystem,
@@ -27,11 +27,11 @@ struct Node {
     transform: Option<[f32; 6]>,
     text_behavior: u8,
     text_max_lines: u32,
-    svg: Option<Arc<wabou_render_core::svg::SvgImage>>,
+    svg: Option<Arc<wabou_renderer::svg::SvgImage>>,
     svg_color_source: Option<Arc<str>>,
     svg_color: Option<vello_common::peniko::Color>,
-    vector_path: Option<Arc<wabou_render_core::style::VectorPath>>,
-    shadows: Vec<wabou_render_core::style::Shadow>,
+    vector_path: Option<Arc<wabou_renderer::style::VectorPath>>,
+    shadows: Vec<wabou_renderer::style::Shadow>,
     attributes: HashMap<String, String>,
     scroll: [f32; 2],
 }
@@ -122,10 +122,8 @@ impl BrowserRuntime {
             .remove(wabou_motion::ValueMotionId::from_raw(id))
     }
     /// Install compiler-produced Style IR; shared class cascade handles utilities.
-    pub fn set_stylesheet(&mut self, json: &str) -> Result<(), JsValue> {
-        let sheet: wabou_style::stylesheet::StyleSheet = serde_json::from_str(json).map_err(err)?;
-        sheet.validate().map_err(err)?;
-        self.stylesheet = sheet;
+    pub fn set_stylesheet(&mut self, bytes: &[u8]) -> Result<(), JsValue> {
+        self.stylesheet = wabou_style::stylesheet::binary::decode(bytes).map_err(err)?;
         Ok(())
     }
     /// Register a TTF/OTF font. Browser CSS fonts are not visible to Parley.
@@ -221,7 +219,7 @@ impl BrowserRuntime {
                     kind: wabou_protocol::GRAPHIC_SOURCE_SVG,
                     source,
                 } => {
-                    let image = wabou_render_core::svg::SvgImage::parse(source).map_err(err)?;
+                    let image = wabou_renderer::svg::SvgImage::parse(source).map_err(err)?;
                     let node = self.node(id)?;
                     node.svg = Some(Arc::new(image));
                     node.svg_color_source =
@@ -242,7 +240,7 @@ impl BrowserRuntime {
                     kind: wabou_protocol::GRAPHIC_DATA_VECTOR_PATH,
                     data,
                 } => {
-                    let path = wabou_render_core::vector_path::decode_vector_path(data)
+                    let path = wabou_renderer::vector_path::decode_vector_path(data)
                         .ok_or_else(|| err("invalid vector path"))?;
                     self.node(id)?.vector_path = Some(path);
                 }
@@ -279,7 +277,7 @@ impl BrowserRuntime {
                 Op::SetShadows { id, shadows } => {
                     self.node(id)?.shadows = shadows
                         .into_iter()
-                        .map(|s| wabou_render_core::style::Shadow {
+                        .map(|s| wabou_renderer::style::Shadow {
                             offset_x: s.offset_x,
                             offset_y: s.offset_y,
                             spread: s.spread,
@@ -570,10 +568,8 @@ impl BrowserRuntime {
             } else {
                 let color = format!("{:x}", next_inherited.text_color.to_rgba8());
                 Some(Arc::new(
-                    wabou_render_core::svg::SvgImage::parse(
-                        &source.replace("currentColor", &color),
-                    )
-                    .map_err(err)?,
+                    wabou_renderer::svg::SvgImage::parse(&source.replace("currentColor", &color))
+                        .map_err(err)?,
                 ))
             }
         } else {

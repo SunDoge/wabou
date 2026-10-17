@@ -1,21 +1,15 @@
-import {
-  bindJsonCapability,
-  type Host,
-  type NativeCapability,
-  useHost,
-} from "@wabou/core";
+import { type Host, useHost } from "@wabou/core";
+import { type Accessor, createEffect, createSignal, onCleanup } from "solid-js";
 import type { ImageResourceHandle } from "./view";
-import { createEffect, createSignal, onCleanup, type Accessor } from "solid-js";
 
-interface ImageResourcesCapability extends NativeCapability {
-  __wabouCapabilityVersion: number;
-  createFile(request: string): string | PromiseLike<string>;
-  createNetwork(request: string): string | PromiseLike<string>;
-  release(request: string): string | PromiseLike<string>;
+interface ImageResourcesHost {
+  createFile(request: { path: string }): Promise<ImageResourceDescriptor>;
+  createNetwork(request: { url: string }): Promise<ImageResourceDescriptor>;
+  release(handle: ImageResourceHandle): boolean | PromiseLike<boolean>;
 }
 
 interface ResourceHost extends Host {
-  imageResources: ImageResourcesCapability;
+  imageResources: ImageResourcesHost;
 }
 
 export interface ImageResourceDescriptor {
@@ -34,26 +28,29 @@ export interface OwnedImageResource {
   error: Accessor<unknown>;
 }
 
-function call() {
-  return bindJsonCapability(useHost<ResourceHost>().imageResources, {
-    name: "imageResources",
-    version: 1,
-  });
+function host(): ImageResourcesHost {
+  return useHost<ResourceHost>().imageResources;
 }
 
 /** Explicitly create a new resource from a host file. No identity deduplication occurs. */
-export function createFileImageResource(path: string): Promise<ImageResourceDescriptor> {
-  return call()<ImageResourceDescriptor>("createFile", { path });
+export function createFileImageResource(
+  path: string,
+): Promise<ImageResourceDescriptor> {
+  return host().createFile({ path });
 }
 
 /** Explicitly create a new resource from an HTTP(S) response. */
-export function createNetworkImageResource(url: string): Promise<ImageResourceDescriptor> {
-  return call()<ImageResourceDescriptor>("createNetwork", { url });
+export function createNetworkImageResource(
+  url: string,
+): Promise<ImageResourceDescriptor> {
+  return host().createNetwork({ url });
 }
 
 /** Deterministically release a resource. Images only borrow their handle. */
-export function releaseImageResource(handle: ImageResourceHandle): Promise<boolean> {
-  return call()<boolean>("release", handle);
+export function releaseImageResource(
+  handle: ImageResourceHandle,
+): Promise<boolean> {
+  return Promise.resolve(host().release(handle));
 }
 
 /**

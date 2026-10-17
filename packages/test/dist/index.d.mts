@@ -1,4 +1,4 @@
-import { DebugOverlayPaintStats, FrameStats, WabouExposedSemanticRole } from "@wabou/core/renderer";
+import { DebugOverlayPaintStats, FrameStats, Host, WabouExposedSemanticRole } from "@wabou/core/renderer";
 import { WindowKey } from "@wabou/core";
 //#region src/poll.d.ts
 interface PollOptions {
@@ -35,11 +35,13 @@ interface NativeTestCapability {
   finish(report: string): boolean;
 }
 declare module "@wabou/core/registry" {
-  interface HostCapabilities {
+  interface HostModules {
     readonly test: NativeTestCapability;
   }
 }
 export interface TestContext {
+  /** Host modules installed in the application runtime under test. */
+  readonly host: Host;
   readonly page: TestPage;
   readonly window: TestWindow;
   readonly effects: TestEffects;
@@ -249,7 +251,7 @@ export interface LocatorReference extends LocatorSelector {
 }
 export interface TestEnvironment {
   backend: "deterministic" | "native";
-  renderer: "vello-hybrid" | "unknown";
+  renderer: "vello-gpu" | "unknown";
   os: string;
   arch: string;
   wabouVersion: string;

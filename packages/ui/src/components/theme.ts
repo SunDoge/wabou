@@ -105,7 +105,7 @@ export function componentsSurfaceClass(surface: ComponentsSurface): string {
 }
 
 /**
- * Native elevation recipes adapted from gpui-component. Wabou and GPUI both
+ * Native elevation recipes adapted from gpui-component. Both implementations
  * pass standard deviation directly to their renderer, so these values should
  * not use CSS's doubled blur radius. Floating surfaces also carry a subtle
  * foreground-colored ring: black in light mode, white in dark mode.

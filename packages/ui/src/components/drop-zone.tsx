@@ -1,9 +1,9 @@
 import { type FileDropPosition, useFileDrop, useHost } from "@wabou/core";
 import type { Handle, LayoutRect } from "@wabou/core/renderer";
+import { mergeClasses } from "@wabou/core/style";
 import fileUp from "lucide-static/icons/file-up.svg?raw";
 import { createEffect, createSignal, type JSX, Show } from "solid-js";
 import { Icon, Text, View, type ViewProps } from "../primitives";
-import { mergeClasses } from "@wabou/core/style";
 import { componentsDisabledControlClass } from "./theme";
 
 export interface DropZoneProps extends Omit<ViewProps, "class" | "children"> {

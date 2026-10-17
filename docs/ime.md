@@ -5,7 +5,7 @@ QuickJS and Solid own application state. `TextInput` and `TextArea` keep their
 small native documents, while the general `Editor` owns its document and
 transactions in DOM-free CodeMirror and mirrors composition into a native
 viewport. A platform adapter connects either client to the operating system;
-Vello Hybrid only paints the resulting geometry.
+Vello GPU only paints the resulting geometry.
 
 The focused widget publishes one immutable IME snapshot containing:
 

@@ -1,3 +1,4 @@
+import * as Wabou from "@wabou/ui";
 import {
   BaseRootRoute,
   Button,
@@ -9,10 +10,9 @@ import {
   Portal,
   View,
 } from "@wabou/ui";
-import * as Wabou from "@wabou/ui";
 import { createLocale } from "@wabou/ui/i18n";
 import { Button as PrimitiveButton } from "@wabou/ui/primitives";
-import { defineWabouConfig } from "@wabou/vite";
+import { defineConfig } from "@wabou/vite";
 import { createSignal } from "solid-js";
 
 const [enabled, setEnabled] = createSignal(false);
@@ -93,4 +93,4 @@ mount(() => (
   </Button>
 ));
 
-export default defineWabouConfig({});
+export default defineConfig({});

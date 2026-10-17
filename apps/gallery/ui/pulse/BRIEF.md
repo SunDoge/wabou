@@ -7,4 +7,4 @@ Signature detail: compact colored dot-matrix charts.
 Reference delta: use Lucide assets and available system font; sample data, no system monitoring. Custom traffic-light controls invoke native window operations; dragging uses the existing title-bar drag region.
 Shared contracts: View, Text, Icon, Svg, ButtonPrimitive, ScrollArea, measured container sizing. Pulse-specific metrics belong to named local components rather than changing the global theme.
 States: selected interval, pause/resume, compact width, long metric labels; sample status is explicit.
-Proof: semantic/component tests, native layout bounds at both sizes, actual Vello Hybrid pixel capture compared with the supplied reference. Linux font rendering is not macOS pixel equivalence.
+Proof: semantic/component tests, native layout bounds at both sizes, actual Vello GPU pixel capture compared with the supplied reference. Linux font rendering is not macOS pixel equivalence.

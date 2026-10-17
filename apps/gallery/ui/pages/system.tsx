@@ -1,10 +1,12 @@
-import { clipboard, showNativeMenu, useFileDrop } from "@wabou/ui";
 import {
   Button,
+  clipboard,
   DirectoryPicker,
   dialog,
   notification,
+  showNativeMenu,
   Text,
+  useFileDrop,
   View,
 } from "@wabou/ui";
 import { createSignal } from "solid-js";

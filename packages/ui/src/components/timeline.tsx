@@ -1,6 +1,6 @@
+import { mergeClasses } from "@wabou/core/style";
 import { For as ForValue, type JSX } from "solid-js";
 import { Text, View, type ViewProps } from "../primitives";
-import { mergeClasses } from "@wabou/core/style";
 
 export interface TimelineItem {
   id: string;

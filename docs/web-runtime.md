@@ -5,6 +5,12 @@ by den's separation of native Web APIs, parsing and codec state live in Rust whi
 small JavaScript wrappers preserve object identity and JavaScript iteration.
 Wabou does not depend on den.
 
+The default runtime entry contains only the baseline needed by every
+application. Applications that use `fetch`, `Response`, or WHATWG Streams must
+import `@wabou/ui/web` once. Lower-level integrations can import
+`@wabou/core/web` directly. This keeps the stream implementation out of UI-only
+bundles while preserving the same globals for networked applications.
+
 - URL parsing, setters, origins and form query encoding use the existing `url`
   crate. URLSearchParams remains the same object when its URL changes and mutations
   update the URL. The `whatwg-url` npm dependency is removed.
@@ -24,8 +30,8 @@ Wabou does not depend on den.
   abort, timeout and any are added. Fetch cancellation uses runtime-owned Rust
   cancellation tokens, dropping the reqwest future and its connection. Request
   tokens are allocated before async execution so cancellation before polling works.
-- Intl remains FormatJS, with optional APIs/locales in Vite configuration (see
-  [CLI configuration](cli.md#optional-intl-data)).
+- Native builds use Wabou's small native/Jiff localization API. Browser previews
+  delegate the same typed API to the browser's built-in `Intl` implementation.
 
 These contracts are exercised inside QuickJS, including teardown with live codec
 objects, and real local HTTP tests verify both cancellation before connection and
@@ -39,5 +45,6 @@ encoding_rs also adds Rust code. No total distribution or startup improvement is
 claimed without measurement.
 
 References:
+
 - https://github.com/stevefan1999-personal/den/blob/master/den-stdlib-whatwg/src/url.rs
 - https://github.com/stevefan1999-personal/den/blob/master/den-stdlib-text/src/lib.rs

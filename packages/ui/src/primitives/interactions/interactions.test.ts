@@ -8,10 +8,10 @@ import {
   createRovingFocus,
   createTypeahead,
   toggleSelection,
-  unchanged,
-  updateSelect,
-  updateDisclosure,
   type UpdateResult,
+  unchanged,
+  updateDisclosure,
+  updateSelect,
 } from ".";
 
 describe("machine", () => {

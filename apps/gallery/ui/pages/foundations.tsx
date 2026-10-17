@@ -172,9 +172,7 @@ function ShadowTile(props: {
             ? "w-32 h-24 flex items-center justify-center rounded-none bg-slate-50"
             : "w-32 h-24 flex items-center justify-center rounded-xl bg-slate-50"
         }
-        transform={
-          props.shape === "shifted" ? translate2d(8, -4) : undefined
-        }
+        transform={props.shape === "shifted" ? translate2d(8, -4) : undefined}
         shadows={props.shadows}
       >
         <Text class="text-xs font-semibold text-slate-700">{props.title}</Text>

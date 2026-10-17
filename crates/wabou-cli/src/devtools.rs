@@ -1,18 +1,11 @@
-use std::env;
-use std::ffi::OsStr;
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::process::Command;
 use std::str::FromStr;
 
 use serde_json::{Value, json};
 use wabou_devtools::{DebugCaptureCase, NodeKey, call, discover_socket, empty_params, request};
 
-use super::artifact::built_executable;
-use super::config::{BuildProfile, bundle_path};
-use super::frontend;
-use super::project::load_app;
-use super::{Result, ensure};
+use super::Result;
 
 #[derive(usage_rs::Subcommands)]
 pub(super) enum InspectCommand {
@@ -82,63 +75,6 @@ impl FromStr for NodeKeyArg {
         }
         Ok(Self(key))
     }
-}
-
-pub(super) fn run(workspace: &Path) -> Result<()> {
-    ensure(command(workspace)?.status()?, "Wabou DevTools")
-}
-
-/// Resolve the GUI as a helper executable. Inside the Wabou source workspace we
-/// build its frontend and host directly; installed CLIs find a sibling binary
-/// first and then use PATH.
-pub(super) fn command(workspace: &Path) -> Result<Command> {
-    let source = workspace.join("apps/devtools");
-    if source.join("Cargo.toml").is_file() && source.join("package.json").is_file() {
-        let app = load_app(workspace, workspace, Some(&source))?;
-        ensure(
-            frontend::build(workspace, &app, &[], BuildProfile::Debug, true)?,
-            "DevTools Vite build",
-        )?;
-        let manifest = app.root.join("Cargo.toml");
-        let mut cargo = Command::new("cargo");
-        cargo
-            .current_dir(workspace)
-            .args(["build", "--manifest-path"])
-            .arg(manifest);
-        ensure(cargo.status()?, "DevTools Rust build")?;
-        let executable = built_executable(workspace, &app, false)?;
-        let mut command = Command::new(executable);
-        command.env(
-            "WABOU_BUNDLE_PATH",
-            bundle_path(workspace, &app, BuildProfile::Debug)?,
-        );
-        return Ok(command);
-    }
-
-    let executable = find_helper(
-        &env::current_exe()?,
-        env::var_os("PATH").as_deref(),
-        "wabou-devtools",
-    )
-    .ok_or(
-        "wabou-devtools was not found next to wabou or on PATH; install the Wabou DevTools package",
-    )?;
-    Ok(Command::new(executable))
-}
-
-fn find_helper(current_exe: &Path, path: Option<&OsStr>, name: &str) -> Option<PathBuf> {
-    let filename = format!("{name}{}", env::consts::EXE_SUFFIX);
-    if let Some(parent) = current_exe.parent() {
-        let sibling = parent.join(&filename);
-        if sibling.is_file() {
-            return Some(sibling);
-        }
-    }
-    path.and_then(|path| {
-        env::split_paths(path)
-            .map(|dir| dir.join(&filename))
-            .find(|candidate| candidate.is_file())
-    })
 }
 
 pub(super) fn inspect(socket: Option<PathBuf>, command: InspectCommand) -> Result<()> {
@@ -247,46 +183,6 @@ mod tests {
         for invalid in ["0", "42:0", "42:2", "x:1", "1:x", "1:3:5"] {
             assert!(NodeKeyArg::from_str(invalid).is_err(), "{invalid}");
         }
-    }
-
-    #[test]
-    fn sibling_helper_precedes_path() {
-        let root = tempfile::tempdir().unwrap();
-        let bin = root.path().join("bin");
-        let path_bin = root.path().join("path-bin");
-        fs::create_dir_all(&bin).unwrap();
-        fs::create_dir_all(&path_bin).unwrap();
-        let helper_name = format!("wabou-devtools{}", env::consts::EXE_SUFFIX);
-        let sibling = bin.join(&helper_name);
-        fs::write(&sibling, []).unwrap();
-        fs::write(path_bin.join(&helper_name), []).unwrap();
-
-        assert_eq!(
-            find_helper(
-                &bin.join(format!("wabou{}", env::consts::EXE_SUFFIX)),
-                Some(path_bin.as_os_str()),
-                "wabou-devtools",
-            ),
-            Some(sibling)
-        );
-    }
-
-    #[test]
-    fn helper_falls_back_to_path() {
-        let root = tempfile::tempdir().unwrap();
-        let path_bin = root.path().join("path-bin");
-        fs::create_dir_all(&path_bin).unwrap();
-        let helper = path_bin.join(format!("wabou-devtools{}", env::consts::EXE_SUFFIX));
-        fs::write(&helper, []).unwrap();
-
-        assert_eq!(
-            find_helper(
-                &root.path().join("missing/wabou"),
-                Some(path_bin.as_os_str()),
-                "wabou-devtools",
-            ),
-            Some(helper)
-        );
     }
 
     #[test]

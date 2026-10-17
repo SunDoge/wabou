@@ -29,10 +29,10 @@ function reportTimerError(error: unknown): void {
 }
 
 function schedule(
-  callback: (...args: any[]) => void,
+  callback: (...args: unknown[]) => void,
   delay: number,
   repeat: boolean,
-  args: any[],
+  args: unknown[],
 ): number {
   const id = nextTimerId++;
   active.add(id);
@@ -55,17 +55,18 @@ function schedule(
 }
 
 if (!hasBrowserDom()) {
-  (globalThis as any).setTimeout = (
-    callback: (...args: any[]) => void,
-    delay = 0,
-    ...args: any[]
-  ): number => schedule(callback, Number(delay) || 0, false, args);
-
-  (globalThis as any).setInterval = (
-    callback: (...args: any[]) => void,
-    delay = 0,
-    ...args: any[]
-  ): number => schedule(callback, Number(delay) || 0, true, args);
+  Object.assign(globalThis, {
+    setTimeout: (
+      callback: (...args: unknown[]) => void,
+      delay = 0,
+      ...args: unknown[]
+    ): number => schedule(callback, Number(delay) || 0, false, args),
+    setInterval: (
+      callback: (...args: unknown[]) => void,
+      delay = 0,
+      ...args: unknown[]
+    ): number => schedule(callback, Number(delay) || 0, true, args),
+  });
 }
 
 function clearTimer(id: number): void {
@@ -73,6 +74,8 @@ function clearTimer(id: number): void {
 }
 
 if (!hasBrowserDom()) {
-  (globalThis as any).clearTimeout = clearTimer;
-  (globalThis as any).clearInterval = clearTimer;
+  Object.assign(globalThis, {
+    clearTimeout: clearTimer,
+    clearInterval: clearTimer,
+  });
 }

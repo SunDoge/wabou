@@ -5,18 +5,11 @@ use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use serde::{Deserialize, Serialize};
-use wabou_bindgen::HostMethod;
 use wabou_database::{KvCheck, KvKey, KvKeyPart, KvListOptions, KvMutation, KvStore, Versionstamp};
 
-use crate::NativeCapability;
+use crate::{HostModuleState, JsValue};
 
 type LazyStore = Arc<tokio::sync::OnceCell<Arc<KvStore>>>;
-
-const GET: HostMethod<KeyRequest, Option<EntryResponse>> = HostMethod::new("get");
-const SET: HostMethod<SetRequest, CommitResponse> = HostMethod::new("set");
-const DELETE: HostMethod<KeyRequest, CommitResponse> = HostMethod::new("delete");
-const LIST: HostMethod<ListRequest, Vec<EntryResponse>> = HostMethod::new("list");
-const ATOMIC: HostMethod<AtomicRequest, AtomicResponse> = HostMethod::new("atomic");
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(tag = "type", content = "value", rename_all = "camelCase")]
@@ -30,13 +23,13 @@ enum WireKeyPart {
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
-struct KeyRequest {
+pub(crate) struct KeyRequest {
     key: Vec<WireKeyPart>,
 }
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
-struct SetRequest {
+pub(crate) struct SetRequest {
     key: Vec<WireKeyPart>,
     value: serde_json::Value,
     expire_in: Option<u64>,
@@ -44,7 +37,7 @@ struct SetRequest {
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
-struct ListRequest {
+pub(crate) struct ListRequest {
     #[serde(default)]
     prefix: Vec<WireKeyPart>,
     #[serde(default = "default_limit")]
@@ -80,7 +73,7 @@ enum MutationRequest {
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
-struct AtomicRequest {
+pub(crate) struct AtomicRequest {
     #[serde(default)]
     checks: Vec<CheckRequest>,
     #[serde(default)]
@@ -89,7 +82,7 @@ struct AtomicRequest {
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
-struct EntryResponse {
+pub(crate) struct EntryResponse {
     key: Vec<WireKeyPart>,
     value: serde_json::Value,
     versionstamp: String,
@@ -98,136 +91,172 @@ struct EntryResponse {
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
-struct CommitResponse {
+pub(crate) struct CommitResponse {
     versionstamp: String,
 }
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
-struct AtomicResponse {
+pub(crate) struct AtomicResponse {
     committed: bool,
     versionstamp: Option<String>,
 }
 
-/// Mount the standard KV methods into an alternate Wabou host capability.
+/// Runtime-owned state for the built-in KV host module.
 #[doc(hidden)]
-pub fn mount_kv_methods(capability: NativeCapability<'_>, path: PathBuf) -> rquickjs::Result<()> {
-    mount_kv_methods_with_state(capability, Arc::new(tokio::sync::OnceCell::new()), path)
+#[derive(Clone)]
+pub struct KvModuleState {
+    store: LazyStore,
+    path: PathBuf,
 }
 
-fn mount_kv_methods_with_state(
-    capability: NativeCapability<'_>,
-    state: LazyStore,
-    path: PathBuf,
-) -> rquickjs::Result<()> {
-    let get_state = state.clone();
-    let get_path = path.clone();
-    capability.method(GET, move |request: KeyRequest| {
-        let state = get_state.clone();
-        let path = get_path.clone();
-        async move {
-            let store = open_store(&state, &path).await?;
-            store
-                .get(&decode_key(request.key)?)
-                .await
-                .map_err(|error| error.to_string())?
-                .map(EntryResponse::try_from)
-                .transpose()
+impl KvModuleState {
+    /// Create an unopened store at `path`.
+    #[doc(hidden)]
+    pub fn new(path: PathBuf) -> Self {
+        Self {
+            store: Arc::new(tokio::sync::OnceCell::new()),
+            path,
         }
-    })?;
+    }
+}
 
-    let set_state = state.clone();
-    let set_path = path.clone();
-    capability.method(SET, move |request: SetRequest| {
-        let state = set_state.clone();
-        let path = set_path.clone();
-        async move {
-            let store = open_store(&state, &path).await?;
-            let versionstamp = store
-                .set(
-                    decode_key(request.key)?,
-                    request.value,
-                    expiry_from_duration(request.expire_in)?,
-                )
-                .await
-                .map_err(|error| error.to_string())?;
-            Ok::<_, String>(CommitResponse {
-                versionstamp: versionstamp.0.to_string(),
+/// QuickJS exports for the built-in KV store.
+#[rquickjs::module]
+pub mod kv_host {
+    use super::*;
+
+    #[rquickjs::function]
+    pub async fn get(
+        ctx: rquickjs::Ctx<'_>,
+        JsValue(request): JsValue<KeyRequest>,
+    ) -> rquickjs::Result<JsValue<Option<EntryResponse>>> {
+        let state = state(&ctx)?;
+        let store = open_store(&state.store, &state.path)
+            .await
+            .map_err(host_error)?;
+        let response = store
+            .get(&decode_key(request.key).map_err(host_error)?)
+            .await
+            .map_err(|error| host_error(error.to_string()))?
+            .map(EntryResponse::try_from)
+            .transpose()
+            .map_err(host_error)?;
+        Ok(JsValue(response))
+    }
+
+    #[rquickjs::function]
+    pub async fn set(
+        ctx: rquickjs::Ctx<'_>,
+        JsValue(request): JsValue<SetRequest>,
+    ) -> rquickjs::Result<JsValue<CommitResponse>> {
+        let state = state(&ctx)?;
+        let store = open_store(&state.store, &state.path)
+            .await
+            .map_err(host_error)?;
+        let versionstamp = store
+            .set(
+                decode_key(request.key).map_err(host_error)?,
+                request.value,
+                expiry_from_duration(request.expire_in).map_err(host_error)?,
+            )
+            .await
+            .map_err(|error| host_error(error.to_string()))?;
+        Ok(JsValue(CommitResponse {
+            versionstamp: versionstamp.0.to_string(),
+        }))
+    }
+
+    #[rquickjs::function]
+    pub async fn delete(
+        ctx: rquickjs::Ctx<'_>,
+        JsValue(request): JsValue<KeyRequest>,
+    ) -> rquickjs::Result<JsValue<CommitResponse>> {
+        let state = state(&ctx)?;
+        let store = open_store(&state.store, &state.path)
+            .await
+            .map_err(host_error)?;
+        let versionstamp = store
+            .delete(decode_key(request.key).map_err(host_error)?)
+            .await
+            .map_err(|error| host_error(error.to_string()))?;
+        Ok(JsValue(CommitResponse {
+            versionstamp: versionstamp.0.to_string(),
+        }))
+    }
+
+    #[rquickjs::function]
+    pub async fn list(
+        ctx: rquickjs::Ctx<'_>,
+        JsValue(request): JsValue<ListRequest>,
+    ) -> rquickjs::Result<JsValue<Vec<EntryResponse>>> {
+        let state = state(&ctx)?;
+        let store = open_store(&state.store, &state.path)
+            .await
+            .map_err(host_error)?;
+        let entries = store
+            .list(&KvListOptions {
+                prefix: decode_prefix(request.prefix).map_err(host_error)?,
+                limit: request.limit,
+                reverse: request.reverse,
             })
-        }
-    })?;
+            .await
+            .map_err(|error| host_error(error.to_string()))?
+            .into_iter()
+            .map(EntryResponse::try_from)
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(host_error)?;
+        Ok(JsValue(entries))
+    }
 
-    let delete_state = state.clone();
-    let delete_path = path.clone();
-    capability.method(DELETE, move |request: KeyRequest| {
-        let state = delete_state.clone();
-        let path = delete_path.clone();
-        async move {
-            let store = open_store(&state, &path).await?;
-            let versionstamp = store
-                .delete(decode_key(request.key)?)
-                .await
-                .map_err(|error| error.to_string())?;
-            Ok::<_, String>(CommitResponse {
-                versionstamp: versionstamp.0.to_string(),
-            })
-        }
-    })?;
-
-    let list_state = state.clone();
-    let list_path = path.clone();
-    capability.method(LIST, move |request: ListRequest| {
-        let state = list_state.clone();
-        let path = list_path.clone();
-        async move {
-            let store = open_store(&state, &path).await?;
-            store
-                .list(&KvListOptions {
-                    prefix: decode_prefix(request.prefix)?,
-                    limit: request.limit,
-                    reverse: request.reverse,
+    #[rquickjs::function]
+    pub async fn atomic(
+        ctx: rquickjs::Ctx<'_>,
+        JsValue(request): JsValue<AtomicRequest>,
+    ) -> rquickjs::Result<JsValue<AtomicResponse>> {
+        let state = state(&ctx)?;
+        let store = open_store(&state.store, &state.path)
+            .await
+            .map_err(host_error)?;
+        let checks = request
+            .checks
+            .into_iter()
+            .map(|check| {
+                Ok(KvCheck {
+                    key: decode_key(check.key)?,
+                    versionstamp: check
+                        .versionstamp
+                        .map(|value| parse_versionstamp(&value))
+                        .transpose()?,
                 })
-                .await
-                .map_err(|error| error.to_string())?
-                .into_iter()
-                .map(EntryResponse::try_from)
-                .collect()
-        }
-    })?;
-
-    capability.method(ATOMIC, move |request: AtomicRequest| {
-        let state = state.clone();
-        let path = path.clone();
-        async move {
-            let store = open_store(&state, &path).await?;
-            let checks = request
-                .checks
-                .into_iter()
-                .map(|check| {
-                    Ok(KvCheck {
-                        key: decode_key(check.key)?,
-                        versionstamp: check
-                            .versionstamp
-                            .map(|value| parse_versionstamp(&value))
-                            .transpose()?,
-                    })
-                })
-                .collect::<Result<Vec<_>, String>>()?;
-            let mutations = request
-                .mutations
-                .into_iter()
-                .map(decode_mutation)
-                .collect::<Result<Vec<_>, String>>()?;
-            let result = store
-                .atomic(&checks, &mutations)
-                .await
-                .map_err(|error| error.to_string())?;
-            Ok::<_, String>(AtomicResponse {
-                committed: result.committed,
-                versionstamp: result.versionstamp.map(|value| value.0.to_string()),
             })
-        }
-    })
+            .collect::<Result<Vec<_>, String>>()
+            .map_err(host_error)?;
+        let mutations = request
+            .mutations
+            .into_iter()
+            .map(decode_mutation)
+            .collect::<Result<Vec<_>, String>>()
+            .map_err(host_error)?;
+        let result = store
+            .atomic(&checks, &mutations)
+            .await
+            .map_err(|error| host_error(error.to_string()))?;
+        Ok(JsValue(AtomicResponse {
+            committed: result.committed,
+            versionstamp: result.versionstamp.map(|value| value.0.to_string()),
+        }))
+    }
+
+    fn state(ctx: &rquickjs::Ctx<'_>) -> rquickjs::Result<KvModuleState> {
+        ctx.userdata::<HostModuleState<KvModuleState>>()
+            .map(|state| state.0.clone())
+            .ok_or_else(|| rquickjs::Exception::throw_type(ctx, "KV state is unavailable"))
+    }
+
+    fn host_error(error: impl std::fmt::Display) -> rquickjs::Error {
+        rquickjs::Error::new_into_js_message("KV request", "KV response", error.to_string())
+    }
 }
 
 async fn open_store(state: &LazyStore, path: &Path) -> Result<Arc<KvStore>, String> {

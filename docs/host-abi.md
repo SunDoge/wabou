@@ -5,7 +5,7 @@ Source of truth: `packages/core/host-abi.json`.
 
 | Global | Direction | Owner | Availability |
 | --- | --- | --- | --- |
-| `__wabou_capabilities` | host | runtime | always |
+| `__wabou_host_modules` | host | runtime | always |
 | `__wabou_intern` | host | runtime | always |
 | `__wabou_open_url` | host | runtime | always |
 | `__wabou_motion_create` | host | runtime | always |
@@ -23,6 +23,12 @@ Source of truth: `packages/core/host-abi.json`.
 | `__wabou_system_locale` | host | runtime | always |
 | `__wabou_system_time_zone` | host | runtime | always |
 | `__wabou_system_calendar_date` | host | runtime | always |
+| `__wabou_first_weekday` | host | runtime | always |
+| `__wabou_format_number` | host | runtime | always |
+| `__wabou_parse_number` | host | runtime | always |
+| `__wabou_plural_category` | host | runtime | always |
+| `__wabou_format_date` | host | runtime | always |
+| `__wabou_format_relative_time` | host | runtime | always |
 | `__wabou_flush` | host | runtime | always |
 | `__wabou_log` | host | runtime | always |
 | `__wabou_utf8_encode` | host | runtime | always |

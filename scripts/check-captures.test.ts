@@ -74,7 +74,7 @@ describe("authored capture discovery", () => {
       ],
     });
     expect(() => parseCaptureArguments(["--scenario"])).toThrow("requires");
-    expect(() => parseCaptureArguments(["--renderer", "gpui"])).toThrow(
+    expect(() => parseCaptureArguments(["--renderer", "unknown"])).toThrow(
       "unsupported",
     );
     expect(() => parseCaptureArguments(["--unknown"])).toThrow("unsupported");
@@ -118,10 +118,10 @@ describe("authored capture discovery", () => {
         application: "apps/demo",
         scenario: "apps/demo/captures/nested/compact.behavior.ts",
         output:
-          "target/wabou-captures/demo/vello-hybrid/nested/compact.behavior.png",
+          "target/wabou-captures/demo/vello-gpu/nested/compact.behavior.png",
         snapshot:
-          "target/wabou-captures/demo/vello-hybrid/nested/compact.behavior.json",
-        renderer: "vello-hybrid",
+          "target/wabou-captures/demo/vello-gpu/nested/compact.behavior.json",
+        renderer: "vello-gpu",
         width: 700,
         height: 500,
         scaleFactor: 2,
@@ -139,9 +139,9 @@ describe("authored capture discovery", () => {
       {
         application: "apps/demo",
         scenario: "apps/demo/captures/wide.behavior.ts",
-        output: "target/wabou-captures/demo/vello-hybrid/wide.behavior.png",
-        snapshot: "target/wabou-captures/demo/vello-hybrid/wide.behavior.json",
-        renderer: "vello-hybrid",
+        output: "target/wabou-captures/demo/vello-gpu/wide.behavior.png",
+        snapshot: "target/wabou-captures/demo/vello-gpu/wide.behavior.json",
+        renderer: "vello-gpu",
         width: 1200,
         height: 800,
         scaleFactor: 1,
@@ -237,7 +237,7 @@ describe("authored capture discovery", () => {
       scenario: "apps/demo/captures/main.ts",
       output: "target/wabou-captures/demo/main.png",
       snapshot: "target/wabou-captures/demo/main.json",
-      renderer: "vello-hybrid" as const,
+      renderer: "vello-gpu" as const,
       width: 800,
       height: 600,
       scaleFactor: 1,
@@ -269,7 +269,7 @@ describe("authored capture discovery", () => {
       scenario: "apps/demo/captures/main.ts",
       output: "target/wabou-captures/demo/main.png",
       snapshot: "target/wabou-captures/demo/main.json",
-      renderer: "vello-hybrid" as const,
+      renderer: "vello-gpu" as const,
       width: 800,
       height: 600,
       scaleFactor: 2,
@@ -731,7 +731,7 @@ describe("authored capture discovery", () => {
       scenario: "apps/demo/captures/main.ts",
       output: "target/wabou-captures/demo/main.png",
       snapshot: "target/wabou-captures/demo/main.json",
-      renderer: "vello-hybrid" as const,
+      renderer: "vello-gpu" as const,
       width: 100,
       height: 100,
       scaleFactor: 1,
@@ -804,7 +804,7 @@ describe("authored capture discovery", () => {
     );
 
     await mkdir(
-      join(root, "target", "wabou-captures", "demo", "vello-hybrid", "nested"),
+      join(root, "target", "wabou-captures", "demo", "vello-gpu", "nested"),
       { recursive: true },
     );
     await writeFile(
@@ -861,10 +861,10 @@ describe("authored capture discovery", () => {
 
     const snapshotPath = join(root, capture.snapshot);
     const snapshot = JSON.parse(await Bun.file(snapshotPath).text());
-    snapshot.status.renderer = "gpui";
+    snapshot.status.renderer = "unknown";
     await writeFile(snapshotPath, JSON.stringify(snapshot));
     await expect(validateCaptureArtifacts(capture, root)).rejects.toThrow(
-      'renderer label "gpui" does not match requested vello-hybrid',
+      'renderer label "unknown" does not match requested vello-gpu',
     );
     snapshot.status.renderer = capture.renderer;
     snapshot.nodes[0].styleDiagnostics = ["unsupported utility `bad-class`"];

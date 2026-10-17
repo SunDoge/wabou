@@ -60,7 +60,7 @@ import {
   useWindow,
   View,
 } from "@wabou/ui";
-import { animate, type AnimationControls } from "@wabou/ui/animation";
+import { type AnimationControls, animate } from "@wabou/ui/animation";
 import info from "lucide-static/icons/info.svg?raw";
 import triangleAlert from "lucide-static/icons/triangle-alert.svg?raw";
 import { createSignal, For as ForValue, onCleanup } from "solid-js";
@@ -780,7 +780,6 @@ function NumberFieldPage() {
             formatOptions={{
               style: "currency",
               currency: "EUR",
-              currencyDisplay: "symbol",
             }}
             onValueChange={setPrice}
           />
@@ -1065,17 +1064,22 @@ function TransparentWindowPage() {
           The desktop should remain visible through the dimmed surface.
         </Text>
       </View>
-      {selection() && (
-        <View
-          class="absolute border-2 border-accent bg-transparent pointer-events-none"
-          style={{
-            left: px(selection()!.left),
-            top: px(selection()!.top),
-            width: px(selection()!.width),
-            height: px(selection()!.height),
-          }}
-        />
-      )}
+      {(() => {
+        const rect = selection();
+        return (
+          rect && (
+            <View
+              class="absolute border-2 border-accent bg-transparent pointer-events-none"
+              style={{
+                left: px(rect.left),
+                top: px(rect.top),
+                width: px(rect.width),
+                height: px(rect.height),
+              }}
+            />
+          )
+        );
+      })()}
     </View>
   );
 }

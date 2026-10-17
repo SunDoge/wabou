@@ -1,23 +1,18 @@
-// @wabou/core — installs the Web-API surface the host (Rust) doesn't
-// provide natively. Importing this package for side effects is enough: each
-// module below self-installs onto globalThis. The host fn contract lives in
-// `./host` (ambient `declare global`); runtime host fns are injected by
-// crates/wabou-runtime/src/jsrt.rs before the app boots.
+// @wabou/core installs the small baseline required by every native app.
+// Buffered fetch and WHATWG Streams are intentionally opt-in through
+// `@wabou/core/web`, so UI-only applications do not bundle those polyfills.
+// The host fn contract lives in `./host` (ambient `declare global`); runtime
+// host fns are injected by crates/wabou-runtime/src/jsrt.rs before app boot.
 //
 // Load order matters only where a later module relies on an earlier one's
 // global (e.g. the lazy TextEncoder in the protocol layer, resolved on
-// first use well after this init). Polyfills that need no host fn can go in
-// any order; glue modules import the bundled renderer layer directly.
+// first use well after this init). Baseline polyfills that need no host fn can
+// go in any order; glue modules import the bundled renderer layer directly.
 
 import "./host";
 import "./polyfills/dom-exception";
 import "./polyfills/abort-controller";
 import "./polyfills/crypto";
-import "./polyfills/streams";
-import "./polyfills/encoding-streams";
-
-// Native-backed URL and URLSearchParams are installed by core-prelude before the app boots.
-import "./polyfills/fetch";
 
 import "./glue/animation-frame";
 import "./glue/app-lifecycle";
@@ -37,10 +32,7 @@ import "./glue/dialog";
 import "./glue/notification";
 import "./glue/intl";
 
-export {
-  type AppDirectories,
-  appDirs,
-} from "./glue/app-dirs";
+export { type AppDirectories, appDirs } from "./glue/app-dirs";
 export {
   type AppLifecycleEvent,
   type AppLifecycleState,
@@ -134,13 +126,13 @@ export {
 } from "./glue/host-resource";
 export {
   type CalendarDateFields,
+  type DateFormatOptions,
   intl,
+  type NumberFormatOptions,
+  type PluralOptions,
+  type RelativeTimeOptions,
+  type RelativeTimeUnit,
 } from "./glue/intl";
-export {
-  bindJsonCapability,
-  type JsonCapabilityClient,
-  type JsonCapabilityMethodName,
-} from "./glue/json-capability";
 export {
   type KeyboardModifiers,
   subscribeKeyboardModifiers,
@@ -169,12 +161,6 @@ export {
   type LatestAsyncResourceOptions,
   type LatestAsyncResourceStatus,
 } from "./glue/latest-async-resource";
-export {
-  bindCapability,
-  type CapabilityClientOptions,
-  CapabilityError,
-  type NativeCapability,
-} from "./glue/native-capability";
 export {
   type NativeMenuItem,
   type NativeMenuOptions,
@@ -208,6 +194,11 @@ export {
   type WindowState,
 } from "./glue/window-metrics";
 export * from "./keyed-list";
+export {
+  flushPerformance,
+  measureAsyncPerformance,
+  measurePerformance,
+} from "./performance";
 export * from "./registry";
 // Keep application-facing renderer types at the stable root. Reconciler hooks,
 // protocol writers, dispatch functions, and generated opcodes remain available
@@ -278,9 +269,3 @@ export {
 } from "./renderer";
 export * from "./style";
 export * from "./vector-path";
-
-export {
-  measurePerformance,
-  measureAsyncPerformance,
-  flushPerformance,
-} from "./performance";

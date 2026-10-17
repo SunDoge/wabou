@@ -1,0 +1,1155 @@
+//! Application host for the Winit + Taffy + Vello GPU backend.
+
+#[cfg(feature = "vite")]
+use std::cell::RefCell;
+use std::{
+    collections::HashMap,
+    path::PathBuf,
+    rc::Rc,
+    sync::Arc,
+    time::{Duration, Instant},
+};
+
+use serde::{Deserialize, Serialize};
+use snafu::ResultExt;
+use vello_common::peniko::Color;
+use wabou_shell_api::WindowBackground;
+
+use crate::{Applier, ImageResourceStore, JsRuntime, JsRuntimeOptions};
+use wabou_shell::{FrameSource, NativeWidgetPlugin, Widget, WidgetFactory, WindowOptions};
+
+type HostModuleInstaller = Arc<dyn Fn(&JsRuntime) -> rquickjs::Result<()>>;
+type HostMessageProducer = Arc<dyn Fn(crate::HostMessageContext) + Send + Sync>;
+
+struct HostServicesGuard(Vec<Arc<dyn runtime_api::HostService>>);
+
+impl HostServicesGuard {
+    fn finish(mut self) -> crate::Result<()> {
+        let mut failures = Vec::new();
+        while let Some(service) = self.0.pop() {
+            if let Err(error) = service.shutdown() {
+                failures.push(format!("`{}`: {error}", service.name()));
+            }
+        }
+        if failures.is_empty() {
+            Ok(())
+        } else {
+            Err(crate::Error::HostServiceShutdown {
+                message: failures.join("; "),
+            })
+        }
+    }
+}
+
+impl Drop for HostServicesGuard {
+    fn drop(&mut self) {
+        while let Some(service) = self.0.pop() {
+            if let Err(error) = service.shutdown() {
+                tracing::warn!(service = service.name(), %error, "failed to shut down host service");
+            }
+        }
+    }
+}
+
+fn start_services(
+    services: &[(Arc<dyn runtime_api::HostService>, bool)],
+    context: &runtime_api::HostServiceContext,
+) -> crate::Result<HostServicesGuard> {
+    let mut started_services = HostServicesGuard(Vec::with_capacity(services.len()));
+    for (service, required) in services {
+        let started = Instant::now();
+        match service.start(context) {
+            Ok(()) => started_services.0.push(service.clone()),
+            Err(message) if *required => {
+                return Err(crate::Error::HostService {
+                    name: service.name(),
+                    message,
+                });
+            }
+            Err(message) => {
+                tracing::warn!(service = service.name(), %message, "recoverable host service failed to start");
+            }
+        }
+        if started.elapsed() >= Duration::from_secs(1) {
+            tracing::warn!(
+                service = service.name(),
+                elapsed_ms = started.elapsed().as_millis(),
+                "host service startup was slow"
+            );
+        }
+    }
+    Ok(started_services)
+}
+
+#[derive(Clone)]
+enum ApplicationSource {
+    Bundle {
+        code: String,
+        source_map: Option<Vec<u8>>,
+    },
+    #[cfg(feature = "vite")]
+    Vite { url: String, entry: String },
+}
+
+#[derive(Clone)]
+struct RuntimeSourceConfig {
+    source: ApplicationSource,
+    js_runtime_options: JsRuntimeOptions,
+    /// Shared deterministic clock for headless test runs.
+    js_clock: Option<runtime_api::clock::VirtualClock>,
+    host_modules: Vec<HostModuleInstaller>,
+    host_message_producers: Vec<HostMessageProducer>,
+    widget_factories: HashMap<String, WidgetFactory>,
+    base_color: Color,
+    image_resources: ImageResourceStore,
+    effect_trace: Option<crate::effect_trace::EffectTrace>,
+    app_directories: Option<wabou_shell::AppDirectories>,
+    #[cfg(feature = "devtools")]
+    debug_state: Option<wabou_devtools::SharedDebugState>,
+    #[cfg(feature = "vite")]
+    hmr_clients: Rc<RefCell<Vec<runtime_api::HmrClient>>>,
+}
+
+impl RuntimeSourceConfig {
+    fn create_js_runtime(&self) -> rquickjs::Result<JsRuntime> {
+        match &self.js_clock {
+            // All windows share one virtual timeline; the headless loop
+            // advances it once per iteration.
+            Some(clock) => JsRuntime::new_with_clock_and_options(
+                std::sync::Arc::new(clock.clone()),
+                self.js_runtime_options,
+            ),
+            None => JsRuntime::new_with_options(self.js_runtime_options),
+        }
+    }
+
+    fn create(
+        &self,
+        window_key: wabou_shell::WindowResourceKey,
+        options: &WindowOptions,
+    ) -> crate::Result<Applier> {
+        #[cfg(feature = "vite")]
+        let js = match &self.source {
+            ApplicationSource::Bundle { .. } => self.create_js_runtime(),
+            ApplicationSource::Vite { url, .. } => {
+                if self.js_clock.is_some() {
+                    tracing::warn!(
+                        "virtual test clocks are unsupported for Vite dev runtimes; using the system clock"
+                    );
+                }
+                JsRuntime::new_vite_with_options(url, self.js_runtime_options)
+            }
+        }
+        .context(crate::error::JavaScriptSnafu {
+            operation: "create JavaScript runtime",
+        })?;
+        #[cfg(not(feature = "vite"))]
+        let js = self
+            .create_js_runtime()
+            .context(crate::error::JavaScriptSnafu {
+                operation: "create JavaScript runtime",
+            })?;
+        for module in &self.host_modules {
+            module(&js).context(crate::error::JavaScriptSnafu {
+                operation: "mount Rust host module",
+            })?;
+        }
+        let serialized_window_options =
+            serde_json::to_string(options).expect("WindowOptions must remain serializable");
+        js.with(|ctx| {
+            ctx.globals()
+                .set("__wabou_window_options_json", serialized_window_options)
+        })
+        .context(crate::error::JavaScriptSnafu {
+            operation: "install native window creation options",
+        })?;
+        let base_color = window_base_color(self.base_color, options.background);
+        let mut controller = Applier::from_runtime_with_factories_and_window(
+            js,
+            self.widget_factories.clone(),
+            base_color,
+            window_key,
+        );
+        controller.set_image_resource_store(self.image_resources.clone());
+        if let Some(trace) = &self.effect_trace {
+            controller.set_effect_trace(trace.clone());
+        }
+        #[cfg(feature = "devtools")]
+        if let Some(state) = &self.debug_state {
+            controller.set_debug_state(state.clone());
+        }
+        if let Some(directories) = &self.app_directories {
+            controller.set_app_directories(directories.clone());
+        }
+        let message_context = controller.host_message_context(window_key);
+        for producer in &self.host_message_producers {
+            producer(message_context.clone());
+        }
+        match &self.source {
+            ApplicationSource::Bundle { code, source_map } => {
+                controller
+                    .boot_with_source_map(code, source_map.as_deref())
+                    .context(crate::error::JavaScriptSnafu {
+                        operation: "boot JavaScript bundle",
+                    })?;
+            }
+            #[cfg(feature = "vite")]
+            ApplicationSource::Vite { url, entry } => {
+                controller.set_vite_entry(entry);
+                controller
+                    .boot_vite(entry)
+                    .context(crate::error::JavaScriptSnafu {
+                        operation: "boot Vite entry module",
+                    })?;
+                let reload = controller.reload_handle();
+                self.hmr_clients.borrow_mut().push(
+                    runtime_api::start_hmr_bridge(url, move |event| {
+                        reload
+                            .send(match event {
+                                runtime_api::ViteHmrEvent::Update {
+                                    path,
+                                    accepted_path,
+                                    timestamp,
+                                    source,
+                                } => crate::reload::ReloadMsg::HmrUpdate {
+                                    path,
+                                    accepted_path,
+                                    timestamp,
+                                    source,
+                                },
+                                runtime_api::ViteHmrEvent::CssUpdate { path } => {
+                                    crate::reload::ReloadMsg::CssUpdate { path }
+                                }
+                                runtime_api::ViteHmrEvent::FullReload => {
+                                    crate::reload::ReloadMsg::FullReload
+                                }
+                                runtime_api::ViteHmrEvent::Error { diagnostic } => {
+                                    crate::reload::ReloadMsg::Error { diagnostic }
+                                }
+                            })
+                            .is_ok()
+                    })
+                    .context(crate::error::ViteSnafu)?,
+                );
+            }
+        }
+        Ok(controller)
+    }
+}
+
+fn window_base_color(configured: Color, background: WindowBackground) -> Color {
+    match background {
+        WindowBackground::Opaque => configured,
+        WindowBackground::Transparent
+        | WindowBackground::Blurred
+        | WindowBackground::Mica
+        | WindowBackground::MicaAlt => Color::TRANSPARENT,
+    }
+}
+
+enum EffectTraceConfig {
+    Record { path: PathBuf, record_all: bool },
+    Replay { path: PathBuf },
+}
+
+#[derive(Deserialize)]
+struct CreateFileImageRequest {
+    path: String,
+}
+
+#[derive(Deserialize)]
+struct CreateNetworkImageRequest {
+    url: String,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ImageResourceDescriptor {
+    handle: crate::ImageResourceHandle,
+    width: u32,
+    height: u32,
+}
+
+#[rquickjs::module(rename_vars = "camelCase")]
+mod image_resource_host {
+    use super::*;
+
+    #[rquickjs::function]
+    #[qjs(rename = "createFile")]
+    pub async fn create_file(
+        ctx: rquickjs::Ctx<'_>,
+        crate::JsValue(request): crate::JsValue<CreateFileImageRequest>,
+    ) -> rquickjs::Result<crate::JsValue<ImageResourceDescriptor>> {
+        let resources = resources(&ctx)?;
+        let loader = resources.clone();
+        let handle = tokio::task::spawn_blocking(move || loader.create_file(request.path))
+            .await
+            .map_err(|error| host_error("load file image", error.to_string()))?
+            .map_err(|error| host_error("load file image", error))?;
+        descriptor(&resources, handle).map(crate::JsValue)
+    }
+
+    #[rquickjs::function]
+    #[qjs(rename = "createNetwork")]
+    pub async fn create_network(
+        ctx: rquickjs::Ctx<'_>,
+        crate::JsValue(request): crate::JsValue<CreateNetworkImageRequest>,
+    ) -> rquickjs::Result<crate::JsValue<ImageResourceDescriptor>> {
+        let resources = resources(&ctx)?;
+        let handle = resources
+            .create_network(&request.url)
+            .await
+            .map_err(|error| host_error("load network image", error))?;
+        descriptor(&resources, handle).map(crate::JsValue)
+    }
+
+    #[rquickjs::function]
+    pub fn release(
+        ctx: rquickjs::Ctx<'_>,
+        crate::JsValue(handle): crate::JsValue<crate::ImageResourceHandle>,
+    ) -> rquickjs::Result<bool> {
+        Ok(resources(&ctx)?.remove(handle))
+    }
+
+    fn resources(ctx: &rquickjs::Ctx<'_>) -> rquickjs::Result<crate::ImageResourceStore> {
+        ctx.userdata::<crate::HostModuleState<crate::ImageResourceStore>>()
+            .map(|state| state.0.clone())
+            .ok_or_else(|| {
+                rquickjs::Exception::throw_type(ctx, "image resource state is unavailable")
+            })
+    }
+
+    fn descriptor(
+        resources: &crate::ImageResourceStore,
+        handle: crate::ImageResourceHandle,
+    ) -> rquickjs::Result<ImageResourceDescriptor> {
+        let (width, height) = resources
+            .get(handle)
+            .ok_or_else(|| {
+                host_error(
+                    "resolve image resource",
+                    "created image resource did not resolve",
+                )
+            })?
+            .dimensions();
+        Ok(ImageResourceDescriptor {
+            handle,
+            width,
+            height,
+        })
+    }
+
+    fn host_error(operation: &'static str, error: impl std::fmt::Display) -> rquickjs::Error {
+        rquickjs::Error::new_into_js_message(operation, "image resource", error.to_string())
+    }
+}
+
+/// Builder for the independent Winit + Taffy + Vello GPU application path.
+///
+/// It consumes a JavaScript bundle and projects its binary mutation protocol
+/// into the native Vello GPU document.
+pub struct HostBuilder {
+    source: Option<ApplicationSource>,
+    window: WindowOptions,
+    additional_windows: Vec<WindowOptions>,
+    base_color: Color,
+    widget_factories: HashMap<String, WidgetFactory>,
+    host_modules: Vec<HostModuleInstaller>,
+    host_message_producers: Vec<HostMessageProducer>,
+    services: Vec<(Arc<dyn runtime_api::HostService>, bool)>,
+    app_directory_config: Option<wabou_shell::AppDirectoryConfig>,
+    persisted_window_size: Option<String>,
+    kv_enabled: bool,
+    devtools: bool,
+    shell_extensions: Vec<Box<dyn wabou_shell::ShellExtension>>,
+    effect_trace: Option<EffectTraceConfig>,
+    image_resources: ImageResourceStore,
+    js_runtime_options: JsRuntimeOptions,
+}
+
+impl Default for HostBuilder {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl HostBuilder {
+    /// Construct a host with the standard Vello GPU native-widget registry.
+    pub fn new() -> Self {
+        Self::with_image_resources(ImageResourceStore::default())
+    }
+
+    /// Construct a host whose Rust code shares ownership of image resources.
+    pub fn with_image_resources(image_resources: ImageResourceStore) -> Self {
+        let builder = Self {
+            source: None,
+            window: WindowOptions::default(),
+            additional_windows: Vec::new(),
+            base_color: Color::from_rgb8(0x0f, 0x17, 0x2a),
+            widget_factories: wabou_shell::widgets::builtin_factories(),
+            host_modules: Vec::new(),
+            host_message_producers: Vec::new(),
+            services: Vec::new(),
+            app_directory_config: None,
+            persisted_window_size: None,
+            kv_enabled: false,
+            devtools: cfg!(all(debug_assertions, feature = "devtools")),
+            shell_extensions: Vec::new(),
+            effect_trace: None,
+            image_resources: image_resources.clone(),
+            js_runtime_options: JsRuntimeOptions::default(),
+        };
+        builder.host_module_def_with_state::<js_image_resource_host, _>(
+            "imageResources",
+            crate::HostModuleState(image_resources),
+        )
+    }
+
+    /// Configure the primary native window.
+    pub fn window(mut self, options: WindowOptions) -> Self {
+        self.window = options;
+        self
+    }
+
+    /// Supply bundled JavaScript directly without changing process environment.
+    pub fn javascript_source(mut self, code: impl Into<String>) -> Self {
+        self.source = Some(ApplicationSource::Bundle {
+            code: code.into(),
+            source_map: None,
+        });
+        self
+    }
+
+    /// Supply a Vite entry directly for an independently loaded runtime.
+    #[cfg(feature = "vite")]
+    pub fn vite_source(mut self, url: impl Into<String>, entry: impl Into<String>) -> Self {
+        self.source = Some(ApplicationSource::Vite {
+            url: url.into(),
+            entry: entry.into(),
+        });
+        self
+    }
+
+    /// Add another native window running an independent copy of the bundle.
+    pub fn additional_window(mut self, options: WindowOptions) -> Self {
+        self.additional_windows.push(options);
+        self
+    }
+
+    /// Register or replace a Winit native widget.
+    pub fn widget(
+        mut self,
+        tag: impl Into<String>,
+        factory: impl Fn() -> Box<dyn Widget> + 'static,
+    ) -> Self {
+        self.widget_factories.insert(tag.into(), Arc::new(factory));
+        self
+    }
+
+    /// Install an optional statically linked native-widget plugin.
+    pub fn plugin(self, plugin: NativeWidgetPlugin) -> Self {
+        let tag = plugin.tag();
+        self.widget(tag, move || plugin.create())
+    }
+
+    /// Register secure native password inputs backed by one Rust-only store.
+    ///
+    /// Values entered into `<PasswordInput>` never cross into QuickJS. Native
+    /// capability code can atomically take a value from the matching `secret`
+    /// slot through the returned store clone.
+    pub fn password_inputs(mut self, secrets: crate::SecretStore) -> Self {
+        self.widget_factories.insert(
+            "password-input".into(),
+            wabou_shell::widgets::password_input_factory(secrets),
+        );
+        self
+    }
+
+    /// Mount the exports generated by an `#[rquickjs::module]` definition.
+    ///
+    /// `rquickjs` owns function registration and Rust/JavaScript conversion;
+    /// Wabou only places the resulting namespace under `useHost()`.
+    pub fn host_module_def<D>(mut self, name: impl Into<String>) -> Self
+    where
+        D: rquickjs::module::ModuleDef + 'static,
+    {
+        let name = name.into();
+        self.host_modules
+            .push(Arc::new(move |js| js.mount_host_module_def::<D>(&name)));
+        self
+    }
+
+    /// Mount an `#[rquickjs::module]` with runtime-owned Rust state.
+    ///
+    /// Every window runtime receives a clone of `state`. Module functions can
+    /// accept `rquickjs::Ctx` and read the value through `Ctx::userdata::<S>()`.
+    pub fn host_module_def_with_state<D, S>(mut self, name: impl Into<String>, state: S) -> Self
+    where
+        D: rquickjs::module::ModuleDef + 'static,
+        S: Clone
+            + rquickjs::markers::ParallelSend
+            + 'static
+            + for<'js> rquickjs::JsLifetime<'js, Changed<'static> = S>,
+    {
+        let name = name.into();
+        self.host_modules.push(Arc::new(move |js| {
+            js.mount_host_module_def_with_state::<D, S>(&name, state.clone())
+        }));
+        self
+    }
+
+    /// Register a Rust-to-JavaScript producer for every native window.
+    pub fn host_message_producer<F>(mut self, producer: F) -> Self
+    where
+        F: Fn(crate::HostMessageContext) + Send + Sync + 'static,
+    {
+        self.host_message_producers.push(Arc::new(producer));
+        self
+    }
+
+    /// Connect the window-addressable host-message router.
+    pub fn host_message_router(mut self, router: runtime_api::HostMessageRouter) -> Self {
+        self.host_message_producers
+            .push(Arc::new(move |context| router.attach(context)));
+        self
+    }
+
+    /// Own a required background service for the complete Winit host lifetime.
+    pub fn service(mut self, service: impl runtime_api::HostService + 'static) -> Self {
+        self.services.push((Arc::new(service), true));
+        self
+    }
+
+    /// Own a background service whose startup failure leaves the UI available.
+    pub fn recoverable_service(mut self, service: impl runtime_api::HostService + 'static) -> Self {
+        self.services.push((Arc::new(service), false));
+        self
+    }
+
+    /// Configure stable application-private platform directories.
+    pub fn app_directories(
+        self,
+        qualifier: impl Into<String>,
+        organization: impl Into<String>,
+        application: impl Into<String>,
+    ) -> Self {
+        self.app_directory_config(wabou_shell::AppDirectoryConfig::new(
+            qualifier,
+            organization,
+            application,
+        ))
+    }
+
+    /// Set an already constructed application directory identity.
+    pub fn app_directory_config(mut self, config: wabou_shell::AppDirectoryConfig) -> Self {
+        self.app_directory_config = Some(config);
+        self
+    }
+
+    /// Restore and persist the primary window's normal logical size.
+    pub fn persist_window_size(mut self, key: impl Into<String>) -> Self {
+        let key = key.into();
+        assert!(
+            !key.is_empty()
+                && key
+                    .bytes()
+                    .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_')),
+            "window persistence key must contain only ASCII letters, numbers, '-' or '_'"
+        );
+        self.persisted_window_size = Some(key);
+        self
+    }
+
+    /// Enable the built-in SQLite-backed hierarchical KV capability.
+    pub fn kv(mut self) -> Self {
+        self.kv_enabled = true;
+        self
+    }
+
+    /// Enable or disable the local read-only DevTools transport.
+    pub fn devtools(mut self, enabled: bool) -> Self {
+        self.devtools = enabled;
+        self
+    }
+
+    /// Install a Winit event-loop extension for tray icons or platform integration.
+    pub fn shell_extension(
+        mut self,
+        extension: impl wabou_shell::ShellExtension + 'static,
+    ) -> Self {
+        self.shell_extensions.push(Box::new(extension));
+        self
+    }
+
+    /// Record replay-safe native effects when the application exits.
+    pub fn record_effects(mut self, path: impl Into<PathBuf>) -> Self {
+        self.effect_trace = Some(EffectTraceConfig::Record {
+            path: path.into(),
+            record_all: false,
+        });
+        self
+    }
+
+    /// Record every native effect, including potentially sensitive payloads.
+    pub fn record_all_effects(mut self, path: impl Into<PathBuf>) -> Self {
+        self.effect_trace = Some(EffectTraceConfig::Record {
+            path: path.into(),
+            record_all: true,
+        });
+        self
+    }
+
+    /// Replay effects found in a previously recorded tape.
+    pub fn replay_effects(mut self, path: impl Into<PathBuf>) -> Self {
+        self.effect_trace = Some(EffectTraceConfig::Replay { path: path.into() });
+        self
+    }
+
+    /// Set the physical surface clear color.
+    pub fn base_color(mut self, rgba: [u8; 4]) -> Self {
+        self.base_color = Color::from_rgba8(rgba[0], rgba[1], rgba[2], rgba[3]);
+        self
+    }
+
+    /// Configure the maximum native stack available to every QuickJS runtime.
+    pub fn quickjs_stack_size(mut self, bytes: usize) -> Self {
+        self.js_runtime_options = self.js_runtime_options.max_stack_size(bytes);
+        self
+    }
+
+    /// Boot one runtime per window and enter the Winit event loop.
+    pub fn run(self) -> crate::Result<()> {
+        tracing_subscriber::fmt()
+            .with_env_filter(
+                tracing_subscriber::EnvFilter::try_from_default_env()
+                    .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new("info")),
+            )
+            .try_init()
+            .ok();
+
+        let test_script = std::env::var_os("WABOU_TEST_SCRIPT")
+            .map(PathBuf::from)
+            .map(|path| {
+                std::fs::read_to_string(&path).context(crate::error::ReadFileSnafu {
+                    kind: "test scenario bundle",
+                    path,
+                })
+            })
+            .transpose()?;
+        let trace_path = self.effect_trace.as_ref().map(|config| match config {
+            EffectTraceConfig::Record { path, .. } | EffectTraceConfig::Replay { path } => {
+                path.clone()
+            }
+        });
+        let mut effect_trace = match &self.effect_trace {
+            Some(EffectTraceConfig::Record { record_all, .. }) => {
+                Some(crate::effect_trace::EffectTrace::record(*record_all))
+            }
+            Some(EffectTraceConfig::Replay { path }) => Some(
+                crate::effect_trace::EffectTrace::replay(path)
+                    .map_err(|message| crate::Error::EffectTrace { message })?,
+            ),
+            None => None,
+        };
+        let recording_effects = matches!(self.effect_trace, Some(EffectTraceConfig::Record { .. }));
+        if test_script.is_some() && effect_trace.is_none() {
+            effect_trace = Some(crate::effect_trace::EffectTrace::fixtures());
+        }
+        let test_controller = test_script.as_ref().map(|_| {
+            runtime_api::test_driver::TestController::new(
+                effect_trace
+                    .clone()
+                    .expect("behavior tests always install an effect fixture bridge"),
+            )
+        });
+
+        #[cfg(feature = "devtools")]
+        let (_devtools_server, debug_state) = {
+            let state = self.devtools.then(wabou_devtools::DebugState::shared);
+            let server = if let Some(state) = &state {
+                let path = wabou_devtools::socket_path();
+                let server = wabou_devtools::serve(state.clone(), path.clone())
+                    .context(crate::error::DevtoolsSnafu)?;
+                tracing::info!(target: "devtools", socket = %path.display(), "Wabou DevTools listening");
+                Some(server)
+            } else {
+                None
+            };
+            (server, state)
+        };
+        #[cfg(not(feature = "devtools"))]
+        if self.devtools {
+            tracing::warn!("HostBuilder::devtools(true) requires the `wabou/devtools` feature");
+        }
+
+        let source = if let Some(source) = self.source {
+            source
+        } else {
+            #[cfg(feature = "vite")]
+            let source = if let Ok(url) = std::env::var("WABOU_VITE_URL") {
+                ApplicationSource::Vite {
+                    url,
+                    entry: std::env::var("WABOU_VITE_ENTRY")
+                        .unwrap_or_else(|_| "src/index.tsx".to_owned()),
+                }
+            } else {
+                ApplicationSource::Bundle {
+                    code: crate::bundle::load()?,
+                    source_map: crate::bundle::load_source_map()?,
+                }
+            };
+            #[cfg(not(feature = "vite"))]
+            let source = ApplicationSource::Bundle {
+                code: crate::bundle::load()?,
+                source_map: crate::bundle::load_source_map()?,
+            };
+            source
+        };
+        let app_directories = self
+            .app_directory_config
+            .as_ref()
+            .map(|config| {
+                let resource = crate::bundle::resource_directory()?;
+                wabou_shell::AppDirectories::resolve(config, resource).ok_or_else(|| {
+                    crate::Error::AppDirectories {
+                        application: "configured application".to_owned(),
+                    }
+                })
+            })
+            .transpose()?;
+        let mut host_modules = self.host_modules;
+        if let Some(controller) = &test_controller {
+            let controller = controller.clone();
+            host_modules.push(Arc::new(move |js| {
+                let controller = controller.clone();
+                js.mount_host_module("test", move |ctx, object| {
+                    controller.mount_object(ctx, object)
+                })
+            }));
+        }
+        if self.kv_enabled {
+            let directories = app_directories
+                .as_ref()
+                .ok_or(crate::Error::MissingArgument {
+                    argument: "HostBuilder::app_directories before HostBuilder::kv",
+                })?;
+            let path = directories
+                .storage_namespace("kv")
+                .expect("framework KV namespace is valid")
+                .join("default.sqlite3");
+            host_modules.push(Arc::new(move |js| {
+                js.mount_host_module_def_with_state::<runtime_api::js_kv_host, _>(
+                    "kv",
+                    runtime_api::HostModuleState(runtime_api::KvModuleState::new(path.clone())),
+                )
+            }));
+        }
+        let headless = test_controller.is_some()
+            && std::env::var("WABOU_TEST_HEADLESS").is_ok_and(|value| value != "0");
+        // Deterministic headless runs advance time explicitly through the
+        // loop instead of observing wall-clock scheduling.
+        let virtual_clock = if test_controller.is_some()
+            && std::env::var("WABOU_TEST_CLOCK").is_ok_and(|value| value == "virtual")
+        {
+            if headless {
+                Some(runtime_api::clock::VirtualClock::new())
+            } else {
+                tracing::warn!(
+                    "WABOU_TEST_CLOCK=virtual requires WABOU_TEST_HEADLESS; using the system clock"
+                );
+                None
+            }
+        } else {
+            None
+        };
+        let service_context = runtime_api::HostServiceContext::for_alternate_host(
+            app_directories.clone(),
+            test_controller.is_some(),
+            headless,
+        );
+        let services = start_services(&self.services, &service_context)?;
+
+        let mut windows = std::iter::once(self.window)
+            .chain(self.additional_windows)
+            .collect::<Vec<_>>();
+        let mut extensions = self.shell_extensions;
+        if let Some(controller) = &test_controller {
+            let window_keys = (0..windows.len())
+                .map(wabou_shell::initial_window_resource_key)
+                .collect();
+            extensions.push(Box::new(crate::behavior_test::WinitBehaviorTest::new(
+                controller.clone(),
+                window_keys,
+            )));
+        }
+        if let (Some(key), Some(directories)) = (
+            self.persisted_window_size.as_ref(),
+            app_directories.as_ref(),
+        ) {
+            let path = directories
+                .local_data_dir
+                .join("window-state")
+                .join(format!("{key}.json"));
+            extensions.push(Box::new(wabou_shell::WindowSizePersistence::restore(
+                path,
+                wabou_shell::initial_window_resource_key(0),
+                &mut windows[0],
+            )));
+        } else if let Some(key) = &self.persisted_window_size {
+            tracing::warn!(key, "window size persistence requires app_directories");
+        }
+        let runtime_sources = RuntimeSourceConfig {
+            source,
+            js_runtime_options: self.js_runtime_options,
+            js_clock: virtual_clock.clone(),
+            host_modules,
+            host_message_producers: self.host_message_producers,
+            widget_factories: self.widget_factories,
+            base_color: self.base_color,
+            image_resources: self.image_resources,
+            effect_trace: effect_trace.clone(),
+            app_directories,
+            #[cfg(feature = "devtools")]
+            debug_state: debug_state.clone(),
+            #[cfg(feature = "vite")]
+            hmr_clients: Rc::new(RefCell::new(Vec::new())),
+        };
+        let mut sources = Vec::with_capacity(windows.len());
+        for (index, options) in windows.into_iter().enumerate() {
+            let controller = runtime_sources
+                .create(wabou_shell::initial_window_resource_key(index), &options)?;
+            if index == 0
+                && let Some(script) = &test_script
+            {
+                controller
+                    .eval_script_diagnostic(script)
+                    .map_err(|message| crate::Error::TestScenario {
+                        message: format!("failed to evaluate Winit test scenario: {message}"),
+                    })?;
+            }
+            sources.push((Box::new(controller) as Box<dyn FrameSource>, options));
+        }
+        let dynamic_sources = runtime_sources.clone();
+        let factory: wabou_shell::FrameSourceFactory = Rc::new(move |window_key, options| {
+            dynamic_sources
+                .create(window_key, options)
+                .map(|controller| Box::new(controller) as Box<dyn FrameSource>)
+                .map_err(|error| error.to_string())
+        });
+        if headless {
+            crate::headless_test::run(
+                test_controller
+                    .as_ref()
+                    .expect("headless test requires a controller"),
+                &mut sources,
+                virtual_clock.as_ref(),
+                #[cfg(feature = "devtools")]
+                debug_state.as_ref(),
+            )?;
+        } else {
+            wabou_shell::run_windows_with_factory_and_extensions(
+                sources,
+                Some(factory),
+                extensions,
+            )
+            .context(crate::error::WinitShellSnafu)?;
+        }
+        if recording_effects && let (Some(trace), Some(path)) = (&effect_trace, trace_path) {
+            trace
+                .write(&path)
+                .map_err(|message| crate::Error::EffectTrace { message })?;
+        }
+        if let Some(controller) = test_controller {
+            runtime_api::test_report::finish_test_report(controller).map_err(|error| {
+                crate::Error::TestScenario {
+                    message: error.to_string(),
+                }
+            })?;
+        }
+        services.finish()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+
+    #[derive(Deserialize)]
+    struct DoubleRequest {
+        value: u32,
+    }
+
+    #[derive(Serialize)]
+    struct DoubleResponse {
+        value: u32,
+    }
+
+    #[rquickjs::module(rename_vars = "camelCase")]
+    mod winit_test_host {
+        use super::*;
+
+        #[rquickjs::function]
+        pub fn double(
+            crate::JsValue(request): crate::JsValue<DoubleRequest>,
+        ) -> rquickjs::Result<crate::JsValue<DoubleResponse>> {
+            Ok(crate::JsValue(DoubleResponse {
+                value: request.value * 2,
+            }))
+        }
+    }
+
+    #[test]
+    fn transparent_window_materials_do_not_inherit_the_opaque_host_clear_color() {
+        let configured = Color::from_rgb8(0x0f, 0x17, 0x2a);
+        assert_eq!(
+            window_base_color(configured, WindowBackground::Opaque),
+            configured
+        );
+        for background in [
+            WindowBackground::Transparent,
+            WindowBackground::Blurred,
+            WindowBackground::Mica,
+            WindowBackground::MicaAlt,
+        ] {
+            assert_eq!(
+                window_base_color(configured, background),
+                Color::TRANSPARENT
+            );
+        }
+    }
+
+    #[test]
+    fn typed_host_modules_mount_before_the_winit_bundle_boots() {
+        let builder = HostBuilder::new().host_module_def::<js_winit_test_host>("winitTest");
+        let runtime = JsRuntime::new().expect("runtime");
+        for module in &builder.host_modules {
+            module(&runtime).expect("mount host module");
+        }
+        let result = runtime
+            .with(|ctx| {
+                ctx.eval::<String, _>(
+                    "JSON.stringify(__wabou_host_modules.winitTest.double({ value: 21 }).value)",
+                )
+            })
+            .expect("invoke host module");
+        assert_eq!(result, "42");
+    }
+
+    #[test]
+    fn image_resources_use_direct_structured_quickjs_values() {
+        let directory = tempfile::tempdir().expect("temporary directory");
+        let path = directory.path().join("pixel.png");
+        image::RgbaImage::from_pixel(2, 3, image::Rgba([12, 34, 56, 255]))
+            .save(&path)
+            .expect("write image fixture");
+        let builder = HostBuilder::new();
+        let runtime = JsRuntime::new().expect("runtime");
+        for module in &builder.host_modules {
+            module(&runtime).expect("mount host module");
+        }
+        let exports = runtime
+            .with(|ctx| {
+                ctx.eval::<String, _>(
+                    "JSON.stringify(Object.keys(__wabou_host_modules.imageResources).sort())",
+                )
+            })
+            .expect("inspect image resource module");
+        assert_eq!(exports, r#"["createFile","createNetwork","release"]"#);
+        let source = format!(
+            r#"(() => {{
+                return __wabou_host_modules.imageResources
+                    .createFile({{ path: {} }})
+                    .then((image) => [image.width, image.height,
+                        __wabou_host_modules.imageResources.release(image.handle)]);
+            }})()"#,
+            serde_json::to_string(path.to_str().expect("UTF-8 path")).expect("encode path"),
+        );
+        let result = runtime
+            .eval_promise_json(&source, Duration::from_secs(2))
+            .expect("image resource promise settled");
+        assert_eq!(result, "[2,3,true]");
+    }
+
+    #[test]
+    fn password_inputs_register_the_public_secure_editor_tag() {
+        let secrets = crate::SecretStore::default();
+        let builder = HostBuilder::new().password_inputs(secrets.clone());
+        let mut widget = builder.widget_factories["password-input"]();
+
+        assert!(
+            widget
+                .handle_event(&wabou_shell::UiEvent::TextInput("secret".into()))
+                .is_handled()
+        );
+        assert_eq!(secrets.take("default").as_str(), "secret");
+    }
+
+    #[test]
+    fn runtime_source_factory_boots_dynamic_windows_with_shared_contracts() {
+        let builder = HostBuilder::new().host_module_def::<js_winit_test_host>("winitTest");
+        let source = RuntimeSourceConfig {
+            source: ApplicationSource::Bundle {
+                code: r#"
+                    globalThis.bootResult = [
+                      JSON.parse(__wabou_window_options_json).title,
+                      __wabou_host_modules.winitTest.double({ value: 21 }).value,
+                    ];
+                "#
+                .to_owned(),
+                source_map: None,
+            },
+            js_runtime_options: builder.js_runtime_options,
+            js_clock: None,
+            host_modules: builder.host_modules,
+            host_message_producers: builder.host_message_producers,
+            widget_factories: builder.widget_factories,
+            base_color: builder.base_color,
+            image_resources: builder.image_resources,
+            effect_trace: None,
+            app_directories: None,
+            #[cfg(feature = "devtools")]
+            debug_state: None,
+            #[cfg(feature = "vite")]
+            hmr_clients: Rc::new(RefCell::new(Vec::new())),
+        };
+        let child = source
+            .create(
+                wabou_shell::WindowResourceKey::from_parts(9, 1).unwrap(),
+                &WindowOptions::new().title("Dynamic child"),
+            )
+            .expect("create dynamic window runtime");
+
+        assert_eq!(
+            child
+                .eval_string("JSON.stringify(globalThis.bootResult)")
+                .unwrap(),
+            r#"["Dynamic child",42]"#
+        );
+    }
+
+    #[test]
+    fn public_host_message_router_attaches_to_winit_runtime() {
+        let router = runtime_api::HostMessageRouter::new();
+        let builder = HostBuilder::new().host_message_router(router.clone());
+        let controller = Applier::from_runtime(JsRuntime::new().expect("runtime"), Color::BLACK);
+        let window_key = wabou_shell::initial_window_resource_key(0);
+        let context = controller.host_message_context(window_key);
+        for producer in &builder.host_message_producers {
+            producer(context.clone());
+        }
+
+        router
+            .send_to(window_key, runtime_api::HostMessage::str("ready", "winit"))
+            .expect("public router sends through Winit queue");
+    }
+
+    struct TestService {
+        starts: Arc<AtomicUsize>,
+        stops: Arc<AtomicUsize>,
+        fail: bool,
+    }
+
+    impl runtime_api::HostService for TestService {
+        fn name(&self) -> &'static str {
+            "winit-test"
+        }
+
+        fn start(&self, _context: &runtime_api::HostServiceContext) -> Result<(), String> {
+            self.starts.fetch_add(1, Ordering::Relaxed);
+            if self.fail {
+                Err("expected failure".to_owned())
+            } else {
+                Ok(())
+            }
+        }
+
+        fn shutdown(&self) -> Result<(), String> {
+            self.stops.fetch_add(1, Ordering::Relaxed);
+            Ok(())
+        }
+    }
+
+    #[test]
+    fn services_surround_the_event_loop_and_recoverable_failures_do_not_stop_startup() {
+        let starts = Arc::new(AtomicUsize::new(0));
+        let stops = Arc::new(AtomicUsize::new(0));
+        let services: Vec<(Arc<dyn runtime_api::HostService>, bool)> = vec![
+            (
+                Arc::new(TestService {
+                    starts: starts.clone(),
+                    stops: stops.clone(),
+                    fail: true,
+                }),
+                false,
+            ),
+            (
+                Arc::new(TestService {
+                    starts: starts.clone(),
+                    stops: stops.clone(),
+                    fail: false,
+                }),
+                true,
+            ),
+        ];
+        let context = runtime_api::HostServiceContext::for_alternate_host(None, false, false);
+        let guard = start_services(&services, &context).expect("start services");
+        assert_eq!(starts.load(Ordering::Relaxed), 2);
+        guard.finish().expect("stop services");
+        assert_eq!(stops.load(Ordering::Relaxed), 1);
+    }
+
+    #[test]
+    fn required_service_failure_stops_services_that_started_before_it() {
+        let starts = Arc::new(AtomicUsize::new(0));
+        let stops = Arc::new(AtomicUsize::new(0));
+        let services: Vec<(Arc<dyn runtime_api::HostService>, bool)> = vec![
+            (
+                Arc::new(TestService {
+                    starts: starts.clone(),
+                    stops: stops.clone(),
+                    fail: false,
+                }),
+                true,
+            ),
+            (
+                Arc::new(TestService {
+                    starts: starts.clone(),
+                    stops: stops.clone(),
+                    fail: true,
+                }),
+                true,
+            ),
+        ];
+        let context = runtime_api::HostServiceContext::for_alternate_host(None, false, false);
+        assert!(start_services(&services, &context).is_err());
+        assert_eq!(starts.load(Ordering::Relaxed), 2);
+        assert_eq!(stops.load(Ordering::Relaxed), 1);
+    }
+
+    #[test]
+    fn shared_kv_contract_runs_inside_the_winit_quickjs_runtime() {
+        let directory = tempfile::tempdir().expect("temporary directory");
+        let runtime = JsRuntime::new().expect("runtime");
+        let path = directory.path().join("winit-kv.sqlite3");
+        runtime
+            .mount_host_module_def_with_state::<runtime_api::js_kv_host, _>(
+                "kv",
+                runtime_api::HostModuleState(runtime_api::KvModuleState::new(path)),
+            )
+            .expect("mount KV module");
+        let result = runtime
+            .eval_promise_json(
+                r#"(() => {
+                  const key = [{ type: "string", value: "backend" }];
+                  return __wabou_host_modules.kv
+                    .set({ key, value: { name: "vello-gpu" } })
+                    .then(() => __wabou_host_modules.kv.get({ key }));
+                })()"#,
+                Duration::from_secs(2),
+            )
+            .expect("KV promise settled");
+        let result: serde_json::Value = serde_json::from_str(&result).expect("KV response");
+        assert_eq!(result["value"]["name"], "vello-gpu");
+    }
+}
