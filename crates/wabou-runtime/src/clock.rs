@@ -12,49 +12,7 @@ use std::pin::Pin;
 use std::sync::{Arc, Mutex};
 use std::task::{Context, Poll, Waker};
 
-pub trait Clock: Send + Sync {
-    fn now_ms(&self) -> f64;
-    /// Monotonic instant on the same timeline as [`Clock::now_ms`].
-    ///
-    /// Native time state (`Instant` deadlines, elapsed-since timestamps)
-    /// reads this instead of `Instant::now()` so a [`VirtualClock`] host
-    /// stays deterministic; a [`SystemClock`] returns the wall instant
-    /// directly. `Instant` arithmetic in consumers is unchanged.
-    fn now_instant(&self) -> std::time::Instant;
-    /// Downcast hook: lets a runtime adopt a [`VirtualClock`] handed to it as
-    /// `Arc<dyn Clock>`. Returns `None` for every other implementation.
-    fn as_any(&self) -> Option<&dyn std::any::Any> {
-        None
-    }
-}
-
-pub struct SystemClock {
-    start: std::time::Instant,
-}
-
-impl SystemClock {
-    pub fn new() -> Self {
-        Self {
-            start: std::time::Instant::now(),
-        }
-    }
-}
-
-impl Default for SystemClock {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-impl Clock for SystemClock {
-    fn now_ms(&self) -> f64 {
-        self.start.elapsed().as_secs_f64() * 1000.0
-    }
-
-    fn now_instant(&self) -> std::time::Instant {
-        std::time::Instant::now()
-    }
-}
+pub use wabou_host_api::clock::{Clock, SharedClock, SystemClock};
 
 /// Host notification fired after timers expire during an advance.
 type NotifyCallback = Arc<dyn Fn() + Send + Sync>;
@@ -191,6 +149,10 @@ impl Clock for VirtualClock {
         VirtualClock::now_ms(self)
     }
 
+    fn as_any(&self) -> Option<&dyn std::any::Any> {
+        Some(self)
+    }
+
     fn now_instant(&self) -> std::time::Instant {
         let ms = VirtualClock::now_ms(self);
         // Clamp at the epoch when virtual time exceeds what `Instant` can
@@ -206,10 +168,6 @@ impl Clock for VirtualClock {
         };
         let elapsed = std::time::Duration::from_millis(whole_ms);
         self.epoch.checked_add(elapsed).unwrap_or(self.epoch)
-    }
-
-    fn as_any(&self) -> Option<&dyn std::any::Any> {
-        Some(self)
     }
 }
 

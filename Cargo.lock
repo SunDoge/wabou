@@ -7703,6 +7703,7 @@ dependencies = [
  "usvg",
  "vello_common",
  "vello_gpu",
+ "wabou-host-api",
  "wabou-motion",
  "wabou-shell-api",
  "wabou-style",

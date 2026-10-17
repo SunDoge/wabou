@@ -33,9 +33,11 @@ impl WidgetManager {
         &self,
         tag: Atom,
         wake: Option<&WakeCallback>,
+        clock: wabou_host_api::SharedClock,
     ) -> Option<Box<dyn wabou_shell::Widget>> {
         self.factories.get(&tag).map(|factory| {
             let mut widget = factory();
+            widget.set_clock(clock);
             if let Some(wake) = wake {
                 widget.set_wake_callback(wake.clone());
             }

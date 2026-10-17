@@ -530,5 +530,8 @@ mod tests {
     }
 }
 
+/// Monotonic time sources shared by runtimes, renderers, and native widgets.
+pub mod clock;
+pub use clock::{Clock, SharedClock, SystemClock};
 /// Multi-export native plugin registration protocol.
 pub mod plugin;

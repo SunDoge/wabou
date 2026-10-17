@@ -1,12 +1,14 @@
 //! Backend-neutral animated indicators and slider controls.
 
 use std::collections::VecDeque;
+use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use crate::PaintScene;
 use serde::Deserialize;
 use vello_common::kurbo::{Affine, Circle, Rect};
 use vello_common::peniko::{Color, Fill};
+use wabou_host_api::{SharedClock, SystemClock};
 use wabou_protocol::event;
 use wabou_shell::{
     PaintContext, PointerButton, PointerPhase, UiEvent, Widget, WidgetChanges, WidgetEventResult,
@@ -69,14 +71,22 @@ struct LoopConfig {
 struct LoopTimeline {
     animation: NativeLoopAnimation,
     started: Instant,
+    clock: SharedClock,
 }
 
 impl LoopTimeline {
     fn new() -> Self {
+        let clock: SharedClock = Arc::new(SystemClock::new());
         Self {
             animation: NativeLoopAnimation::default(),
-            started: Instant::now(),
+            started: clock.now_instant(),
+            clock,
         }
+    }
+
+    fn set_clock(&mut self, clock: SharedClock) {
+        self.started = clock.now_instant();
+        self.clock = clock;
     }
 
     fn synchronize(&mut self, animation: NativeLoopAnimation) -> bool {
@@ -86,7 +96,7 @@ impl LoopTimeline {
         }
         if animation.duration != self.animation.duration || animation.speed != self.animation.speed
         {
-            self.started = Instant::now();
+            self.started = self.clock.now_instant();
         }
         self.animation = animation;
         true
@@ -96,14 +106,20 @@ impl LoopTimeline {
         if !self.animation.running() {
             return 0.0;
         }
-        (self.started.elapsed().as_secs_f32() * self.animation.speed / self.animation.duration)
+        (self
+            .clock
+            .now_instant()
+            .saturating_duration_since(self.started)
+            .as_secs_f32()
+            * self.animation.speed
+            / self.animation.duration)
             .fract()
     }
 
     fn deadline(&self) -> Option<Instant> {
         self.animation
             .running()
-            .then(|| Instant::now() + FRAME_INTERVAL)
+            .then(|| self.clock.now_instant() + FRAME_INTERVAL)
     }
 }
 
@@ -138,6 +154,10 @@ impl Default for Spinner {
 }
 
 impl Widget for Spinner {
+    fn set_clock(&mut self, clock: SharedClock) {
+        self.timeline.set_clock(clock);
+    }
+
     fn paint(&mut self, cx: &mut PaintContext<'_>) {
         let extent = f64::from(cx.width().min(cx.height()));
         let dot = (extent * 0.18).max(1.0);
@@ -204,6 +224,10 @@ impl Default for IndeterminateProgress {
 }
 
 impl Widget for IndeterminateProgress {
+    fn set_clock(&mut self, clock: SharedClock) {
+        self.timeline.set_clock(clock);
+    }
+
     fn paint(&mut self, cx: &mut PaintContext<'_>) {
         let (left, right) = indeterminate_edges(self.timeline.phase());
         let width = f64::from(cx.width());
@@ -499,7 +523,37 @@ impl Widget for Slider {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::atomic::{AtomicU64, Ordering};
+    use wabou_host_api::Clock as _;
     use wabou_shell::{Modifiers, Point, PointerEvent, PointerProperties, WidgetHarness};
+
+    struct TestClock {
+        epoch: Instant,
+        elapsed_ms: AtomicU64,
+    }
+
+    impl TestClock {
+        fn new() -> Self {
+            Self {
+                epoch: Instant::now(),
+                elapsed_ms: AtomicU64::new(0),
+            }
+        }
+
+        fn advance(&self, elapsed_ms: u64) {
+            self.elapsed_ms.store(elapsed_ms, Ordering::Relaxed);
+        }
+    }
+
+    impl wabou_host_api::Clock for TestClock {
+        fn now_ms(&self) -> f64 {
+            self.elapsed_ms.load(Ordering::Relaxed) as f64
+        }
+
+        fn now_instant(&self) -> Instant {
+            self.epoch + Duration::from_millis(self.elapsed_ms.load(Ordering::Relaxed))
+        }
+    }
 
     fn pointer(phase: PointerPhase, x: f64, y: f64) -> UiEvent {
         UiEvent::Pointer(PointerEvent {
@@ -522,6 +576,21 @@ mod tests {
             )
             .unwrap();
         assert!(spinner.animation_deadline().is_none());
+    }
+
+    #[test]
+    fn injected_clock_drives_loop_phase_and_deadline() {
+        let clock = Arc::new(TestClock::new());
+        let mut spinner = Spinner::new();
+        spinner.set_clock(clock.clone());
+        assert_eq!(spinner.timeline.phase(), 0.0);
+
+        clock.advance(250);
+        assert!((spinner.timeline.phase() - 0.25).abs() < f32::EPSILON);
+        assert_eq!(
+            spinner.animation_deadline(),
+            Some(clock.now_instant() + FRAME_INTERVAL)
+        );
     }
 
     #[test]

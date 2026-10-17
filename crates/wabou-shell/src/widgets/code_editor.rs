@@ -10,6 +10,7 @@ use vello_common::{
     kurbo::{Affine, Rect},
     peniko::{Color, Fill},
 };
+use wabou_host_api::{SharedClock, SystemClock};
 use wabou_shell::{
     KeyPhase, PaintContext, PointerPhase, UiEvent, Widget, WidgetEventResult, WidgetGeometry,
     WidgetImePurpose, WidgetImeState, WidgetStyle, WidgetTextSelection, WidgetTextSelectionKind,
@@ -222,11 +223,13 @@ pub struct EditorViewport {
     text_color: Color,
     font_family: Option<Arc<str>>,
     font_italic: bool,
+    clock: SharedClock,
 }
 
 impl EditorViewport {
     /// Construct an empty editor viewport.
     pub fn new() -> Self {
+        let clock: SharedClock = Arc::new(SystemClock::new());
         Self {
             value: String::new(),
             selection: SelectionConfig::default(),
@@ -245,6 +248,7 @@ impl EditorViewport {
             text_color: Color::from_rgb8(0xe6, 0xe9, 0xef),
             font_family: Some(Arc::from("monospace")),
             font_italic: false,
+            clock,
         }
     }
 
@@ -649,6 +653,11 @@ impl Default for EditorViewport {
 }
 
 impl Widget for EditorViewport {
+    fn set_clock(&mut self, clock: SharedClock) {
+        self.clock = clock;
+        self.last_click = None;
+    }
+
     fn paint(&mut self, paint: &mut PaintContext<'_>) {
         self.viewport = paint.size();
         let metrics = layout_text_styled(
@@ -841,7 +850,7 @@ impl Widget for EditorViewport {
             {
                 let (x, y) = (event.position.x as f32, event.position.y as f32);
                 let offset = self.offset_from_pointer(x, y);
-                let now = Instant::now();
+                let now = self.clock.now_instant();
                 let clicks = self.last_click.map_or(1, |(at, old_x, old_y, count)| {
                     if now.duration_since(at) <= Duration::from_millis(400)
                         && (x - old_x).abs() <= 4.0

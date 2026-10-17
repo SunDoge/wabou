@@ -16,6 +16,7 @@ use parley::{Affinity, Cursor, PlainEditor, PositionedLayoutItem, Selection};
 use serde::Deserialize;
 use vello_common::kurbo::{Affine, Rect};
 use vello_common::peniko::{Color, Fill};
+use wabou_host_api::{SharedClock, SystemClock};
 use wabou_protocol::event;
 use wabou_shell::style::TextAlign;
 use wabou_shell::text::{
@@ -161,6 +162,7 @@ pub struct TextInput {
     selection_kind: WidgetTextSelectionKind,
     submit_on_enter: bool,
     events: VecDeque<WidgetNodeEvent>,
+    clock: SharedClock,
 }
 
 impl Default for TextInput {
@@ -192,6 +194,7 @@ impl TextInput {
     }
 
     fn with_multiline(multiline: bool) -> Self {
+        let clock: SharedClock = Arc::new(SystemClock::new());
         let mut editor = PlainEditor::new(16.0);
         editor
             .edit_styles()
@@ -231,13 +234,14 @@ impl TextInput {
             selection_kind: WidgetTextSelectionKind::Simple,
             submit_on_enter: false,
             events: VecDeque::new(),
+            clock,
         }
     }
 
     fn queue(&mut self, edit: PendingEdit) {
         self.pending.push(edit);
         self.blink_on = true;
-        self.next_blink = Some(Instant::now() + Duration::from_millis(500));
+        self.next_blink = Some(self.clock.now_instant() + Duration::from_millis(500));
     }
 
     fn editable(&self) -> bool {
@@ -361,7 +365,7 @@ impl TextInput {
                 if event.modifiers.shift() {
                     self.queue(PendingEdit::ExtendToPoint(local_x, local_y));
                 } else {
-                    let now = Instant::now();
+                    let now = self.clock.now_instant();
                     let clicks = self.last_click.map_or(1, |(time, x, y, count)| {
                         if now.duration_since(time) <= Duration::from_millis(400)
                             && (local_x - x).abs() <= 4.0
@@ -752,6 +756,14 @@ impl TextInput {
 }
 
 impl Widget for TextInput {
+    fn set_clock(&mut self, clock: SharedClock) {
+        self.clock = clock;
+        self.last_click = None;
+        self.next_blink = self
+            .focused
+            .then(|| self.clock.now_instant() + Duration::from_millis(500));
+    }
+
     fn paint(&mut self, cx: &mut PaintContext<'_>) {
         let [width, height] = cx.size();
         let device_scale = cx.device_scale();
@@ -785,9 +797,13 @@ impl Widget for TextInput {
         };
 
         // Blink.
-        if self.focused && self.next_blink.is_some_and(|d| Instant::now() >= d) {
+        if self.focused
+            && self
+                .next_blink
+                .is_some_and(|deadline| self.clock.now_instant() >= deadline)
+        {
             self.blink_on = !self.blink_on;
-            self.next_blink = Some(Instant::now() + Duration::from_millis(500));
+            self.next_blink = Some(self.clock.now_instant() + Duration::from_millis(500));
         }
 
         self.refresh_editor(cx.text());
@@ -1104,7 +1120,7 @@ impl Widget for TextInput {
         }
         self.focused = focused;
         self.blink_on = true;
-        self.next_blink = focused.then(|| Instant::now() + Duration::from_millis(500));
+        self.next_blink = focused.then(|| self.clock.now_instant() + Duration::from_millis(500));
         WidgetChanges::REDRAW
     }
 

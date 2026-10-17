@@ -10,6 +10,7 @@ profiling = []
 
 [dependencies]
 bitflags = { workspace = true }
+wabou-host-api = { workspace = true }
 bytemuck.workspace = true
 glifo = { workspace = true, features = ["png"] }
 image = { workspace = true, features = ["ico", "jpeg", "png", "webp"] }

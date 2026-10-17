@@ -7,6 +7,7 @@ use std::{
 
 use crate::{ShaderEffectId, ShaderEffectSource};
 use serde::Deserialize;
+use wabou_host_api::{SharedClock, SystemClock};
 use wabou_shell::{PaintContext, Widget, WidgetChanges, decode_widget_config};
 
 const FRAME_INTERVAL: Duration = Duration::from_millis(16);
@@ -49,15 +50,18 @@ pub struct ShaderLayer {
     id: ShaderEffectId,
     config: Option<PreparedConfig>,
     started: Instant,
+    clock: SharedClock,
 }
 
 impl ShaderLayer {
     /// Construct an unconfigured shader surface.
     pub fn new() -> Self {
+        let clock: SharedClock = Arc::new(SystemClock::new());
         Self {
             id: ShaderEffectId::new(),
             config: None,
-            started: Instant::now(),
+            started: clock.now_instant(),
+            clock,
         }
     }
 
@@ -75,12 +79,21 @@ impl Default for ShaderLayer {
 }
 
 impl Widget for ShaderLayer {
+    fn set_clock(&mut self, clock: SharedClock) {
+        self.started = clock.now_instant();
+        self.clock = clock;
+    }
+
     fn paint(&mut self, cx: &mut PaintContext<'_>) {
         let Some(config) = &self.config else {
             return;
         };
         let elapsed = if self.running() {
-            self.started.elapsed().as_secs_f32() * config.authored.speed
+            self.clock
+                .now_instant()
+                .saturating_duration_since(self.started)
+                .as_secs_f32()
+                * config.authored.speed
         } else {
             0.0
         };
@@ -127,7 +140,7 @@ impl Widget for ShaderLayer {
             source,
             values,
         });
-        self.started = Instant::now();
+        self.started = self.clock.now_instant();
         Ok(WidgetChanges::REDRAW)
     }
 
@@ -141,7 +154,8 @@ impl Widget for ShaderLayer {
     }
 
     fn animation_deadline(&self) -> Option<Instant> {
-        self.running().then(|| Instant::now() + FRAME_INTERVAL)
+        self.running()
+            .then(|| self.clock.now_instant() + FRAME_INTERVAL)
     }
 }
 

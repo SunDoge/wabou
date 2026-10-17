@@ -904,6 +904,14 @@ pub trait Widget {
     /// Install the event-loop wake callback for a background producer.
     fn set_wake_callback(&mut self, _wake: WakeCallback) {}
 
+    /// Receive the host's monotonic clock before the first frame.
+    ///
+    /// Widgets that own animation phase (caret blink, spinner phase, shader
+    /// time) or click-window timing read this clock instead of
+    /// `Instant::now()` so a virtual-clock host stays deterministic. The
+    /// default is a no-op for widgets without time state.
+    fn set_clock(&mut self, _clock: wabou_host_api::SharedClock) {}
+
     /// Drain background completions after the host event loop was woken.
     fn poll_async(&mut self) -> bool {
         false

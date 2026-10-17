@@ -620,7 +620,7 @@ impl Applier {
         self.interaction.text_selection.next_scroll = self
             .text_selection_scroll_delta()
             .is_some()
-            .then(Instant::now);
+            .then(|| self.runtime.clock.now_instant());
     }
 
     pub(super) fn tick_text_selection_autoscroll(&mut self) -> bool {

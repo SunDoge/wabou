@@ -693,12 +693,10 @@ Two runs of the same scenario produce identical `report.json` and
 `trace.json` artifacts, including under injected CPU contention, because no
 part of the timing path observes real time.
 
-One known boundary remains:
-
-- Native motion sampling (`Instant`-based drag and transition timing) still
-  reads the system clock in places; the `Clock::now_instant` unification is
-  in progress. Scenarios that depend on the sampling instant of an in-flight
-  native animation should keep using the default clock.
+Semantic time now shares the injected clock across JavaScript scheduling,
+native motion, widget animation, caret blinking, click windows, and selection
+autoscroll. Mechanical timing such as watchdogs, performance measurement, and
+external I/O timeouts continues to use the system monotonic clock.
 
 The deterministic backend models shell-owned window lifecycle transitions but
 does not initialize native `ShellExtension` resources. Tests that must activate

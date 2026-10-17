@@ -188,11 +188,11 @@ impl Applier {
             return;
         };
         self.recompute_solid(id);
-        let Some(mut widget) = self
-            .document
-            .widget_manager
-            .create(tag, self.runtime.wake_callback.as_ref())
-        else {
+        let Some(mut widget) = self.document.widget_manager.create(
+            tag,
+            self.runtime.wake_callback.as_ref(),
+            self.runtime.clock.clone(),
+        ) else {
             return;
         };
         let mounted_changes = widget.mounted();
