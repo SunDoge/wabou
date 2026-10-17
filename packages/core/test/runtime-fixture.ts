@@ -7,7 +7,14 @@ import {
   useWindow,
 } from "@wabou/core";
 import "@wabou/core/web";
-import { createEffect, createRoot, createSignal, flush, merge, omit } from "solid-js";
+import {
+  createEffect,
+  createRoot,
+  createSignal,
+  flush,
+  merge,
+  omit,
+} from "solid-js";
 import {
   createElement,
   createTextNode,
