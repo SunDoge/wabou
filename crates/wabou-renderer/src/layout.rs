@@ -619,7 +619,7 @@ mod tests {
                         width: taffy::Dimension::length(200.0),
                         height: taffy::Dimension::length(100.0),
                     },
-                    align_items: Some(taffy::AlignItems::FLEX_START),
+                    align_items: taffy::AlignItems::FLEX_START,
                     ..Default::default()
                 },
                 &[widget],

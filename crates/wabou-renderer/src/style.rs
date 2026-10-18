@@ -876,11 +876,35 @@ pub fn apply_ir(
                 _ => taffy::FlexDirection::Row,
             }
         }
-        "justify-content" => style.justify_content = value.keyword().and_then(|v| v.parse().ok()),
-        "align-items" => style.align_items = value.keyword().and_then(|v| v.parse().ok()),
-        "align-content" => style.align_content = value.keyword().and_then(|v| v.parse().ok()),
+        // taffy 0.15 made the container alignment fields non-optional (the
+        // old `None` maps to the `Normal` keyword default). An unparsable
+        // keyword keeps the current value, matching how flex-grow and
+        // flex-basis below treat invalid input.
+        "justify-content" => {
+            style.justify_content = value
+                .keyword()
+                .and_then(|v| v.parse().ok())
+                .unwrap_or(style.justify_content)
+        }
+        "align-items" => {
+            style.align_items = value
+                .keyword()
+                .and_then(|v| v.parse().ok())
+                .unwrap_or(style.align_items)
+        }
+        "align-content" => {
+            style.align_content = value
+                .keyword()
+                .and_then(|v| v.parse().ok())
+                .unwrap_or(style.align_content)
+        }
         "align-self" => style.align_self = value.keyword().and_then(|v| v.parse().ok()),
-        "justify-items" => style.justify_items = value.keyword().and_then(|v| v.parse().ok()),
+        "justify-items" => {
+            style.justify_items = value
+                .keyword()
+                .and_then(|v| v.parse().ok())
+                .unwrap_or(style.justify_items)
+        }
         "justify-self" => {
             style.justify_self = match value.keyword() {
                 Some("auto") => None,
