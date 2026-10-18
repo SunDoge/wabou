@@ -523,6 +523,21 @@ export function visibleOverflowDiagnostics(
   const diagnostics: LayoutDiagnostic[] = [];
   for (const node of scopedNodes(snapshot, options.within)) {
     let parent = node.parentId ? nodes.get(key(node.parentId)) : undefined;
+    // An absolutely positioned node's visible overflow belongs to its
+    // containing block (the nearest positioned ancestor), not its DOM
+    // parent — matching CSS and taffy 0.15's OOF hoisting. Skip Static
+    // ancestors so the check starts at the box that actually clips or
+    // propagates the overflow.
+    if (node.computed.position === "Absolute") {
+      while (
+        parent &&
+        parent.computed.position !== "Relative" &&
+        parent.computed.position !== "Absolute" &&
+        parent.computed.position !== "Fixed"
+      ) {
+        parent = parent.parentId ? nodes.get(key(parent.parentId)) : undefined;
+      }
+    }
     // The native text projection shapes direct string children as one glyph run owned by the
     // aggregate Text element. The protocol leaf remains inspectable for
     // identity/debugging, but intentionally has no independent layout box.
