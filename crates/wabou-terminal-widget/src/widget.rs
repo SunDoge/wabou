@@ -692,6 +692,15 @@ impl Widget for TerminalWidget {
         self.install_native_wake(wake);
     }
 
+    fn set_clock(&mut self, clock: wabou_host_api::SharedClock) {
+        self.clock = clock;
+        // Drop timestamps read from the previous timeline so no blink or
+        // selection deadline survives a clock swap.
+        self.next_cursor_blink = None;
+        self.next_selection_scroll = None;
+        self.last_click = None;
+    }
+
     fn poll_async(&mut self) -> bool {
         self.poll_native_events()
     }

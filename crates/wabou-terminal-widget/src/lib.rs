@@ -73,6 +73,7 @@ pub use session::{
     TerminalEventKind, TerminalFrame, TerminalInputResult, TerminalInvalidation, TerminalNodeEvent,
 };
 use vello_graphics::KittyLayer;
+use wabou_host_api::{SharedClock, SystemClock};
 pub use widget::terminal_widget;
 #[cfg(test)]
 use widget::vello_color;
@@ -325,6 +326,7 @@ pub struct TerminalWidget {
     wheel_lines: WheelLineAccumulator,
     last_click: Option<(Instant, f32, f32, u8)>,
     graphics: TerminalGraphics,
+    clock: SharedClock,
 }
 
 impl Drop for TerminalWidget {
@@ -404,6 +406,7 @@ impl TerminalWidget {
             wheel_lines: WheelLineAccumulator::default(),
             last_click: None,
             graphics: TerminalGraphics::default(),
+            clock: Arc::new(SystemClock::new()),
         }
     }
 

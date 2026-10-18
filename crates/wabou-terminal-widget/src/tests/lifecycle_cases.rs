@@ -790,3 +790,42 @@ fn cursor_visual_stays_hollow_when_terminal_is_unfocused() {
         None
     );
 }
+
+#[test]
+fn cursor_blink_ticks_on_the_injected_clock() {
+    /// Manually advanced clock mirroring the runtime's VirtualClock shape.
+    struct BlinkClock(std::sync::Mutex<std::time::Instant>);
+    impl wabou_host_api::Clock for BlinkClock {
+        fn now_ms(&self) -> f64 {
+            self.0.lock().unwrap().elapsed().as_secs_f64() * 1000.0
+        }
+        fn now_instant(&self) -> std::time::Instant {
+            *self.0.lock().unwrap()
+        }
+    }
+
+    let start = std::time::Instant::now();
+    let clock = std::sync::Arc::new(BlinkClock(std::sync::Mutex::new(start)));
+    let mut widget = TerminalWidget::headless(20, 4);
+    widget.set_clock(clock.clone());
+    widget.focus_changed(true);
+    widget.feed(b"\x1b[1 q");
+    assert!(widget.poll_async());
+    assert!(
+        widget.next_cursor_blink.is_some(),
+        "blinking arms a deadline"
+    );
+
+    // Time frozen at `start`: the 500 ms blink deadline has not passed.
+    widget.update_cursor_blink();
+    assert!(widget.cursor_on, "no blink while virtual time is frozen");
+
+    // Advance the clock past the deadline; the blink flips on the very
+    // first poll after it, independent of real elapsed time.
+    *clock.0.lock().unwrap() = start + std::time::Duration::from_millis(500);
+    widget.update_cursor_blink();
+    assert!(
+        !widget.cursor_on,
+        "blink flips exactly at the virtual deadline"
+    );
+}
