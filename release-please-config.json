@@ -1,0 +1,52 @@
+{
+  "$schema": "https://raw.githubusercontent.com/googleapis/release-please/main/schemas/config.json",
+  "bootstrap-sha": "ec686be38a291aae40a8fe71a8b8c9ea4849b942",
+  "release-type": "node",
+  "include-component-in-tag": false,
+  "prerelease": true,
+  "prerelease-type": "alpha",
+  "versioning": "prerelease",
+  "pull-request-title-pattern": "chore(release): release ${version}",
+  "packages": {
+    ".": {
+      "extra-files": [
+        {
+          "type": "toml",
+          "path": "Cargo.toml",
+          "jsonpath": "$.workspace.package.version"
+        },
+        {
+          "type": "json",
+          "path": "packages/core/package.json",
+          "jsonpath": "$.version"
+        },
+        {
+          "type": "json",
+          "path": "packages/pdf/package.json",
+          "jsonpath": "$.version"
+        },
+        {
+          "type": "json",
+          "path": "packages/terminal/package.json",
+          "jsonpath": "$.version"
+        },
+        {
+          "type": "json",
+          "path": "packages/test/package.json",
+          "jsonpath": "$.version"
+        },
+        {
+          "type": "json",
+          "path": "packages/ui/package.json",
+          "jsonpath": "$.version"
+        },
+        {
+          "type": "json",
+          "path": "packages/vite/package.json",
+          "jsonpath": "$.version"
+        }
+      ]
+    }
+  },
+  "bump-minor-pre-major": true
+}
