@@ -783,11 +783,16 @@ fn check(
     if has_unit_tests(&ui_dir)? {
         println!("[wabou check] JavaScript unit tests");
         let mut tests = Command::new("bun");
-        tests.current_dir(&app.root).args([
-            "--conditions=browser",
-            "test",
-            ui_dir.to_string_lossy().as_ref(),
-        ]);
+        tests.current_dir(&app.root);
+        if has_vitest_config(&app.root) {
+            tests.args(["x", "vitest", "run"]);
+        } else {
+            tests.args([
+                "--conditions=browser",
+                "test",
+                ui_dir.to_string_lossy().as_ref(),
+            ]);
+        }
         let status = tests
             .status()
             .map_err(|error| format!("failed to start Bun unit tests: {error}"))?;
@@ -1161,6 +1166,14 @@ fn has_behavior_scenarios(directory: &Path) -> Result<bool> {
 fn has_unit_tests(directory: &Path) -> Result<bool> {
     has_file_matching(directory, |name| {
         name.ends_with(".test.ts") || name.ends_with(".test.tsx")
+    })
+}
+
+fn has_vitest_config(directory: &Path) -> bool {
+    ["ts", "mts", "js", "mjs"].into_iter().any(|extension| {
+        directory
+            .join(format!("vitest.config.{extension}"))
+            .is_file()
     })
 }
 
@@ -2038,6 +2051,14 @@ mod tests {
         assert!(!has_unit_tests(temp.path()).unwrap());
         fs::write(nested.join("input.test.tsx"), "").unwrap();
         assert!(has_unit_tests(temp.path()).unwrap());
+    }
+
+    #[test]
+    fn detects_vitest_configuration_for_component_tests() {
+        let temp = tempfile::tempdir().unwrap();
+        assert!(!has_vitest_config(temp.path()));
+        fs::write(temp.path().join("vitest.config.ts"), "export default {};").unwrap();
+        assert!(has_vitest_config(temp.path()));
     }
 
     #[test]

@@ -43,8 +43,20 @@ const TEMPLATE_FILES: &[(&str, &str)] = &[
         include_str!("../../../templates/basic/tests/app.behavior.ts"),
     ),
     (
+        "ui/app.test.tsx",
+        include_str!("../../../templates/basic/ui/app.test.tsx"),
+    ),
+    (
+        "ui/app.tsx",
+        include_str!("../../../templates/basic/ui/app.tsx"),
+    ),
+    (
         "ui/index.tsx",
         include_str!("../../../templates/basic/ui/index.tsx"),
+    ),
+    (
+        "vitest.config.ts",
+        include_str!("../../../templates/basic/vitest.config.ts"),
     ),
     (
         "wabou.config.ts",
@@ -261,7 +273,13 @@ mod tests {
         assert!(package.contains("vendor/wabou/packages/*"));
         assert!(package.contains("\"@wabou/ui\": \"workspace:*\""));
         assert!(!package.contains("@wabou/core/renderer"));
+        let config = fs::read_to_string(root.join("wabou.config.ts")).unwrap();
+        assert!(config.contains("defineConfig({})"));
+        assert!(!config.contains("intl"));
         assert!(root.join("ui/index.tsx").is_file());
+        assert!(root.join("ui/app.tsx").is_file());
+        assert!(root.join("ui/app.test.tsx").is_file());
+        assert!(root.join("vitest.config.ts").is_file());
         assert!(root.join("tests/app.behavior.ts").is_file());
         for (relative, _) in TEMPLATE_FILES {
             let rendered = fs::read_to_string(root.join(relative)).unwrap();

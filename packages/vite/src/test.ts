@@ -11,6 +11,7 @@ export interface WabouTestConfigOptions {
 type ComponentTestUserConfig = UserConfig & {
   test?: {
     environment?: string;
+    include?: string[];
     setupFiles?: string[];
     server?: { deps?: { inline?: (string | RegExp)[] } };
   };
@@ -51,6 +52,10 @@ export function defineWabouTestConfig(
       },
       test: {
         environment: "node",
+        // Vendored preview releases keep the Wabou repository inside the
+        // application tree. Restrict discovery to application component tests
+        // so Vitest does not collect framework tests from `vendor/wabou`.
+        include: ["ui/**/*.test.{ts,tsx}"],
         server: {
           deps: {
             // Apply the client alias to transitive Solid imports too. Native

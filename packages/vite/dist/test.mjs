@@ -42,6 +42,7 @@ function defineWabouTestConfig(options = {}) {
 		},
 		test: {
 			environment: "node",
+			include: ["ui/**/*.test.{ts,tsx}"],
 			server: { deps: { inline: [
 				"solid-js",
 				/@solidjs\//,

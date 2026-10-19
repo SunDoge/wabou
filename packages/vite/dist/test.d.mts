@@ -7,6 +7,7 @@ export interface WabouTestConfigOptions {
 type ComponentTestUserConfig = UserConfig & {
   test?: {
     environment?: string;
+    include?: string[];
     setupFiles?: string[];
     server?: {
       deps?: {
