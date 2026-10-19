@@ -10,7 +10,7 @@ use vello_common::{
     kurbo::{Affine, Rect},
     peniko::{Color, Fill},
 };
-use wabou_host_api::{SharedClock, SystemClock};
+use wabou_host_api::SharedClock;
 use wabou_shell::{
     KeyPhase, PaintContext, PointerPhase, UiEvent, Widget, WidgetEventResult, WidgetGeometry,
     WidgetImePurpose, WidgetImeState, WidgetStyle, WidgetTextSelection, WidgetTextSelectionKind,
@@ -229,7 +229,7 @@ pub struct EditorViewport {
 impl EditorViewport {
     /// Construct an empty editor viewport.
     pub fn new() -> Self {
-        let clock: SharedClock = Arc::new(SystemClock::new());
+        let clock = SharedClock::system();
         Self {
             value: String::new(),
             selection: SelectionConfig::default(),

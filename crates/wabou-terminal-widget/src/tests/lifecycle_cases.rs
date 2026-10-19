@@ -804,7 +804,7 @@ fn cursor_blink_ticks_on_the_injected_clock() {
     let start = std::time::Instant::now();
     let clock = std::sync::Arc::new(BlinkClock(std::sync::Mutex::new(start)));
     let mut widget = TerminalWidget::headless(20, 4);
-    widget.set_clock(clock.clone());
+    widget.set_clock(wabou_host_api::SharedClock::new(clock.clone()));
     widget.focus_changed(true);
     widget.feed(b"\x1b[1 q");
     assert!(widget.poll_async());

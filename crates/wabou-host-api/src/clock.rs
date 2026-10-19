@@ -57,5 +57,48 @@ impl Clock for SystemClock {
     }
 }
 
-/// Convenience alias shared by clock consumers.
-pub type SharedClock = Arc<dyn Clock>;
+/// Shared handle to a monotonic [`Clock`].
+///
+/// Newtype rather than a type alias: a clock slot in a widget or session is
+/// an owned handle with intent (the host replaces it through the widget
+/// contract's clock hook), and the wrapper keeps inherent constructors and
+/// future helpers on the type itself instead of free functions.
+#[derive(Clone)]
+pub struct SharedClock(Arc<dyn Clock>);
+
+impl SharedClock {
+    /// A shared handle to a fresh [`SystemClock`].
+    pub fn system() -> Self {
+        Self(Arc::new(SystemClock::new()))
+    }
+
+    /// Wrap an existing clock handle.
+    pub fn new(clock: Arc<dyn Clock>) -> Self {
+        Self(clock)
+    }
+
+    /// Borrow the underlying clock trait object.
+    pub fn as_dyn(&self) -> &dyn Clock {
+        self.0.as_ref()
+    }
+}
+
+impl std::ops::Deref for SharedClock {
+    type Target = dyn Clock;
+
+    fn deref(&self) -> &Self::Target {
+        self.0.as_ref()
+    }
+}
+
+impl From<Arc<dyn Clock>> for SharedClock {
+    fn from(clock: Arc<dyn Clock>) -> Self {
+        Self(clock)
+    }
+}
+
+impl From<SystemClock> for SharedClock {
+    fn from(clock: SystemClock) -> Self {
+        Self(Arc::new(clock))
+    }
+}
