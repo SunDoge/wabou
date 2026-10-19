@@ -6,7 +6,10 @@ tags.
 
 ## Unreleased
 
-## 0.1.0-alpha.4 - 2026-10-15
+## 0.1.0-alpha.4 - 2026-10-19
+
+The staged alpha.3 preview was never tagged. Alpha.4 contains those changes and
+is the first published preview after alpha.2.
 
 ### Changed
 
@@ -39,6 +42,22 @@ tags.
 - Use a pinned `vendor/wabou` Git submodule as the preview integration path so
   Rust crates, JavaScript packages, and the CLI share one revision, with
   `wabou vendor` adding, initializing, or updating that checkout safely.
+- Converge the public JavaScript surface on `@wabou/core` and `@wabou/ui`, ship
+  compiled ESM and declarations, and enforce runtime package boundaries.
+- Add typed generational handles for native windows and resources, a native
+  memory-history router with typed search and async loaders, and deterministic
+  semantic behavior tests for scrolling, controls, dialogs, and navigation.
+- Replace the legacy capability and application-integration paths with one
+  generated QuickJS host ABI and protocol, keeping Rust as the source of truth
+  for host bindings.
+- Encode stylesheet IR as a compact binary format and reduce the resident
+  QuickJS web compatibility surface and memory overhead.
+- Add an injected host clock and byte-reproducible virtual time for headless
+  behavior tests, animations, native widgets, and terminal cursor timing.
+- Upgrade Taffy to 0.15 and align out-of-flow layout diagnostics and component
+  containing blocks with its CSS-compatible absolute positioning behavior.
+- Gate Biome formatting and linting in CI and keep generated JavaScript,
+  TypeScript declarations, Rust bindings, and release bundles reproducible.
 
 ### Fixed
 
@@ -48,33 +67,8 @@ tags.
   lifecycle-owned animation signals to update safely from frame callbacks.
 - Component tests share Solid's client runtime when using Vitest 5, preserving
   reactive context and updates through the universal renderer.
-
-## 0.1.0-alpha.3 - 2026-08-27
-
-### Changed
-
-- Public JavaScript packages now converge on `@wabou/core` and `@wabou/ui`,
-  reducing the package surface applications need to understand.
-- Native windows, resources, and behavior tests use typed generational handles,
-  including asynchronous window creation and native file drag-and-drop events.
-- The router adapter now supports typed search, asynchronous loaders, caching,
-  preloading, guards, and native memory history.
-- Wabou now uses a single Winit, Taffy, Parley, and Vello GPU backend; the
-  retired GPUI, AnyRender, and Skia experiments are no longer public choices.
-- Native windows persist their logical size for responsive desktop layouts.
-- Behavior tests now resolve controls from the rendered semantic tree, scroll
-  off-screen targets into view before native pointer routing, and support
-  alert and status locators.
-- Headless renders and behavior tests isolate application data and rendering
-  state, making local and CI results deterministic across repeated runs.
-- Gallery interaction scenarios now run as part of CI, including text input,
-  modal, and router coverage.
-- Package boundary checks now require every runtime import to be declared by
-  its package manifest.
-- JavaScript packages now publish compiled ESM and declaration artifacts built
-  with tsdown instead of requiring consumers to compile Wabou's TSX source.
-- Pushes to the development branch run the same CI and commit-convention gates
-  used for the release branch.
+- Keep contextual message actions within their content column after Taffy 0.15
+  hoists absolutely positioned nodes to their containing block.
 
 ## 0.1.0-alpha.1 - 2026-08-17
 
