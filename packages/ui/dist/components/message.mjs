@@ -86,12 +86,15 @@ function MessageContent(props) {
 	const context = useContext(MessageContext);
 	return createComponent$1(View, mergeProps(props, {
 		get "class"() {
-			return mergeClasses("flex-1 min-w-0 flex flex-col gap-2", context.align() === "end" ? "items-end" : "items-start", props.class);
+			return messageContentClass(context.align(), props.class);
 		},
 		get children() {
 			return props.children;
 		}
 	}));
+}
+function messageContentClass(align = "start", className) {
+	return mergeClasses("relative flex-1 min-w-0 flex flex-col gap-2", align === "end" ? "items-end" : "items-start", className);
 }
 function MessageHeader(props) {
 	const context = useContext(MessageContext);
@@ -255,6 +258,6 @@ function MarkerContent(props) {
 	}));
 }
 //#endregion
-export { Bubble, BubbleContent, BubbleGroup, BubbleReactions, Marker, MarkerContent, MarkerIcon, Message, MessageActions, MessageAvatar, MessageContent, MessageFooter, MessageGroup, MessageHeader, bubbleClass, bubbleContentClass, messageActionsClass, messageClass };
+export { Bubble, BubbleContent, BubbleGroup, BubbleReactions, Marker, MarkerContent, MarkerIcon, Message, MessageActions, MessageAvatar, MessageContent, MessageFooter, MessageGroup, MessageHeader, bubbleClass, bubbleContentClass, messageActionsClass, messageClass, messageContentClass };
 
 //# sourceMappingURL=message.mjs.map

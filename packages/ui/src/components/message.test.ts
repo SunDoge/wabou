@@ -4,6 +4,7 @@ import {
   bubbleContentClass,
   messageActionsClass,
   messageClass,
+  messageContentClass,
 } from "./message";
 
 describe("Message anatomy", () => {
@@ -30,6 +31,11 @@ describe("Message anatomy", () => {
     expect(messageActionsClass("start")).toContain("self-start");
     expect(messageActionsClass("end")).toContain("self-end");
     expect(messageActionsClass("end")).toContain("justify-end");
+  });
+
+  test("positions the content column as the action rail containing block", () => {
+    expect(messageContentClass("start")).toContain("relative");
+    expect(messageContentClass("start")).toContain("flex-1");
   });
 
   test("allows a response action rail to align independently", () => {

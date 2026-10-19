@@ -13,6 +13,7 @@ export declare function messageClass(align?: MessageAlign, className?: string): 
 export declare function Message(props: MessageProps): JSX.Element;
 export declare function MessageAvatar(props: ViewProps): JSX.Element;
 export declare function MessageContent(props: ViewProps): JSX.Element;
+export declare function messageContentClass(align?: MessageAlign, className?: string): string;
 export declare function MessageHeader(props: TextProps): JSX.Element;
 export declare const MessageFooter: typeof MessageHeader;
 export declare function messageActionsClass(align?: MessageAlign, className?: string): string;

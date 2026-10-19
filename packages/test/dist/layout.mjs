@@ -248,6 +248,7 @@ function visibleOverflowDiagnostics(snapshot, options = {}) {
 	const diagnostics = [];
 	for (const node of scopedNodes(snapshot, options.within)) {
 		let parent = node.parentId ? nodes.get(key(node.parentId)) : void 0;
+		if (node.computed.position === "Absolute") while (parent && parent.computed.position !== "Relative" && parent.computed.position !== "Absolute" && parent.computed.position !== "Fixed") parent = parent.parentId ? nodes.get(key(parent.parentId)) : void 0;
 		if (isAggregatedProtocolTextLeaf(node, nodes)) continue;
 		while (parent) {
 			if ((parent.computed.overflowX ?? "Visible") !== "Visible" || (parent.computed.overflowY ?? "Visible") !== "Visible") break;

@@ -132,16 +132,23 @@ export function MessageAvatar(props: ViewProps): JSX.Element {
 export function MessageContent(props: ViewProps): JSX.Element {
   const context = useContext(MessageContext);
   return (
-    <View
-      {...props}
-      class={mergeClasses(
-        "flex-1 min-w-0 flex flex-col gap-2",
-        context.align() === "end" ? "items-end" : "items-start",
-        props.class,
-      )}
-    >
+    <View {...props} class={messageContentClass(context.align(), props.class)}>
       {props.children}
     </View>
+  );
+}
+
+export function messageContentClass(
+  align: MessageAlign = "start",
+  className?: string,
+): string {
+  return mergeClasses(
+    // Interaction-only actions are absolutely positioned inside this box.
+    // Keeping it positioned makes their full width match the text column
+    // rather than the wider message row that also contains the avatar.
+    "relative flex-1 min-w-0 flex flex-col gap-2",
+    align === "end" ? "items-end" : "items-start",
+    className,
   );
 }
 
