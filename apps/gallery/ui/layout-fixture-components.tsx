@@ -660,7 +660,7 @@ export function GroupBoxLayoutFixture() {
 
 export function SelectionControlsLayoutFixture() {
   return (
-    <View class="w-full h-full p-6 items-start gap-5 bg-canvas">
+    <View class="w-full h-full p-6 items-start gap-3 bg-canvas">
       <Checkbox aria-label="Fixture icon-only checkbox" />
       <Checkbox
         class="w-64"
