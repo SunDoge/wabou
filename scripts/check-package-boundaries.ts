@@ -131,7 +131,10 @@ if (cargoVersion !== packageVersion) {
   );
 }
 const changelog = await Bun.file(join(root, "CHANGELOG.md")).text();
-if (!changelog.includes(`## ${packageVersion} -`)) {
+if (
+  !changelog.includes(`## ${packageVersion} -`) &&
+  !changelog.includes(`## [${packageVersion}]`)
+) {
   throw new Error(`CHANGELOG.md has no ${packageVersion} release heading`);
 }
 for (const entry of packages) {

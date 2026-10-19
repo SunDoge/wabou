@@ -54,7 +54,7 @@ scroll restoration; it does not install TanStack's DOM-facing components.
 no separate runtime package.
 
 All `@wabou/*` packages use one fixed version and are private during the Git
-preview phase. `release:prepare` updates them together with the Rust workspace,
+preview phase. Release Please updates them together with the Rust workspace,
 while `wabou vendor` pins the complete source tree. Packages still compile with
 tsdown into ESM and bundled declarations, and those artifacts remain tracked
 so a pinned Git revision has a deterministic package surface.

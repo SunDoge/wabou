@@ -1,5 +1,6 @@
 {
   "name": "wabou",
+  "version": "0.1.0-alpha.4",
   "private": true,
   "type": "module",
   "packageManager": "bun@1.4.3",
@@ -31,7 +32,6 @@
     "perf:memory": "bun run scripts/measure-memory.ts",
     "perf:js": "bun run scripts/report-js-bundle.ts",
     "text:compare": "bun run scripts/text-quality-compare.ts",
-    "release:prepare": "bun run scripts/prepare-release.ts",
     "gen:i18n": "turbo run generate --filter=@wabou/gallery",
     "gen:source": "bun run gen:i18n && bun --conditions=wabou-source run scripts/codegen/index.ts",
     "gen": "bun run gen:source && bun run packages:build",

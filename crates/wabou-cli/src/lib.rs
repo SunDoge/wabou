@@ -1569,7 +1569,7 @@ mod tests {
             panic!("expected new command");
         };
         assert_eq!(wabou_repository, "https://github.com/SunDoge/wabou.git");
-        assert_eq!(wabou_ref, "v0.1.0-alpha.4");
+        assert_eq!(wabou_ref, scaffold::DEFAULT_REVISION);
     }
 
     #[test]
@@ -1611,7 +1611,7 @@ mod tests {
         };
         assert_eq!(app, None);
         assert_eq!(wabou_repository, "https://github.com/SunDoge/wabou.git");
-        assert_eq!(wabou_ref, "v0.1.0-alpha.4");
+        assert_eq!(wabou_ref, scaffold::DEFAULT_REVISION);
     }
 
     #[cfg(unix)]
