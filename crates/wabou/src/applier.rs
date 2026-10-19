@@ -152,11 +152,6 @@ fn subtree_blocks_interaction(node_store: &NodeStore, mut node: NodeId) -> bool 
     }
 }
 
-// Widget actions retain their tagged 32-bit namespace. Native effect request
-// ids use a process-wide sequence so completions remain unambiguous across
-// runtimes; persistent resources use independent generational keys.
-const JS_HOST_ACTION_NAMESPACE: u64 = 1 << 31;
-const HOST_ACTION_SEQUENCE_MASK: u64 = JS_HOST_ACTION_NAMESPACE - 1;
 const CLASS_RESOLUTION_CACHE_CAPACITY: usize = 1024;
 
 #[derive(Clone)]

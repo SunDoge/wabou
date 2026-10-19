@@ -547,15 +547,15 @@ pub enum HostAction {
     /// Open a URL with the platform's registered handler.
     OpenUrl(String),
     /// Replace clipboard text without requiring an acknowledgement.
+    ///
+    /// Widget-side request vocabulary; the applier translates it into the
+    /// clipboard-write effect before it reaches the shell.
     SetClipboard(String),
-    /// Replace clipboard text and route completion to its producer.
-    WriteClipboard {
-        /// Producer-local request identifier.
-        request_id: u64,
-        /// Text to write.
-        text: String,
-    },
-    /// Read clipboard text and route completion to its producer.
+    /// Read clipboard text and route completion back to the producer.
+    ///
+    /// Widget-side request vocabulary; the applier translates it into the
+    /// clipboard-read effect and delivers the result through
+    /// [`Widget::deliver_clipboard_text`].
     ReadClipboard {
         /// Producer-local request identifier.
         request_id: u64,
@@ -564,25 +564,6 @@ pub enum HostAction {
     SetWindowTitle(Option<String>),
     /// Ask the window manager to draw the user's attention.
     RequestAttention,
-}
-
-/// Completion for a [`HostAction`] which requires data from the native host.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum HostActionResult {
-    /// Completion of [`HostAction::ReadClipboard`].
-    Clipboard {
-        /// Original producer-local request identifier.
-        request_id: u64,
-        /// Clipboard text, or `None` when unavailable or unsupported.
-        text: Option<String>,
-    },
-    /// Completion of [`HostAction::WriteClipboard`].
-    ClipboardWrite {
-        /// Original producer-local request identifier.
-        request_id: u64,
-        /// Whether the platform accepted the write.
-        success: bool,
-    },
 }
 
 /// Thread-safe callback used by asynchronous producers to wake the native

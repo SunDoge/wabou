@@ -18,7 +18,7 @@ use std::time::Instant;
 use crate::style::{Paint, TextAlign};
 use crate::text::SingleLineTextMetrics;
 use crate::text::TextContext;
-use crate::{ClipboardRequest, HostAction, HostActionResult, UiEvent, WakeCallback};
+use crate::{ClipboardRequest, HostAction, UiEvent, WakeCallback};
 use crate::{PaintScene, Scene};
 use vello_common::kurbo::{Affine, Rect};
 use vello_common::peniko::{Blob, Color, ImageAlphaType, ImageBrush, ImageData, ImageFormat};
@@ -938,8 +938,10 @@ pub trait Widget {
         None
     }
 
-    /// Complete the oldest host action routed back to this widget.
-    fn complete_host_action(&mut self, _result: HostActionResult) {}
+    /// Deliver the text of a completed clipboard read requested through
+    /// [`HostAction::ReadClipboard`]. `text` is `None` when the platform
+    /// clipboard was unavailable.
+    fn deliver_clipboard_text(&mut self, _request_id: u64, _text: Option<String>) {}
 }
 
 /// Small deterministic driver for unit-testing a widget without a window.

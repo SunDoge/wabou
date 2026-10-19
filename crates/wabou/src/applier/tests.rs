@@ -582,9 +582,12 @@ struct VisibilityLifecycleWidget(Arc<std::sync::Mutex<Vec<&'static str>>>);
 
 struct NodeEventWidget(Option<wabou_shell::WidgetNodeEvent>);
 
+/// (widget-local request id, clipboard text) as delivered to the widget.
+type DeliveredClipboard = (u64, Option<String>);
+
 struct ClipboardReadWidget {
     action: Option<shell_api::HostAction>,
-    completed: Arc<std::sync::Mutex<Vec<shell_api::HostActionResult>>>,
+    completed: Arc<std::sync::Mutex<Vec<DeliveredClipboard>>>,
 }
 
 struct WheelCaptureWidget(Arc<std::sync::Mutex<Vec<Point>>>);
@@ -763,8 +766,8 @@ impl wabou_shell::Widget for ClipboardReadWidget {
         self.action.take()
     }
 
-    fn complete_host_action(&mut self, result: shell_api::HostActionResult) {
-        self.completed.lock().unwrap().push(result);
+    fn deliver_clipboard_text(&mut self, request_id: u64, text: Option<String>) {
+        self.completed.lock().unwrap().push((request_id, text));
     }
 }
 
@@ -1367,48 +1370,46 @@ fn clipboard_read_completions_route_to_the_requesting_widget() {
     applier.document.widget_manager.widgets.insert(
         second_node,
         Box::new(ClipboardReadWidget {
-            action: Some(shell_api::HostAction::ReadClipboard { request_id: 7 }),
+            action: Some(shell_api::HostAction::ReadClipboard { request_id: 9 }),
             completed: second_completed.clone(),
         }),
     );
 
+    // The drain translates both widget requests into clipboard-read effects;
+    // the shell-side host-action queue stays empty. Widget iteration order
+    // comes from a HashMap, so delivery must not depend on it.
     assert!(FrameSource::poll_async(&mut applier));
+    assert_eq!(FrameSource::take_host_action(&mut applier), None);
+
     let mut requests = Vec::new();
-    while let Some(shell_api::HostAction::ReadClipboard { request_id }) =
-        FrameSource::take_host_action(&mut applier)
-    {
-        requests.push(request_id);
+    while let Some(request) = FrameSource::take_effect(&mut applier) {
+        assert!(matches!(
+            request.payload,
+            shell_api::EffectPayload::ClipboardRead
+        ));
+        requests.push(request.id);
     }
     assert_eq!(requests.len(), 2);
-    assert_ne!(requests[0], requests[1]);
-    for request_id in requests.into_iter().rev() {
-        let (node, _) = applier.document.widget_manager.host_action_routes[&request_id];
-        let text = if node == applier.document.node_store.root {
-            "first"
-        } else {
-            "second"
-        };
-        FrameSource::complete_host_action(
+
+    for id in requests {
+        FrameSource::complete_effect(
             &mut applier,
-            shell_api::HostActionResult::Clipboard {
-                request_id,
-                text: Some(text.into()),
+            shell_api::EffectCompletion {
+                id,
+                op: wabou_shell::effect::builtin::CLIPBOARD_READ,
+                result: shell_api::EffectResult::ClipboardText(Some("text".into())),
             },
         );
     }
+    // Each widget receives exactly its own completion, keyed by its own
+    // widget-local request id, regardless of drain order.
     assert_eq!(
-        *first_completed.lock().unwrap(),
-        vec![shell_api::HostActionResult::Clipboard {
-            request_id: 7,
-            text: Some("first".into()),
-        }]
+        first_completed.lock().unwrap().as_slice(),
+        &[(7, Some("text".into()))]
     );
     assert_eq!(
-        *second_completed.lock().unwrap(),
-        vec![shell_api::HostActionResult::Clipboard {
-            request_id: 7,
-            text: Some("second".into()),
-        }]
+        second_completed.lock().unwrap().as_slice(),
+        &[(9, Some("text".into()))]
     );
 }
 use wabou_shell::{Point, PointerEvent};

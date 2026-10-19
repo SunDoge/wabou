@@ -16,7 +16,7 @@ use parley::{Affinity, Cursor, PlainEditor, PositionedLayoutItem, Selection};
 use serde::Deserialize;
 use vello_common::kurbo::{Affine, Rect};
 use vello_common::peniko::{Color, Fill};
-use wabou_host_api::{SharedClock, SystemClock};
+use wabou_host_api::SharedClock;
 use wabou_protocol::event;
 use wabou_shell::style::TextAlign;
 use wabou_shell::text::{
@@ -194,7 +194,7 @@ impl TextInput {
     }
 
     fn with_multiline(multiline: bool) -> Self {
-        let clock: SharedClock = Arc::new(SystemClock::new());
+        let clock = SharedClock::system();
         let mut editor = PlainEditor::new(16.0);
         editor
             .edit_styles()

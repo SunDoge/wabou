@@ -1,14 +1,13 @@
 //! Backend-neutral animated indicators and slider controls.
 
 use std::collections::VecDeque;
-use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use crate::PaintScene;
 use serde::Deserialize;
 use vello_common::kurbo::{Affine, Circle, Rect};
 use vello_common::peniko::{Color, Fill};
-use wabou_host_api::{SharedClock, SystemClock};
+use wabou_host_api::SharedClock;
 use wabou_protocol::event;
 use wabou_shell::{
     PaintContext, PointerButton, PointerPhase, UiEvent, Widget, WidgetChanges, WidgetEventResult,
@@ -76,7 +75,7 @@ struct LoopTimeline {
 
 impl LoopTimeline {
     fn new() -> Self {
-        let clock: SharedClock = Arc::new(SystemClock::new());
+        let clock = SharedClock::system();
         Self {
             animation: NativeLoopAnimation::default(),
             started: clock.now_instant(),
@@ -523,6 +522,7 @@ impl Widget for Slider {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::Arc;
     use std::sync::atomic::{AtomicU64, Ordering};
     use wabou_host_api::Clock as _;
     use wabou_shell::{Modifiers, Point, PointerEvent, PointerProperties, WidgetHarness};
@@ -582,7 +582,7 @@ mod tests {
     fn injected_clock_drives_loop_phase_and_deadline() {
         let clock = Arc::new(TestClock::new());
         let mut spinner = Spinner::new();
-        spinner.set_clock(clock.clone());
+        spinner.set_clock(SharedClock::new(clock.clone()));
         assert_eq!(spinner.timeline.phase(), 0.0);
 
         clock.advance(250);

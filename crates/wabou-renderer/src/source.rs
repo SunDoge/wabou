@@ -159,9 +159,6 @@ pub trait FrameSource {
         None
     }
 
-    /// Deliver the completion of a host action to its original producer.
-    fn complete_host_action(&mut self, _result: HostActionResult) {}
-
     /// Drain one typed desktop effect. Unlike render ops, effects represent
     /// OS interaction and may complete asynchronously at a later frame boundary.
     fn take_effect(&mut self) -> Option<crate::EffectRequest> {

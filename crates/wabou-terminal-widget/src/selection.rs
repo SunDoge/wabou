@@ -61,7 +61,7 @@ impl TerminalWidget {
 
     pub(super) fn begin_selection(&mut self, x: f64, y: f64, block: bool) {
         let (local_x, local_y) = self.local_point(x, y);
-        let now = Instant::now();
+        let now = self.clock.now_instant();
         let clicks = self.last_click.map_or(1, |(time, last_x, last_y, count)| {
             if now.duration_since(time) <= Duration::from_millis(400)
                 && (local_x - last_x).abs() <= 4.0
@@ -140,7 +140,7 @@ impl TerminalWidget {
         drop(terminal);
         self.selection_drag_point = Some((x, y));
         self.next_selection_scroll =
-            can_continue_scrolling.then(|| Instant::now() + Duration::from_millis(50));
+            can_continue_scrolling.then(|| self.clock.now_instant() + Duration::from_millis(50));
     }
 
     pub(super) fn finish_selection_gesture(&mut self) {
@@ -180,7 +180,7 @@ impl TerminalWidget {
         if !self.selecting
             || !self
                 .next_selection_scroll
-                .is_some_and(|deadline| Instant::now() >= deadline)
+                .is_some_and(|deadline| self.clock.now_instant() >= deadline)
         {
             return;
         }

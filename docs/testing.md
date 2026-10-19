@@ -694,9 +694,10 @@ Two runs of the same scenario produce identical `report.json` and
 part of the timing path observes real time.
 
 Semantic time now shares the injected clock across JavaScript scheduling,
-native motion, widget animation, caret blinking, click windows, and selection
-autoscroll. Mechanical timing such as watchdogs, performance measurement, and
-external I/O timeouts continues to use the system monotonic clock.
+native motion, widget animation, caret blinking (text inputs and the terminal
+widget alike), click windows, and selection autoscroll. Mechanical timing such
+as watchdogs, performance measurement, external I/O timeouts, and the terminal
+PTY shutdown grace period continues to use the system monotonic clock.
 
 The deterministic backend models shell-owned window lifecycle transitions but
 does not initialize native `ShellExtension` resources. Tests that must activate

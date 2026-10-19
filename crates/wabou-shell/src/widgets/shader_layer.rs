@@ -7,7 +7,7 @@ use std::{
 
 use crate::{ShaderEffectId, ShaderEffectSource};
 use serde::Deserialize;
-use wabou_host_api::{SharedClock, SystemClock};
+use wabou_host_api::SharedClock;
 use wabou_shell::{PaintContext, Widget, WidgetChanges, decode_widget_config};
 
 const FRAME_INTERVAL: Duration = Duration::from_millis(16);
@@ -56,7 +56,7 @@ pub struct ShaderLayer {
 impl ShaderLayer {
     /// Construct an unconfigured shader surface.
     pub fn new() -> Self {
-        let clock: SharedClock = Arc::new(SystemClock::new());
+        let clock = SharedClock::system();
         Self {
             id: ShaderEffectId::new(),
             config: None,

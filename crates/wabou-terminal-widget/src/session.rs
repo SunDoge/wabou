@@ -438,17 +438,18 @@ impl TerminalWidget {
         let blinking =
             self.focused && !self.exit_reported && self.cursor_blinking(terminal_blinking);
         self.cursor_on = true;
-        self.next_cursor_blink = blinking.then(|| Instant::now() + Duration::from_millis(500));
+        self.next_cursor_blink =
+            blinking.then(|| self.clock.now_instant() + Duration::from_millis(500));
     }
 
     pub(super) fn update_cursor_blink(&mut self) {
         if self.focused
             && self
                 .next_cursor_blink
-                .is_some_and(|time| Instant::now() >= time)
+                .is_some_and(|time| self.clock.now_instant() >= time)
         {
             self.cursor_on = !self.cursor_on;
-            self.next_cursor_blink = Some(Instant::now() + Duration::from_millis(500));
+            self.next_cursor_blink = Some(self.clock.now_instant() + Duration::from_millis(500));
         }
     }
 

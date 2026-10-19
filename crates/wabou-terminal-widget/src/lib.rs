@@ -43,8 +43,8 @@ use wabou_shell::{
     text::{TextContext, layout_text_styled},
 };
 use wabou_shell_api::{
-    HostAction, HostActionResult, ImeEvent, KeyPhase, Modifiers, PointerButton, PointerPhase,
-    UiEvent, WHEEL_LINE_DELTA, WakeCallback,
+    HostAction, ImeEvent, KeyPhase, Modifiers, PointerButton, PointerPhase, UiEvent,
+    WHEEL_LINE_DELTA, WakeCallback,
 };
 
 mod box_drawing;
@@ -73,6 +73,7 @@ pub use session::{
     TerminalEventKind, TerminalFrame, TerminalInputResult, TerminalInvalidation, TerminalNodeEvent,
 };
 use vello_graphics::KittyLayer;
+use wabou_host_api::SharedClock;
 pub use widget::terminal_widget;
 #[cfg(test)]
 use widget::vello_color;
@@ -325,6 +326,7 @@ pub struct TerminalWidget {
     wheel_lines: WheelLineAccumulator,
     last_click: Option<(Instant, f32, f32, u8)>,
     graphics: TerminalGraphics,
+    clock: SharedClock,
 }
 
 impl Drop for TerminalWidget {
@@ -404,6 +406,7 @@ impl TerminalWidget {
             wheel_lines: WheelLineAccumulator::default(),
             last_click: None,
             graphics: TerminalGraphics::default(),
+            clock: SharedClock::system(),
         }
     }
 
