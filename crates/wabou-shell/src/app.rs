@@ -31,10 +31,10 @@ use crate::scene as scene_builder;
 use crate::shell::Shell;
 use crate::source::{
     AppLifecycleEvent, ClipboardRequest, EventResponse, FileDropEvent, FileDropPhase, FrameSource,
-    FrameStats, GestureEvent, HostAction, HostActionResult, ImeEvent, KeyEvent, KeyPhase,
-    Modifiers, Point, PointerButton, PointerEvent, PointerId, PointerPhase, PointerProperties,
-    PointerType, SemanticAction, SemanticRole, UiEvent, WakeCallback, WheelDeltaMode, WheelEvent,
-    WindowCommand, WindowMetrics, WindowOptions,
+    FrameStats, GestureEvent, HostAction, ImeEvent, KeyEvent, KeyPhase, Modifiers, Point,
+    PointerButton, PointerEvent, PointerId, PointerPhase, PointerProperties, PointerType,
+    SemanticAction, SemanticRole, UiEvent, WakeCallback, WheelDeltaMode, WheelEvent, WindowCommand,
+    WindowMetrics, WindowOptions,
 };
 use crate::style::CursorStyle;
 use crate::window_lifecycle::{WindowCapabilities, WindowEffect, WindowIntent, WindowLifecycle};
@@ -560,34 +560,21 @@ impl App {
         while let Some(action) = self.source.take_host_action() {
             handled = true;
             match action {
+                // Clipboard widget actions are translated into effects by
+                // the applier; reaching this queue means a path bypassed the
+                // translation and must be surfaced, not silently dropped.
+                HostAction::SetClipboard(_) | HostAction::ReadClipboard { .. } => {
+                    tracing::error!(
+                        action = ?action,
+                        "clipboard widget action reached the shell untranslated"
+                    );
+                }
                 HostAction::OpenUrl(url) => {
                     if let Some(url) = allowed_external_url(&url) {
                         let _ = open::that_detached(url.as_str());
                     } else {
                         tracing::warn!(url, "refused unsafe external URL");
                     }
-                }
-                HostAction::SetClipboard(text) => {
-                    if let Some(clipboard) = self.clipboard_mut() {
-                        let _ = clipboard.set_text(text);
-                    }
-                }
-                HostAction::WriteClipboard { request_id, text } => {
-                    let success = self
-                        .clipboard_mut()
-                        .is_some_and(|clipboard| clipboard.set_text(text).is_ok());
-                    self.source
-                        .complete_host_action(HostActionResult::ClipboardWrite {
-                            request_id,
-                            success,
-                        });
-                }
-                HostAction::ReadClipboard { request_id } => {
-                    let text = self
-                        .clipboard_mut()
-                        .and_then(|clipboard| clipboard.get_text().ok());
-                    self.source
-                        .complete_host_action(HostActionResult::Clipboard { request_id, text });
                 }
                 HostAction::SetWindowTitle(title) => {
                     if let Some(shell) = self.state.as_ref() {

@@ -1093,38 +1093,19 @@ impl FrameSource for Applier {
         self.runtime.pending_host_actions.borrow_mut().pop_front()
     }
 
-    fn complete_host_action(&mut self, result: shell_api::HostActionResult) {
-        match result {
-            shell_api::HostActionResult::Clipboard { request_id, text } => {
-                let Some((node, widget_request_id)) = self
-                    .document
-                    .widget_manager
-                    .host_action_routes
-                    .remove(&request_id)
-                else {
-                    return;
-                };
-                if let Some(widget) = self.document.widget_manager.widgets.get_mut(&node) {
-                    widget.complete_host_action(shell_api::HostActionResult::Clipboard {
-                        request_id: widget_request_id,
-                        text,
-                    });
-                }
-            }
-            shell_api::HostActionResult::ClipboardWrite {
-                request_id,
-                success,
-            } => {
-                let _ = (request_id, success);
-            }
-        }
-    }
-
     fn take_effect(&mut self) -> Option<shell_api::EffectRequest> {
         self.runtime.effect_bridge.take(&self.runtime.js)
     }
 
     fn complete_effect(&mut self, completion: shell_api::EffectCompletion) {
+        // Natively submitted effects (widget clipboard requests) route their
+        // completion to the subscriber recorded at submission; JavaScript
+        // effects resolve their Promise through the bridge.
+        if let Some(deliver) = self.runtime.effect_bridge.take_native_route(completion.id) {
+            deliver(completion);
+            self.drain_widget_clipboard_completions();
+            return;
+        }
         self.runtime
             .effect_bridge
             .complete(&self.runtime.js, completion);

@@ -350,8 +350,9 @@ impl Applier {
         self.document.widget_manager.visibility.remove(&node);
         self.document
             .widget_manager
-            .host_action_routes
-            .retain(|_, (widget_node, _)| *widget_node != node);
+            .clipboard_completions
+            .borrow_mut()
+            .retain(|(widget_node, _, _)| *widget_node != node);
         self.document.invalidation.insert(InvalidationFlags::LAYOUT);
         self.document.ifc_dirty = true;
     }

@@ -713,14 +713,9 @@ impl Widget for TerminalWidget {
         self.pending_node_events.pop_front().map(Into::into)
     }
 
-    fn complete_host_action(&mut self, result: HostActionResult) {
-        match result {
-            HostActionResult::Clipboard { request_id, text } => {
-                if let Some(formatter) = self.pending_clipboard_loads.remove(&request_id) {
-                    self.send_bytes(formatter(text.as_deref().unwrap_or("")).into_bytes());
-                }
-            }
-            HostActionResult::ClipboardWrite { .. } => {}
+    fn deliver_clipboard_text(&mut self, request_id: u64, text: Option<String>) {
+        if let Some(formatter) = self.pending_clipboard_loads.remove(&request_id) {
+            self.send_bytes(formatter(text.as_deref().unwrap_or("")).into_bytes());
         }
     }
 

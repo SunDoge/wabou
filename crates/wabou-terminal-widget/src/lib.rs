@@ -43,8 +43,8 @@ use wabou_shell::{
     text::{TextContext, layout_text_styled},
 };
 use wabou_shell_api::{
-    HostAction, HostActionResult, ImeEvent, KeyPhase, Modifiers, PointerButton, PointerPhase,
-    UiEvent, WHEEL_LINE_DELTA, WakeCallback,
+    HostAction, ImeEvent, KeyPhase, Modifiers, PointerButton, PointerPhase, UiEvent,
+    WHEEL_LINE_DELTA, WakeCallback,
 };
 
 mod box_drawing;

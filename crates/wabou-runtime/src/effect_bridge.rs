@@ -1,7 +1,7 @@
 //! Backend-neutral native effect queue for one JavaScript runtime.
 
 use std::cell::RefCell;
-use std::collections::{HashSet, VecDeque};
+use std::collections::{HashMap, HashSet, VecDeque};
 use std::rc::Rc;
 use std::sync::atomic::{AtomicU32, Ordering};
 
@@ -18,6 +18,9 @@ use wabou_shell_api::{
 
 static NEXT_EFFECT_ID: AtomicU32 = AtomicU32::new(1);
 
+/// Completion handler of a natively submitted effect.
+type NativeCompletion = Box<dyn FnOnce(EffectCompletion)>;
+
 #[derive(Clone)]
 /// Per-runtime queue connecting JavaScript effect requests to a native backend.
 #[doc(hidden)]
@@ -28,6 +31,10 @@ pub struct EffectBridge {
     trace: Rc<RefCell<Option<EffectTrace>>>,
     replay_completions: Rc<RefCell<VecDeque<EffectCompletion>>>,
     app_directories: Rc<RefCell<Option<AppDirectories>>>,
+    /// Completions for natively submitted effects, routed by request id to
+    /// the subscriber that owns the request. Populated by
+    /// [`EffectBridge::submit_native`].
+    native_routes: Rc<RefCell<HashMap<u32, NativeCompletion>>>,
 }
 
 impl EffectBridge {
@@ -40,6 +47,7 @@ impl EffectBridge {
             trace: Rc::new(RefCell::new(None)),
             replay_completions: Rc::new(RefCell::new(VecDeque::new())),
             app_directories: Rc::new(RefCell::new(None)),
+            native_routes: Rc::new(RefCell::new(HashMap::new())),
         };
         bridge.install_functions(js, window_key);
         bridge
@@ -152,6 +160,43 @@ impl EffectBridge {
             trace.complete(&completion);
         }
         self.deliver_if_pending(js, &completion);
+    }
+
+    /// Submit an effect from native code (a widget, not JavaScript).
+    ///
+    /// The request enters the same queue and is fulfilled by the same shell
+    /// dispatch as a JavaScript effect; its completion is routed to
+    /// `on_complete` instead of a JS Promise. Returns the request id the
+    /// subscriber can use with [`EffectBridge::complete_native`].
+    pub fn submit_native(
+        &self,
+        scope: EffectScope,
+        payload: EffectPayload,
+        on_complete: impl FnOnce(EffectCompletion) + 'static,
+    ) -> EffectId {
+        let id = NEXT_EFFECT_ID.fetch_add(1, Ordering::Relaxed);
+        assert_ne!(id, 0, "effect request id space exhausted for this process");
+        self.native_routes
+            .borrow_mut()
+            .insert(id, Box::new(on_complete));
+        self.effects.borrow_mut().push_back(EffectRequest {
+            id: EffectId(id),
+            scope,
+            payload,
+        });
+        if let Some(wake) = self.action_wake.borrow().as_ref() {
+            wake();
+        }
+        EffectId(id)
+    }
+
+    /// Take the completion handler of a natively submitted effect, if any.
+    ///
+    /// The shell's completion path calls this while routing a completion: a
+    /// `Some` return means the effect is native-owned and the caller delivers
+    /// it through the returned handler instead of the JS Promise path.
+    pub fn take_native_route(&self, id: EffectId) -> Option<NativeCompletion> {
+        self.native_routes.borrow_mut().remove(&id.0)
     }
 
     fn deliver_if_pending(&self, js: &JsRuntime, completion: &EffectCompletion) {

@@ -25,6 +25,8 @@ use wabou_shell_api::{FrameStats, HostAction, WakeCallback, WindowResourceKey};
 pub struct RuntimeSession {
     /// QuickJS runtime owned by this window.
     pub js: JsRuntime,
+    /// Logical window this session serves; scopes natively submitted effects.
+    pub window_key: WindowResourceKey,
     /// The runtime's monotonic clock.
     ///
     /// Semantic time reads (motion advancement, interaction timestamps,
@@ -81,6 +83,7 @@ impl RuntimeSession {
             host_message_channel(DEFAULT_HOST_MESSAGE_CAPACITY);
         Self {
             js,
+            window_key,
             clock,
             atoms,
             has_raf: true,

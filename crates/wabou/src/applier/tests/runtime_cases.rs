@@ -881,8 +881,9 @@ fn failed_full_reload_keeps_the_last_good_scene_interactive() {
     applier
         .document
         .widget_manager
-        .host_action_routes
-        .insert(7, (node, 9));
+        .clipboard_completions
+        .borrow_mut()
+        .push((node, 9, None));
     applier.interaction.input.focused_target = Some(NodeKey::new(2, 1));
     applier
         .interaction
@@ -926,9 +927,13 @@ fn failed_full_reload_keeps_the_last_good_scene_interactive() {
             .visibility
             .contains_key(&node)
     );
-    assert_eq!(
-        applier.document.widget_manager.host_action_routes.get(&7),
-        Some(&(node, 9))
+    assert!(
+        applier
+            .document
+            .widget_manager
+            .clipboard_completions
+            .borrow()
+            .contains(&(node, 9, None))
     );
     assert_eq!(
         applier.interaction.input.focused_target,

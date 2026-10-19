@@ -450,7 +450,12 @@ impl Applier {
         self.document.widget_manager.styles.clear();
         self.document.widget_manager.geometries.clear();
         self.document.widget_manager.visibility.clear();
-        self.document.widget_manager.host_action_routes.clear();
+        // Pending clipboard completions reference dropped widgets; discard.
+        self.document
+            .widget_manager
+            .clipboard_completions
+            .borrow_mut()
+            .clear();
         self.interaction = InteractionState::new();
         self.document.node_store.logical_parent.clear();
         self.frame.projections.semantic_snapshot = Arc::new(SemanticSnapshot::default());

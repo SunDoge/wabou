@@ -73,30 +73,67 @@ impl Applier {
         node: NodeId,
         action: shell_api::HostAction,
     ) {
-        let action = match action {
-            shell_api::HostAction::ReadClipboard { request_id } => {
-                let host_request_id = self.document.widget_manager.next_host_action_id;
-                self.document.widget_manager.next_host_action_id = (self
-                    .document
-                    .widget_manager
-                    .next_host_action_id
-                    .wrapping_add(1)
-                    & HOST_ACTION_SEQUENCE_MASK)
-                    .max(1);
-                self.document
-                    .widget_manager
-                    .host_action_routes
-                    .insert(host_request_id, (node, request_id));
-                shell_api::HostAction::ReadClipboard {
-                    request_id: host_request_id,
-                }
+        // Clipboard capabilities ride the typed effect channel so a widget's
+        // request is fulfilled by the same dispatch as a JavaScript effect
+        // (and participates in record/replay traces). The remaining
+        // host-action vocabulary is window-level and stays on the
+        // fire-and-forget queue.
+        let completions = self.document.widget_manager.clipboard_completions.clone();
+        match action {
+            shell_api::HostAction::SetClipboard(text) => {
+                let window_key = self.runtime.window_key;
+                self.runtime.effect_bridge.submit_native(
+                    shell_api::EffectScope::Window(window_key),
+                    shell_api::EffectPayload::ClipboardWrite { text },
+                    |_| {},
+                );
             }
-            action => action,
-        };
-        self.runtime
-            .pending_host_actions
-            .borrow_mut()
-            .push_back(action);
+            shell_api::HostAction::ReadClipboard { request_id } => {
+                let window_key = self.runtime.window_key;
+                self.runtime.effect_bridge.submit_native(
+                    shell_api::EffectScope::Window(window_key),
+                    shell_api::EffectPayload::ClipboardRead,
+                    move |completion| {
+                        let text = match completion.result {
+                            shell_api::EffectResult::ClipboardText(text) => text,
+                            _ => None,
+                        };
+                        completions.borrow_mut().push((node, request_id, text));
+                    },
+                );
+            }
+            action => {
+                self.runtime
+                    .pending_host_actions
+                    .borrow_mut()
+                    .push_back(action);
+            }
+        }
+    }
+
+    /// Deliver clipboard effect completions to their originating widgets.
+    ///
+    /// Native effect completions arrive outside the widget event flow; they
+    /// are buffered per applier and flushed on the next poll so
+    /// `take_host_action` draining and completion delivery stay on the same
+    /// thread turn.
+    pub(super) fn drain_widget_clipboard_completions(&mut self) -> bool {
+        let completions = std::mem::take(
+            &mut *self
+                .document
+                .widget_manager
+                .clipboard_completions
+                .borrow_mut(),
+        );
+        let mut changed = false;
+        for (node, request_id, text) in completions {
+            let Some(widget) = self.document.widget_manager.widgets.get_mut(&node) else {
+                continue;
+            };
+            widget.deliver_clipboard_text(request_id, text);
+            changed = true;
+        }
+        changed
     }
 
     pub(super) fn drain_widget_host_actions(&mut self, node: NodeId) {

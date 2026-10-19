@@ -594,10 +594,7 @@ fn osc_clipboard_read_requires_opt_in_and_formats_the_reply() {
         action => panic!("expected clipboard read, got {action:?}"),
     };
     assert!(allowed.take_input().is_empty());
-    allowed.complete_host_action(HostActionResult::Clipboard {
-        request_id,
-        text: Some("hello".into()),
-    });
+    allowed.deliver_clipboard_text(request_id, Some("hello".into()));
     assert_eq!(allowed.take_input(), b"\x1b]52;c;aGVsbG8=\x07");
 
     allowed.attribute_removed("allow-clipboard-read");
