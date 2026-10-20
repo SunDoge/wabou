@@ -101,6 +101,19 @@ describe("typed style", () => {
     expect(mergeClasses("p-auto", "p-2")).toBe("p-auto p-2");
   });
 
+  test("keeps application classes opaque and dynamic conflicts stable after churn", () => {
+    for (const candidate of ["__proto__", "constructor", "toString"]) {
+      expect(utilityConflictProperties(candidate)).toBeUndefined();
+      expect(mergeClasses(candidate, "w-4")).toBe(`${candidate} w-4`);
+    }
+    for (let index = 0; index < 2048; index += 1) {
+      utilityConflictProperties(`w-[${index}px]`);
+      utilityConflictProperties(`application-${index}`);
+    }
+    expect(mergeClasses("w-[13px]", "w-[27px]")).toBe("w-[27px]");
+    expect(mergeClasses("px-4", "p-2")).toBe("p-2");
+  });
+
   test("constructs native retained shadows in stdDev units", () => {
     expect(
       shadow({ stdDev: 6, spread: -2, offsetY: 8, color: 0x11223344 }),

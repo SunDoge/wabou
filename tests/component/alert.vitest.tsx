@@ -56,15 +56,19 @@ test("provides semantic variants, sizing, banner chrome, and close delegation", 
   expect(close).toHaveBeenCalledOnce();
 });
 
-test("alert uses the compact inline feedback surface contract", () => {
+test("default and destructive alerts apply their semantic theme", () => {
   const screen = renderComponent(() => (
-    <Alert title="Workspace ready">All checks passed.</Alert>
+    <>
+      <Alert title="Workspace ready">All checks passed.</Alert>
+      <Alert variant="destructive" title="Workspace failed">
+        Retry later.
+      </Alert>
+    </>
   ));
-
-  const alert = screen.getByRole("alert", { name: "Workspace ready" });
-  expect(alert.className).toContain("rounded-lg");
-  expect(alert.className).toContain("px-4");
-  expect(alert.className).toContain("py-2.5");
-  expect(alert.className).not.toContain("rounded-xl");
-  expect(alert.className).not.toContain("shadow-xs");
+  const ready = screen.getByRole("alert", { name: "Workspace ready" });
+  const failed = screen.getByRole("alert", { name: "Workspace failed" });
+  expect(ready.text).toContain("All checks passed.");
+  expect(ready.className).toContain("bg-surface");
+  expect(failed.className).toContain("border-danger");
+  expect(failed.className).toContain("bg-danger-surface");
 });

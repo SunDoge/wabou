@@ -162,7 +162,7 @@ jobs:
           # Build the engine-backed helper independently from the lightweight
           # wabou orchestration CLI used by the other jobs.
           cargo build -p wabou-cli --features embedded-renderer --bin wabou-render
-          bun run test:layout:quick
+          bun run test:layout --reuse-renderer
 
       - name: Upload native-test diagnostics
         if: failure()

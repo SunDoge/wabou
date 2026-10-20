@@ -140,43 +140,6 @@ export declare function createWindowMatch(query: WindowSizeQuery, window?: Windo
 /** Reactive state and controls for the native window owning this JS runtime. */
 export declare function useWindow(): WindowState;
 //#endregion
-//#region src/glue/gesture.d.ts
-type GesturePhase = "started" | "changed" | "ended" | "cancelled";
-type GestureEvent = {
-  type: "pinch";
-  delta: number;
-  phase: GesturePhase;
-} | {
-  type: "pan";
-  deltaX: number;
-  deltaY: number;
-  phase: GesturePhase;
-} | {
-  type: "rotation";
-  delta: number;
-  phase: GesturePhase;
-} | {
-  type: "double-tap";
-} | {
-  type: "pressure";
-  pressure: number;
-  stage: number;
-};
-type GestureHandler = (event: GestureEvent) => void;
-/** Subscribe to native trackpad and touchscreen gestures for the current window. */
-export declare function subscribeGesture(handler: GestureHandler): () => void;
-/** Subscribe for the lifetime of the current Solid owner. */
-export declare function useGesture(handler: GestureHandler): void;
-//#endregion
-//#region src/glue/clipboard.d.ts
-interface Clipboard {
-  readText(): Promise<string | null>;
-  writeText(text: string): Promise<void>;
-}
-export declare const clipboard: Clipboard;
-/** Stable clipboard capability for use inside Solid components. */
-export declare function useClipboard(): Clipboard;
-//#endregion
 //#region src/glue/app-dirs.d.ts
 /** Native, absolute roots owned by the current application. */
 interface AppDirectories {
@@ -209,58 +172,6 @@ interface Application {
   relaunch(): void;
 }
 export declare const application: Application;
-//#endregion
-//#region src/glue/dialog.d.ts
-interface DialogFilter {
-  readonly name: string;
-  readonly extensions: readonly string[];
-}
-interface OpenDialogOptions {
-  readonly title?: string;
-  readonly directory?: string;
-  readonly filters?: readonly DialogFilter[];
-  readonly multiple?: boolean;
-}
-interface SaveDialogOptions {
-  readonly title?: string;
-  readonly directory?: string;
-  readonly defaultName?: string;
-  readonly filters?: readonly DialogFilter[];
-}
-interface PickDirectoryOptions {
-  readonly title?: string;
-  readonly directory?: string;
-}
-type MessageDialogLevel = "info" | "warning" | "error";
-type MessageDialogButtons = "ok" | "okCancel" | "yesNo" | "yesNoCancel";
-type MessageDialogResult = "ok" | "cancel" | "yes" | "no" | "custom";
-interface MessageDialogOptions {
-  readonly title?: string;
-  readonly message: string;
-  readonly level?: MessageDialogLevel;
-  readonly buttons?: MessageDialogButtons;
-}
-interface Dialog {
-  open(options?: OpenDialogOptions): Promise<readonly string[] | null>;
-  save(options?: SaveDialogOptions): Promise<string | null>;
-  pickDirectory(options?: PickDirectoryOptions): Promise<string | null>;
-  message(options: MessageDialogOptions): Promise<MessageDialogResult>;
-}
-export declare const dialog: Dialog;
-export declare function useDialog(): Dialog;
-//#endregion
-//#region src/glue/notification.d.ts
-interface NotificationOptions {
-  readonly title: string;
-  readonly body?: string;
-  readonly icon?: string;
-  readonly silent?: boolean;
-}
-interface Notification {
-  show(options: NotificationOptions): Promise<void>;
-}
-export declare const notification: Notification;
-export declare function useNotification(): Notification;
 //#endregion
 //#region src/glue/async-action.d.ts
 type AsyncActionResult<T> = {
@@ -329,6 +240,15 @@ interface AsyncQuery<T> {
  */
 export declare function createAsyncQuery<K, T>(options: AsyncQueryOptions<K, T>): AsyncQuery<T>;
 //#endregion
+//#region src/glue/clipboard.d.ts
+interface Clipboard {
+  readText(): Promise<string | null>;
+  writeText(text: string): Promise<void>;
+}
+export declare const clipboard: Clipboard;
+/** Stable clipboard capability for use inside Solid components. */
+export declare function useClipboard(): Clipboard;
+//#endregion
 //#region src/glue/color-theme.d.ts
 type ColorThemeEasing = "linear" | "ease-in" | "ease-out" | "ease-in-out" | ((progress: number) => number);
 interface ColorThemeAnimationOptions {
@@ -357,6 +277,45 @@ export declare function ColorThemeProvider(props: {
   children: JSX.Element;
 }): JSX.Element;
 export declare function useColorTheme(): ColorThemeController;
+//#endregion
+//#region src/glue/dialog.d.ts
+interface DialogFilter {
+  readonly name: string;
+  readonly extensions: readonly string[];
+}
+interface OpenDialogOptions {
+  readonly title?: string;
+  readonly directory?: string;
+  readonly filters?: readonly DialogFilter[];
+  readonly multiple?: boolean;
+}
+interface SaveDialogOptions {
+  readonly title?: string;
+  readonly directory?: string;
+  readonly defaultName?: string;
+  readonly filters?: readonly DialogFilter[];
+}
+interface PickDirectoryOptions {
+  readonly title?: string;
+  readonly directory?: string;
+}
+type MessageDialogLevel = "info" | "warning" | "error";
+type MessageDialogButtons = "ok" | "okCancel" | "yesNo" | "yesNoCancel";
+type MessageDialogResult = "ok" | "cancel" | "yes" | "no" | "custom";
+interface MessageDialogOptions {
+  readonly title?: string;
+  readonly message: string;
+  readonly level?: MessageDialogLevel;
+  readonly buttons?: MessageDialogButtons;
+}
+interface Dialog {
+  open(options?: OpenDialogOptions): Promise<readonly string[] | null>;
+  save(options?: SaveDialogOptions): Promise<string | null>;
+  pickDirectory(options?: PickDirectoryOptions): Promise<string | null>;
+  message(options: MessageDialogOptions): Promise<MessageDialogResult>;
+}
+export declare const dialog: Dialog;
+export declare function useDialog(): Dialog;
 //#endregion
 //#region src/glue/entity-list.d.ts
 type EntityKey = string | number;
@@ -394,6 +353,34 @@ interface EventEffectOptions<T> {
  * one reactive notification.
  */
 export declare function createEventEffect<T>(options: EventEffectOptions<T>): void;
+//#endregion
+//#region src/glue/gesture.d.ts
+type GesturePhase = "started" | "changed" | "ended" | "cancelled";
+type GestureEvent = {
+  type: "pinch";
+  delta: number;
+  phase: GesturePhase;
+} | {
+  type: "pan";
+  deltaX: number;
+  deltaY: number;
+  phase: GesturePhase;
+} | {
+  type: "rotation";
+  delta: number;
+  phase: GesturePhase;
+} | {
+  type: "double-tap";
+} | {
+  type: "pressure";
+  pressure: number;
+  stage: number;
+};
+type GestureHandler = (event: GestureEvent) => void;
+/** Subscribe to native trackpad and touchscreen gestures for the current window. */
+export declare function subscribeGesture(handler: GestureHandler): () => void;
+/** Subscribe for the lifetime of the current Solid owner. */
+export declare function useGesture(handler: GestureHandler): void;
 //#endregion
 //#region src/glue/host-resource.d.ts
 interface RevisionedHostValue {
@@ -677,6 +664,19 @@ interface NativeMenuOptions {
 }
 /** Show a platform context menu and resolve with the selected item id. */
 export declare function showNativeMenu(options: NativeMenuOptions): Promise<string>;
+//#endregion
+//#region src/glue/notification.d.ts
+interface NotificationOptions {
+  readonly title: string;
+  readonly body?: string;
+  readonly icon?: string;
+  readonly silent?: boolean;
+}
+interface Notification {
+  show(options: NotificationOptions): Promise<void>;
+}
+export declare const notification: Notification;
+export declare function useNotification(): Notification;
 //#endregion
 //#region src/glue/platform-context.d.ts
 interface PlatformServices {

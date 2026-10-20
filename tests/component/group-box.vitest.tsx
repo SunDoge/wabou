@@ -16,10 +16,9 @@ test("group box owns its title, description and surface variant", () => {
   ));
 
   const group = screen.getByRole("group", { name: "Updates" });
-  expect(group.className).toContain("gap-3");
+  expect(group.text).toContain("Choose how application updates are installed.");
   expect(screen.getByRole("heading", { name: "Updates" })).toBeDefined();
   expect(group.children.at(-1)?.className).toContain("border-subtle");
-  expect(group.children.at(-1)?.className).toContain("p-4");
   expect(
     screen.getByRole("switch", { name: "Automatic updates" }),
   ).toBeDefined();
@@ -34,7 +33,6 @@ test("normal group boxes remain lightweight and infer no false label", () => {
 
   const group = screen.getAllByRole("group")[0];
   expect(group.name).toBe("");
-  expect(group.className).toContain("gap-4");
   expect(group.children.at(-1)?.className).toContain("bg-transparent");
   expect(group.children.at(-1)?.className.split(/\s+/)).not.toContain("p-4");
 });

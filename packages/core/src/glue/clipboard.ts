@@ -6,7 +6,7 @@ export interface Clipboard {
   writeText(text: string): Promise<void>;
 }
 
-export const clipboard: Clipboard = Object.freeze({
+export const clipboard: Clipboard = /* @__PURE__ */ Object.freeze({
   readText: () => dispatchEffect<string | null>(effectOps.clipboardRead),
   writeText: (text: string) =>
     dispatchEffect<null>(effectOps.clipboardWrite, { text: String(text) }).then(

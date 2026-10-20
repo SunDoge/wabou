@@ -876,7 +876,6 @@ side-by-side comparison, native tree and JSON report under
 defaults. Pass `--report-only` while expanding the matrix to collect every
 difference without weakening the normal regression gate. Set `CHROME`,
 `MAGICK`, or `WABOU_RENDER_COMMAND` when those executables are not on `PATH`.
-`test:paint-reference` remains as a compatibility alias.
 
 This is a renderer comparison, not a browser-compatibility promise. Do not add
 browser-only DOM behavior to the shared fixture. The current adapter

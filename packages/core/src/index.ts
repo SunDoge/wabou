@@ -22,15 +22,7 @@ import "./glue/host-messages";
 import "./glue/host-frame";
 import "./glue/keyboard-modifiers";
 import "./glue/window-metrics";
-import "./glue/file-drop";
-import "./glue/gesture";
 import "./glue/effects";
-import "./glue/clipboard";
-import "./glue/app-dirs";
-import "./glue/application";
-import "./glue/dialog";
-import "./glue/notification";
-import "./glue/intl";
 
 export { type AppDirectories, appDirs } from "./glue/app-dirs";
 export {

@@ -1,5 +1,5 @@
 import { n as defaultHost } from "./host-B5CKGzCs.mjs";
-import "./renderer-BMakitWn.mjs";
+import "./renderer-Bu7emt2l.mjs";
 //#region src/glue/intl.ts
 function encode(options) {
 	return JSON.stringify(options ?? {});
@@ -10,7 +10,7 @@ function epochMillis(input) {
 	return new Date(input).getTime();
 }
 /** Small native localization surface. It deliberately does not emulate ECMA-402. */
-const intl = Object.freeze({
+const intl = /* @__PURE__ */ Object.freeze({
 	locale() {
 		return defaultHost.intl.locale();
 	},
@@ -47,4 +47,4 @@ const intl = Object.freeze({
 //#endregion
 export { intl as t };
 
-//# sourceMappingURL=intl-BQihzwVz.mjs.map
+//# sourceMappingURL=intl-BsQ-mO8K.mjs.map

@@ -7,6 +7,7 @@ describe("layout test selection", () => {
       apps: ["gallery", "launcher", "meow-starter", "reader"],
       filters: [],
       skipBuild: false,
+      reuseRenderer: false,
     });
   });
 
@@ -15,21 +16,25 @@ describe("layout test selection", () => {
       apps: ["gallery"],
       filters: ["component/Button"],
       skipBuild: false,
+      reuseRenderer: false,
     });
     expect(parseLayoutTestArgs(["launcher/default"])).toEqual({
       apps: ["launcher"],
       filters: ["launcher/default"],
       skipBuild: false,
+      reuseRenderer: false,
     });
     expect(parseLayoutTestArgs(["reader/default"])).toEqual({
       apps: ["reader"],
       filters: ["reader/default"],
       skipBuild: false,
+      reuseRenderer: false,
     });
     expect(parseLayoutTestArgs(["component/Button", "form/inputs"])).toEqual({
       apps: ["gallery"],
       filters: ["component/Button", "form/inputs"],
       skipBuild: false,
+      reuseRenderer: false,
     });
   });
 
@@ -38,11 +43,13 @@ describe("layout test selection", () => {
       apps: ["reader"],
       filters: ["reader/default"],
       skipBuild: false,
+      reuseRenderer: false,
     });
     expect(parseLayoutTestArgs(["--app=gallery", "component/Button"])).toEqual({
       apps: ["gallery"],
       filters: ["component/Button"],
       skipBuild: false,
+      reuseRenderer: false,
     });
   });
 
@@ -51,6 +58,18 @@ describe("layout test selection", () => {
       apps: ["gallery"],
       filters: ["component/Button"],
       skipBuild: true,
+      reuseRenderer: false,
+    });
+  });
+
+  test("can reuse the renderer while still rebuilding fixture sources", () => {
+    expect(
+      parseLayoutTestArgs(["--reuse-renderer", "component/Button"]),
+    ).toEqual({
+      apps: ["gallery"],
+      filters: ["component/Button"],
+      skipBuild: false,
+      reuseRenderer: true,
     });
   });
 

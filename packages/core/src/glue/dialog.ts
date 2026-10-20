@@ -54,7 +54,7 @@ function normalizeFilters(
   }));
 }
 
-export const dialog: Dialog = Object.freeze({
+export const dialog: Dialog = /* @__PURE__ */ Object.freeze({
   open(options: OpenDialogOptions = {}) {
     return dispatchEffect<string[] | null>(effectOps.dialogOpen, {
       ...options,

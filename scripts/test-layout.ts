@@ -7,6 +7,8 @@ export interface LayoutTestSelection {
   filters: readonly string[];
   /** Reuse an existing fixture bundle. Intended only for unchanged sources. */
   skipBuild: boolean;
+  /** Reuse an already built renderer and package artifacts. */
+  reuseRenderer: boolean;
 }
 
 const ALL_APPS: readonly LayoutTestApp[] = [
@@ -54,6 +56,7 @@ export function parseLayoutTestArgs(
 ): LayoutTestSelection {
   let app: LayoutTestApp | undefined;
   let skipBuild = false;
+  let reuseRenderer = false;
   const filters: string[] = [];
   for (let index = 0; index < args.length; index += 1) {
     const argument = args[index];
@@ -66,6 +69,10 @@ export function parseLayoutTestArgs(
       app = parseApp(argument.slice("--app=".length));
       continue;
     }
+    if (argument === "--reuse-renderer") {
+      reuseRenderer = true;
+      continue;
+    }
     if (argument === "--skip-build") {
       skipBuild = true;
       continue;
@@ -75,11 +82,41 @@ export function parseLayoutTestArgs(
     }
     filters.push(argument);
   }
-  return { apps: app ? [app] : inferApps(filters), filters, skipBuild };
+  return {
+    apps: app ? [app] : inferApps(filters),
+    filters,
+    skipBuild,
+    reuseRenderer,
+  };
 }
 
 async function runLayoutTests(selection: LayoutTestSelection): Promise<void> {
   const root = resolve(import.meta.dir, "..");
+  if (!selection.reuseRenderer) {
+    for (const command of [
+      [process.execPath, "run", "packages:build"],
+      [
+        "cargo",
+        "build",
+        "--release",
+        "-p",
+        "wabou-cli",
+        "--features",
+        "embedded-renderer",
+        "--bin",
+        "wabou-render",
+      ],
+    ]) {
+      const child = Bun.spawn(command, {
+        cwd: root,
+        stdin: "inherit",
+        stdout: "inherit",
+        stderr: "inherit",
+      });
+      const exitCode = await child.exited;
+      if (exitCode !== 0) process.exit(exitCode);
+    }
+  }
   for (const app of selection.apps) {
     const filters =
       selection.apps.length === 1
@@ -104,6 +141,9 @@ async function runLayoutTests(selection: LayoutTestSelection): Promise<void> {
       cwd: root,
       env: {
         ...process.env,
+        WABOU_LAYOUT_COMMAND:
+          process.env.WABOU_LAYOUT_COMMAND ??
+          resolve(root, "target/release/wabou-render"),
         WABOU_LAYOUT_SKIP_BUILD: selection.skipBuild ? "1" : "0",
       },
       stdin: "inherit",

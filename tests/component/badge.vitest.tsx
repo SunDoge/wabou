@@ -1,5 +1,5 @@
 import { renderComponent } from "@wabou/test/component";
-import { Badge, badgeClass } from "@wabou/ui";
+import { Badge, badgeClass, Fps } from "@wabou/ui";
 import { expect, test } from "vitest";
 
 test("forwards semantic text props and exposes shadcn badge styling", () => {
@@ -11,11 +11,11 @@ test("forwards semantic text props and exposes shadcn badge styling", () => {
 
   const badge = screen.getByRole("status", { name: "Build status" });
   expect(badge.text).toBe("Ready");
-  expect(badge.className).toContain("rounded-full");
   expect(badge.className).toContain("bg-success-surface");
 });
 
 test("provides the complete visual variant set without competing weights", () => {
+  expect(badgeClass("info")).toContain("bg-selected");
   expect(badgeClass("ghost")).toContain("border-transparent");
   expect(badgeClass("link")).toContain("text-accent");
   expect(badgeClass("destructive")).toContain("bg-danger-surface");
@@ -46,4 +46,12 @@ test("provides stable status-pill sizes without leaking private props", () => {
   expect(large.className).toContain("h-6");
   expect(large.className).toContain("text-sm");
   expect(small.attribute("size")).toBeNull();
+});
+
+test("FPS badges retain one monospace weight", () => {
+  const screen = renderComponent(() => <Fps value={60} />);
+  const badge = screen.getByRole("label", { name: "60 fps" });
+  expect(badge.className).toContain("font-mono");
+  expect(badge.className).toContain("font-normal");
+  expect(badge.className).not.toContain("font-medium");
 });

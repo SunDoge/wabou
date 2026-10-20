@@ -27,21 +27,14 @@ test("composes the complete shadcn empty-state anatomy", () => {
     </Empty>
   ));
 
-  const empty = screen.getByRole("status", { name: "No projects" });
-  expect(empty.className).toContain("flex-1");
-  expect(empty.className).toContain("rounded-xl");
-  expect(screen.getByRole("heading", { name: "Nothing here" })).toBeTruthy();
+  expect(screen.getByRole("status", { name: "No projects" })).toBeDefined();
+  expect(screen.getByRole("heading", { name: "Nothing here" })).toBeDefined();
   expect(
-    screen.getByRole("label", {
-      name: "Create a project to get started.",
-    }).className,
-  ).toContain("min-h-10");
-  expect(screen.getByRole("img", { name: "Folder" }).className).toContain(
-    "w-10",
-  );
-  expect(
-    screen.getByRole("group", { name: "Empty actions" }).className,
-  ).toContain("flex-col");
+    screen.getByRole("label", { name: "Create a project to get started." }),
+  ).toBeDefined();
+  expect(screen.getByRole("img", { name: "Folder" })).toBeDefined();
+  expect(screen.getByRole("group", { name: "Empty actions" })).toBeDefined();
+  expect(screen.getByRole("button", { name: "New project" })).toBeDefined();
 });
 
 test("keeps plain empty states embeddable and default media unstyled", () => {

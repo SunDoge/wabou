@@ -3,12 +3,12 @@ import { n as defaultHost, r as useHost, t as HostProvider } from "./host-B5CKGz
 import "./host.mjs";
 import { t as installMissingGlobal } from "./abort-controller-rU77nrtL.mjs";
 import { t as hasBrowserDom } from "./browser-dom-BrHP4mZQ.mjs";
-import { _ as utilityConflictProperties, a as bool, c as mergeClasses, d as px, f as rgba, g as translate2d, h as shadow, i as auto, l as number, m as scale2d, n as StyleValueKind, o as classes, p as rotate2d, r as assertInlineStyleValue, s as isTypedStyleValue, t as STYLE_VALUE, u as percent, v as INLINE_STYLE_CONTRACT } from "./style-B3YAe2-h.mjs";
-import { F as PathBuilder, I as isVectorPath, M as VirtualList, N as createFps, P as Portal, b as observeGlobalPointerEvent, c as dispatchEvent, h as isDirectEvent, j as writer, k as setTransform2D, t as Dynamic, x as reconcileControlledInputValues, y as mount } from "./renderer-BMakitWn.mjs";
-import "./animation-frame-DJIjswAv.mjs";
+import { _ as utilityConflictProperties, a as bool, c as mergeClasses, d as px, f as rgba, g as translate2d, h as shadow, i as auto, l as number, m as scale2d, n as StyleValueKind, o as classes, p as rotate2d, r as assertInlineStyleValue, s as isTypedStyleValue, t as STYLE_VALUE, u as percent, v as INLINE_STYLE_CONTRACT } from "./style-X6DKWkea.mjs";
+import { F as PathBuilder, I as isVectorPath, M as VirtualList, N as createFps, P as Portal, b as observeGlobalPointerEvent, c as dispatchEvent, h as isDirectEvent, j as writer, k as setTransform2D, t as Dynamic, x as reconcileControlledInputValues, y as mount } from "./renderer-Bu7emt2l.mjs";
+import "./animation-frame-BOdlCQ1h.mjs";
 import { a as subscribeAll, i as subscribe, n as dispatchHostMessage, o as subscribeJson, r as hostMessages, t as dispatchResizeObservation } from "./resize-observer-BmUNQ8lg.mjs";
 import { n as effectOps } from "./effect-abi-BzPW8STE.mjs";
-import { t as intl } from "./intl-BQihzwVz.mjs";
+import { t as intl } from "./intl-BsQ-mO8K.mjs";
 import { flushPerformance, measureAsyncPerformance, measurePerformance } from "./performance.mjs";
 import "./registry.mjs";
 import { For, createComponent, createContext, createEffect, createMemo, createSignal, flush, getOwner, latest, onCleanup, refresh, resolve, untrack, useContext } from "solid-js";
@@ -557,78 +557,6 @@ function useWindow() {
 	return usePlatformServices().window ?? state;
 }
 //#endregion
-//#region src/glue/file-drop.ts
-function decodeFileDrop(value) {
-	if (typeof value !== "object" || value === null) throw new TypeError("file drop event must be an object");
-	const event = value;
-	if (event.phase !== "entered" && event.phase !== "moved" && event.phase !== "left" && event.phase !== "dropped") throw new TypeError("file drop event has an invalid phase");
-	if (!Array.isArray(event.paths) || !event.paths.every((path) => typeof path === "string")) throw new TypeError("file drop event paths must be strings");
-	const position = event.position;
-	if (position !== null && (typeof position !== "object" || typeof position.x !== "number" || typeof position.y !== "number")) throw new TypeError("file drop event position must be logical coordinates");
-	return {
-		phase: event.phase,
-		paths: event.paths,
-		position: position ?? null
-	};
-}
-/** Subscribe to native file drag-and-drop events for the current window. */
-function subscribeFileDrop(handler) {
-	return subscribeJson("wabou:file-drop", handler, { decode: decodeFileDrop });
-}
-/**
-* Subscribe for the lifetime of the current Solid owner.
-* Use `subscribeFileDrop` when no Solid owner is active.
-*/
-function useFileDrop(handler) {
-	onCleanup(subscribeFileDrop(handler));
-}
-//#endregion
-//#region src/glue/gesture.ts
-function isPhase(value) {
-	return value === "started" || value === "changed" || value === "ended" || value === "cancelled";
-}
-function decodeGesture(value) {
-	if (typeof value !== "object" || value === null) throw new TypeError("gesture event must be an object");
-	const event = value;
-	if (event.type === "double-tap") return { type: "double-tap" };
-	if (event.type === "pressure" && typeof event.pressure === "number" && typeof event.stage === "number") return {
-		type: "pressure",
-		pressure: event.pressure,
-		stage: event.stage
-	};
-	if (!isPhase(event.phase)) throw new TypeError("continuous gesture event has an invalid phase");
-	if ((event.type === "pinch" || event.type === "rotation") && typeof event.delta === "number") return {
-		type: event.type,
-		delta: event.delta,
-		phase: event.phase
-	};
-	if (event.type === "pan" && typeof event.deltaX === "number" && typeof event.deltaY === "number") return {
-		type: "pan",
-		deltaX: event.deltaX,
-		deltaY: event.deltaY,
-		phase: event.phase
-	};
-	throw new TypeError("gesture event has an invalid payload");
-}
-/** Subscribe to native trackpad and touchscreen gestures for the current window. */
-function subscribeGesture(handler) {
-	return subscribeJson("wabou:gesture", handler, { decode: decodeGesture });
-}
-/** Subscribe for the lifetime of the current Solid owner. */
-function useGesture(handler) {
-	onCleanup(subscribeGesture(handler));
-}
-//#endregion
-//#region src/glue/clipboard.ts
-const clipboard = Object.freeze({
-	readText: () => dispatchEffect(effectOps.clipboardRead),
-	writeText: (text) => dispatchEffect(effectOps.clipboardWrite, { text: String(text) }).then(() => void 0)
-});
-/** Stable clipboard capability for use inside Solid components. */
-function useClipboard() {
-	return usePlatformServices().clipboard ?? clipboard;
-}
-//#endregion
 //#region src/glue/app-dirs.ts
 let resolved;
 function resolve$1() {
@@ -636,7 +564,7 @@ function resolve$1() {
 	return resolved;
 }
 /** Resolve app-private native roots, caching the host result for this runtime. */
-const appDirs = Object.freeze({
+const appDirs = /* @__PURE__ */ Object.freeze({
 	resolve: resolve$1,
 	config: () => resolve$1().then((paths) => paths.configDir),
 	data: () => resolve$1().then((paths) => paths.dataDir),
@@ -648,59 +576,10 @@ const appDirs = Object.freeze({
 });
 //#endregion
 //#region src/glue/application.ts
-const application = Object.freeze({
+const application = /* @__PURE__ */ Object.freeze({
 	exit: () => dispatchFireAndForget(effectOps.applicationExit),
 	relaunch: () => dispatchFireAndForget(effectOps.applicationRelaunch)
 });
-//#endregion
-//#region src/glue/dialog.ts
-function normalizeFilters(filters) {
-	return (filters ?? []).map((filter) => ({
-		name: String(filter.name),
-		extensions: filter.extensions.map((extension) => String(extension).replace(/^\./, "")).filter(Boolean)
-	}));
-}
-const dialog = Object.freeze({
-	open(options = {}) {
-		return dispatchEffect(effectOps.dialogOpen, {
-			...options,
-			filters: normalizeFilters(options.filters),
-			multiple: options.multiple ?? false
-		});
-	},
-	save(options = {}) {
-		return dispatchEffect(effectOps.dialogSave, {
-			...options,
-			filters: normalizeFilters(options.filters)
-		}).then((paths) => paths?.[0] ?? null);
-	},
-	pickDirectory(options = {}) {
-		return dispatchEffect(effectOps.dialogPickDirectory, options).then((paths) => paths?.[0] ?? null);
-	},
-	message(options) {
-		return dispatchEffect(effectOps.dialogMessage, {
-			...options,
-			message: String(options.message),
-			level: options.level ?? "info",
-			buttons: options.buttons ?? "ok"
-		});
-	}
-});
-function useDialog() {
-	return usePlatformServices().dialog ?? dialog;
-}
-//#endregion
-//#region src/glue/notification.ts
-const notification = Object.freeze({ show(options) {
-	return dispatchEffect(effectOps.notificationShow, {
-		...options,
-		title: String(options.title),
-		silent: options.silent ?? false
-	}).then(() => void 0);
-} });
-function useNotification() {
-	return usePlatformServices().notification ?? notification;
-}
 //#endregion
 //#region src/glue/async-action.ts
 /** A concurrent call tried to replace the arguments of an in-flight action. */
@@ -911,6 +790,16 @@ function createAsyncQuery(options) {
 	};
 }
 //#endregion
+//#region src/glue/clipboard.ts
+const clipboard = /* @__PURE__ */ Object.freeze({
+	readText: () => dispatchEffect(effectOps.clipboardRead),
+	writeText: (text) => dispatchEffect(effectOps.clipboardWrite, { text: String(text) }).then(() => void 0)
+});
+/** Stable clipboard capability for use inside Solid components. */
+function useClipboard() {
+	return usePlatformServices().clipboard ?? clipboard;
+}
+//#endregion
 //#region src/glue/color-theme.tsx
 const [current, setCurrent] = createSignal();
 let currentPalette;
@@ -1086,6 +975,43 @@ function useColorTheme() {
 	return useContext(ColorThemeContext);
 }
 //#endregion
+//#region src/glue/dialog.ts
+function normalizeFilters(filters) {
+	return (filters ?? []).map((filter) => ({
+		name: String(filter.name),
+		extensions: filter.extensions.map((extension) => String(extension).replace(/^\./, "")).filter(Boolean)
+	}));
+}
+const dialog = /* @__PURE__ */ Object.freeze({
+	open(options = {}) {
+		return dispatchEffect(effectOps.dialogOpen, {
+			...options,
+			filters: normalizeFilters(options.filters),
+			multiple: options.multiple ?? false
+		});
+	},
+	save(options = {}) {
+		return dispatchEffect(effectOps.dialogSave, {
+			...options,
+			filters: normalizeFilters(options.filters)
+		}).then((paths) => paths?.[0] ?? null);
+	},
+	pickDirectory(options = {}) {
+		return dispatchEffect(effectOps.dialogPickDirectory, options).then((paths) => paths?.[0] ?? null);
+	},
+	message(options) {
+		return dispatchEffect(effectOps.dialogMessage, {
+			...options,
+			message: String(options.message),
+			level: options.level ?? "info",
+			buttons: options.buttons ?? "ok"
+		});
+	}
+});
+function useDialog() {
+	return usePlatformServices().dialog ?? dialog;
+}
+//#endregion
 //#region src/glue/entity-list.tsx
 function validateEntityKeys(values, by) {
 	const keys = /* @__PURE__ */ new Set();
@@ -1171,6 +1097,68 @@ function latestSequence(events, sequence) {
 	let latest = Number.NEGATIVE_INFINITY;
 	for (const event of events) latest = Math.max(latest, sequence(event));
 	return latest;
+}
+//#endregion
+//#region src/glue/file-drop.ts
+function decodeFileDrop(value) {
+	if (typeof value !== "object" || value === null) throw new TypeError("file drop event must be an object");
+	const event = value;
+	if (event.phase !== "entered" && event.phase !== "moved" && event.phase !== "left" && event.phase !== "dropped") throw new TypeError("file drop event has an invalid phase");
+	if (!Array.isArray(event.paths) || !event.paths.every((path) => typeof path === "string")) throw new TypeError("file drop event paths must be strings");
+	const position = event.position;
+	if (position !== null && (typeof position !== "object" || typeof position.x !== "number" || typeof position.y !== "number")) throw new TypeError("file drop event position must be logical coordinates");
+	return {
+		phase: event.phase,
+		paths: event.paths,
+		position: position ?? null
+	};
+}
+/** Subscribe to native file drag-and-drop events for the current window. */
+function subscribeFileDrop(handler) {
+	return subscribeJson("wabou:file-drop", handler, { decode: decodeFileDrop });
+}
+/**
+* Subscribe for the lifetime of the current Solid owner.
+* Use `subscribeFileDrop` when no Solid owner is active.
+*/
+function useFileDrop(handler) {
+	onCleanup(subscribeFileDrop(handler));
+}
+//#endregion
+//#region src/glue/gesture.ts
+function isPhase(value) {
+	return value === "started" || value === "changed" || value === "ended" || value === "cancelled";
+}
+function decodeGesture(value) {
+	if (typeof value !== "object" || value === null) throw new TypeError("gesture event must be an object");
+	const event = value;
+	if (event.type === "double-tap") return { type: "double-tap" };
+	if (event.type === "pressure" && typeof event.pressure === "number" && typeof event.stage === "number") return {
+		type: "pressure",
+		pressure: event.pressure,
+		stage: event.stage
+	};
+	if (!isPhase(event.phase)) throw new TypeError("continuous gesture event has an invalid phase");
+	if ((event.type === "pinch" || event.type === "rotation") && typeof event.delta === "number") return {
+		type: event.type,
+		delta: event.delta,
+		phase: event.phase
+	};
+	if (event.type === "pan" && typeof event.deltaX === "number" && typeof event.deltaY === "number") return {
+		type: "pan",
+		deltaX: event.deltaX,
+		deltaY: event.deltaY,
+		phase: event.phase
+	};
+	throw new TypeError("gesture event has an invalid payload");
+}
+/** Subscribe to native trackpad and touchscreen gestures for the current window. */
+function subscribeGesture(handler) {
+	return subscribeJson("wabou:gesture", handler, { decode: decodeGesture });
+}
+/** Subscribe for the lifetime of the current Solid owner. */
+function useGesture(handler) {
+	onCleanup(subscribeGesture(handler));
 }
 //#endregion
 //#region src/glue/host-resource.ts
@@ -1680,6 +1668,18 @@ function showNativeMenu(options) {
 		position: options.position,
 		items: options.items
 	});
+}
+//#endregion
+//#region src/glue/notification.ts
+const notification = /* @__PURE__ */ Object.freeze({ show(options) {
+	return dispatchEffect(effectOps.notificationShow, {
+		...options,
+		title: String(options.title),
+		silent: options.silent ?? false
+	}).then(() => void 0);
+} });
+function useNotification() {
+	return usePlatformServices().notification ?? notification;
 }
 //#endregion
 //#region src/keyed-list.ts

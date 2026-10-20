@@ -12,7 +12,7 @@ export interface Notification {
   show(options: NotificationOptions): Promise<void>;
 }
 
-export const notification: Notification = Object.freeze({
+export const notification: Notification = /* @__PURE__ */ Object.freeze({
   show(options: NotificationOptions) {
     return dispatchEffect<null>(effectOps.notificationShow, {
       ...options,

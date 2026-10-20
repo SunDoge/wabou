@@ -222,3 +222,43 @@ test("closeable tab items keep selection and close actions independent", () => {
   second.click();
   expect(second.selected).toBe(true);
 });
+
+test("unstyled tabs preserve custom classes and reactive selection", () => {
+  const screen = renderComponent(() => (
+    <Tabs defaultValue="general">
+      <TabsList unstyled class="custom-list" aria-label="Settings sections">
+        <TabsTrigger
+          unstyled
+          value="general"
+          class={(state) =>
+            state.selected ? "custom-selected" : "custom-idle"
+          }
+        >
+          General
+        </TabsTrigger>
+        <TabsTrigger
+          unstyled
+          value="advanced"
+          class={(state) =>
+            state.selected ? "custom-selected" : "custom-idle"
+          }
+        >
+          Advanced
+        </TabsTrigger>
+      </TabsList>
+    </Tabs>
+  ));
+  expect(
+    screen.getByRole("tablist", { name: "Settings sections" }).className,
+  ).toBe("custom-list");
+  const general = screen.getByRole("tab", { name: "General" });
+  const advanced = screen.getByRole("tab", { name: "Advanced" });
+  expect(general.selected).toBe(true);
+  expect(general.className).toContain("custom-selected");
+  expect(general.className.split(/\s+/)).not.toContain("h-7");
+  advanced.click();
+  expect(general.selected).toBe(false);
+  expect(general.className).toContain("custom-idle");
+  expect(advanced.selected).toBe(true);
+  expect(advanced.className).toContain("custom-selected");
+});

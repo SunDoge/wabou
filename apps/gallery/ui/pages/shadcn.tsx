@@ -295,7 +295,7 @@ export function TypographyPage() {
       </TypographyList>
       <View class="flex flex-row items-center gap-2">
         <TypographyMuted>Run</TypographyMuted>
-        <TypographyInlineCode>bun run test:layout:quick</TypographyInlineCode>
+        <TypographyInlineCode>bun run test:layout --reuse-renderer</TypographyInlineCode>
       </View>
     </View>
   );

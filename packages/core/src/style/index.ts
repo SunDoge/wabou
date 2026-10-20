@@ -201,15 +201,11 @@ export const classes = (...values: readonly WabouUtility[]): string =>
 
 export type ClassValue = string | false | null | undefined;
 
-const staticConflictProperties = new Map<string, readonly string[]>(
-  Object.entries(UTILITY_CONFLICT_DATA.staticUtilities),
-);
-const spacingTokens = new Set<string>(UTILITY_CONFLICT_DATA.spacing);
-const colorTokens = new Set<string>(UTILITY_CONFLICT_DATA.colors);
-const dynamicConflictRules = [...UTILITY_CONFLICT_DATA.dynamicRules].sort(
-  (left, right) => right.name.length - left.name.length,
-);
-const dynamicConflictCache = new Map<string, readonly string[] | null>();
+const dynamicConflictCache = /* @__PURE__ */ new Map<
+  string,
+  readonly string[]
+>();
+const MAX_DYNAMIC_CONFLICT_CACHE = 512;
 const arbitraryNumber = /^\[-?(?:\d+(?:\.\d*)?|\.\d+)\]$/;
 const arbitraryLength = /^\[-?(?:\d+(?:\.\d*)?|\.\d+)(?:px|rem|%)\]$/;
 const barePercent = /^-?(?:\d+(?:\.\d*)?|\.\d+)%$/;
@@ -220,17 +216,18 @@ function dynamicTokenMatches(
   token: string,
   allowAuto: boolean,
 ): boolean {
+  const spacingTokens: readonly string[] = UTILITY_CONFLICT_DATA.spacing;
   const colorAndOpacity = token.split("/", 2);
   switch (resolver) {
     case "spacing":
       return (
-        spacingTokens.has(token) ||
+        spacingTokens.includes(token) ||
         (allowAuto && token === "auto") ||
         arbitraryLength.test(token)
       );
     case "dimension":
       return (
-        spacingTokens.has(token) ||
+        spacingTokens.includes(token) ||
         token === "full" ||
         arbitraryLength.test(token) ||
         barePercent.test(token) ||
@@ -238,8 +235,7 @@ function dynamicTokenMatches(
       );
     case "color":
       return (
-        ((colorTokens.has(colorAndOpacity[0] ?? "") ||
-          /^[a-z][a-z0-9-]*$/.test(colorAndOpacity[0] ?? "")) &&
+        (/^[a-z][a-z0-9-]*$/.test(colorAndOpacity[0] ?? "") &&
           (colorAndOpacity.length === 1 ||
             /^(?:100|\d{1,2})$/.test(colorAndOpacity[1] ?? ""))) ||
         /^\[#[0-9a-fA-F]{3,8}\](?:\/\d+)?$/.test(token)
@@ -263,7 +259,7 @@ function dynamicTokenMatches(
     case "length":
       return arbitraryLength.test(token);
     case "translate":
-      return spacingTokens.has(token) || arbitraryLength.test(token);
+      return spacingTokens.includes(token) || arbitraryLength.test(token);
     default:
       return false;
   }
@@ -273,23 +269,32 @@ function dynamicTokenMatches(
 export function utilityConflictProperties(
   candidate: string,
 ): readonly string[] | undefined {
-  const staticProperties = staticConflictProperties.get(candidate);
-  if (staticProperties) return staticProperties;
+  const staticConflictGroups: Readonly<Record<string, number>> =
+    UTILITY_CONFLICT_DATA.staticUtilities;
+  if (Object.hasOwn(staticConflictGroups, candidate)) {
+    return UTILITY_CONFLICT_DATA.propertyGroups[
+      staticConflictGroups[candidate]
+    ];
+  }
   const cached = dynamicConflictCache.get(candidate);
-  if (cached !== undefined) return cached ?? undefined;
+  if (cached !== undefined) return cached;
   const negative = candidate.startsWith("-");
   const normalized = negative ? candidate.slice(1) : candidate;
-  for (const rule of dynamicConflictRules) {
+  for (const rule of UTILITY_CONFLICT_DATA.dynamicRules) {
     const marker = `${rule.name}-`;
     if (!normalized.startsWith(marker)) continue;
     if (negative && !rule.negative) continue;
     const token = normalized.slice(marker.length);
     if (dynamicTokenMatches(rule.resolver, token, rule.auto)) {
+      // Arbitrary values can change indefinitely in a long-running UI. Bound
+      // retained candidates and never cache unknown application class names.
+      if (dynamicConflictCache.size >= MAX_DYNAMIC_CONFLICT_CACHE) {
+        dynamicConflictCache.clear();
+      }
       dynamicConflictCache.set(candidate, rule.properties);
       return rule.properties;
     }
   }
-  dynamicConflictCache.set(candidate, null);
 }
 
 /**

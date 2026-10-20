@@ -7,7 +7,7 @@ export interface Application {
   relaunch(): void;
 }
 
-export const application: Application = Object.freeze({
+export const application: Application = /* @__PURE__ */ Object.freeze({
   exit: () => dispatchFireAndForget(effectOps.applicationExit),
   relaunch: () => dispatchFireAndForget(effectOps.applicationRelaunch),
 });

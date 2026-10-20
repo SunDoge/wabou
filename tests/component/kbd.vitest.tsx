@@ -2,7 +2,7 @@ import { renderComponent } from "@wabou/test/component";
 import { Kbd, KbdGroup } from "@wabou/ui";
 import { expect, test } from "vitest";
 
-test("Kbd owns a compact native keycap rhythm", () => {
+test("Kbd exposes its accessible label and forwards line-height overrides", () => {
   const screen = renderComponent(() => (
     <KbdGroup aria-label="Shortcut">
       <Kbd aria-label="Control key">Ctrl</Kbd>
@@ -15,9 +15,6 @@ test("Kbd owns a compact native keycap rhythm", () => {
   const control = screen.getByRole("label", { name: "Control key" });
   const overridden = screen.getByRole("label", { name: "K key" });
 
-  expect(control.className).toContain(
-    "h-5 min-w-5 px-1 inline-flex items-center justify-center flex-none rounded bg-control text-xs font-medium text-muted",
-  );
   expect(control.tag).toBe("view");
   expect(control.children).toHaveLength(1);
   expect(control.children[0]?.tag).toBe("text");

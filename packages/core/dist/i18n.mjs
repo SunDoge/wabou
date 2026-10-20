@@ -1,4 +1,4 @@
-import { t as intl } from "./intl-BQihzwVz.mjs";
+import { t as intl } from "./intl-BsQ-mO8K.mjs";
 import { createSignal, flush } from "solid-js";
 //#region src/i18n.ts
 /** Paraglide registry adapter backed by Wabou's native formatters. */

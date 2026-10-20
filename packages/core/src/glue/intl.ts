@@ -52,7 +52,7 @@ function epochMillis(input: string | number | Date): number {
 }
 
 /** Small native localization surface. It deliberately does not emulate ECMA-402. */
-export const intl = Object.freeze({
+export const intl = /* @__PURE__ */ Object.freeze({
   locale(): string {
     return defaultHost.intl.locale();
   },

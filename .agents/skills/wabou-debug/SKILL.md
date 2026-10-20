@@ -56,9 +56,9 @@ collision checks over full-tree snapshots.
 
 ```bash
 # Reuse the current release CLI and rebuild the Vite fixture bundle.
-bun run test:layout:quick widgets/Button widgets/Card
+bun run test:layout --reuse-renderer widgets/Button widgets/Card
 # Restrict the quick loop to one application when unrelated fixtures are dirty.
-bun run test:layout:quick --app pi-agent shell/sidebar
+bun run test:layout --reuse-renderer --app gallery reference/GithubDesktop
 
 # Rebuild packages, release CLI, and fixture bundle after Rust, dependency,
 # generated-output, or fixture-registry changes, and before committing.
@@ -297,7 +297,7 @@ Run the narrow test first, then the affected verification layer:
 ```bash
 cargo test -p wabou-shell --lib
 bun --conditions=browser --conditions=wabou-source test path/to/test.tsx
-bun run test:layout:quick affected/Fixture
+bun run test:layout --reuse-renderer affected/Fixture
 bun run test:layout
 bun x tsc --noEmit
 git diff --check

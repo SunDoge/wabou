@@ -234,17 +234,17 @@ The Gallery regression command is the reference integration:
 bun run test:layout
 
 # Reuse the release CLI while rebuilding the small Vite fixture bundle:
-bun run test:layout:quick
+bun run test:layout --reuse-renderer
 
 # Run only the affected fixture(s):
-bun run test:layout:quick widgets/Button widgets/Card
+bun run test:layout --reuse-renderer widgets/Button widgets/Card
 ```
 
-It compiles the fixture entry once and runs isolated high-risk components plus
-the existing component pages with the release CLI. On the current suite, the
-native evaluation of 85 fixtures is about 0.6 seconds after the bundle exists;
-the fixed QuickJS startup is paid once rather than once per component.
-`test:layout:quick` deliberately skips Rust and package builds, but rebuilds the
+The shared runner owns the application list and fixture selection. It builds
+packages and the release renderer by default, then runs each selected app's
+layout suite. Named fixtures run together within their application's renderer
+process instead of paying QuickJS startup for every component.
+`test:layout --reuse-renderer` deliberately skips Rust and package builds, but rebuilds the
 application fixture bundle so TSX and style edits cannot be tested against stale
 JavaScript. Pass `--skip-build` only when application and fixture sources are
 unchanged and an existing bundle is known to be current. Use the full command

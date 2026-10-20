@@ -19,7 +19,7 @@ function resolve(): Promise<AppDirectories> {
 }
 
 /** Resolve app-private native roots, caching the host result for this runtime. */
-export const appDirs = Object.freeze({
+export const appDirs = /* @__PURE__ */ Object.freeze({
   resolve,
   config: () => resolve().then((paths) => paths.configDir),
   data: () => resolve().then((paths) => paths.dataDir),

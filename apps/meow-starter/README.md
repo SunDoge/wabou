@@ -30,5 +30,5 @@ The layout contract covers the normal 1000×680 window and the supported
 minimum 820×560 window:
 
 ```sh
-bun run test:layout:quick --app meow-starter
+bun run test:layout --reuse-renderer --app meow-starter
 ```

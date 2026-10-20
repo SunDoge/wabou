@@ -1,5 +1,4 @@
 import { describe, expect, test } from "bun:test";
-import { emptyClass } from "./empty";
 import {
   responsiveGridColumnCount,
   responsiveGridRemainderCount,
@@ -62,15 +61,5 @@ describe("ResponsiveGrid", () => {
     expect(columns(560, 4)).toBe(2);
     expect(columns(720, 3)).toBe(3);
     expect(columns(432, 4)).toBe(2);
-  });
-});
-
-describe("Empty", () => {
-  test("plain variant embeds without adding another surface", () => {
-    expect(emptyClass("plain", "flex-1")).toBe(
-      "w-full min-w-0 p-8 items-center justify-center gap-6 text-center min-h-0 bg-transparent flex-1",
-    );
-    expect(emptyClass()).toContain("border-subtle");
-    expect(emptyClass()).toContain("shadow-xs");
   });
 });
