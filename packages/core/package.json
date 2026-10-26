@@ -88,7 +88,7 @@
   },
   "dependencies": {
     "@solidjs/universal": "2.0.0-rc.14",
-    "@tanstack/virtual-core": "3.19.5",
+    "@tanstack/virtual-core": "3.19.7",
     "abort-controller": "3.0.0",
     "solid-js": "2.0.0-rc.14",
     "web-streams-polyfill": "4.3.0"
