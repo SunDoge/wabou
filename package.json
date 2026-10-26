@@ -68,7 +68,7 @@
   },
   "devDependencies": {
     "@biomejs/biome": "2.5.15",
-    "@solidjs/signals": "2.0.0-rc.15",
+    "@solidjs/signals": "2.0.0-rc.17",
     "@solidjs/vite-plugin": "3.0.0-next.50",
     "@solidjs/web": "2.0.0-rc.14",
     "@types/bun": "^1.4.3",
