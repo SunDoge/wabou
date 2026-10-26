@@ -58,7 +58,7 @@
     "@wabou/core": "workspace:*",
     "magic-string": "^1.4.3",
     "vite": "^8.3.4",
-    "@solidjs/vite-plugin": "3.0.0-next.50"
+    "@solidjs/vite-plugin": "3.0.0-next.51"
   },
   "private": true
 }
