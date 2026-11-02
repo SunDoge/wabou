@@ -11,12 +11,12 @@
   },
   "dependencies": {
     "@wabou/ui": "workspace:*",
-    "lucide-static": "1.57.0",
+    "lucide-static": "1.64.0",
     "solid-js": "2.0.0-rc.14"
   },
   "devDependencies": {
-    "@types/node": "^26.6.5",
+    "@types/node": "^26.6.6",
     "@wabou/vite": "workspace:*",
-    "vite": "^8.3.4"
+    "vite": "^8.3.5"
   }
 }
