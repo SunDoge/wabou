@@ -7,7 +7,7 @@
       "devDependencies": {
         "@biomejs/biome": "2.5.15",
         "@solidjs/signals": "2.0.0-rc.15",
-        "@solidjs/vite-plugin": "3.0.0-next.50",
+        "@solidjs/vite-plugin": "3.0.0-next.51",
         "@solidjs/web": "2.0.0-rc.14",
         "@types/bun": "^1.4.3",
         "@wabou/core": "workspace:*",
@@ -234,7 +234,7 @@
       "name": "@wabou/vite",
       "version": "0.1.0-alpha.4",
       "dependencies": {
-        "@solidjs/vite-plugin": "3.0.0-next.50",
+        "@solidjs/vite-plugin": "3.0.0-next.51",
         "@unocss/core": "^66.11.0",
         "@wabou/core": "workspace:*",
         "magic-string": "^1.4.3",
@@ -512,7 +512,7 @@
 
     "@solidjs/universal": ["@solidjs/universal@2.0.0-rc.14", "", { "peerDependencies": { "solid-js": "^2.0.0-rc.14" } }, "sha512-FEcstwKs/2fW5G0QSWUsDZaSTlGhpCnLUVvZSOpNEdXZpL8yDZ7oq+AYetHmrW7HIaQa/ZD6jal7xDHJ3MJa5w=="],
 
-    "@solidjs/vite-plugin": ["@solidjs/vite-plugin@3.0.0-next.50", "", { "dependencies": { "@ampproject/remapping": "^2.3.0", "@babel/core": "^7.23.3", "@solidjs/babel-plugin": "^2.0.0-rc.14", "@solidjs/compiler": "^2.0.0-rc.14", "@types/babel__core": "^7.20.4", "merge-anything": "^5.1.7", "vitefu": "^1.0.4" }, "peerDependencies": { "@solidjs/start-devtools": "^1.0.0-next.2", "@solidjs/web": "^2.0.0-rc.14", "@testing-library/jest-dom": "^5.16.6 || ^5.17.0 || ^6.0.0 || ^7.0.0", "solid-js": "^2.0.0-rc.14", "vite": "^8.0.0 || ^9.0.0" }, "optionalPeers": ["@solidjs/start-devtools", "@testing-library/jest-dom"] }, "sha512-eCtI4SwZOCnhwFist0WpUtAf/HPQ26z74XOtzm3z41FFJdKprHEMEVKw8NKfViwp9mecMK4FLZSm6k6OY4yBsA=="],
+    "@solidjs/vite-plugin": ["@solidjs/vite-plugin@3.0.0-next.51", "", { "dependencies": { "@ampproject/remapping": "^2.3.0", "@babel/core": "^7.23.3", "@solidjs/babel-plugin": "^2.0.0-rc.16", "@solidjs/compiler": "^2.0.0-rc.16", "@types/babel__core": "^7.20.4", "merge-anything": "^5.1.7", "vitefu": "^1.0.4" }, "peerDependencies": { "@solidjs/start-devtools": "^1.0.0-next.2", "@solidjs/web": "^2.0.0-rc.16", "@testing-library/jest-dom": "^5.16.6 || ^5.17.0 || ^6.0.0 || ^7.0.0", "solid-js": "^2.0.0-rc.16", "vite": "^8.0.0 || ^9.0.0" }, "optionalPeers": ["@solidjs/start-devtools", "@testing-library/jest-dom"] }, "sha512-ffpFNYX1z3mGjr95nM3hwo0R3P489FjVnYP5YCOorw+N8grCo+Ay1hGx68H00n5OAC7uGd/7B4GsU1HnA/VU0A=="],
 
     "@solidjs/web": ["@solidjs/web@2.0.0-rc.14", "", { "dependencies": { "seroval": "~1.6.7", "seroval-plugins": "~1.6.7" }, "peerDependencies": { "solid-js": "^2.0.0-rc.14" } }, "sha512-MhHqUoVBdgAG7EZOANx7Y5SuCFH7sBxzt9uBSYLpJxE503tqoi7pX1UhV7PWxw4LvmPe1PZkdkSOZ8BLchZkhQ=="],
 
